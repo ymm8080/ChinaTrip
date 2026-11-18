@@ -31,7 +31,7 @@ EDIT_BUDGET_SECONDS = 0.8  # Q7/M12
 # 编辑路径的确定性步预算：R1 目标项让 4 层全证超信封——hint 下每层
 # 用小步预算取「已证最优前缀」；deterministic_time 跨机可复现，前缀
 # 截断仍满足 F-41 确定性红线（这正是 M12 交互不阻塞的口径）
-EDIT_TIER_DET = 0.12
+EDIT_TIER_DET = 0.08  # R4r4: big-first 对加重模型后 0.12 超信封
 
 RETIMING_DISCLOSURE = {
     "zh": "重排中，稍后自动更新（编辑重解超出 800ms 预算）",

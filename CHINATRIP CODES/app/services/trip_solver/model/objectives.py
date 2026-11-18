@@ -22,7 +22,13 @@ FILL_REWARD = 100
 # R1 设计镜像（打分器软罚一一对应、仅影响放置不涉时刻）：
 # venue_strand 拆簇 −60（近簇跨日无伴）→ 同日共处 +60；
 # no_entertainment −40/程（2026-11-03 拍板）→ 娱乐在场 +40
-NEAR_PAIR_COLOCATE_REWARD = 60
+NEAR_PAIR_COLOCATE_REWARD = 100  # R4r2: 压过 −60 拆簇罚的携带成本
+# R4r2: C-12c 上午单点闸的伴随激励——没有它求解器会整体避开上午
+# （0 个上午点不违反 ≤1 闸）导致 blank_morning −80/天
+MORNING_OCCUPIED_REWARD = 40
+CITYWALK_AFTERNOON_REWARD = 12  # 2026-11-06 拍板镜像：CITYWALK 倾向下午场
+BIG_FIRST_REWARD = 12  # 2026-11-04 拍板镜像：大点先排（池 ≤20 才建对）
+MORNING_MINUTE = 12 * 60
 ENTERTAINMENT_PRESENT_REWARD = 40
 CATEGORY_DIVERSITY_REWARD = 20
 QUALITY_SCALE = 100
@@ -175,6 +181,91 @@ def _preference(
         ent_any = model.NewBoolVar("obj_ent_any")
         model.AddMaxEquality(ent_any, ent_lits)
         positive.append(ENTERTAINMENT_PRESENT_REWARD * ent_any)
+
+    # R4r2 晨占用：每活动日 <12:00 有已排点 +80（与 C-12c ≤1 闸配套
+    for day in bundle.days:
+        occ = model.NewBoolVar("obj_mocc_%d" % day)
+        earlies = []
+        for cand in snapshot.candidates:
+            if (cand.category or "") in ("food", "hotel", "transport"):
+                continue
+            lit = bundle.presence[(cand.cid, day)]
+            early = model.NewBoolVar("obj_early_%s_%d" % (cand.cid, day))
+            model.Add(early == 0).OnlyEnforceIf(lit.Not())
+            model.Add(bundle.start[(cand.cid, day)] < MORNING_MINUTE).OnlyEnforceIf(
+                [lit, early]
+            )
+            model.Add(bundle.start[(cand.cid, day)] >= MORNING_MINUTE).OnlyEnforceIf(
+                [lit, early.Not()]
+            )
+            earlies.append(early)
+        if earlies:
+            model.AddMaxEquality(occ, earlies)
+            positive.append(MORNING_OCCUPIED_REWARD * occ)
+
+    # R4r3 CITYWALK 下午场镜像（2026-11-06 拍板）：≥13:00 开场 +12
+    for cand in snapshot.candidates:
+        if (cand.category or "") != "citywalk":
+            continue
+        for day in bundle.days:
+            lit = bundle.presence[(cand.cid, day)]
+            pm = model.NewBoolVar("obj_cwpm_%s_%d" % (cand.cid, day))
+            model.Add(pm == 0).OnlyEnforceIf(lit.Not())
+            model.Add(bundle.start[(cand.cid, day)] >= 13 * 60).OnlyEnforceIf([lit, pm])
+            model.Add(bundle.start[(cand.cid, day)] < 13 * 60).OnlyEnforceIf(
+                [lit, pm.Not()]
+            )
+            positive.append(CITYWALK_AFTERNOON_REWARD * pm)
+
+    # R4r4 大点先排镜像（2026-11-04 拍板）：同日 big 开场不晚于 light
+    # ——池 ≤20 才建对（trip 规模跳过，防 tier① 变慢）
+    if len(snapshot.candidates) <= 20:
+        from ..inputs.hours_caps import is_big_site
+
+        bigs, lights = [], []
+        for cand in snapshot.candidates:
+            if (cand.category or "") in ("food", "hotel", "transport", "entertainment"):
+                continue
+            tier_ = enriched.tiers[cand.cid]
+            if is_big_site(
+                duration_min=tier_[1],
+                category=cand.category,
+                best_visit_time=cand.best_visit_time,
+                tier=cand.tier,
+            ):
+                bigs.append(cand)
+            else:
+                lights.append(cand)
+        for big in bigs:
+            for light in lights:
+                if big.city and light.city and big.city != light.city:
+                    continue
+                for day in bundle.days:
+                    both = model.NewBoolVar(
+                        "obj_bf_%s_%s_%d" % (big.cid, light.cid, day)
+                    )
+                    model.AddBoolAnd(
+                        [
+                            bundle.presence[(big.cid, day)],
+                            bundle.presence[(light.cid, day)],
+                        ]
+                    ).OnlyEnforceIf(both)
+                    model.AddBoolOr(
+                        [
+                            bundle.presence[(big.cid, day)].Not(),
+                            bundle.presence[(light.cid, day)].Not(),
+                        ]
+                    ).OnlyEnforceIf(both.Not())
+                    first = model.NewBoolVar(
+                        "obj_bf1_%s_%s_%d" % (big.cid, light.cid, day)
+                    )
+                    model.Add(
+                        bundle.start[(big.cid, day)] <= bundle.start[(light.cid, day)]
+                    ).OnlyEnforceIf([both, first])
+                    model.Add(
+                        bundle.start[(big.cid, day)] > bundle.start[(light.cid, day)]
+                    ).OnlyEnforceIf([both, first.Not()])
+                    positive.append(BIG_FIRST_REWARD * first)
 
     categories = sorted({c.category or "other" for c in snapshot.candidates})
     for category in categories:

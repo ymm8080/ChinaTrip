@@ -230,6 +230,7 @@ def build_model(
         add_c11_shows,
         add_c12_afternoon_single_big,
         add_c12_family_day,
+        add_c12c_morning_single,
         add_c13_hotels,
         add_c14_coverage_before_fill,
         add_c15_remote_departure,
@@ -241,6 +242,7 @@ def build_model(
     add_c11_shows(bundle, enriched)
     add_c12_family_day(bundle, enriched)
     add_c12_afternoon_single_big(bundle, enriched)
+    add_c12c_morning_single(bundle, enriched)
     add_c13_hotels(bundle, enriched)
     add_c14_coverage_before_fill(bundle, enriched)
     add_c15_remote_departure(bundle, enriched)

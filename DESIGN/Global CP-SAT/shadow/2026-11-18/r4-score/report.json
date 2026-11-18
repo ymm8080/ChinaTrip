@@ -1,0 +1,1888 @@
+{
+ "engine_note": "offline batch: legacy side = recorded runs (tests/golden/legacy/); model side = live double solve (F-41)",
+ "generated_at": "2026-11-18T18:38:07",
+ "corpus_dir": "D:\\CHINATRIP\\CHINATRIP CODES\\tests\\golden",
+ "budget_s": 3.0,
+ "scenarios": [
+  {
+   "scenario": "g01",
+   "snapshot_hash": "c42cdf1db6e00999642836625ce64b4157ab1a0e086f24cddcaa4b64b6d0ca67",
+   "provenance": {
+    "incident": "Beijing 2 days 2026-11-25, five musts (ids stripped)",
+    "built_at": "2026-11-17",
+    "builder": "tests/golden/build_g01.py",
+    "note": "E-1..E-4 from cpsat_as_is §5; audit M7 schema | P2-B3-R3: day-specific E-1 shape assertions (sequence/card_leg/no_unrequested_before on day 1) moved to g03's pinned canon — under the R1 objective the proven optimum for the un-pinned g01 is the equal-value 故宫-anchor shape (preference=200, both shapes legal); g01 now pins shape-agnostic invariants only."
+   },
+   "assertion_types": [
+    "requested_coverage",
+    "no_entry_cap_breach",
+    "same_venue",
+    "deterministic"
+   ],
+   "new": {
+    "status": "OPTIMAL",
+    "wall_ms": 807,
+    "deterministic": true,
+    "assertions": [
+     {
+      "type": "requested_coverage",
+      "engine": "cpsat",
+      "status": "pass",
+      "detail": "all 5 musts timed or disclosed-unplaced"
+     },
+     {
+      "type": "no_entry_cap_breach",
+      "engine": "cpsat",
+      "status": "pass",
+      "detail": "all 5 cap-known cards start within cap"
+     },
+     {
+      "type": "same_venue",
+      "engine": "cpsat",
+      "status": "pending",
+      "detail": "no meal cards in view (meal assembly F-31 lands in P1-F)"
+     },
+     {
+      "type": "deterministic",
+      "engine": "cpsat",
+      "status": "pass",
+      "detail": "two solves byte-identical (F-41)"
+     }
+    ],
+    "violations": [],
+    "violation_counts": {
+     "B-01": 0,
+     "B-02": 0,
+     "B-03a": 0,
+     "B-03c": 0,
+     "B-06": 0
+    },
+    "assertion_counts": {
+     "pass": 3,
+     "fail": 0,
+     "pending": 1,
+     "skipped": 0
+    },
+    "convergence": {
+     "status": "OPTIMAL",
+     "wall_ms": 807,
+     "budget_ms": 3000,
+     "within_budget": true,
+     "deterministic": true,
+     "unplaced_count": 0,
+     "fill_count": 1
+    },
+    "plan_score": -112
+   },
+   "legacy": {
+    "source": "D:\\CHINATRIP\\CHINATRIP CODES\\tests\\golden\\legacy\\g01_legacy.json",
+    "kind": "recorded-actual-output",
+    "determinism": null,
+    "assertions": [
+     {
+      "type": "requested_coverage",
+      "engine": "legacy",
+      "status": "fail",
+      "detail": "'颐和园' present but untimed (B-01 silent drop)"
+     },
+     {
+      "type": "no_entry_cap_breach",
+      "engine": "legacy",
+      "status": "pass",
+      "detail": "all 4 cap-known cards start within cap"
+     },
+     {
+      "type": "same_venue",
+      "engine": "legacy",
+      "status": "fail",
+      "detail": "lunch on day 1 anchored at '老舍茶馆', expected '慕田峪长城' (B-03b')"
+     },
+     {
+      "type": "deterministic",
+      "engine": "legacy",
+      "status": "skipped",
+      "detail": "runner-level check: legacy determinism needs ≥ 2 recordings of the same request (P2-B calibration)"
+     }
+    ],
+    "violations": [
+     {
+      "bug": "B-01",
+      "day": 2,
+      "evidence": "'颐和园' present untimed and not in unplaced (silent)"
+     },
+     {
+      "bug": "B-02",
+      "day": 1,
+      "evidence": "unrequested '老舍茶馆' holds 09:10 while unseated: 颐和园"
+     },
+     {
+      "bug": "B-02",
+      "day": 2,
+      "evidence": "unrequested '梵高星空艺术馆（王府井旗舰店）' holds 15:30 while unseated: 颐和园"
+     },
+     {
+      "bug": "B-03a",
+      "day": 1,
+      "evidence": "unrequested '老舍茶馆' (09:10) precedes remote '慕田峪长城' (12:38)"
+     },
+     {
+      "bug": "B-03c",
+      "day": 1,
+      "evidence": "'慕田峪长城' card 12:38 ≠ leg arrive 14:33"
+     }
+    ],
+    "violation_counts": {
+     "B-01": 1,
+     "B-02": 2,
+     "B-03a": 1,
+     "B-03c": 1,
+     "B-06": 0
+    },
+    "assertion_counts": {
+     "pass": 1,
+     "fail": 2,
+     "pending": 0,
+     "skipped": 1
+    },
+    "convergence": {
+     "recorded": true,
+     "no_solution_disclosures": 0,
+     "disclosures": 2
+    },
+    "plan_score": null
+   },
+   "not_worse": {
+    "per_class": {
+     "B-01": true,
+     "B-02": true,
+     "B-03a": true,
+     "B-03c": true,
+     "B-06": true
+    },
+    "pass": true
+   },
+   "plan_score_delta": {
+    "legacy": null,
+    "model": -112,
+    "delta_pct": null,
+    "threshold_pct": -2.0,
+    "within": null
+   }
+  },
+  {
+   "scenario": "g02_tower_late_gate",
+   "snapshot_hash": "3c50ab71ac33f2844a8319f5576e0d1660716d8ebcafb7333e9067e95d610d82",
+   "provenance": {
+    "incident": "B-07 tower late-gate: 上海中心大厦 19:00 past cap",
+    "built_at": "2026-11-18",
+    "builder": "tests/golden/build_corpus_v1.py",
+    "note": "cap semantics unit-checked in tests (caps[c2]=(930, big-site)); fill placement itself is unrewarded pre-P1-D — the breach check is non-vacuous on any placed card"
+   },
+   "assertion_types": [
+    "requested_coverage",
+    "no_entry_cap_breach",
+    "deterministic"
+   ],
+   "new": {
+    "status": "OPTIMAL",
+    "wall_ms": 12,
+    "deterministic": true,
+    "assertions": [
+     {
+      "type": "requested_coverage",
+      "engine": "cpsat",
+      "status": "pass",
+      "detail": "all 1 musts timed or disclosed-unplaced"
+     },
+     {
+      "type": "no_entry_cap_breach",
+      "engine": "cpsat",
+      "status": "pass",
+      "detail": "all 2 cap-known cards start within cap"
+     },
+     {
+      "type": "deterministic",
+      "engine": "cpsat",
+      "status": "pass",
+      "detail": "two solves byte-identical (F-41)"
+     }
+    ],
+    "violations": [],
+    "violation_counts": {
+     "B-01": 0,
+     "B-02": 0,
+     "B-03a": 0,
+     "B-03c": 0,
+     "B-06": 0
+    },
+    "assertion_counts": {
+     "pass": 3,
+     "fail": 0,
+     "pending": 0,
+     "skipped": 0
+    },
+    "convergence": {
+     "status": "OPTIMAL",
+     "wall_ms": 12,
+     "budget_ms": 3000,
+     "within_budget": true,
+     "deterministic": true,
+     "unplaced_count": 0,
+     "fill_count": 1
+    },
+    "plan_score": -40
+   },
+   "legacy": {
+    "source": "D:\\CHINATRIP\\CHINATRIP CODES\\tests\\golden\\legacy\\g02_tower_late_gate_legacy.json",
+    "kind": "in-process-replay",
+    "determinism": true,
+    "assertions": [
+     {
+      "type": "requested_coverage",
+      "engine": "legacy",
+      "status": "pass",
+      "detail": "all 1 musts timed or disclosed-unplaced"
+     },
+     {
+      "type": "no_entry_cap_breach",
+      "engine": "legacy",
+      "status": "skipped",
+      "detail": "no view carries entry-cap data for its cards"
+     },
+     {
+      "type": "deterministic",
+      "engine": "legacy",
+      "status": "pass",
+      "detail": "two in-process replays byte-identical (P2-B calibration)"
+     }
+    ],
+    "violations": [],
+    "violation_counts": {
+     "B-01": 0,
+     "B-02": 0,
+     "B-03a": 0,
+     "B-03c": 0,
+     "B-06": 0
+    },
+    "assertion_counts": {
+     "pass": 2,
+     "fail": 0,
+     "pending": 0,
+     "skipped": 1
+    },
+    "convergence": {
+     "recorded": true,
+     "no_solution_disclosures": 0,
+     "disclosures": 7
+    },
+    "plan_score": -40
+   },
+   "not_worse": {
+    "per_class": {
+     "B-01": true,
+     "B-02": true,
+     "B-03a": true,
+     "B-03c": true,
+     "B-06": true
+    },
+    "pass": true
+   },
+   "plan_score_delta": {
+    "legacy": -40,
+    "model": -40,
+    "delta_pct": 0.0,
+    "threshold_pct": -2.0,
+    "within": true
+   }
+  },
+  {
+   "scenario": "g03_third_cluster",
+   "snapshot_hash": "a299469440636688cbd28757e5d5b08b2065baadb0e7a143a40906e0799a78dc",
+   "provenance": {
+    "incident": "B-08 third-cluster: 延庆观景台 filled into the 慕田峪 day",
+    "built_at": "2026-11-18",
+    "builder": "tests/golden/build_corpus_v1.py",
+    "base": "g01.json (ids stripped)",
+    "note": "carries the incident's 天安门 07:10 flag-schedule pin so the remote day keeps the E-1 shape"
+   },
+   "assertion_types": [
+    "requested_coverage",
+    "sequence",
+    "no_unrequested_before",
+    "no_entry_cap_breach",
+    "deterministic"
+   ],
+   "new": {
+    "status": "OPTIMAL",
+    "wall_ms": 419,
+    "deterministic": true,
+    "assertions": [
+     {
+      "type": "requested_coverage",
+      "engine": "cpsat",
+      "status": "pass",
+      "detail": "all 5 musts timed or disclosed-unplaced"
+     },
+     {
+      "type": "sequence",
+      "engine": "cpsat",
+      "status": "skipped",
+      "detail": "day 1: '慕田峪长城' not on the day"
+     },
+     {
+      "type": "no_unrequested_before",
+      "engine": "cpsat",
+      "status": "skipped",
+      "detail": "day 1: anchor '慕田峪长城' not on the day (coverage is requested_coverage's job)"
+     },
+     {
+      "type": "no_entry_cap_breach",
+      "engine": "cpsat",
+      "status": "pass",
+      "detail": "all 5 cap-known cards start within cap"
+     },
+     {
+      "type": "deterministic",
+      "engine": "cpsat",
+      "status": "pass",
+      "detail": "two solves byte-identical (F-41)"
+     }
+    ],
+    "violations": [],
+    "violation_counts": {
+     "B-01": 0,
+     "B-02": 0,
+     "B-03a": 0,
+     "B-03c": 0,
+     "B-06": 0
+    },
+    "assertion_counts": {
+     "pass": 3,
+     "fail": 0,
+     "pending": 0,
+     "skipped": 2
+    },
+    "convergence": {
+     "status": "OPTIMAL",
+     "wall_ms": 419,
+     "budget_ms": 3000,
+     "within_budget": true,
+     "deterministic": true,
+     "unplaced_count": 0,
+     "fill_count": 2
+    },
+    "plan_score": -131
+   },
+   "legacy": {
+    "source": "D:\\CHINATRIP\\CHINATRIP CODES\\tests\\golden\\legacy\\g03_third_cluster_legacy.json",
+    "kind": "in-process-replay",
+    "determinism": true,
+    "assertions": [
+     {
+      "type": "requested_coverage",
+      "engine": "legacy",
+      "status": "pass",
+      "detail": "all 5 musts timed or disclosed-unplaced"
+     },
+     {
+      "type": "sequence",
+      "engine": "legacy",
+      "status": "skipped",
+      "detail": "day 1: '天安门广场' not on the day"
+     },
+     {
+      "type": "no_unrequested_before",
+      "engine": "legacy",
+      "status": "skipped",
+      "detail": "day 1: anchor '慕田峪长城' not on the day (coverage is requested_coverage's job)"
+     },
+     {
+      "type": "no_entry_cap_breach",
+      "engine": "legacy",
+      "status": "skipped",
+      "detail": "no view carries entry-cap data for its cards"
+     },
+     {
+      "type": "deterministic",
+      "engine": "legacy",
+      "status": "pass",
+      "detail": "two in-process replays byte-identical (P2-B calibration)"
+     }
+    ],
+    "violations": [],
+    "violation_counts": {
+     "B-01": 0,
+     "B-02": 0,
+     "B-03a": 0,
+     "B-03c": 0,
+     "B-06": 0
+    },
+    "assertion_counts": {
+     "pass": 2,
+     "fail": 0,
+     "pending": 0,
+     "skipped": 3
+    },
+    "convergence": {
+     "recorded": true,
+     "no_solution_disclosures": 0,
+     "disclosures": 15
+    },
+    "plan_score": -91
+   },
+   "not_worse": {
+    "per_class": {
+     "B-01": true,
+     "B-02": true,
+     "B-03a": true,
+     "B-03c": true,
+     "B-06": true
+    },
+    "pass": true
+   },
+   "plan_score_delta": {
+    "legacy": -91,
+    "model": -131,
+    "delta_pct": -43.96,
+    "threshold_pct": -2.0,
+    "within": false
+   }
+  },
+  {
+   "scenario": "g04_endpoint_transit",
+   "snapshot_hash": "dfb82f6204fc2a0c42850e111970748b005c8e116809edbf607f2610589398aa",
+   "provenance": {
+    "incident": "B-11 endpoint days: arrival/departure times constrain day 1 and the last day",
+    "built_at": "2026-11-18",
+    "builder": "tests/golden/build_corpus_v1.py",
+    "base": "g01.json (ids stripped)",
+    "note": "arrival 09:00 → day-1 starts ≥ 11:30 (ARRIVAL_FLOOR 150); departure 19:00 → last day ends ≤ 17:30 (DEPARTURE_BUFFER 90). No-transport G-01 stays a full-day baseline."
+   },
+   "assertion_types": [
+    "requested_coverage",
+    "day_start_floor",
+    "day_end_ceiling",
+    "no_unrequested_before",
+    "deterministic"
+   ],
+   "new": {
+    "status": "OPTIMAL",
+    "wall_ms": 200,
+    "deterministic": true,
+    "assertions": [
+     {
+      "type": "requested_coverage",
+      "engine": "cpsat",
+      "status": "pass",
+      "detail": "all 5 musts timed or disclosed-unplaced"
+     },
+     {
+      "type": "day_start_floor",
+      "engine": "cpsat",
+      "status": "pass",
+      "detail": "first visit 天安门广场 starts 11:30 ≥ 11:30 (C-05 arrival floor)"
+     },
+     {
+      "type": "day_end_ceiling",
+      "engine": "cpsat",
+      "status": "pass",
+      "detail": "last visit 慕田峪长城 ends 16:08 ≤ 17:30 (C-05 departure buffer)"
+     },
+     {
+      "type": "no_unrequested_before",
+      "engine": "cpsat",
+      "status": "skipped",
+      "detail": "day 1: anchor '慕田峪长城' not on the day (coverage is requested_coverage's job)"
+     },
+     {
+      "type": "deterministic",
+      "engine": "cpsat",
+      "status": "pass",
+      "detail": "two solves byte-identical (F-41)"
+     }
+    ],
+    "violations": [],
+    "violation_counts": {
+     "B-01": 0,
+     "B-02": 0,
+     "B-03a": 0,
+     "B-03c": 0,
+     "B-06": 0
+    },
+    "assertion_counts": {
+     "pass": 4,
+     "fail": 0,
+     "pending": 0,
+     "skipped": 1
+    },
+    "convergence": {
+     "status": "OPTIMAL",
+     "wall_ms": 200,
+     "budget_ms": 3000,
+     "within_budget": true,
+     "deterministic": true,
+     "unplaced_count": 0,
+     "fill_count": 1
+    },
+    "plan_score": -122
+   },
+   "legacy": {
+    "source": "D:\\CHINATRIP\\CHINATRIP CODES\\tests\\golden\\legacy\\g04_endpoint_transit_legacy.json",
+    "kind": "in-process-replay",
+    "determinism": true,
+    "assertions": [
+     {
+      "type": "requested_coverage",
+      "engine": "legacy",
+      "status": "pass",
+      "detail": "all 5 musts timed or disclosed-unplaced"
+     },
+     {
+      "type": "day_start_floor",
+      "engine": "legacy",
+      "status": "fail",
+      "detail": "first visit 天坛 starts 09:00 < 11:30"
+     },
+     {
+      "type": "day_end_ceiling",
+      "engine": "legacy",
+      "status": "fail",
+      "detail": "last visit 梵高星空艺术馆（王府井旗舰店） ends 21:17 > 17:30"
+     },
+     {
+      "type": "no_unrequested_before",
+      "engine": "legacy",
+      "status": "skipped",
+      "detail": "day 1: anchor '慕田峪长城' not on the day (coverage is requested_coverage's job)"
+     },
+     {
+      "type": "deterministic",
+      "engine": "legacy",
+      "status": "pass",
+      "detail": "two in-process replays byte-identical (P2-B calibration)"
+     }
+    ],
+    "violations": [],
+    "violation_counts": {
+     "B-01": 0,
+     "B-02": 0,
+     "B-03a": 0,
+     "B-03c": 0,
+     "B-06": 0
+    },
+    "assertion_counts": {
+     "pass": 2,
+     "fail": 2,
+     "pending": 0,
+     "skipped": 1
+    },
+    "convergence": {
+     "recorded": true,
+     "no_solution_disclosures": 0,
+     "disclosures": 15
+    },
+    "plan_score": -91
+   },
+   "not_worse": {
+    "per_class": {
+     "B-01": true,
+     "B-02": true,
+     "B-03a": true,
+     "B-03c": true,
+     "B-06": true
+    },
+    "pass": true
+   },
+   "plan_score_delta": {
+    "legacy": -91,
+    "model": -122,
+    "delta_pct": -34.07,
+    "threshold_pct": -2.0,
+    "within": false
+   }
+  },
+  {
+   "scenario": "g05_rain_rebalance",
+   "snapshot_hash": "b4f6e19878096f1cf53fb089b832666af3d976a1992f0569cc18fb971a0ea0d5",
+   "provenance": {
+    "incident": "rain rebalance family (F-60): outdoor musts under rain both days",
+    "built_at": "2026-11-18",
+    "builder": "tests/golden/build_corpus_v2.py",
+    "base": "g01.json (ids stripped)",
+    "note": "F-13 rows + rain_ok/indoor flags land now; the model-side weather penalty/constraint (C-11/C-12) is P1-D — rain-aware placement is a red target until then, exactly per the scenario-before-fix rule."
+   },
+   "assertion_types": [
+    "requested_coverage",
+    "no_entry_cap_breach",
+    "deterministic"
+   ],
+   "new": {
+    "status": "OPTIMAL",
+    "wall_ms": 167,
+    "deterministic": true,
+    "assertions": [
+     {
+      "type": "requested_coverage",
+      "engine": "cpsat",
+      "status": "pass",
+      "detail": "all 5 musts timed or disclosed-unplaced"
+     },
+     {
+      "type": "no_entry_cap_breach",
+      "engine": "cpsat",
+      "status": "pass",
+      "detail": "all 4 cap-known cards start within cap"
+     },
+     {
+      "type": "deterministic",
+      "engine": "cpsat",
+      "status": "pass",
+      "detail": "two solves byte-identical (F-41)"
+     }
+    ],
+    "violations": [],
+    "violation_counts": {
+     "B-01": 0,
+     "B-02": 0,
+     "B-03a": 0,
+     "B-03c": 0,
+     "B-06": 0
+    },
+    "assertion_counts": {
+     "pass": 3,
+     "fail": 0,
+     "pending": 0,
+     "skipped": 0
+    },
+    "convergence": {
+     "status": "OPTIMAL",
+     "wall_ms": 167,
+     "budget_ms": 3000,
+     "within_budget": true,
+     "deterministic": true,
+     "unplaced_count": 2,
+     "fill_count": 2
+    },
+    "plan_score": -116
+   },
+   "legacy": {
+    "source": "D:\\CHINATRIP\\CHINATRIP CODES\\tests\\golden\\legacy\\g05_rain_rebalance_legacy.json",
+    "kind": "in-process-replay",
+    "determinism": true,
+    "assertions": [
+     {
+      "type": "requested_coverage",
+      "engine": "legacy",
+      "status": "pass",
+      "detail": "all 5 musts timed or disclosed-unplaced"
+     },
+     {
+      "type": "no_entry_cap_breach",
+      "engine": "legacy",
+      "status": "skipped",
+      "detail": "no view carries entry-cap data for its cards"
+     },
+     {
+      "type": "deterministic",
+      "engine": "legacy",
+      "status": "pass",
+      "detail": "two in-process replays byte-identical (P2-B calibration)"
+     }
+    ],
+    "violations": [],
+    "violation_counts": {
+     "B-01": 0,
+     "B-02": 0,
+     "B-03a": 0,
+     "B-03c": 0,
+     "B-06": 0
+    },
+    "assertion_counts": {
+     "pass": 2,
+     "fail": 0,
+     "pending": 0,
+     "skipped": 1
+    },
+    "convergence": {
+     "recorded": true,
+     "no_solution_disclosures": 0,
+     "disclosures": 15
+    },
+    "plan_score": -142
+   },
+   "not_worse": {
+    "per_class": {
+     "B-01": true,
+     "B-02": true,
+     "B-03a": true,
+     "B-03c": true,
+     "B-06": true
+    },
+    "pass": true
+   },
+   "plan_score_delta": {
+    "legacy": -142,
+    "model": -116,
+    "delta_pct": 18.31,
+    "threshold_pct": -2.0,
+    "within": true
+   }
+  },
+  {
+   "scenario": "g06_reopen_pins",
+   "snapshot_hash": "05fc03d498b84aacafc6222927409eee06b7560f5e6bdd53131c9a344a995a2f",
+   "provenance": {
+    "incident": "reopen/pin family (B-09 proxy): pins survive any re-solve",
+    "built_at": "2026-11-18",
+    "builder": "tests/golden/build_corpus_v2.py",
+    "base": "g01.json (ids stripped)",
+    "note": "C-04 makes pins immovable by construction; the edit-path re-solve (F-50) lands in P4 — this scenario anchors the pin facts both consume."
+   },
+   "assertion_types": [
+    "time_range",
+    "time_range",
+    "requested_coverage",
+    "deterministic"
+   ],
+   "new": {
+    "status": "OPTIMAL",
+    "wall_ms": 180,
+    "deterministic": true,
+    "assertions": [
+     {
+      "type": "time_range",
+      "engine": "cpsat",
+      "status": "pass",
+      "detail": "天安门广场 starts 07:10 within [07:00, 07:40]"
+     },
+     {
+      "type": "time_range",
+      "engine": "cpsat",
+      "status": "pass",
+      "detail": "颐和园 starts 09:00 within [08:30, 09:59]"
+     },
+     {
+      "type": "requested_coverage",
+      "engine": "cpsat",
+      "status": "pass",
+      "detail": "all 5 musts timed or disclosed-unplaced"
+     },
+     {
+      "type": "deterministic",
+      "engine": "cpsat",
+      "status": "pass",
+      "detail": "two solves byte-identical (F-41)"
+     }
+    ],
+    "violations": [],
+    "violation_counts": {
+     "B-01": 0,
+     "B-02": 0,
+     "B-03a": 0,
+     "B-03c": 0,
+     "B-06": 0
+    },
+    "assertion_counts": {
+     "pass": 4,
+     "fail": 0,
+     "pending": 0,
+     "skipped": 0
+    },
+    "convergence": {
+     "status": "OPTIMAL",
+     "wall_ms": 180,
+     "budget_ms": 3000,
+     "within_budget": true,
+     "deterministic": true,
+     "unplaced_count": 0,
+     "fill_count": 2
+    },
+    "plan_score": -82
+   },
+   "legacy": {
+    "source": "D:\\CHINATRIP\\CHINATRIP CODES\\tests\\golden\\legacy\\g06_reopen_pins_legacy.json",
+    "kind": "in-process-replay",
+    "determinism": true,
+    "assertions": [
+     {
+      "type": "time_range",
+      "engine": "legacy",
+      "status": "fail",
+      "detail": "day 1: '天安门广场' absent"
+     },
+     {
+      "type": "time_range",
+      "engine": "legacy",
+      "status": "fail",
+      "detail": "颐和园 starts 14:15 outside [08:30, 09:59]"
+     },
+     {
+      "type": "requested_coverage",
+      "engine": "legacy",
+      "status": "pass",
+      "detail": "all 5 musts timed or disclosed-unplaced"
+     },
+     {
+      "type": "deterministic",
+      "engine": "legacy",
+      "status": "pass",
+      "detail": "two in-process replays byte-identical (P2-B calibration)"
+     }
+    ],
+    "violations": [],
+    "violation_counts": {
+     "B-01": 0,
+     "B-02": 0,
+     "B-03a": 0,
+     "B-03c": 0,
+     "B-06": 0
+    },
+    "assertion_counts": {
+     "pass": 2,
+     "fail": 2,
+     "pending": 0,
+     "skipped": 0
+    },
+    "convergence": {
+     "recorded": true,
+     "no_solution_disclosures": 0,
+     "disclosures": 15
+    },
+    "plan_score": -91
+   },
+   "not_worse": {
+    "per_class": {
+     "B-01": true,
+     "B-02": true,
+     "B-03a": true,
+     "B-03c": true,
+     "B-06": true
+    },
+    "pass": true
+   },
+   "plan_score_delta": {
+    "legacy": -91,
+    "model": -82,
+    "delta_pct": 9.89,
+    "threshold_pct": -2.0,
+    "within": true
+   }
+  },
+  {
+   "scenario": "g07_name_variants",
+   "snapshot_hash": "e86f468eef6e8b56be5ecf1b10fedb957ef7cc6e8a4868a9c16e62e9ce7addc7",
+   "provenance": {
+    "incident": "typo/alias family (B-10 proxy): 慕田峪 variant row vs 慕田峪长城",
+    "built_at": "2026-11-18",
+    "builder": "tests/golden/build_corpus_v2.py",
+    "base": "g01.json (ids stripped)",
+    "note": "intent-layer fuzzy binding is F-01/F-02 (outside the model); the pool-level shape (variant row present) is what this scenario pins. Whether engines double-book the twin shows in the diff."
+   },
+   "assertion_types": [
+    "requested_coverage",
+    "no_entry_cap_breach",
+    "deterministic"
+   ],
+   "new": {
+    "status": "OPTIMAL",
+    "wall_ms": 948,
+    "deterministic": true,
+    "assertions": [
+     {
+      "type": "requested_coverage",
+      "engine": "cpsat",
+      "status": "pass",
+      "detail": "all 5 musts timed or disclosed-unplaced"
+     },
+     {
+      "type": "no_entry_cap_breach",
+      "engine": "cpsat",
+      "status": "pass",
+      "detail": "all 5 cap-known cards start within cap"
+     },
+     {
+      "type": "deterministic",
+      "engine": "cpsat",
+      "status": "pass",
+      "detail": "two solves byte-identical (F-41)"
+     }
+    ],
+    "violations": [],
+    "violation_counts": {
+     "B-01": 0,
+     "B-02": 0,
+     "B-03a": 0,
+     "B-03c": 0,
+     "B-06": 0
+    },
+    "assertion_counts": {
+     "pass": 3,
+     "fail": 0,
+     "pending": 0,
+     "skipped": 0
+    },
+    "convergence": {
+     "status": "OPTIMAL",
+     "wall_ms": 948,
+     "budget_ms": 3000,
+     "within_budget": true,
+     "deterministic": true,
+     "unplaced_count": 0,
+     "fill_count": 1
+    },
+    "plan_score": -112
+   },
+   "legacy": {
+    "source": "D:\\CHINATRIP\\CHINATRIP CODES\\tests\\golden\\legacy\\g07_name_variants_legacy.json",
+    "kind": "in-process-replay",
+    "determinism": true,
+    "assertions": [
+     {
+      "type": "requested_coverage",
+      "engine": "legacy",
+      "status": "pass",
+      "detail": "all 5 musts timed or disclosed-unplaced"
+     },
+     {
+      "type": "no_entry_cap_breach",
+      "engine": "legacy",
+      "status": "skipped",
+      "detail": "no view carries entry-cap data for its cards"
+     },
+     {
+      "type": "deterministic",
+      "engine": "legacy",
+      "status": "pass",
+      "detail": "two in-process replays byte-identical (P2-B calibration)"
+     }
+    ],
+    "violations": [],
+    "violation_counts": {
+     "B-01": 0,
+     "B-02": 0,
+     "B-03a": 0,
+     "B-03c": 0,
+     "B-06": 0
+    },
+    "assertion_counts": {
+     "pass": 2,
+     "fail": 0,
+     "pending": 0,
+     "skipped": 1
+    },
+    "convergence": {
+     "recorded": true,
+     "no_solution_disclosures": 0,
+     "disclosures": 15
+    },
+    "plan_score": -91
+   },
+   "not_worse": {
+    "per_class": {
+     "B-01": true,
+     "B-02": true,
+     "B-03a": true,
+     "B-03c": true,
+     "B-06": true
+    },
+    "pass": true
+   },
+   "plan_score_delta": {
+    "legacy": -91,
+    "model": -112,
+    "delta_pct": -23.08,
+    "threshold_pct": -2.0,
+    "within": false
+   }
+  },
+  {
+   "scenario": "g08_remote_exclusive",
+   "snapshot_hash": "fee8f215ec92abc489ab7050cc83549e81230a85e43c204e411e22a74d6a4f05",
+   "provenance": {
+    "incident": "remote-day exclusivity family (C-06/C-15 standalone)",
+    "built_at": "2026-11-18",
+    "builder": "tests/golden/build_corpus_v2.py",
+    "note": "model side is green by construction (C-06 forbids fill on the remote day); fill placement is unrewarded pre-P1-D so the assertion may hold vacuously — the legacy replay side is where a B-03a/B-08 shape would surface."
+   },
+   "assertion_types": [
+    "requested_coverage",
+    "remote_day_purity",
+    "no_entry_cap_breach",
+    "deterministic"
+   ],
+   "new": {
+    "status": "OPTIMAL",
+    "wall_ms": 72,
+    "deterministic": true,
+    "assertions": [
+     {
+      "type": "requested_coverage",
+      "engine": "cpsat",
+      "status": "pass",
+      "detail": "all 2 musts timed or disclosed-unplaced"
+     },
+     {
+      "type": "remote_day_purity",
+      "engine": "cpsat",
+      "status": "pass",
+      "detail": "day 2 holding remote '慕田峪长城' carries no unrequested visit"
+     },
+     {
+      "type": "no_entry_cap_breach",
+      "engine": "cpsat",
+      "status": "pass",
+      "detail": "all 4 cap-known cards start within cap"
+     },
+     {
+      "type": "deterministic",
+      "engine": "cpsat",
+      "status": "pass",
+      "detail": "two solves byte-identical (F-41)"
+     }
+    ],
+    "violations": [],
+    "violation_counts": {
+     "B-01": 0,
+     "B-02": 0,
+     "B-03a": 0,
+     "B-03c": 0,
+     "B-06": 0
+    },
+    "assertion_counts": {
+     "pass": 4,
+     "fail": 0,
+     "pending": 0,
+     "skipped": 0
+    },
+    "convergence": {
+     "status": "OPTIMAL",
+     "wall_ms": 72,
+     "budget_ms": 3000,
+     "within_budget": true,
+     "deterministic": true,
+     "unplaced_count": 0,
+     "fill_count": 2
+    },
+    "plan_score": -40
+   },
+   "legacy": {
+    "source": "D:\\CHINATRIP\\CHINATRIP CODES\\tests\\golden\\legacy\\g08_remote_exclusive_legacy.json",
+    "kind": "in-process-replay",
+    "determinism": true,
+    "assertions": [
+     {
+      "type": "requested_coverage",
+      "engine": "legacy",
+      "status": "pass",
+      "detail": "all 2 musts timed or disclosed-unplaced"
+     },
+     {
+      "type": "remote_day_purity",
+      "engine": "legacy",
+      "status": "pass",
+      "detail": "day 1 holding remote '慕田峪长城' carries no unrequested visit"
+     },
+     {
+      "type": "no_entry_cap_breach",
+      "engine": "legacy",
+      "status": "skipped",
+      "detail": "no view carries entry-cap data for its cards"
+     },
+     {
+      "type": "deterministic",
+      "engine": "legacy",
+      "status": "pass",
+      "detail": "two in-process replays byte-identical (P2-B calibration)"
+     }
+    ],
+    "violations": [],
+    "violation_counts": {
+     "B-01": 0,
+     "B-02": 0,
+     "B-03a": 0,
+     "B-03c": 0,
+     "B-06": 0
+    },
+    "assertion_counts": {
+     "pass": 3,
+     "fail": 0,
+     "pending": 0,
+     "skipped": 1
+    },
+    "convergence": {
+     "recorded": true,
+     "no_solution_disclosures": 0,
+     "disclosures": 13
+    },
+    "plan_score": -45
+   },
+   "not_worse": {
+    "per_class": {
+     "B-01": true,
+     "B-02": true,
+     "B-03a": true,
+     "B-03c": true,
+     "B-06": true
+    },
+    "pass": true
+   },
+   "plan_score_delta": {
+    "legacy": -45,
+    "model": -40,
+    "delta_pct": 11.11,
+    "threshold_pct": -2.0,
+    "within": true
+   }
+  },
+  {
+   "scenario": "g09_duration_clamp",
+   "snapshot_hash": "5ce306a7098e0e632268d6a5323c424c58a3f33c82a26ab570589b2f235311d5",
+   "provenance": {
+    "incident": "duration family (B-19/Q1): 颐和园 300-min library row",
+    "built_at": "2026-11-18",
+    "builder": "tests/golden/build_corpus_v2.py",
+    "note": "duration flexes in [low=120, library=300] (F-20) with no duration-lean objective until P1-D (F-23) — the deterministic solve currently sits at the tier minimum, so this passes today as a regression guard; if P1-D ever rewards longer stays the cap must still hold. Clamp disclosure (F-33) pends P1-F."
+   },
+   "assertion_types": [
+    "requested_coverage",
+    "span_cap",
+    "no_entry_cap_breach",
+    "deterministic"
+   ],
+   "new": {
+    "status": "OPTIMAL",
+    "wall_ms": 35,
+    "deterministic": true,
+    "assertions": [
+     {
+      "type": "requested_coverage",
+      "engine": "cpsat",
+      "status": "pass",
+      "detail": "all 1 musts timed or disclosed-unplaced"
+     },
+     {
+      "type": "span_cap",
+      "engine": "cpsat",
+      "status": "pass",
+      "detail": "'颐和园' span 240 min ≤ 240"
+     },
+     {
+      "type": "no_entry_cap_breach",
+      "engine": "cpsat",
+      "status": "pass",
+      "detail": "all 2 cap-known cards start within cap"
+     },
+     {
+      "type": "deterministic",
+      "engine": "cpsat",
+      "status": "pass",
+      "detail": "two solves byte-identical (F-41)"
+     }
+    ],
+    "violations": [],
+    "violation_counts": {
+     "B-01": 0,
+     "B-02": 0,
+     "B-03a": 0,
+     "B-03c": 0,
+     "B-06": 0
+    },
+    "assertion_counts": {
+     "pass": 4,
+     "fail": 0,
+     "pending": 0,
+     "skipped": 0
+    },
+    "convergence": {
+     "status": "OPTIMAL",
+     "wall_ms": 35,
+     "budget_ms": 3000,
+     "within_budget": true,
+     "deterministic": true,
+     "unplaced_count": 0,
+     "fill_count": 1
+    },
+    "plan_score": -40
+   },
+   "legacy": {
+    "source": "D:\\CHINATRIP\\CHINATRIP CODES\\tests\\golden\\legacy\\g09_duration_clamp_legacy.json",
+    "kind": "in-process-replay",
+    "determinism": true,
+    "assertions": [
+     {
+      "type": "requested_coverage",
+      "engine": "legacy",
+      "status": "pass",
+      "detail": "all 1 musts timed or disclosed-unplaced"
+     },
+     {
+      "type": "span_cap",
+      "engine": "legacy",
+      "status": "fail",
+      "detail": "'颐和园' span 300 min > 240 (Q1 clamp)"
+     },
+     {
+      "type": "no_entry_cap_breach",
+      "engine": "legacy",
+      "status": "skipped",
+      "detail": "no view carries entry-cap data for its cards"
+     },
+     {
+      "type": "deterministic",
+      "engine": "legacy",
+      "status": "pass",
+      "detail": "two in-process replays byte-identical (P2-B calibration)"
+     }
+    ],
+    "violations": [],
+    "violation_counts": {
+     "B-01": 0,
+     "B-02": 0,
+     "B-03a": 0,
+     "B-03c": 0,
+     "B-06": 0
+    },
+    "assertion_counts": {
+     "pass": 2,
+     "fail": 1,
+     "pending": 0,
+     "skipped": 1
+    },
+    "convergence": {
+     "recorded": true,
+     "no_solution_disclosures": 0,
+     "disclosures": 9
+    },
+    "plan_score": -40
+   },
+   "not_worse": {
+    "per_class": {
+     "B-01": true,
+     "B-02": true,
+     "B-03a": true,
+     "B-03c": true,
+     "B-06": true
+    },
+    "pass": true
+   },
+   "plan_score_delta": {
+    "legacy": -40,
+    "model": -40,
+    "delta_pct": 0.0,
+    "threshold_pct": -2.0,
+    "within": true
+   }
+  },
+  {
+   "scenario": "g10_city_coherence",
+   "snapshot_hash": "a5c8cfe88791bf601260661ea47b334e848fe72f886f91c005ecbeb9d795a8db",
+   "provenance": {
+    "incident": "multi-city family (C-07): 上海+杭州 3 天",
+    "built_at": "2026-11-18",
+    "builder": "tests/golden/build_corpus_v2.py",
+    "note": "city order across days is an intent-layer input (Q6); this scenario pins only the per-day single-city invariant."
+   },
+   "assertion_types": [
+    "requested_coverage",
+    "city_coherence",
+    "deterministic"
+   ],
+   "new": {
+    "status": "OPTIMAL",
+    "wall_ms": 151,
+    "deterministic": true,
+    "assertions": [
+     {
+      "type": "requested_coverage",
+      "engine": "cpsat",
+      "status": "pass",
+      "detail": "all 3 musts timed or disclosed-unplaced"
+     },
+     {
+      "type": "city_coherence",
+      "engine": "cpsat",
+      "status": "pass",
+      "detail": "all 2 city-known days are single-city"
+     },
+     {
+      "type": "deterministic",
+      "engine": "cpsat",
+      "status": "pass",
+      "detail": "two solves byte-identical (F-41)"
+     }
+    ],
+    "violations": [],
+    "violation_counts": {
+     "B-01": 0,
+     "B-02": 0,
+     "B-03a": 0,
+     "B-03c": 0,
+     "B-06": 0
+    },
+    "assertion_counts": {
+     "pass": 3,
+     "fail": 0,
+     "pending": 0,
+     "skipped": 0
+    },
+    "convergence": {
+     "status": "OPTIMAL",
+     "wall_ms": 151,
+     "budget_ms": 3000,
+     "within_budget": true,
+     "deterministic": true,
+     "unplaced_count": 0,
+     "fill_count": 4
+    },
+    "plan_score": -40
+   },
+   "legacy": {
+    "source": "D:\\CHINATRIP\\CHINATRIP CODES\\tests\\golden\\legacy\\g10_city_coherence_legacy.json",
+    "kind": "in-process-replay",
+    "determinism": true,
+    "assertions": [
+     {
+      "type": "requested_coverage",
+      "engine": "legacy",
+      "status": "pass",
+      "detail": "all 3 musts timed or disclosed-unplaced"
+     },
+     {
+      "type": "city_coherence",
+      "engine": "legacy",
+      "status": "pass",
+      "detail": "all 3 city-known days are single-city"
+     },
+     {
+      "type": "deterministic",
+      "engine": "legacy",
+      "status": "pass",
+      "detail": "two in-process replays byte-identical (P2-B calibration)"
+     }
+    ],
+    "violations": [],
+    "violation_counts": {
+     "B-01": 0,
+     "B-02": 0,
+     "B-03a": 0,
+     "B-03c": 0,
+     "B-06": 0
+    },
+    "assertion_counts": {
+     "pass": 3,
+     "fail": 0,
+     "pending": 0,
+     "skipped": 0
+    },
+    "convergence": {
+     "recorded": true,
+     "no_solution_disclosures": 0,
+     "disclosures": 23
+    },
+    "plan_score": -129
+   },
+   "not_worse": {
+    "per_class": {
+     "B-01": true,
+     "B-02": true,
+     "B-03a": true,
+     "B-03c": true,
+     "B-06": true
+    },
+    "pass": true
+   },
+   "plan_score_delta": {
+    "legacy": -129,
+    "model": -40,
+    "delta_pct": 68.99,
+    "threshold_pct": -2.0,
+    "within": true
+   }
+  },
+  {
+   "scenario": "g11_trip_scale",
+   "snapshot_hash": "d8658ff41b5c320319b9b396897826c4752fd78ba5484f11231d1320e020c9f4",
+   "provenance": {
+    "incident": "trip-scale family (Q3): 5 days × 2 cities × 30 candidates",
+    "built_at": "2026-11-18",
+    "builder": "tests/golden/build_corpus_v2.py",
+    "note": "the convergence gate (OPTIMAL/FEASIBLE within the 3 s budget) is measured by the harness on this scenario — Q3 evidence for P3. Synthetic point names are deliberate: they must not collide with real library rows."
+   },
+   "assertion_types": [
+    "requested_coverage",
+    "no_entry_cap_breach",
+    "city_coherence",
+    "deterministic"
+   ],
+   "new": {
+    "status": "OPTIMAL",
+    "wall_ms": 1776,
+    "deterministic": true,
+    "assertions": [
+     {
+      "type": "requested_coverage",
+      "engine": "cpsat",
+      "status": "pass",
+      "detail": "all 6 musts timed or disclosed-unplaced"
+     },
+     {
+      "type": "no_entry_cap_breach",
+      "engine": "cpsat",
+      "status": "pass",
+      "detail": "all 6 cap-known cards start within cap"
+     },
+     {
+      "type": "city_coherence",
+      "engine": "cpsat",
+      "status": "pass",
+      "detail": "all 5 city-known days are single-city"
+     },
+     {
+      "type": "deterministic",
+      "engine": "cpsat",
+      "status": "pass",
+      "detail": "two solves byte-identical (F-41)"
+     }
+    ],
+    "violations": [],
+    "violation_counts": {
+     "B-01": 0,
+     "B-02": 0,
+     "B-03a": 0,
+     "B-03c": 0,
+     "B-06": 0
+    },
+    "assertion_counts": {
+     "pass": 4,
+     "fail": 0,
+     "pending": 0,
+     "skipped": 0
+    },
+    "convergence": {
+     "status": "OPTIMAL",
+     "wall_ms": 1776,
+     "budget_ms": 3000,
+     "within_budget": true,
+     "deterministic": true,
+     "unplaced_count": 0,
+     "fill_count": 0
+    },
+    "plan_score": -363
+   },
+   "legacy": {
+    "source": "D:\\CHINATRIP\\CHINATRIP CODES\\tests\\golden\\legacy\\g11_trip_scale_legacy.json",
+    "kind": "in-process-replay",
+    "determinism": true,
+    "assertions": [
+     {
+      "type": "requested_coverage",
+      "engine": "legacy",
+      "status": "pass",
+      "detail": "all 6 musts timed or disclosed-unplaced"
+     },
+     {
+      "type": "no_entry_cap_breach",
+      "engine": "legacy",
+      "status": "skipped",
+      "detail": "no view carries entry-cap data for its cards"
+     },
+     {
+      "type": "city_coherence",
+      "engine": "legacy",
+      "status": "pass",
+      "detail": "all 5 city-known days are single-city"
+     },
+     {
+      "type": "deterministic",
+      "engine": "legacy",
+      "status": "pass",
+      "detail": "two in-process replays byte-identical (P2-B calibration)"
+     }
+    ],
+    "violations": [],
+    "violation_counts": {
+     "B-01": 0,
+     "B-02": 0,
+     "B-03a": 0,
+     "B-03c": 0,
+     "B-06": 0
+    },
+    "assertion_counts": {
+     "pass": 3,
+     "fail": 0,
+     "pending": 0,
+     "skipped": 1
+    },
+    "convergence": {
+     "recorded": true,
+     "no_solution_disclosures": 0,
+     "disclosures": 25
+    },
+    "plan_score": -305
+   },
+   "not_worse": {
+    "per_class": {
+     "B-01": true,
+     "B-02": true,
+     "B-03a": true,
+     "B-03c": true,
+     "B-06": true
+    },
+    "pass": true
+   },
+   "plan_score_delta": {
+    "legacy": -305,
+    "model": -363,
+    "delta_pct": -19.02,
+    "threshold_pct": -2.0,
+    "within": false
+   }
+  },
+  {
+   "scenario": "g12_closed_weekday",
+   "snapshot_hash": "900867fcc6f023e9ab47e97679869303b69dfd2149c4aaedc9470dab8bf88184",
+   "provenance": {
+    "incident": "closed-day family (C-01): 周一关闭 museum on a Monday start",
+    "built_at": "2026-11-18",
+    "builder": "tests/golden/build_corpus_v2.py",
+    "note": "unplaced reason wording (F-26 certificate) pends P1-E; coverage via the unplaced row is the B-01-proof shape now."
+   },
+   "assertion_types": [
+    "requested_coverage",
+    "no_entry_cap_breach",
+    "deterministic"
+   ],
+   "new": {
+    "status": "OPTIMAL",
+    "wall_ms": 13,
+    "deterministic": true,
+    "assertions": [
+     {
+      "type": "requested_coverage",
+      "engine": "cpsat",
+      "status": "pass",
+      "detail": "all 2 musts timed or disclosed-unplaced"
+     },
+     {
+      "type": "no_entry_cap_breach",
+      "engine": "cpsat",
+      "status": "pass",
+      "detail": "all 1 cap-known cards start within cap"
+     },
+     {
+      "type": "deterministic",
+      "engine": "cpsat",
+      "status": "pass",
+      "detail": "two solves byte-identical (F-41)"
+     }
+    ],
+    "violations": [],
+    "violation_counts": {
+     "B-01": 0,
+     "B-02": 0,
+     "B-03a": 0,
+     "B-03c": 0,
+     "B-06": 0
+    },
+    "assertion_counts": {
+     "pass": 3,
+     "fail": 0,
+     "pending": 0,
+     "skipped": 0
+    },
+    "convergence": {
+     "status": "OPTIMAL",
+     "wall_ms": 13,
+     "budget_ms": 3000,
+     "within_budget": true,
+     "deterministic": true,
+     "unplaced_count": 1,
+     "fill_count": 0
+    },
+    "plan_score": -40
+   },
+   "legacy": {
+    "source": "D:\\CHINATRIP\\CHINATRIP CODES\\tests\\golden\\legacy\\g12_closed_weekday_legacy.json",
+    "kind": "in-process-replay",
+    "determinism": true,
+    "assertions": [
+     {
+      "type": "requested_coverage",
+      "engine": "legacy",
+      "status": "pass",
+      "detail": "all 2 musts timed or disclosed-unplaced"
+     },
+     {
+      "type": "no_entry_cap_breach",
+      "engine": "legacy",
+      "status": "skipped",
+      "detail": "no view carries entry-cap data for its cards"
+     },
+     {
+      "type": "deterministic",
+      "engine": "legacy",
+      "status": "pass",
+      "detail": "two in-process replays byte-identical (P2-B calibration)"
+     }
+    ],
+    "violations": [],
+    "violation_counts": {
+     "B-01": 0,
+     "B-02": 0,
+     "B-03a": 0,
+     "B-03c": 0,
+     "B-06": 0
+    },
+    "assertion_counts": {
+     "pass": 2,
+     "fail": 0,
+     "pending": 0,
+     "skipped": 1
+    },
+    "convergence": {
+     "recorded": true,
+     "no_solution_disclosures": 0,
+     "disclosures": 7
+    },
+    "plan_score": -40
+   },
+   "not_worse": {
+    "per_class": {
+     "B-01": true,
+     "B-02": true,
+     "B-03a": true,
+     "B-03c": true,
+     "B-06": true
+    },
+    "pass": true
+   },
+   "plan_score_delta": {
+    "legacy": -40,
+    "model": -40,
+    "delta_pct": 0.0,
+    "threshold_pct": -2.0,
+    "within": true
+   }
+  },
+  {
+   "scenario": "g13_twin_content_dup",
+   "snapshot_hash": "b74fa12451e99a2b585d8314d5998a7b2c740ec33237ef51ca187d2b691c8d94",
+   "provenance": {
+    "incident": "content-twin family (大足 2026-10-31 博物馆+影院)",
+    "built_at": "2026-11-18",
+    "builder": "tests/golden/build_corpus_v2.py",
+    "note": "no twin constraint exists pre-P1-D — the model may place both twins; the diff report surfaces the gap and the twin rule (C-16 diversity caps / F-23) burns it down. Scenario committed before the fix, per the P2-B rule."
+   },
+   "assertion_types": [
+    "requested_coverage",
+    "no_entry_cap_breach",
+    "deterministic"
+   ],
+   "new": {
+    "status": "OPTIMAL",
+    "wall_ms": 17,
+    "deterministic": true,
+    "assertions": [
+     {
+      "type": "requested_coverage",
+      "engine": "cpsat",
+      "status": "pass",
+      "detail": "all 1 musts timed or disclosed-unplaced"
+     },
+     {
+      "type": "no_entry_cap_breach",
+      "engine": "cpsat",
+      "status": "pass",
+      "detail": "all 2 cap-known cards start within cap"
+     },
+     {
+      "type": "deterministic",
+      "engine": "cpsat",
+      "status": "pass",
+      "detail": "two solves byte-identical (F-41)"
+     }
+    ],
+    "violations": [],
+    "violation_counts": {
+     "B-01": 0,
+     "B-02": 0,
+     "B-03a": 0,
+     "B-03c": 0,
+     "B-06": 0
+    },
+    "assertion_counts": {
+     "pass": 3,
+     "fail": 0,
+     "pending": 0,
+     "skipped": 0
+    },
+    "convergence": {
+     "status": "OPTIMAL",
+     "wall_ms": 17,
+     "budget_ms": 3000,
+     "within_budget": true,
+     "deterministic": true,
+     "unplaced_count": 0,
+     "fill_count": 2
+    },
+    "plan_score": 0
+   },
+   "legacy": {
+    "source": "D:\\CHINATRIP\\CHINATRIP CODES\\tests\\golden\\legacy\\g13_twin_content_dup_legacy.json",
+    "kind": "in-process-replay",
+    "determinism": true,
+    "assertions": [
+     {
+      "type": "requested_coverage",
+      "engine": "legacy",
+      "status": "pass",
+      "detail": "all 1 musts timed or disclosed-unplaced"
+     },
+     {
+      "type": "no_entry_cap_breach",
+      "engine": "legacy",
+      "status": "skipped",
+      "detail": "no view carries entry-cap data for its cards"
+     },
+     {
+      "type": "deterministic",
+      "engine": "legacy",
+      "status": "pass",
+      "detail": "two in-process replays byte-identical (P2-B calibration)"
+     }
+    ],
+    "violations": [],
+    "violation_counts": {
+     "B-01": 0,
+     "B-02": 0,
+     "B-03a": 0,
+     "B-03c": 0,
+     "B-06": 0
+    },
+    "assertion_counts": {
+     "pass": 2,
+     "fail": 0,
+     "pending": 0,
+     "skipped": 1
+    },
+    "convergence": {
+     "recorded": true,
+     "no_solution_disclosures": 0,
+     "disclosures": 11
+    },
+    "plan_score": -45
+   },
+   "not_worse": {
+    "per_class": {
+     "B-01": true,
+     "B-02": true,
+     "B-03a": true,
+     "B-03c": true,
+     "B-06": true
+    },
+    "pass": true
+   },
+   "plan_score_delta": {
+    "legacy": -45,
+    "model": 0,
+    "delta_pct": 100.0,
+    "threshold_pct": -2.0,
+    "within": true
+   }
+  }
+ ],
+ "acceptance": {
+  "corpus": [
+   "g01",
+   "g02_tower_late_gate",
+   "g03_third_cluster",
+   "g04_endpoint_transit",
+   "g05_rain_rebalance",
+   "g06_reopen_pins",
+   "g07_name_variants",
+   "g08_remote_exclusive",
+   "g09_duration_clamp",
+   "g10_city_coherence",
+   "g11_trip_scale",
+   "g12_closed_weekday",
+   "g13_twin_content_dup"
+  ],
+  "legacy_violations_total": {
+   "B-01": 1,
+   "B-02": 2,
+   "B-03a": 1,
+   "B-03c": 1,
+   "B-06": 0
+  },
+  "new_violations_total": {
+   "B-01": 0,
+   "B-02": 0,
+   "B-03a": 0,
+   "B-03c": 0,
+   "B-06": 0
+  },
+  "legacy_side": {
+   "recorded": 13,
+   "kinds": {
+    "recorded-actual-output": 1,
+    "in-process-replay": 12
+   },
+   "replay_deterministic": "12/12",
+   "note": "in-process replay recordings (P2-B) carry two-run calibration; hand recordings keep kind recorded-actual-output"
+  },
+  "gates": {
+   "corpus_size": {
+    "value": "13/12",
+    "pass": true,
+    "note": "corpus v2 ships 13 scenarios (P2-B families); M9 floor is 12"
+   },
+   "violation_classes_zero_new": {
+    "value": {
+     "B-01": 0,
+     "B-02": 0,
+     "B-03a": 0,
+     "B-03c": 0,
+     "B-06": 0
+    },
+    "pass": true
+   },
+   "convergence_rate_new": {
+    "value": 1.0,
+    "threshold": 0.99,
+    "pass": true
+   },
+   "determinism_rate": {
+    "value": 1.0,
+    "threshold": 1.0,
+    "pass": true
+   },
+   "not_worse_vs_recording": {
+    "value": "13/13 recorded scenarios",
+    "pass": true
+   },
+   "legacy_no_solution_disclosures": {
+    "value": 0,
+    "pass": true,
+    "note": "recorded legacy baseline must itself be free of 「求解器未收敛」 for a clean comparison"
+   },
+   "plan_score_delta": {
+    "value": "8/12 scored within −2%",
+    "pass": false,
+    "note": "one scorer both engines (Q5 constants): replay scores the cascade plan, F-30 materialises + scores the model plan; unscored sides stay pending"
+   },
+   "parity_domains_14": {
+    "value": "14/14",
+    "pass": true,
+    "note": "all 14 domains covered"
+   }
+  },
+  "verdict": {
+   "mode": "shadow-instrument+legacy-replay (P2-B)",
+   "switch_ready": false,
+   "reason": "P3 switch requires: P4 edit domain (parity 13/14), plan-score density burn-down (model under-fills vs legacy), the api seam (with F-42) and the quiet window + full suite; shadow stays zero-risk until then",
+   "gates_pass": 7,
+   "gates_fail": 1,
+   "gates_pending": 0
+  }
+ }
+}

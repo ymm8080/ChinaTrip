@@ -40,6 +40,7 @@ REMOTE_DINNER_LATEST = 19 * 60 + 30  # 2026-11-18 用户拍板
 DAY_LOAD_BUDGET_MINUTES = 570  # legacy _MUST_DAY_USABLE_MIN
 MEAL_TRAVEL_FLOOR = 30  # 铁律 7 地板（rules.travel_gap_needed）
 AFTERNOON_START = 13 * 60  # 下午单大点闸（2026-11-04 拍板）
+MORNING_END = 12 * 60  # 上午单点闸（2026-11-03 拍板「上午一般只排一个点」）
 SIGHT_CAP_PER_DAY = 4
 FILL_CAP_PER_DAY = 6
 HOTEL_MORNING_READY = 9 * 60
@@ -448,6 +449,32 @@ def add_c12_afternoon_single_big(
             ).OnlyEnforceIf([lit, ge])
             bundle.model.Add(
                 bundle.start[(cand.cid, day)] < AFTERNOON_START
+            ).OnlyEnforceIf([lit, ge.Not()])
+            terms.append(ge)
+        if len(terms) > 1:
+            bundle.model.Add(sum(terms) <= 1)
+
+
+def add_c12c_morning_single(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
+    """上午单点（2026-11-03 拍板）：每活动日 <12:00 开场的非钉观光 ≤1。
+    口径同 scorer.morning_crowd（钉件豁免，铁律 19）。
+    """
+    snapshot = enriched.snapshot
+    for day in bundle.days:
+        terms = []
+        for cand in snapshot.candidates:
+            if (cand.category or "") in ("food", "hotel", "transport"):
+                continue  # 餐/酒店/接驳不占上午点位
+            if _is_pinned(snapshot, cand, day):
+                continue  # 铁律 19：用户钉件不计
+            lit = bundle.presence[(cand.cid, day)]
+            ge = bundle.model.NewBoolVar("am_%s_%d" % (cand.cid, day))
+            bundle.model.Add(ge == 0).OnlyEnforceIf(lit.Not())
+            bundle.model.Add(bundle.start[(cand.cid, day)] < MORNING_END).OnlyEnforceIf(
+                [lit, ge]
+            )
+            bundle.model.Add(
+                bundle.start[(cand.cid, day)] >= MORNING_END
             ).OnlyEnforceIf([lit, ge.Not()])
             terms.append(ge)
         if len(terms) > 1:

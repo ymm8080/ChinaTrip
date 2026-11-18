@@ -41,6 +41,45 @@ TIER_DETERMINISTIC_BUDGET = 0.4
 LADDER_TIER_DETERMINISTIC_BUDGET = 0.1
 
 
+def _seed_greedy_fill_hints(bundle, enriched, prev_solver) -> None:
+    """Greedy incumbent seed for tier②: keep tier① placements, add
+    fills in tier order onto the least-loaded feasible day. Hints
+    only warm-start — determinism unaffected (dtime decides)."""
+    snapshot = enriched.snapshot
+    fills = sorted(
+        (c for c in snapshot.candidates if not c.rid),
+        key=lambda c: (c.tier or 12, c.cid),
+    )
+    if not fills or prev_solver is None:
+        return
+    load = {d: 0 for d in bundle.days}
+    for cid, day in bundle.cid_day_list:
+        if prev_solver.Value(bundle.presence[(cid, day)]):
+            load[day] = load.get(day, 0) + prev_solver.Value(bundle.dur[cid])
+    budget = int(getattr(snapshot.request, "day_load_budget_min", 570) or 570)
+    # complete hint: every presence explicitly 0/1, requested starts from
+    # the tier-1 solver — complete consistent hints survive CP-SAT repair
+    for cid, day in bundle.cid_day_list:
+        lit = prev_solver.Value(bundle.presence[(cid, day)])
+        bundle.model.AddHint(bundle.presence[(cid, day)], lit)
+        if lit:
+            bundle.model.AddHint(
+                bundle.start[(cid, day)], prev_solver.Value(bundle.start[(cid, day)])
+            )
+    for cand in fills:
+        target = min(
+            bundle.days,
+            key=lambda d: (load.get(d, 0), d),
+        )
+        dur = cand.suggested_duration_min or 90
+        if load.get(target, 0) + dur <= budget:
+            bundle.model.AddHint(bundle.presence[(cand.cid, target)], 1)
+            start = max(8 * 60 + 30, 13 * 60 if load.get(target, 0) else 8 * 60 + 30)
+            bundle.model.AddHint(bundle.start[(cand.cid, target)], start)
+            bundle.model.AddHint(bundle.dur[cand.cid], dur)
+            load[target] = load.get(target, 0) + dur
+
+
 def _apply_hint(bundle: "VarBundle", hint: "Solution") -> None:
     """F-24: seed the search with a previous solution (edit re-solve, P4).
     Hints only warm-start -- the deterministic budget still decides how
@@ -78,6 +117,7 @@ def solve(
     solver = None
     status = "UNKNOWN"
     objective_values: dict[str, int] = {}
+    greedy_seeded = False
     fully_optimized = True  # R3b: stays True only if every tier proves OPTIMAL
 
     for index, tier in enumerate(tiers):
@@ -107,6 +147,12 @@ def solve(
         status = candidate_solver.StatusName(status_code)
         if coverage_assumptions:
             bundle.model.ClearAssumptions()
+        if index == 1 and not greedy_seeded and status == "OPTIMAL":
+            # R4: trip-scale tier② needs an incumbent seed — greedy
+            # fill placement in tier order on the least-loaded day
+            # (g11 was UNKNOWN at 0.4 dtime without it)
+            _seed_greedy_fill_hints(bundle, enriched, solver)
+            greedy_seeded = True
         if status == "INFEASIBLE":
             return Solution(
                 status="INFEASIBLE",
