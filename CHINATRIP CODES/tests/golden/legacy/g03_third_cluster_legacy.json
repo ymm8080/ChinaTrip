@@ -4,7 +4,8 @@
  "kind": "in-process-replay",
  "provenance": {
   "source": "g03_third_cluster.json",
-  "replayed_at": "2026-11-18T08:31:57",
+  "plan_score": -91,
+  "replayed_at": "2026-11-18T10:50:27",
   "auto_restaurants": false,
   "llm": "boom-sentinel",
   "note": "in-process cascade replay (P2-B): store/weather/llm stubbed from the snapshot; meal cards, access legs and user pins are not captured this iteration — pin-shaped assertions fail honestly on this side rather than faking a pass",

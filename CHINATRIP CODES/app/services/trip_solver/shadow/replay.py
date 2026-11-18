@@ -245,12 +245,16 @@ def _recording_from_session(scenario: Scenario, session) -> dict:
         unplaced.append(
             {"rid": m.rid, "name": m.name, "reason": reason or "absent-from-plan"}
         )
+    from .score import score_plan
+
+    plan_score_value = score_plan(plan, scenario.snapshot) if plan is not None else None
     return {
         "schema_version": 1,
         "engine": "legacy",
         "kind": "in-process-replay",
         "provenance": {
             "source": os.path.basename(scenario.path),
+            "plan_score": plan_score_value,
             "replayed_at": datetime.datetime.now().isoformat(timespec="seconds"),
             "auto_restaurants": False,
             "llm": "boom-sentinel",

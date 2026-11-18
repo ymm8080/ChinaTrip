@@ -23,6 +23,7 @@ from ..inputs.enrich import enrich
 from ..model.solve import solve_snapshot
 from .asserts import AssertContext, evaluate
 from .corpus import Scenario
+from .score import delta_pct, score_plan, within_threshold
 from .views import signature, view_from_recording, view_from_solution
 from .violations import scan_violations, violation_counts
 
@@ -36,6 +37,7 @@ class EngineRun:
     signature: str
     violations: list[dict]
     results: list[dict]
+    score: Any = None  # F-61 plan_score over the materialised plan (int|None)
 
 
 def _run_model(
@@ -51,12 +53,22 @@ def _run_model(
         sol.wall_ms = wall_ms
         view = view_from_solution(sol, scenario.snapshot)
         ctx = AssertContext(snapshot=scenario.snapshot, enriched=enriched)
+        run_score = None
+        try:  # F-30 materialise → SAME legacy scorer as the replay side
+            from ..assembly.materialize import materialize_plan
+
+            run_score = score_plan(
+                materialize_plan(sol, scenario.snapshot), scenario.snapshot
+            )
+        except Exception:
+            run_score = None  # unscored shows as a gap, never a fake number
         runs.append(
             EngineRun(
                 view=view,
                 signature=signature(view),
                 violations=scan_violations(view, ctx),
                 results=[evaluate(a, view, ctx) for a in scenario.expect],
+                score=run_score,
             )
         )
     deterministic = runs[0].signature == runs[1].signature
@@ -163,6 +175,7 @@ def shadow_compare(scenario: Scenario, budget_s: float = DEFAULT_BUDGET_S) -> di
             "violation_counts": violation_counts(first.violations),
             "assertion_counts": _count_assertions(first.results),
             "convergence": _convergence(first, deterministic, budget_s),
+            "plan_score": first.score,
         },
         "legacy": None,
         "not_worse": None,  # filled below when a recording exists
@@ -184,11 +197,24 @@ def shadow_compare(scenario: Scenario, budget_s: float = DEFAULT_BUDGET_S) -> di
             "violation_counts": violation_counts(legacy.violations),
             "assertion_counts": _count_assertions(legacy.results),
             "convergence": _legacy_convergence(scenario),
+            "plan_score": (scenario.legacy_raw.get("provenance") or {}).get(
+                "plan_score"
+            ),
         }
         report["legacy"] = legacy_block
         report["not_worse"] = _not_worse(
             violation_counts(legacy.violations), report["new"]["violation_counts"]
         )
+        # F-62 companion criterion: plan-score Δ ≥ −2% vs the legacy run
+        legacy_score = legacy_block["plan_score"]
+        model_score = report["new"]["plan_score"]
+        report["plan_score_delta"] = {
+            "legacy": legacy_score,
+            "model": model_score,
+            "delta_pct": delta_pct(model_score, legacy_score),
+            "threshold_pct": -2.0,
+            "within": within_threshold(model_score, legacy_score),
+        }
     return report
 
 

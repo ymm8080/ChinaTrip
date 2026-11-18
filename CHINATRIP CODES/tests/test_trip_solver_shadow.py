@@ -10,6 +10,8 @@ detected, and the model engine must come back clean.
 
 from __future__ import annotations
 
+import re
+
 from app.services.trip_solver.inputs.enrich import enrich
 from app.services.trip_solver.model.solve import solve_snapshot
 from app.services.trip_solver.shadow.asserts import AssertContext, evaluate
@@ -625,7 +627,13 @@ def test_acceptance_metrics_verdict_and_gates():
     assert gates["determinism_rate"]["pass"] is True
     assert gates["not_worse_vs_recording"]["pass"] is True
     assert gates["legacy_no_solution_disclosures"]["pass"] is True
-    assert gates["plan_score_delta"]["pass"] is None  # pending P1-D/P1-F
+    # P2-B final: both F-62 gates are EVALUATED (no longer pending)
+    psd = gates["plan_score_delta"]
+    assert psd["pass"] is False  # 4/12 within −2%: model under-fills (burn-down)
+    assert re.match(r"\d+/\d+ scored within", str(psd["value"]))
+    parity = gates["parity_domains_14"]
+    assert parity["value"] == "13/14" and parity["pass"] is False
+    assert "P4" in parity["note"] or "编辑" in parity["note"]
     assert metrics["verdict"]["mode"] == "shadow-instrument+legacy-replay (P2-B)"
     assert metrics["verdict"]["switch_ready"] is False
     side = metrics["legacy_side"]

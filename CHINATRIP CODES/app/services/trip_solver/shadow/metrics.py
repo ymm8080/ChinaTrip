@@ -19,6 +19,82 @@ from __future__ import annotations
 from typing import Any, Iterable
 
 TRACKED_CLASSES = ("B-01", "B-02", "B-03a", "B-03c", "B-06")
+
+# F-62 parity checklist — the 14 domains of cpsat_feature_parity_2026-11-17
+# §1..§14. "covered" = the domain's semantics have their mapped home AND the
+# implementation landed (evidence = the suite that pins it). Pending entries
+# are switch blockers, not shadow blockers (P2-B reports them honestly).
+PARITY_DOMAINS: tuple[tuple[str, str, str, str], ...] = (
+    (
+        "意图理解与请求绑定",
+        "输入/模型外（F-01/F-02 留 legacy，snapshot 契约）",
+        "covered",
+        "test_trip_solver_p1a",
+    ),
+    (
+        "选点与候选池",
+        "输入 F-10 复用现行选点口径",
+        "covered",
+        "test_trip_solver_inputs",
+    ),
+    ("分天结构", "硬约束 C-05/C-06/C-07", "covered", "test_trip_solver_model_c2"),
+    (
+        "日内排时与入场闸",
+        "硬约束 C-01..C-04 + C-08",
+        "covered",
+        "test_trip_solver_model_c1+c2",
+    ),
+    (
+        "餐饮体系",
+        "C-09/C-10 + F-31 装配",
+        "covered",
+        "test_trip_solver_model_d+assembly",
+    ),
+    (
+        "交通与接驳",
+        "C-03/C-08 + 输入 F-11/F-14",
+        "covered",
+        "test_trip_solver_inputs+model_c2",
+    ),
+    (
+        "天气",
+        "输入 F-13 + 条件目标 C-11/C-12",
+        "covered",
+        "test_trip_solver_model_d(rain)",
+    ),
+    ("地理与清退", "C-06/C-15/C-16", "covered", "test_trip_solver_model_c2+d"),
+    (
+        "空档补点/untimed 治理",
+        "C-14 覆盖优先 + F-26 证书 + F-32 备选",
+        "covered",
+        "test_trip_solver_model_d+e+assembly",
+    ),
+    (
+        "编辑与会话生命周期",
+        "P4 F-50/F-51（F-24 hint 已落，edit 模块未落）",
+        "pending",
+        "P4",
+    ),
+    (
+        "审计与披露",
+        "模型外保留 F-40 + F-33 双语披露",
+        "covered",
+        "test_trip_solver_assembly(disclosures)",
+    ),
+    (
+        "演出/夜游/晚档特则",
+        "C-11 场次 + C-12 家庭/日载",
+        "covered",
+        "test_trip_solver_model_d(shows)",
+    ),
+    ("酒店/住宿/预订", "C-13 酒店锚", "covered", "test_trip_solver_model_d(hotel)"),
+    (
+        "运行时契约",
+        "F-35/F-36/F-41（F-42 随 api 缝）",
+        "covered",
+        "test_trip_solver_entry+model_e",
+    ),
+)
 CORPUS_TARGET = 12
 CONVERGENCE_TARGET = 0.99
 
@@ -66,6 +142,13 @@ def acceptance_metrics(reports: Iterable[dict[str, Any]]) -> dict[str, Any]:
             if det:
                 replay_det += 1
 
+    scored = [
+        r for r in corpus if (r.get("plan_score_delta") or {}).get("within") is not None
+    ]
+    scored_ok = [r for r in scored if r["plan_score_delta"]["within"]]
+    parity_covered = [d for d in PARITY_DOMAINS if d[2] == "covered"]
+    parity_pending = [d[0] for d in PARITY_DOMAINS if d[2] != "covered"]
+
     corpus_ok = len(corpus) >= CORPUS_TARGET
     conv_rate = (converged / len(corpus)) if corpus else 0.0
     det_rate = (deterministic / len(corpus)) if corpus else 0.0
@@ -102,15 +185,19 @@ def acceptance_metrics(reports: Iterable[dict[str, Any]]) -> dict[str, Any]:
             "「求解器未收敛」 for a clean comparison",
         },
         "plan_score_delta": {
-            "value": None,
-            "pass": None,
-            "note": "pending P1-F plan materialisation (P1-D objectives landed; "
-            "score needs assembled plan cards)",
+            "value": "%d/%d scored within −2%%" % (len(scored_ok), len(scored)),
+            "pass": bool(scored) and len(scored_ok) == len(scored) if scored else None,
+            "note": "one scorer both engines (Q5 constants): replay scores the "
+            "cascade plan, F-30 materialises + scores the model plan; "
+            "unscored sides stay pending",
         },
         "parity_domains_14": {
-            "value": None,
-            "pass": None,
-            "note": "pending P1-F feature-parity checklist",
+            "value": "%d/14" % len(parity_covered),
+            "pass": len(parity_covered) == 14,
+            "note": "parity registry in metrics.PARITY_DOMAINS; pending: %s "
+            "(switch blocker, not a shadow blocker)" % ", ".join(parity_pending)
+            if parity_pending
+            else "all 14 domains covered",
         },
     }
 
@@ -119,7 +206,7 @@ def acceptance_metrics(reports: Iterable[dict[str, Any]]) -> dict[str, Any]:
     verdict = {
         "mode": "shadow-instrument+legacy-replay (P2-B)",
         "switch_ready": False,
-        "reason": "P3 switch requires P1-E/P1-F (slack ladder/certificates, "
+        "reason": "P3 switch requires: P4 edit domain (parity 13/14), plan-score density burn-down (model under-fills vs legacy), the api seam (with F-42) and the quiet window + full suite; shadow stays zero-risk until then"
         "assembly) + corpus ≥ 12 (P2-B) + quiet window; this report is the "
         "baseline measurement, not the gate decision.",
         "gates_pass": sum(1 for g in evaluated if g["pass"]),
