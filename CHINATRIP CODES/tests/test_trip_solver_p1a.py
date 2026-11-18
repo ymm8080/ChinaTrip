@@ -22,7 +22,7 @@ G01 = default_golden_path()
 
 def test_g01_fixture_exists_and_loads():
     snapshot, expect, provenance = load_golden(G01)
-    assert snapshot.schema_version == 1
+    assert snapshot.schema_version == 2
     assert snapshot.request.days == 2
     assert snapshot.request.cities == ("北京",)
     assert len(expect) >= 9

@@ -1,6 +1,6 @@
-"""Model core (P1-C1/P1-C2). F-20 variables + C-01..C-04 constraints.
+"""Trip-level CP-SAT model core (P1-C1…P1-D).
 
-Design refs: cpsat_design_functions_2026-11-17.md — F-20 (presence/day/
-start/unplaced hard link), C-01 windows, C-02 entry caps, C-03 NoOverlap +
-travel, C-04 pins; phases P1-C1.
+F-20 variables, C-01…C-16 hard constraints, F-22 remote lunch and F-23
+lexicographic objectives. Assembly and relaxation/certificates remain in
+their designated later packages.
 """
