@@ -34,7 +34,7 @@ DEFAULT_BUDGET_SECONDS = 3.0
 # Deterministic work cap per lexicographic tier. Wall-clock slices below are
 # only a safety envelope; deterministic time decides how much search every
 # run performs, so machine load cannot change the emitted plan.
-TIER_DETERMINISTIC_BUDGET = 0.2
+TIER_DETERMINISTIC_BUDGET = 0.4
 # Ladder rungs are strictly easier (fewer active constraints), so they run
 # under a smaller deterministic cap; the whole INFEASIBLE path stays inside
 # the same budget shape (audit M4: ladder + certificate bounded by it).

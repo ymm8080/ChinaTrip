@@ -23,6 +23,10 @@ OPEN_FORM_ALLDAY_OPEN_MAX = 6 * 60  # 360
 OPEN_FORM_ALLDAY_CLOSE_MIN = 22 * 60  # 1320
 BIG_SITE_MIN_MINUTES = 80  # scoring.BIG_SITE_MIN_MINUTES
 EVENING_OK_CATEGORIES = frozenset({"food", "entertainment", "hotel", "transport"})
+# 无窗行的开放形态豁免面（P2-B3）：solver 商业街口径 + 2026-11-08
+# 「所有街区都可以作为夜场」拍板——只有街区语义的行保留无窗豁免；
+# 其余无窗行（hours 数据缺口）按 2026-11-17 晚闸拍板吃 16:30/15:30 闸。
+OPEN_FORM_CATEGORIES = frozenset({"citywalk", "street"})
 EVENING_OK_BEST = frozenset({"evening", "sunset", "show"})
 
 _WINDOW_RE = re.compile(r"(\d{1,2}:\d{2})\s*[-–~至到]\s*(\d{1,2}:\d{2})")
@@ -138,7 +142,11 @@ def entry_cap_minutes(
     ):
         return None, "theme-block"
     if is_open_form(window):
-        return None, "open-form"
+        # 真开放形态（全天窗）或街区语义行豁免；hours 缺失（window
+        # None）的非街区行落回普通/大点闸（晚闸拍板 2026-11-17）
+        street_like = (category or "") in OPEN_FORM_CATEGORIES or "街" in (name or "")
+        if window is not None or street_like:
+            return None, "open-form"
     if is_big_site(
         duration_min=duration_min,
         category=category,

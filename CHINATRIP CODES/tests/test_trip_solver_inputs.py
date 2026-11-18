@@ -105,7 +105,10 @@ def test_entry_cap_g01_values():
         opening_hours_text=None,
         duration_min=60,
         tier=None,
-    ) == (None, "open-form")
+    ) == (
+        990,
+        "generic",
+    )  # P2-B3: no-hours non-street rows take the 晚闸 (2026-11-17 拍板)
     assert cap(
         name="梵高星空艺术馆（王府井旗舰店）",
         category="entertainment",
@@ -273,7 +276,10 @@ def test_enrich_g01_caps_and_tiers():
     enriched = enrich(snapshot)
     by_name = {c.name: c.cid for c in snapshot.candidates}
     assert enriched.caps[by_name["天安门广场"]] == (930, "big-site")
-    assert enriched.caps[by_name["老舍茶馆"]] == (None, "open-form")
+    assert enriched.caps[by_name["老舍茶馆"]] == (
+        990,
+        "generic",
+    )  # P2-B3: hours-gap rows keep the cap unless street-like
     assert enriched.caps[by_name["梵高星空艺术馆（王府井旗舰店）"]] == (
         None,
         "evening-cat",

@@ -21,6 +21,11 @@ if TYPE_CHECKING:  # pragma: no cover
 FILL_REWARD = 100
 CATEGORY_DIVERSITY_REWARD = 20
 QUALITY_SCALE = 100
+# P2-B3 evidence: at 4/min a dense day's typ-shrinkage outbids
+# FILL_REWARD (g01 both-fills net -10 at tier ①) and days starve; 1/min
+# fixes density but trips the P0 audit (8-min transfer gaps, 17km walk
+# days) until the taxi-call buffer / meal-gap / afternoon-big caps land.
+# Kept 4/min in iteration 1; retune together with those constraints.
 DURATION_DEVIATION_PENALTY = 4
 MEAL_DURATION_DEVIATION_PENALTY = 1
 INDOOR_DINNER_REWARD = 80  # 2026-11-18 用户拍板：晚饭通常优先室内

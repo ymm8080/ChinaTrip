@@ -206,9 +206,12 @@ def acceptance_metrics(reports: Iterable[dict[str, Any]]) -> dict[str, Any]:
     verdict = {
         "mode": "shadow-instrument+legacy-replay (P2-B)",
         "switch_ready": False,
-        "reason": "P3 switch requires: P4 edit domain (parity 13/14), plan-score density burn-down (model under-fills vs legacy), the api seam (with F-42) and the quiet window + full suite; shadow stays zero-risk until then"
-        "assembly) + corpus ≥ 12 (P2-B) + quiet window; this report is the "
-        "baseline measurement, not the gate decision.",
+        "reason": (
+            "P3 switch requires: P4 edit domain (parity 13/14), "
+            "plan-score density burn-down (model under-fills vs "
+            "legacy), the api seam (with F-42) and the quiet window "
+            "+ full suite; shadow stays zero-risk until then"
+        ),
         "gates_pass": sum(1 for g in evaluated if g["pass"]),
         "gates_fail": sum(1 for g in evaluated if not g["pass"]),
         "gates_pending": len(blocked),
