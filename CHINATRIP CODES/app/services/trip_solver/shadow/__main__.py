@@ -4,8 +4,10 @@ Usage (from the code root, i.e. the folder that contains `app/`):
 
     python -m app.services.trip_solver.shadow                 # corpus v1 → report
     python -m app.services.trip_solver.shadow --corpus tests/golden
-    python -m app.services.trip_solver.shadow --out "DESIGN/Global CP-SAT/shadow/manual-run"
-    python -m app.services.trip_solver.shadow --replay-legacy   # P2-B: regenerate missing legacy recordings first
+    python -m app.services.trip_solver.shadow --out \
+        "DESIGN/Global CP-SAT/shadow/manual-run"
+    python -m app.services.trip_solver.shadow --replay-legacy
+        # P2-B: regenerate missing legacy recordings first
 
 Writes `report.json` (machine) + `report.md` (review) into the report dir
 (default: <repo>/DESIGN/Global CP-SAT/shadow/<today>/, retained ≥ 8 weeks,
@@ -57,7 +59,9 @@ def render_markdown(report: dict) -> str:
     )
     lines.append("")
     if report.get("replay"):
-        lines.append("_legacy replay_: %s" % json.dumps(report["replay"], ensure_ascii=False))
+        lines.append(
+            "_legacy replay_: %s" % json.dumps(report["replay"], ensure_ascii=False)
+        )
         lines.append("")
     lines.append("## F-62 acceptance gates")
     lines.append("")
@@ -99,9 +103,7 @@ def render_markdown(report: dict) -> str:
                 conv.get("fill_count"),
             )
         )
-        lines.append(
-            "- model violations: %s" % _fmt_counts(new["violation_counts"])
-        )
+        lines.append("- model violations: %s" % _fmt_counts(new["violation_counts"]))
         if scen.get("legacy"):
             leg = scen["legacy"]
             lines.append(
@@ -136,7 +138,9 @@ def render_markdown(report: dict) -> str:
             lines.append("")
             lines.append("**Model-side violations (P2-B burn-down):**")
             for v in new["violations"]:
-                lines.append("- `%s` day %s: %s" % (v["bug"], v.get("day"), v["evidence"]))
+                lines.append(
+                    "- `%s` day %s: %s" % (v["bug"], v.get("day"), v["evidence"])
+                )
         lines.append("")
     return "\n".join(lines) + "\n"
 
@@ -149,8 +153,14 @@ def _fmt_counts(counts: dict) -> str:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="trip_solver shadow harness (P2-A)")
     parser.add_argument("--corpus", default=default_corpus_dir(), help="corpus dir")
-    parser.add_argument("--out", default=None, help="report output dir (M6 default under DESIGN/Global CP-SAT/shadow/)")
-    parser.add_argument("--budget", type=float, default=3.0, help="solve budget seconds")
+    parser.add_argument(
+        "--out",
+        default=None,
+        help="report output dir (M6 default under DESIGN/Global CP-SAT/shadow/)",
+    )
+    parser.add_argument(
+        "--budget", type=float, default=3.0, help="solve budget seconds"
+    )
     parser.add_argument(
         "--replay-legacy",
         action="store_true",
@@ -196,14 +206,8 @@ def main(argv: list[str] | None = None) -> int:
             acc["verdict"]["gates_pending"],
         )
     )
-    print(
-        "new engine  : violations %s"
-        % _fmt_counts(acc["new_violations_total"])
-    )
-    print(
-        "legacy      : violations %s"
-        % _fmt_counts(acc["legacy_violations_total"])
-    )
+    print("new engine  : violations %s" % _fmt_counts(acc["new_violations_total"]))
+    print("legacy      : violations %s" % _fmt_counts(acc["legacy_violations_total"]))
     return 0
 
 

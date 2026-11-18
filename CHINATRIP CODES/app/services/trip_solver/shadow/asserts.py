@@ -84,7 +84,11 @@ def _eval_sequence(view: PlanView, args: dict) -> tuple[str, str]:
 def _eval_time_range(view: PlanView, args: dict, snapshot) -> tuple[str, str]:
     requires_pin = args.get("requires_pin")
     if requires_pin and not _has_pin(snapshot, requires_pin):
-        return "skipped", "scenario sets no pin for %r (timetable-fixed " "time only assertable with the pin)" % requires_pin
+        return (
+            "skipped",
+            "scenario sets no pin for %r (timetable-fixed "
+            "time only assertable with the pin)" % requires_pin,
+        )
     day, name = int(args["day"]), str(args["name"])
     hits = [c for c in view.by_name(name) if c.day == day]
     if not hits:
@@ -95,15 +99,23 @@ def _eval_time_range(view: PlanView, args: dict, snapshot) -> tuple[str, str]:
     lo, hi = hhmm_to_min(args["start"]), hhmm_to_min(args["end"])
     start = card.start_min or 0
     if lo <= start <= hi:
-        return "pass", "%s starts %s within [%s, %s]" % (name, card.start, args["start"], args["end"])
-    return "fail", "%s starts %s outside [%s, %s]" % (name, card.start, args["start"], args["end"])
+        return "pass", "%s starts %s within [%s, %s]" % (
+            name,
+            card.start,
+            args["start"],
+            args["end"],
+        )
+    return "fail", "%s starts %s outside [%s, %s]" % (
+        name,
+        card.start,
+        args["start"],
+        args["end"],
+    )
 
 
 def _eval_same_venue(view: PlanView, args: dict) -> tuple[str, str]:
     day, meal, name = int(args["day"]), str(args["meal"]), str(args["name"])
-    meal_cards = [
-        c for c in view.day_cards(day) if c.kind == "meal" and c.anchor
-    ]
+    meal_cards = [c for c in view.day_cards(day) if c.kind == "meal" and c.anchor]
     if not meal_cards:
         return "pending", "no meal cards in view (meal assembly F-31 lands in P1-F)"
     target = meal_cards[0]  # one lunch/dinner per day
@@ -127,7 +139,11 @@ def _eval_card_leg(view: PlanView, args: dict) -> tuple[str, str]:
         return "fail", "day %d: %r untimed (card ≡ leg untestable)" % (day, name)
     if view.engine == "cpsat":
         cid = getattr(card, "cid", None)
-        legs = [l for l in view.access_legs if l.get("cid") == cid and l.get("day") == day]
+        legs = [
+            leg
+            for leg in view.access_legs
+            if leg.get("cid") == cid and leg.get("day") == day
+        ]
         if not legs:
             return "skipped", "no C-08 access leg recorded for %r" % name
         leg = legs[0]
@@ -153,11 +169,13 @@ def _eval_card_leg(view: PlanView, args: dict) -> tuple[str, str]:
 def _eval_no_fill_before(view: PlanView, args: dict) -> tuple[str, str]:
     day, anchor = int(args["day"]), str(args["before"])
     cards = view.sorted_day(day)
-    anchor_idx = next(
-        (i for i, c in enumerate(cards) if c.name == anchor), None
-    )
+    anchor_idx = next((i for i, c in enumerate(cards) if c.name == anchor), None)
     if anchor_idx is None:
-        return "skipped", "day %d: anchor %r not on the day (coverage is " "requested_coverage's job)" % (day, anchor)
+        return (
+            "skipped",
+            "day %d: anchor %r not on the day (coverage is "
+            "requested_coverage's job)" % (day, anchor),
+        )
     fillers = [
         c.name
         for c in cards[:anchor_idx]
@@ -193,14 +211,20 @@ def _eval_requested_coverage(view: PlanView, args: dict, snapshot) -> tuple[str,
     return "fail", "; ".join(problems)
 
 
-def _eval_no_cap_breach(view: PlanView, args: dict, ctx: "AssertContext") -> tuple[str, str]:
+def _eval_no_cap_breach(
+    view: PlanView, args: dict, ctx: "AssertContext"
+) -> tuple[str, str]:
     checked: list[str] = []
     breaches: list[str] = []
     for card in view.cards:
         if card.kind != KIND_VISIT or not card.timed:
             continue
         cap_min: Optional[int] = None
-        if view.engine == "cpsat" and ctx.enriched is not None and getattr(card, "cid", None):
+        if (
+            view.engine == "cpsat"
+            and ctx.enriched is not None
+            and getattr(card, "cid", None)
+        ):
             cap, _reason = ctx.enriched.caps.get(card.cid, (None, "unknown"))
             cap_min = cap
         elif card.entry_cap:
@@ -223,7 +247,10 @@ def _eval_disclosure_contains(view: PlanView, args: dict) -> tuple[str, str]:
         if key in line:
             return "pass", "disclosure contains %r" % key
     if view.engine == "cpsat":
-        return "pending", "disclosure templates (F-33) land in P1-F; %r not present yet" % key
+        return (
+            "pending",
+            "disclosure templates (F-33) land in P1-F; %r not present yet" % key,
+        )
     return "fail", "legacy disclosures lack %r" % key
 
 
@@ -240,7 +267,11 @@ def _eval_day_start_floor(view: PlanView, args: dict) -> tuple[str, str]:
             first.start,
             args.get("not_before"),
         )
-    return "fail", "first visit %s starts %s < %s" % (first.name, first.start, args.get("not_before"))
+    return "fail", "first visit %s starts %s < %s" % (
+        first.name,
+        first.start,
+        args.get("not_before"),
+    )
 
 
 def _eval_day_end_ceiling(view: PlanView, args: dict) -> tuple[str, str]:
@@ -256,7 +287,11 @@ def _eval_day_end_ceiling(view: PlanView, args: dict) -> tuple[str, str]:
             last.end,
             args.get("not_after"),
         )
-    return "fail", "last visit %s ends %s > %s" % (last.name, last.end, args.get("not_after"))
+    return "fail", "last visit %s ends %s > %s" % (
+        last.name,
+        last.end,
+        args.get("not_after"),
+    )
 
 
 def _eval_remote_day_purity(view: PlanView, args: dict) -> tuple[str, str]:
@@ -328,7 +363,9 @@ _EVALUATORS = {
         view, args, ctx.snapshot
     ),
     "no_entry_cap_breach": lambda view, args, ctx: _eval_no_cap_breach(view, args, ctx),
-    "disclosure_contains": lambda view, args, ctx: _eval_disclosure_contains(view, args),
+    "disclosure_contains": lambda view, args, ctx: _eval_disclosure_contains(
+        view, args
+    ),
     "day_start_floor": lambda view, args, ctx: _eval_day_start_floor(view, args),
     "day_end_ceiling": lambda view, args, ctx: _eval_day_end_ceiling(view, args),
     "remote_day_purity": lambda view, args, ctx: _eval_remote_day_purity(view, args),
@@ -343,7 +380,9 @@ def evaluate(assertion: dict, view: PlanView, ctx: AssertContext) -> dict:
     kind = str(assertion.get("type") or "")
     fn = _EVALUATORS.get(kind)
     if fn is None:
-        return _result("fail", assertion, view.engine, "unknown assertion type %r" % kind)
+        return _result(
+            "fail", assertion, view.engine, "unknown assertion type %r" % kind
+        )
     try:
         status, detail = fn(view, assertion.get("args") or {}, ctx)
     except Exception as exc:  # a broken assertion is a report bug, not a plan bug

@@ -1,0 +1,106 @@
+{
+ "schema_version": 1,
+ "source": "golden-fixture",
+ "library_version": "poi-snapshot-2026-11-17",
+ "request": {
+  "days": 1,
+  "cities": [
+   "北京"
+  ],
+  "start_date": "2026-11-23",
+  "musts": [
+   {
+    "rid": "r1",
+    "name": "中国国家博物馆",
+    "importance": 5,
+    "duration_tier": null,
+    "poi_id": "ct_北京_30"
+   },
+   {
+    "rid": "r2",
+    "name": "天坛",
+    "importance": 4,
+    "duration_tier": null,
+    "poi_id": "unesco_Q125445"
+   }
+  ],
+  "wishes": [],
+  "avoid": [],
+  "arrival_time": null,
+  "departure_time": null,
+  "day1_start": null,
+  "lang": "zh"
+ },
+ "candidates": [
+  {
+   "cid": "c1",
+   "name": "中国国家博物馆",
+   "poi_id": "ct_北京_30",
+   "kind": "requested",
+   "category": "museum",
+   "tier": 1,
+   "lon": 116.4039,
+   "lat": 39.905,
+   "opening_hours": "周二至周日09:00-17:00,周一关闭",
+   "best_visit_time": "any",
+   "suggested_duration_min": 150,
+   "remote": false,
+   "city": "北京",
+   "rid": "r1"
+  },
+  {
+   "cid": "c2",
+   "name": "天坛",
+   "poi_id": "unesco_Q125445",
+   "kind": "requested",
+   "category": "temple",
+   "tier": 1,
+   "lon": 116.4128,
+   "lat": 39.8836,
+   "opening_hours": "06:30-22:00",
+   "best_visit_time": "any",
+   "suggested_duration_min": 150,
+   "remote": false,
+   "city": "北京",
+   "rid": "r2"
+  }
+ ],
+ "access_profiles": [],
+ "travel": [
+  {
+   "from_key": "ct_北京_30",
+   "to_key": "unesco_Q125445",
+   "minutes": 12
+  }
+ ],
+ "weather": [],
+ "expect": [
+  {
+   "type": "requested_coverage",
+   "args": {
+    "note": "closed-day must must surface as unplaced, never silent"
+   }
+  },
+  {
+   "type": "no_entry_cap_breach",
+   "args": {
+    "caps": {
+     "generic": "16:30",
+     "big": "15:30"
+    }
+   }
+  },
+  {
+   "type": "deterministic",
+   "args": {
+    "runs": 2
+   }
+  }
+ ],
+ "provenance": {
+  "incident": "closed-day family (C-01): 周一关闭 museum on a Monday start",
+  "built_at": "2026-11-18",
+  "builder": "tests/golden/build_corpus_v2.py",
+  "note": "unplaced reason wording (F-26 certificate) pends P1-E; coverage via the unplaced row is the B-01-proof shape now."
+ }
+}

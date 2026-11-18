@@ -23,8 +23,8 @@ from ..inputs.enrich import enrich
 from ..model.solve import solve_snapshot
 from .asserts import AssertContext, evaluate
 from .corpus import Scenario
-from .violations import scan_violations, violation_counts
 from .views import signature, view_from_recording, view_from_solution
+from .violations import scan_violations, violation_counts
 
 DEFAULT_BUDGET_S = 3.0
 NO_SOLUTION_DISCLOSURE = "求解器未收敛"
@@ -38,7 +38,9 @@ class EngineRun:
     results: list[dict]
 
 
-def _run_model(scenario: Scenario, budget_s: float) -> tuple[EngineRun, EngineRun, bool]:
+def _run_model(
+    scenario: Scenario, budget_s: float
+) -> tuple[EngineRun, EngineRun, bool]:
     """Solve twice on the same snapshot (F-41 instrument-level determinism)."""
     runs: list[EngineRun] = []
     for _ in range(2):
@@ -123,7 +125,8 @@ def _convergence(runs: EngineRun, deterministic: bool, budget_s: float) -> dict:
         "status": status,
         "wall_ms": wall_ms,
         "budget_ms": int(budget_s * 1000),
-        "within_budget": wall_ms <= int(budget_s * 1000) and status in ("OPTIMAL", "FEASIBLE"),
+        "within_budget": wall_ms <= int(budget_s * 1000)
+        and status in ("OPTIMAL", "FEASIBLE"),
         "deterministic": deterministic,
         "unplaced_count": len(view.unplaced),
         "fill_count": sum(1 for c in view.cards if c.requested is False and c.timed),

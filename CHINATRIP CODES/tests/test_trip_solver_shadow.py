@@ -10,15 +10,12 @@ detected, and the model engine must come back clean.
 
 from __future__ import annotations
 
-from dataclasses import replace
-
 from app.services.trip_solver.inputs.enrich import enrich
 from app.services.trip_solver.model.solve import solve_snapshot
 from app.services.trip_solver.shadow.asserts import AssertContext, evaluate
 from app.services.trip_solver.shadow.compare import shadow_compare
 from app.services.trip_solver.shadow.corpus import load_corpus, load_scenario
 from app.services.trip_solver.shadow.metrics import acceptance_metrics
-from app.services.trip_solver.shadow.violations import scan_violations, violation_counts
 from app.services.trip_solver.shadow.views import (
     CardView,
     PlanView,
@@ -26,6 +23,7 @@ from app.services.trip_solver.shadow.views import (
     view_from_recording,
     view_from_solution,
 )
+from app.services.trip_solver.shadow.violations import scan_violations, violation_counts
 from app.services.trip_solver.snapshot import default_golden_path, load_golden
 from app.services.trip_solver.types import (
     CandidateItem,
@@ -204,7 +202,16 @@ def test_time_range_requires_pin_skips_without_pin():
     snapshot = _mini_snapshot(with_pin=False)
     view = PlanView(engine="cpsat")
     res = evaluate(
-        {"type": "time_range", "args": {"day": 1, "name": "故宫博物院", "start": "07:00", "end": "08:45", "requires_pin": "天安门广场"}},
+        {
+            "type": "time_range",
+            "args": {
+                "day": 1,
+                "name": "故宫博物院",
+                "start": "07:00",
+                "end": "08:45",
+                "requires_pin": "天安门广场",
+            },
+        },
         view,
         AssertContext(snapshot=snapshot),
     )
@@ -213,9 +220,21 @@ def test_time_range_requires_pin_skips_without_pin():
 
 def test_time_range_passes_with_pin_set():
     snapshot = _mini_snapshot(with_pin=True)
-    view = PlanView(engine="cpsat", cards=[CardView(name="故宫博物院", day=1, start="07:10", end="08:40")])
+    view = PlanView(
+        engine="cpsat",
+        cards=[CardView(name="故宫博物院", day=1, start="07:10", end="08:40")],
+    )
     res = evaluate(
-        {"type": "time_range", "args": {"day": 1, "name": "故宫博物院", "start": "07:00", "end": "08:45", "requires_pin": "故宫博物院"}},
+        {
+            "type": "time_range",
+            "args": {
+                "day": 1,
+                "name": "故宫博物院",
+                "start": "07:00",
+                "end": "08:45",
+                "requires_pin": "故宫博物院",
+            },
+        },
         view,
         AssertContext(snapshot=snapshot),
     )
@@ -224,9 +243,21 @@ def test_time_range_passes_with_pin_set():
 
 def test_time_range_fails_outside_window():
     snapshot = _mini_snapshot(with_pin=True)
-    view = PlanView(engine="cpsat", cards=[CardView(name="故宫博物院", day=1, start="09:30", end="11:00")])
+    view = PlanView(
+        engine="cpsat",
+        cards=[CardView(name="故宫博物院", day=1, start="09:30", end="11:00")],
+    )
     res = evaluate(
-        {"type": "time_range", "args": {"day": 1, "name": "故宫博物院", "start": "07:00", "end": "08:45", "requires_pin": "故宫博物院"}},
+        {
+            "type": "time_range",
+            "args": {
+                "day": 1,
+                "name": "故宫博物院",
+                "start": "07:00",
+                "end": "08:45",
+                "requires_pin": "故宫博物院",
+            },
+        },
         view,
         AssertContext(snapshot=snapshot),
     )
@@ -259,7 +290,14 @@ def test_no_unrequested_before_detects_filler_and_skips_absent_anchor():
     snapshot = _mini_snapshot()
     cards = [
         CardView(name="老舍茶馆", day=1, start="09:10", end="10:10", requested=False),
-        CardView(name="慕田峪长城", day=1, start="12:38", end="15:38", requested=True, remote=True),
+        CardView(
+            name="慕田峪长城",
+            day=1,
+            start="12:38",
+            end="15:38",
+            requested=True,
+            remote=True,
+        ),
     ]
     res = evaluate(
         {"type": "no_unrequested_before", "args": {"day": 1, "before": "慕田峪长城"}},
@@ -279,15 +317,23 @@ def test_no_unrequested_before_detects_filler_and_skips_absent_anchor():
 def test_same_venue_pending_without_meal_cards_fails_wrong_anchor():
     snapshot = _mini_snapshot()
     res = evaluate(
-        {"type": "same_venue", "args": {"day": 1, "meal": "lunch", "name": "慕田峪长城"}},
+        {
+            "type": "same_venue",
+            "args": {"day": 1, "meal": "lunch", "name": "慕田峪长城"},
+        },
         PlanView(engine="cpsat"),
         AssertContext(snapshot=snapshot),
     )
     assert res["status"] == "pending"  # meal assembly lands in P1-F
 
-    meal = CardView(name="午饭", day=1, start="11:38", end="12:38", kind="meal", anchor="老舍茶馆")
+    meal = CardView(
+        name="午饭", day=1, start="11:38", end="12:38", kind="meal", anchor="老舍茶馆"
+    )
     res = evaluate(
-        {"type": "same_venue", "args": {"day": 1, "meal": "lunch", "name": "慕田峪长城"}},
+        {
+            "type": "same_venue",
+            "args": {"day": 1, "meal": "lunch", "name": "慕田峪长城"},
+        },
         PlanView(engine="legacy", cards=[meal]),
         AssertContext(snapshot=snapshot),
     )
@@ -305,7 +351,9 @@ def test_requested_coverage_fail_and_pass():
     )
     assert res["status"] == "fail" and "B-01" in res["detail"]
     # timed = pass
-    card = CardView(name="故宫博物院", day=1, start="09:00", end="11:00", requested=True)
+    card = CardView(
+        name="故宫博物院", day=1, start="09:00", end="11:00", requested=True
+    )
     res = evaluate(
         {"type": "requested_coverage", "args": {}},
         PlanView(engine="legacy", cards=[card]),
@@ -328,10 +376,18 @@ def test_no_entry_cap_breach_breach_and_skip():
     assert cap == 930 and reason == "big-site"  # tower capped at 15:30
 
     breacher = CardView(
-        name="上海中心大厦上海之巅观光厅", day=1, start="19:00", end="20:30", requested=False, cid="c2"
+        name="上海中心大厦上海之巅观光厅",
+        day=1,
+        start="19:00",
+        end="20:30",
+        requested=False,
+        cid="c2",
     )
     res = evaluate(
-        {"type": "no_entry_cap_breach", "args": {"caps": {"generic": "16:30", "big": "15:30"}}},
+        {
+            "type": "no_entry_cap_breach",
+            "args": {"caps": {"generic": "16:30", "big": "15:30"}},
+        },
         PlanView(engine="cpsat", cards=[breacher]),
         AssertContext(snapshot=snapshot, enriched=enriched),
     )
@@ -392,12 +448,18 @@ def test_shadow_compare_g01_full_shape():
     assert det and det[0]["status"] == "pass"
     assert report["new"]["convergence"]["within_budget"] is True
     assert report["new"]["violation_counts"] == {
-        "B-01": 0, "B-02": 0, "B-03a": 0, "B-03c": 0, "B-06": 0
+        "B-01": 0,
+        "B-02": 0,
+        "B-03a": 0,
+        "B-03c": 0,
+        "B-06": 0,
     }
     # legacy side detects the incident, model is not-worse everywhere
     assert report["legacy"]["violation_counts"]["B-01"] == 1
     assert report["not_worse"]["pass"] is True
-    legacy_det = [r for r in report["legacy"]["assertions"] if r["type"] == "deterministic"]
+    legacy_det = [
+        r for r in report["legacy"]["assertions"] if r["type"] == "deterministic"
+    ]
     assert legacy_det and legacy_det[0]["status"] == "skipped"
 
 
@@ -431,7 +493,11 @@ def test_acceptance_metrics_verdict_and_gates():
     metrics = acceptance_metrics(reports)
     assert metrics["corpus"] == [s.name for s in scenarios]
     assert metrics["new_violations_total"] == {
-        "B-01": 0, "B-02": 0, "B-03a": 0, "B-03c": 0, "B-06": 0
+        "B-01": 0,
+        "B-02": 0,
+        "B-03a": 0,
+        "B-03c": 0,
+        "B-06": 0,
     }
     assert metrics["legacy_violations_total"]["B-01"] == 1
     gates = metrics["gates"]
@@ -460,10 +526,26 @@ def _view_with(*cards, engine="cpsat"):
     return PlanView(engine=engine, cards=list(cards))
 
 
-def _card(name, *, day=1, start="09:00", end="11:00", requested=None, remote=False, city=None, kind="visit"):
+def _card(
+    name,
+    *,
+    day=1,
+    start="09:00",
+    end="11:00",
+    requested=None,
+    remote=False,
+    city=None,
+    kind="visit",
+):
     return CardView(
-        name=name, day=day, start=start, end=end, kind=kind,
-        requested=requested, remote=remote, city=city,
+        name=name,
+        day=day,
+        start=start,
+        end=end,
+        kind=kind,
+        requested=requested,
+        remote=remote,
+        city=city,
     )
 
 
@@ -474,13 +556,19 @@ def test_remote_day_purity_pass_fail_skip():
     ctx = AssertContext(snapshot=snap)
     ok = evaluate(
         {"type": "remote_day_purity", "args": {"name": "远郊点"}},
-        _view_with(_card("远郊点", requested=True, remote=True), _card("城心必去", requested=True)),
+        _view_with(
+            _card("远郊点", requested=True, remote=True),
+            _card("城心必去", requested=True),
+        ),
         ctx,
     )
     assert ok["status"] == "pass"
     bad = evaluate(
         {"type": "remote_day_purity", "args": {"name": "远郊点"}},
-        _view_with(_card("凑数甲", requested=False), _card("远郊点", requested=True, remote=True)),
+        _view_with(
+            _card("凑数甲", requested=False),
+            _card("远郊点", requested=True, remote=True),
+        ),
         ctx,
     )
     assert bad["status"] == "fail" and "B-08" in bad["detail"]
@@ -592,14 +680,13 @@ def test_replay_scenario_records_verbatim_shape():
 
 
 def test_replay_deterministic_on_small_scenario():
+    import os
+
     from app.services.trip_solver.shadow.replay import replay_scenario_sync
     from app.services.trip_solver.shadow.views import (
         signature,
         view_from_recording,
     )
-
-    import glob
-    import os
 
     path = os.path.join(os.path.dirname(G01), "g02_tower_late_gate.json")
     scenario = load_scenario(path, legacy_dir="")

@@ -157,7 +157,9 @@ def view_from_recording(raw: dict[str, Any]) -> PlanView:
                     end=item.get("end"),
                     kind=str(item.get("kind") or KIND_VISIT),
                     requested=(
-                        bool(item["requested"]) if item.get("requested") is not None else None
+                        bool(item["requested"])
+                        if item.get("requested") is not None
+                        else None
                     ),
                     poi_id=item.get("poi_id"),
                     remote=bool(item.get("remote", False)),
@@ -190,11 +192,14 @@ def signature(view: PlanView) -> str:
                 "kind": c.kind,
                 "requested": c.requested,
             }
-            for c in sorted(view.cards, key=lambda c: (c.day, c.start_min is None, c.start_min or 0, c.name))
+            for c in sorted(
+                view.cards,
+                key=lambda c: (c.day, c.start_min is None, c.start_min or 0, c.name),
+            )
         ],
-        "unplaced": sorted(
-            (u.get("rid"), u.get("name")) for u in view.unplaced
-        ),
+        "unplaced": sorted((u.get("rid"), u.get("name")) for u in view.unplaced),
         "disclosures": sorted(view.disclosures),
     }
-    return json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return json.dumps(
+        payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    )

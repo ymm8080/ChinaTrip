@@ -37,15 +37,20 @@ def acceptance_metrics(reports: Iterable[dict[str, Any]]) -> dict[str, Any]:
             legacy_violations[cls] = legacy_violations.get(cls, 0) + int(n)
 
     converged = sum(
-        1 for r in corpus if (r.get("new", {}).get("convergence") or {}).get("within_budget")
+        1
+        for r in corpus
+        if (r.get("new", {}).get("convergence") or {}).get("within_budget")
     )
-    deterministic = sum(
-        1 for r in corpus if r.get("new", {}).get("deterministic")
-    )
+    deterministic = sum(1 for r in corpus if r.get("new", {}).get("deterministic"))
     recorded = [r for r in corpus if r.get("legacy")]
     not_worse = [r for r in recorded if (r.get("not_worse") or {}).get("pass")]
     no_solution = sum(
-        int((r.get("legacy", {}) or {}).get("convergence", {}).get("no_solution_disclosures") or 0)
+        int(
+            (r.get("legacy", {}) or {})
+            .get("convergence", {})
+            .get("no_solution_disclosures")
+            or 0
+        )
         for r in recorded
     )
 
@@ -64,7 +69,7 @@ def acceptance_metrics(reports: Iterable[dict[str, Any]]) -> dict[str, Any]:
     corpus_ok = len(corpus) >= CORPUS_TARGET
     conv_rate = (converged / len(corpus)) if corpus else 0.0
     det_rate = (deterministic / len(corpus)) if corpus else 0.0
-    nw_rate = (len(not_worse) / len(recorded)) if recorded else None
+    (len(not_worse) / len(recorded)) if recorded else None
 
     gates = {
         "corpus_size": {
