@@ -45,9 +45,7 @@ def _legacy_path_for(corpus_dir: str, stem: str) -> Optional[str]:
 def load_scenario(path: str, legacy_dir: Optional[str] = None) -> Scenario:
     snapshot, expect, provenance = load_golden(path)
     stem = os.path.splitext(os.path.basename(path))[0]
-    legacy_path = _legacy_path_for(
-        legacy_dir or os.path.dirname(path), stem
-    )
+    legacy_path = _legacy_path_for(legacy_dir or os.path.dirname(path), stem)
     legacy_raw: Optional[dict[str, Any]] = None
     if legacy_path:
         import json

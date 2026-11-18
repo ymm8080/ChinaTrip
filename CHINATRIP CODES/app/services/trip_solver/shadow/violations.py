@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from .views import KIND_VISIT, CardView, PlanView
+from .views import KIND_VISIT, PlanView
 
 if TYPE_CHECKING:  # pragma: no cover
     from .asserts import AssertContext
@@ -49,7 +49,8 @@ def scan_b01_silent_drop(view: PlanView, ctx: "AssertContext") -> list[dict]:
             {
                 "bug": "B-01",
                 "day": card.day,
-                "evidence": "%r present untimed%s" % (
+                "evidence": "%r present untimed%s"
+                % (
                     card.name,
                     "" if disclosed else " and not in unplaced (silent)",
                 ),
@@ -71,7 +72,8 @@ def scan_b02_fill_over_must(view: PlanView, ctx: "AssertContext") -> list[dict]:
             {
                 "bug": "B-02",
                 "day": card.day,
-                "evidence": "unrequested %r holds %s while unseated: %s" % (
+                "evidence": "unrequested %r holds %s while unseated: %s"
+                % (
                     card.name,
                     card.start,
                     ", ".join(unseated),
@@ -96,7 +98,8 @@ def scan_b03a_fill_before_remote(view: PlanView, ctx: "AssertContext") -> list[d
                     {
                         "bug": "B-03a",
                         "day": remote.day,
-                        "evidence": "unrequested %r (%s) precedes remote %r (%s)" % (
+                        "evidence": "unrequested %r (%s) precedes remote %r (%s)"
+                        % (
                             card.name,
                             card.start,
                             remote.name,
@@ -116,9 +119,9 @@ def scan_b03c_card_leg_mismatch(view: PlanView, ctx: "AssertContext") -> list[di
             continue
         if view.engine == "cpsat":
             legs = [
-                l
-                for l in view.access_legs
-                if l.get("cid") == card.cid and l.get("day") == card.day
+                leg
+                for leg in view.access_legs
+                if leg.get("cid") == card.cid and leg.get("day") == card.day
             ]
             if not legs:
                 continue
@@ -128,7 +131,8 @@ def scan_b03c_card_leg_mismatch(view: PlanView, ctx: "AssertContext") -> list[di
                     {
                         "bug": "B-03c",
                         "day": card.day,
-                        "evidence": "%r card %s ≠ leg arrival %d min" % (
+                        "evidence": "%r card %s ≠ leg arrival %d min"
+                        % (
                             card.name,
                             card.start,
                             arrive,
@@ -146,7 +150,8 @@ def scan_b03c_card_leg_mismatch(view: PlanView, ctx: "AssertContext") -> list[di
                     {
                         "bug": "B-03c",
                         "day": card.day,
-                        "evidence": "%r card %s ≠ leg arrive %s" % (
+                        "evidence": "%r card %s ≠ leg arrive %s"
+                        % (
                             card.name,
                             card.start,
                             arrive,
