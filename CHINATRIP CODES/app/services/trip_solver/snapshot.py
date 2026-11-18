@@ -98,6 +98,8 @@ def snapshot_from_dict(raw: dict[str, Any]) -> FactSnapshot:
         avoid=tuple(req_raw.get("avoid", ())),
         arrival_time=req_raw.get("arrival_time"),
         departure_time=req_raw.get("departure_time"),
+        arrival_mode=req_raw.get("arrival_mode"),
+        departure_mode=req_raw.get("departure_mode"),
         day1_start=req_raw.get("day1_start"),
         lang=req_raw.get("lang", "zh"),
         pins=tuple(

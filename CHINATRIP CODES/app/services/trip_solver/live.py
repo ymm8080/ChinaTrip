@@ -137,6 +137,20 @@ def _access_profiles_for(
     return out
 
 
+def _mode_from_no(no: Optional[str]) -> Optional[str]:
+    """车次/航班号 → 交通模式（G/D/C/K/T/Z+数字=火车；航司码+数字=飞机）。"""
+    import re
+
+    text = (no or "").strip().upper()
+    if not text:
+        return None
+    if re.match(r"^[GDKTCZYL]\d", text):
+        return "train"
+    if re.match(r"^[A-Z]{2}\d{3,4}$", text) or re.match(r"^\d{4,5}$", text):
+        return "flight"
+    return None
+
+
 def snapshot_from_request(
     *,
     cities: list[str],
@@ -146,6 +160,8 @@ def snapshot_from_request(
     store,
     arrival_time: Optional[str] = None,
     departure_time: Optional[str] = None,
+    arrival_no: Optional[str] = None,
+    departure_no: Optional[str] = None,
     avoid: Optional[list[str]] = None,
     weather_lookup: Optional[Callable[[str, str], Any]] = None,
     service_rows: Optional[list[dict]] = None,
@@ -255,6 +271,8 @@ def snapshot_from_request(
             musts=tuple(request_musts),
             arrival_time=arrival_time,
             departure_time=departure_time,
+            arrival_mode=_mode_from_no(arrival_no),
+            departure_mode=_mode_from_no(departure_no),
         ),
         candidates=tuple(candidates),
         access_profiles=tuple(profiles),
@@ -272,6 +290,8 @@ def generate_session_via_trip_solver(
     start_date: Optional[str],
     musts: list[str],
     store,
+    arrival_no: Optional[str] = None,
+    departure_no: Optional[str] = None,
     preferences: str = "",
     arrival_time: Optional[str] = None,
     departure_time: Optional[str] = None,
@@ -318,6 +338,8 @@ def generate_session_via_trip_solver(
         store=store,
         arrival_time=arrival_time,
         departure_time=departure_time,
+        arrival_no=arrival_no,
+        departure_no=departure_no,
         avoid=[],
         weather_lookup=_weather,
         service_rows=service_rows,
@@ -328,7 +350,13 @@ def generate_session_via_trip_solver(
 
     outcome = solve_trip(snapshot, flag=ENGINE_CPSAT, budget_s=budget_s)
     if outcome.engine != ENGINE_CPSAT or getattr(outcome, "plan", None) is None:
-        return None, outcome  # fallback shape — legacy serves (+disclosure)
+        # F-35 生产语义：cpsat 无可服务计划（INFEASIBLE/UNKNOWN/装配失败）
+        # = 回退形状——legacy 服务且必须披露，绝不静默
+        from .entry import FALLBACK_DISCLOSURE
+
+        outcome.fallback = True
+        outcome.disclosures = [dict(FALLBACK_DISCLOSURE)]
+        return None, outcome
 
     session = PlanSession(
         session_id="ts-%s" % datetime.datetime.now().strftime("%Y%m%d%H%M%S%f"),

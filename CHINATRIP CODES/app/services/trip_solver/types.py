@@ -102,6 +102,10 @@ class TripRequest:
     avoid: tuple[str, ...] = ()
     arrival_time: Optional[str] = None
     departure_time: Optional[str] = None
+    # 交通模式（2026-11-18 跨管线对齐+拍板「火车 2h/飞机 2.5h」）：
+    # 落地/离城缓冲按模式取 120/150，缺省 150
+    arrival_mode: Optional[str] = None
+    departure_mode: Optional[str] = None
     day1_start: Optional[str] = None
     lang: str = "zh"
     pins: tuple["FixedPin", ...] = ()  # C-04 fixed placements

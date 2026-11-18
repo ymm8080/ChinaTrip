@@ -725,7 +725,7 @@ def _after_transfer_buffer(transfer: TransferItem, visit: VisitItem) -> int:
     if transfer.mode not in ("train", "flight"):
         return INTERCITY_BUFFER_MINUTES
     if (visit.category or "") in ("hotel", "food"):
-        # 酒店入住卡按落地缓冲落（飞机 3h/火车 2h，2026-11-14）
+        # 酒店入住卡按落地缓冲落（飞机 2.5h/火车 2h，2026-11-14）
         return arrival_buffer_minutes(transfer.mode)
     return arrival_floor_minutes(transfer.mode)
 
@@ -781,7 +781,7 @@ def _leaving_morning_cap(mode: str | None, dep_min: int) -> int | None:
         return None
     if dep_min < LEAVING_MORNING_END_MINUTES:
         return DAY_START_MINUTES
-    # 离城侧按交通方式留缓冲（飞机 3h / 火车 2h，2026-11-14）
+    # 离城侧按交通方式留缓冲（飞机 2.5h / 火车 2h，2026-11-14）
     return min(LEAVING_MORNING_END_MINUTES, dep_min - departure_buffer_minutes(mode))
 
 

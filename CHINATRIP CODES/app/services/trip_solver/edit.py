@@ -41,8 +41,9 @@ RETIMING_DISCLOSURE = {
 
 @dataclass(frozen=True)
 class DiffOp:
-    kind: str  # move | retime | pin | duration | delete
+    kind: str  # move | retime | pin | duration | delete | days
     cid: str
+    days: Optional[int] = None  # kind=days: 新总天数（跨管线对齐 2026-11-18）
     day: Optional[int] = None
     start_min: Optional[int] = None
     duration_min: Optional[int] = None
@@ -57,6 +58,26 @@ class EditOutcome:
     wall_ms: int = 0
     within_edit_budget: bool = True
     disclosure: Optional[dict] = None
+
+
+def _apply_days_op(
+    snapshot: FactSnapshot, ops: list[DiffOp]
+) -> tuple[FactSnapshot, list[DiffOp]]:
+    """kind=days：改总天数（legacy _fit_plan_day_count 的模型侧对应物）。
+    扩展=新天留白重解；收缩=装不下的必去诚实落 unplaced（绝不静默删）。"""
+    for op in ops:
+        if op.kind != "days" or not op.days or op.days < 1:
+            continue
+        if op.days == snapshot.request.days:
+            ops = [o for o in ops if o is not op]
+            continue
+        snapshot = replace(
+            snapshot,
+            request=replace(snapshot.request, days=int(op.days)),
+        )
+        ops = [o for o in ops if o is not op]
+        break
+    return snapshot, ops
 
 
 def _apply_pin_ops(
@@ -147,6 +168,7 @@ def edit_resolve(
     started = time.perf_counter()
 
     pin_ops = [op for op in ops if op.kind in ("retime", "pin")]
+    snapshot, ops = _apply_days_op(snapshot, ops)
     snapshot, ops = _apply_pin_ops(snapshot, ops)
     snapshot, ops = _apply_delete_ops(snapshot, ops)
 

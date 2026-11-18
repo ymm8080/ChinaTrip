@@ -42,8 +42,20 @@ from .vars import MINUTES_PER_DAY, VarBundle
 if TYPE_CHECKING:  # pragma: no cover
     from ..inputs.enrich import EnrichedSnapshot
 
-ARRIVAL_FLOOR_MINUTES = 150  # 落地首停 ≥ 落地 2.5h（legacy ARRIVAL_STOP_FLOOR）
+from app.services.itinerary.models import arrival_buffer_minutes
+
+ARRIVAL_FLOOR_MINUTES = 150  # 无交通模式地板（2026-11-18 拍板后与飞机同值）
 DEPARTURE_BUFFER_MINUTES = 90
+
+
+def arrival_floor_for(mode: str | None) -> int:
+    """跨管线对齐（2026-11-18 拍板「火车 2h/飞机 2.5h」）：train 120 /
+    flight 150（models.arrival_buffer_minutes 同源），无模式 150。"""
+    if (mode or "").strip().lower() in ("flight", "train"):
+        return arrival_buffer_minutes(mode)
+    return ARRIVAL_FLOOR_MINUTES
+
+
 MORNING_ANCHOR_CAP = 10 * 60 + 30  # 晨锚最迟 10:30
 RETURN_BUFFER_MINUTES = 8
 DEFAULT_GATEWAY_TAXI_MINUTES = 15
@@ -70,8 +82,10 @@ def add_c05_endpoints(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
     request = enriched.snapshot.request
     arrival = _hhmm(getattr(request, "arrival_time", None))
     departure = _hhmm(getattr(request, "departure_time", None))
+    arrival_floor = arrival_floor_for(getattr(request, "arrival_mode", None))
+    departure_buffer = arrival_floor_for(getattr(request, "departure_mode", None))
     if arrival is not None and bundle.days:
-        floor = arrival + ARRIVAL_FLOOR_MINUTES
+        floor = arrival + arrival_floor
         for cand in enriched.snapshot.candidates:
             lit = bundle.presence[(cand.cid, bundle.days[0])]
             bundle.model.Add(
@@ -79,7 +93,7 @@ def add_c05_endpoints(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
             ).OnlyEnforceIf(lit)
     if departure is not None and bundle.days:
         last = bundle.days[-1]
-        cap = departure - DEPARTURE_BUFFER_MINUTES
+        cap = departure - departure_buffer
         for cand in enriched.snapshot.candidates:
             lit = bundle.presence[(cand.cid, last)]
             bundle.model.Add(
