@@ -824,7 +824,6 @@ async def start_plan(
             and seam_plain_shape(
                 brief=start_brief,
                 images=request.images,
-                city_days=ts_city_days,
                 arrival_date=request.arrival_date,
                 departure_date=request.departure_date,
                 start_date=request.start_date,
@@ -850,6 +849,7 @@ async def start_plan(
                     arrival_no=ts_arrival_no,
                     departure_no=ts_departure_no,
                     intercity_mode=request.intercity_mode,
+                    city_days=dict(ts_city_days) if ts_city_days else None,
                     lang=request.lang,
                 )
 

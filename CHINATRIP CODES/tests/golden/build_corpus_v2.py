@@ -848,6 +848,93 @@ def build_g13() -> dict:
     }
 
 
+# --- g14 per-city day windows (C-17, R8-S2) -----------------------------------
+
+
+def build_g14() -> dict:
+    """分城天数（口径 A）：出发城+双目的地，city_days 杭州2/上海3；
+    杭州锁日 1-2、上海锁日 3-5，出发城与窗外候选灭活（legacy 拆窗镜像）。"""
+    return {
+        "schema_version": 2,
+        "source": "golden-fixture",
+        "library_version": "poi-snapshot-2026-11-17",
+        "request": _request(
+            5,
+            ["北京", "杭州", "上海"],
+            [
+                _must("r1", "西湖风景名胜区", 5, "unesco_WestLake"),
+                _must("r2", "灵隐寺", 4, "ct_杭州_01"),
+                _must("r3", "外滩", 5, "ct_上海_20"),
+                _must("r4", "豫园", 4, "ct_上海_21"),
+            ],
+            "2026-11-25",
+            city_days={"杭州": 2, "上海": 3},
+        ),
+        "candidates": [
+            _cand(
+                "c1",
+                "西湖风景名胜区",
+                "杭州",
+                kind="requested",
+                rid="r1",
+                tier=1,
+                dur=90,
+                poi_id="unesco_WestLake",
+            ),
+            _cand(
+                "c2",
+                "灵隐寺",
+                "杭州",
+                kind="requested",
+                rid="r2",
+                tier=1,
+                dur=90,
+                poi_id="ct_杭州_01",
+            ),
+            _cand(
+                "c3",
+                "外滩",
+                "上海",
+                kind="requested",
+                rid="r3",
+                tier=1,
+                dur=90,
+                poi_id="ct_上海_20",
+            ),
+            _cand(
+                "c4",
+                "豫园",
+                "上海",
+                kind="requested",
+                rid="r4",
+                tier=1,
+                dur=75,
+                poi_id="ct_上海_21",
+            ),
+            _cand("c5", "河坊街", "杭州", kind="fill", tier=3, dur=60),
+            _cand("c6", "南京路步行街", "上海", kind="fill", tier=3, dur=60),
+            _cand("c7", "故宫博物院", "北京", kind="fill", tier=1, dur=120),
+        ],
+        "access_profiles": [],
+        "travel": [],
+        "weather": [],
+        "expect": [
+            {"type": "requested_coverage", "args": {}},
+            {"type": "city_coherence", "args": {"note": "C-07 + C-17 windows"}},
+            {"type": "deterministic", "args": {"runs": 2}},
+        ],
+        "provenance": {
+            "incident": "R8-S2 分城天数（2026-11-18 拍板「全量切引擎」口径 A）",
+            "built_at": "2026-11-18",
+            "builder": "tests/golden/build_corpus_v2.py",
+            "note": (
+                "city_days 杭州2/上海3：杭州日窗 1-2、上海日窗 3-5；出发城"
+                "（北京）不占活动窗——legacy _split_days 的模型镜像（C-17）。"
+            ),
+        },
+    }
+
+
 def main() -> int:
     with open(G01, "r", encoding="utf-8") as fh:
         base = json.load(fh)
@@ -860,6 +947,7 @@ def main() -> int:
     _write("g11_trip_scale.json", build_g11())
     _write("g12_closed_weekday.json", build_g12())
     _write("g13_twin_content_dup.json", build_g13())
+    _write("g14_city_days_windows.json", build_g14())
     return 0
 
 

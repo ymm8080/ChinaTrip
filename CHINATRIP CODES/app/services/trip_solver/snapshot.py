@@ -103,6 +103,9 @@ def snapshot_from_dict(raw: dict[str, Any]) -> FactSnapshot:
         day1_start=req_raw.get("day1_start"),
         lang=req_raw.get("lang", "zh"),
         preferences=str(req_raw.get("preferences", "") or ""),
+        city_days=tuple(
+            (str(k), int(v)) for k, v in dict(req_raw.get("city_days") or {}).items()
+        ),
         pins=tuple(
             FixedPin(
                 rid=str(p["rid"]),
@@ -175,6 +178,7 @@ def snapshot_hash(snapshot: FactSnapshot) -> str:
             "lang": snapshot.request.lang,
             "preferences": snapshot.request.preferences,
             "pins": [(p.rid, p.day, p.start_min, p.cid) for p in snapshot.request.pins],
+            "city_days": [list(pair) for pair in snapshot.request.city_days],
             "hotel_anchors": snapshot.request.hotel_anchors,
             "day_load_budget_min": snapshot.request.day_load_budget_min,
             "sight_cap_per_day": snapshot.request.sight_cap_per_day,

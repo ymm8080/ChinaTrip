@@ -54,10 +54,11 @@ V2_STEMS = (
     "g11_trip_scale",
     "g12_closed_weekday",
     "g13_twin_content_dup",
+    "g14_city_days_windows",
 )
 
 
-def test_corpus_v2_loads_thirteen():
+def test_corpus_v2_loads_all():
     from app.services.trip_solver.types import validate_snapshot
 
     scenarios = load_corpus()
@@ -65,7 +66,7 @@ def test_corpus_v2_loads_thirteen():
     assert "g01" in names
     for stem in V2_STEMS:
         assert stem in names, names
-    assert len(scenarios) == 13  # M9 floor is 12
+    assert len(scenarios) == 14  # M9 floor is 12
     for s in scenarios:
         assert validate_snapshot(s.snapshot) == [], s.name
         assert s.expect, s.name

@@ -247,4 +247,8 @@ def build_model(
     add_c14_coverage_before_fill(bundle, enriched)
     add_c15_remote_departure(bundle, enriched)
     add_c16_diversity_caps(bundle, enriched, relax=flags.relax_diversity)
+
+    from .c17_city_days import add_c17_city_days
+
+    add_c17_city_days(bundle, enriched)
     return bundle

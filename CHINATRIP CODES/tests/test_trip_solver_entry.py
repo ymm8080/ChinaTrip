@@ -254,7 +254,6 @@ def test_seam_plain_shape_gates_unsupported_start_shapes():
     base = dict(
         brief=None,
         images=None,
-        city_days=None,
         arrival_date=None,
         departure_date=None,
         start_date="2026-11-20",
@@ -271,11 +270,11 @@ def test_seam_plain_shape_gates_unsupported_start_shapes():
         seam_plain_shape(**{**base, "start_date": None, "arrival_date": "2026-11-25"})
         is True
     )
-    # 引擎尚无语义的形状仍留 legacy：brief/带图/分城天数/中途转移日
+    # 引擎尚无语义的形状仍留 legacy：brief/带图/中途转移日
+    # （分城天数已由 C-17 承载，api 缝透传直连，形状闸不再拦）
     assert seam_plain_shape(**{**base, "brief": "想去杭州三天"}) is False
     assert seam_plain_shape(**{**base, "brief": "  "}) is True
     assert seam_plain_shape(**{**base, "images": ["x"]}) is False
-    assert seam_plain_shape(**{**base, "city_days": {"杭州": 1}}) is False
     assert seam_plain_shape(**{**base, "arrival_date": "2026-11-21"}) is False
     assert seam_plain_shape(**{**base, "departure_date": "2026-11-21"}) is False
     # 缺天数/缺城市（追问轮形态）→ legacy
@@ -301,11 +300,11 @@ def test_replan_seam_shape_guards():
         days=2,
     )
     assert replan_seam_shape(SimpleNamespace(**base)) is True
-    # 分城天数 / 自造点 / 餐类必去 / 缺城市 / 缺天数 → legacy
+    # R8-S2：分城天数已由 C-17 承载 → 换道（不再留 legacy）
     assert (
-        replan_seam_shape(SimpleNamespace(**{**base, "city_days": {"杭州": 1}}))
-        is False
+        replan_seam_shape(SimpleNamespace(**{**base, "city_days": {"杭州": 1}})) is True
     )
+    # 自造点 / 餐类必去 / 缺城市 / 缺天数 → legacy
     assert (
         replan_seam_shape(SimpleNamespace(**{**base, "created_sites": ["自造点"]}))
         is False

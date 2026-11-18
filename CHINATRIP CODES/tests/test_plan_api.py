@@ -3742,9 +3742,9 @@ def test_start_seam_serves_plain_shape_when_cpsat(monkeypatch):
     assert body["plan"]["days"]
 
 
-def test_start_seam_skips_complex_shapes(monkeypatch):
-    """形状闸 R8：分城天数仍留 legacy（引擎无逐城拆窗，建模挂账）；
-    指定城际/确认卡 override 已折算透传引擎（映射类字段直连）。"""
+def test_start_seam_direct_connects_city_days_and_modes(monkeypatch):
+    """R8 形状闸收窄：分城天数（C-17 拆窗镜像）/指定城际/确认卡 override
+    折算透传引擎；brief/带图开局仍留 legacy 读点确认轮。"""
     monkeypatch.setenv("TRIP_SOLVER", "cpsat")
     from app.services.trip_solver import live as _live
 
@@ -3755,14 +3755,15 @@ def test_start_seam_skips_complex_shapes(monkeypatch):
         return None, None
 
     monkeypatch.setattr(_live, "generate_session_via_trip_solver", _spy)
-    agent = PlanningAgent(StubAdapter([V0_JSON, V0_JSON]))
+    agent = PlanningAgent(StubAdapter([V0_JSON, V0_JSON, V0_JSON]))
     client = client_for(agent)
     r1 = start(
         client,
         {"cities": ["上海", "杭州"], "days": 3, "city_days": {"杭州": 1}},
     )
     assert r1.status_code == 200
-    assert calls == []
+    assert len(calls) == 1
+    assert calls[0]["city_days"] == {"杭州": 1}
     r2 = start(
         client,
         {
@@ -3775,10 +3776,13 @@ def test_start_seam_skips_complex_shapes(monkeypatch):
         },
     )
     assert r2.status_code == 200
-    assert len(calls) == 1
-    assert calls[0]["intercity_mode"] == "train"
-    assert calls[0]["days"] == 2
-    assert calls[0]["arrival_no"] == "G7541"
+    assert len(calls) == 2
+    assert calls[1]["intercity_mode"] == "train"
+    assert calls[1]["days"] == 2
+    assert calls[1]["arrival_no"] == "G7541"
+    r3 = start(client, {"cities": ["上海"], "days": 2, "brief": "想去杭州玩两天"})
+    assert r3.status_code == 200
+    assert len(calls) == 2  # brief 开局仍留 legacy 读点确认轮
 
 
 def test_message_new_trip_restart_via_engine(monkeypatch):

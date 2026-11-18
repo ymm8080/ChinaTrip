@@ -101,7 +101,6 @@ def seam_plain_shape(
     *,
     brief=None,
     images=None,
-    city_days=None,
     arrival_date=None,
     departure_date=None,
     start_date=None,
@@ -115,14 +114,11 @@ def seam_plain_shape(
     （days/班次号=用户已选边，api 缝折算后透传）、行前卡标志（intake
     纯 opting-in）。仍留 legacy 的是引擎尚无语义的开局形状：
     - 文字路线 brief / 开局带图：读点确认轮（F-03 缝不吞点）；
-    - 分城天数 city_days：引擎无逐城拆窗（建模挂账）；
     - 非默认端点行前日期：到达≠首日/离开≠末日=中途转移日。
     days/cities 齐备才可解（缺=追问轮）。"""
     if (brief or "").strip():
         return False
     if images:
-        return False
-    if city_days:
         return False
     if not _intake_dates_at_default_endpoints(
         arrival_date, departure_date, start_date, days
@@ -184,12 +180,10 @@ def seam_attempted() -> bool:
 
 
 def replan_seam_shape(session) -> bool:
-    """二期重解形状闸：引擎可完整承载的会话形状才换道。
+    """R8 重解形状闸：引擎可完整承载的会话形状才换道。
 
-    分城天数（引擎无逐城拆窗）/ 自造点（池=底库行）/ 餐类必去（餐厅
-    复杂度留 legacy）任一命中 → legacy；天数/城市齐备才可解。"""
-    if getattr(session, "city_days", None):
-        return False
+    自造点（池=底库行）/ 餐类必去（S2b 建模挂账）任一命中 → legacy；
+    分城天数已由 C-17 承载（R8-S2 拆窗镜像）；天数/城市齐备才可解。"""
     if getattr(session, "created_sites", None):
         return False
     site_kinds = getattr(session, "site_kinds", None) or {}

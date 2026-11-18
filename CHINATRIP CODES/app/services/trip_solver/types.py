@@ -117,6 +117,9 @@ class TripRequest:
     day_load_budget_min: int = 570  # legacy _MUST_DAY_USABLE_MIN
     sight_cap_per_day: int = 4  # legacy _cap_sights_per_day
     fill_cap_per_day: int = 6  # Q2 fill-pool cap
+    # R8-S2（2026-11-18 拍板「全量切引擎」口径 A）：H5 分城停留
+    # 天数——C-17 legacy 拆窗镜像（城市块连续+请求序，末位吃满）
+    city_days: tuple[tuple[str, int], ...] = ()
 
 
 @dataclass(frozen=True)

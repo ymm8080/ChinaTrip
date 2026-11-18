@@ -1,0 +1,192 @@
+{
+ "schema_version": 2,
+ "source": "golden-fixture",
+ "library_version": "poi-snapshot-2026-11-17",
+ "request": {
+  "days": 5,
+  "cities": [
+   "北京",
+   "杭州",
+   "上海"
+  ],
+  "start_date": "2026-11-25",
+  "musts": [
+   {
+    "rid": "r1",
+    "name": "西湖风景名胜区",
+    "importance": 5,
+    "duration_tier": null,
+    "poi_id": "unesco_WestLake"
+   },
+   {
+    "rid": "r2",
+    "name": "灵隐寺",
+    "importance": 4,
+    "duration_tier": null,
+    "poi_id": "ct_杭州_01"
+   },
+   {
+    "rid": "r3",
+    "name": "外滩",
+    "importance": 5,
+    "duration_tier": null,
+    "poi_id": "ct_上海_20"
+   },
+   {
+    "rid": "r4",
+    "name": "豫园",
+    "importance": 4,
+    "duration_tier": null,
+    "poi_id": "ct_上海_21"
+   }
+  ],
+  "wishes": [],
+  "avoid": [],
+  "arrival_time": null,
+  "departure_time": null,
+  "day1_start": null,
+  "lang": "zh",
+  "city_days": {
+   "杭州": 2,
+   "上海": 3
+  }
+ },
+ "candidates": [
+  {
+   "cid": "c1",
+   "name": "西湖风景名胜区",
+   "poi_id": "unesco_WestLake",
+   "kind": "requested",
+   "category": "sight",
+   "tier": 1,
+   "lon": 120.1494,
+   "lat": 30.2459,
+   "opening_hours": "08:00-18:00",
+   "best_visit_time": "any",
+   "suggested_duration_min": 90,
+   "remote": false,
+   "city": "杭州",
+   "rid": "r1"
+  },
+  {
+   "cid": "c2",
+   "name": "灵隐寺",
+   "poi_id": "ct_杭州_01",
+   "kind": "requested",
+   "category": "sight",
+   "tier": 1,
+   "lon": null,
+   "lat": null,
+   "opening_hours": "08:00-18:00",
+   "best_visit_time": "any",
+   "suggested_duration_min": 90,
+   "remote": false,
+   "city": "杭州",
+   "rid": "r2"
+  },
+  {
+   "cid": "c3",
+   "name": "外滩",
+   "poi_id": "ct_上海_20",
+   "kind": "requested",
+   "category": "sight",
+   "tier": 1,
+   "lon": 121.4903,
+   "lat": 31.2335,
+   "opening_hours": "08:00-18:00",
+   "best_visit_time": "any",
+   "suggested_duration_min": 90,
+   "remote": false,
+   "city": "上海",
+   "rid": "r3"
+  },
+  {
+   "cid": "c4",
+   "name": "豫园",
+   "poi_id": "ct_上海_21",
+   "kind": "requested",
+   "category": "sight",
+   "tier": 1,
+   "lon": 121.4921,
+   "lat": 31.2273,
+   "opening_hours": "08:00-18:00",
+   "best_visit_time": "any",
+   "suggested_duration_min": 75,
+   "remote": false,
+   "city": "上海",
+   "rid": "r4"
+  },
+  {
+   "cid": "c5",
+   "name": "河坊街",
+   "poi_id": "poi_c5",
+   "kind": "fill",
+   "category": "sight",
+   "tier": 3,
+   "lon": null,
+   "lat": null,
+   "opening_hours": "08:00-18:00",
+   "best_visit_time": "any",
+   "suggested_duration_min": 60,
+   "remote": false,
+   "city": "杭州"
+  },
+  {
+   "cid": "c6",
+   "name": "南京路步行街",
+   "poi_id": "poi_c6",
+   "kind": "fill",
+   "category": "sight",
+   "tier": 3,
+   "lon": 121.4756,
+   "lat": 31.2334,
+   "opening_hours": "08:00-18:00",
+   "best_visit_time": "any",
+   "suggested_duration_min": 60,
+   "remote": false,
+   "city": "上海"
+  },
+  {
+   "cid": "c7",
+   "name": "故宫博物院",
+   "poi_id": "poi_c7",
+   "kind": "fill",
+   "category": "sight",
+   "tier": 1,
+   "lon": 116.4097,
+   "lat": 39.9255,
+   "opening_hours": "08:00-18:00",
+   "best_visit_time": "any",
+   "suggested_duration_min": 120,
+   "remote": false,
+   "city": "北京"
+  }
+ ],
+ "access_profiles": [],
+ "travel": [],
+ "weather": [],
+ "expect": [
+  {
+   "type": "requested_coverage",
+   "args": {}
+  },
+  {
+   "type": "city_coherence",
+   "args": {
+    "note": "C-07 + C-17 windows"
+   }
+  },
+  {
+   "type": "deterministic",
+   "args": {
+    "runs": 2
+   }
+  }
+ ],
+ "provenance": {
+  "incident": "R8-S2 分城天数（2026-11-18 拍板「全量切引擎」口径 A）",
+  "built_at": "2026-11-18",
+  "builder": "tests/golden/build_corpus_v2.py",
+  "note": "city_days 杭州2/上海3：杭州日窗 1-2、上海日窗 3-5；出发城（北京）不占活动窗——legacy _split_days 的模型镜像（C-17）。"
+ }
+}

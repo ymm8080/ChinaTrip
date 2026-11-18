@@ -174,6 +174,7 @@ def snapshot_from_request(
     weather_lookup: Optional[Callable[[str, str], Any]] = None,
     service_rows: Optional[list[dict]] = None,
     preferences: str = "",
+    city_days: Optional[dict] = None,
     pool_limit: int = POOL_LIMIT_PER_CITY,
 ) -> FactSnapshot:
     """Build a schema-v2 FactSnapshot from request fields + live stores."""
@@ -313,6 +314,9 @@ def snapshot_from_request(
             departure_mode=_mode_from_no(departure_no)
             or _explicit_mode(intercity_mode),
             preferences=preferences or "",
+            city_days=tuple(
+                sorted((str(k), int(v)) for k, v in dict(city_days or {}).items())
+            ),
         ),
         candidates=tuple(candidates),
         access_profiles=tuple(profiles),
@@ -333,6 +337,7 @@ def generate_session_via_trip_solver(
     arrival_no: Optional[str] = None,
     departure_no: Optional[str] = None,
     intercity_mode: Optional[str] = None,
+    city_days: Optional[dict] = None,
     preferences: str = "",
     arrival_time: Optional[str] = None,
     departure_time: Optional[str] = None,
@@ -383,6 +388,7 @@ def generate_session_via_trip_solver(
         arrival_no=arrival_no,
         departure_no=departure_no,
         intercity_mode=intercity_mode,
+        city_days=city_days,
         avoid=[],
         weather_lookup=_weather,
         service_rows=service_rows,
@@ -478,6 +484,7 @@ def replan_session_via_trip_solver(
         departure_no=getattr(session, "departure_no", None),
         avoid=list(getattr(session, "avoid_sites", None) or []),
         preferences=(getattr(session, "preferences", "") or ""),
+        city_days=dict(getattr(session, "city_days", None) or {}),
         service_rows=service_rows,
     )
     if validate_snapshot(snapshot):
