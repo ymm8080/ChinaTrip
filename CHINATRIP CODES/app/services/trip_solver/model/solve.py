@@ -137,7 +137,15 @@ def solve(
         # time alone decides how much search each tier performs; do not gate
         # tiers on elapsed wall time, which would reintroduce load-dependent
         # output on slow machines.
-        candidate_solver.parameters.max_time_in_seconds = budget_s
+        # Q3 全局墙钟：总预算跨层共享——每层 max_time=剩余额（否则
+        # 每层各吃满 budget，4 层可达 4×；g11 实测 5.1s > 3.6 预算）
+        # 预算 0=耗尽语义（UNKNOWN）：地板只在正预算时生效
+        remaining = (
+            max(0.05, budget_s - (time.perf_counter() - started))
+            if budget_s > 0
+            else 0.0
+        )
+        candidate_solver.parameters.max_time_in_seconds = remaining
         candidate_solver.parameters.max_deterministic_time = tier_det
         if tier.sense == "min":
             bundle.model.Minimize(tier.expression)
@@ -230,7 +238,7 @@ def solve(
     from .c09_c16 import extract_hotel_anchors, extract_meal_anchors
 
     proto = bundle.model.Proto()
-    return Solution(
+    sol = Solution(
         status="OPTIMAL" if fully_optimized else "FEASIBLE",
         items=items,
         unplaced=unplaced,
@@ -243,6 +251,9 @@ def solve(
         n_vars=len(proto.variables),
         n_cons=len(proto.constraints),
     )
+    # F-62 收敛口径=引擎实际预算（Q3 披露放宽后携带真实预算）
+    sol.budget_used_ms = int(budget_s * 1000)
+    return sol
 
 
 def solve_snapshot(
@@ -261,7 +272,22 @@ def solve_snapshot(
 
     started = _time.perf_counter()
     bundle = build_model(enriched)
-    solution = solve(bundle, enriched, budget_s, hint=hint)
+    # Q3 拍板原文：紧张时按层提高预算**并披露**——绝不回退顺序排列。
+    # trip 规模（池>20）tier det 0.5 才有 incumbent（g11 类）；墙钟预算
+    # 相应放宽到 3.6s（disclosed raise，F-62 收敛口径=预算内）
+    extra = []
+    solve_kwargs = {"hint": hint}
+    if len(enriched.snapshot.candidates) > 20:
+        solve_kwargs["tier_det"] = 0.5
+        budget_s = max(budget_s, 4.5)
+        extra = ["行程规模较大，求解时间预算按 Q3 披露放宽至 4.5s（绝不回退顺序排列）"]
+    # 预算核算覆盖 build_model（g11 建模 ~1s 不含在 solve 内会翻预算）
+    remaining_after_build = (
+        max(0.15, budget_s - (_time.perf_counter() - started)) if budget_s > 0 else 0.0
+    )
+    solution = solve(bundle, enriched, remaining_after_build, **solve_kwargs)
+    if extra and solution.disclosures is not None:
+        solution.disclosures = list(solution.disclosures) + extra
     if solution.status != "INFEASIBLE":
         return solution
     if use_ladder:

@@ -451,8 +451,11 @@ def add_c12_afternoon_single_big(
                 bundle.start[(cand.cid, day)] < AFTERNOON_START
             ).OnlyEnforceIf([lit, ge.Not()])
             terms.append(ge)
-        if len(terms) > 1:
-            bundle.model.Add(sum(terms) <= 1)
+        if len(terms) > 2:
+            # R5: 硬闸放宽到 ≤2（拍板原文「一般下午只放一个大点」=软偏好；
+            # 打分器下午超点 −12/个 vs 拆簇 −60——硬 ≤1 把 3 大点簇
+            # 逼成跨日拆簇）；≤1 的偏好由 tier② 镜像项持有
+            bundle.model.Add(sum(terms) <= 2)
 
 
 def add_c12c_morning_single(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:

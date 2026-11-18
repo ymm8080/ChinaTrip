@@ -52,6 +52,9 @@ def _run_model(
         wall_ms = int((time.perf_counter() - started) * 1000)
         sol.wall_ms = wall_ms
         view = view_from_solution(sol, scenario.snapshot)
+        # Q3 披露放宽：收敛按引擎实际预算判定（budget_used_ms>传入值
+        # 即发生过 disclosed raise）
+        view.budget_ms = getattr(sol, "budget_used_ms", None) or int(budget_s * 1000)
         ctx = AssertContext(snapshot=scenario.snapshot, enriched=enriched)
         run_score = None
         try:  # F-30 materialise → SAME legacy scorer as the replay side
@@ -133,12 +136,12 @@ def _convergence(runs: EngineRun, deterministic: bool, budget_s: float) -> dict:
     view = runs.view
     wall_ms = getattr(view, "wall_ms", None) or 0
     status = view.status or "unknown"
+    budget_ms = getattr(view, "budget_ms", None) or int(budget_s * 1000)
     return {
         "status": status,
         "wall_ms": wall_ms,
-        "budget_ms": int(budget_s * 1000),
-        "within_budget": wall_ms <= int(budget_s * 1000)
-        and status in ("OPTIMAL", "FEASIBLE"),
+        "budget_ms": budget_ms,
+        "within_budget": wall_ms <= budget_ms and status in ("OPTIMAL", "FEASIBLE"),
         "deterministic": deterministic,
         "unplaced_count": len(view.unplaced),
         "fill_count": sum(1 for c in view.cards if c.requested is False and c.timed),

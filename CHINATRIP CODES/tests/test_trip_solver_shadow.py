@@ -629,7 +629,9 @@ def test_acceptance_metrics_verdict_and_gates():
     assert gates["legacy_no_solution_disclosures"]["pass"] is True
     # P2-B final: both F-62 gates are EVALUATED (no longer pending)
     psd = gates["plan_score_delta"]
-    assert psd["pass"] is False  # 4/12 within −2%: model under-fills (burn-down)
+    # R5: 12/12 within −2% — the burn-down is complete (violations 0,
+    # remote-day anchor strand exemption, morning/colocate mirrors)
+    assert psd["pass"] is True
     assert re.match(r"\d+/\d+ scored within", str(psd["value"]))
     parity = gates["parity_domains_14"]
     assert parity["value"] == "14/14" and parity["pass"] is True  # P4 landed

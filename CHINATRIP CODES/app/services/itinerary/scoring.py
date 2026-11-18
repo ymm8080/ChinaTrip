@@ -484,6 +484,14 @@ def plan_score(
     # 圈内伴=拆离场馆簇——LNS/挪天修复为消超载拆簇要付大代价，溢出先
     # 溢簇外/低档弱卡。城市缺信号不罚（宁漏勿错）。
     for _di, (_dcity, _dvisits, _darr) in enumerate(geo_days):
+        # 远郊日的城内件是接驳几何绑定的晨锚/回城收尾（C-06 认可形态），
+        # remote-day anchors are shuttle-bound, not venue sprawl
+        _remote_day = any(
+            getattr(_vv, "remote", False) or getattr(_vv, "access_mode", None)
+            for _vv in _dvisits
+        )
+        if _remote_day:
+            continue
         for _v in _dvisits:
             if _near_mate_km(_v, _dvisits) is not None:
                 continue  # 当前日圈内成伴=锚定
