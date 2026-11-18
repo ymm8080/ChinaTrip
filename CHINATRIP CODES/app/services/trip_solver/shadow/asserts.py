@@ -17,7 +17,9 @@ tests/golden/*.json `expect`). Each evaluator runs against ANY PlanView
 
 Exact times are asserted only where a timetable fixes them (M7); shape
 invariants otherwise. Two schema extensions beyond M7 support the C-05
-endpoint-day family: `day_start_floor` / `day_end_ceiling`.
+endpoint-day family: `day_start_floor` / `day_end_ceiling`; P2-B adds
+`remote_day_purity` / `span_cap` / `city_coherence` (C-06/C-15, Q1, C-07
+families).
 """
 
 from __future__ import annotations
@@ -257,6 +259,65 @@ def _eval_day_end_ceiling(view: PlanView, args: dict) -> tuple[str, str]:
     return "fail", "last visit %s ends %s > %s" % (last.name, last.end, args.get("not_after"))
 
 
+def _eval_remote_day_purity(view: PlanView, args: dict) -> tuple[str, str]:
+    """C-06/C-15 shape: the day holding the named remote visit carries no
+    unrequested visit (city fill on a remote day — B-08 family)."""
+    name = str(args["name"])
+    hits = [c for c in view.by_name(name) if c.timed]
+    if not hits:
+        return (
+            "skipped",
+            "%r not timed on any day (coverage is requested_coverage's job)" % name,
+        )
+    day = hits[0].day
+    fillers = [
+        c.name
+        for c in view.day_cards(day)
+        if c.kind == KIND_VISIT and c.requested is False and c.timed
+    ]
+    if fillers:
+        return "fail", "day %d (remote %r) carries unrequested: %s (B-08/C-06)" % (
+            day,
+            name,
+            ", ".join(fillers),
+        )
+    return "pass", "day %d holding remote %r carries no unrequested visit" % (day, name)
+
+
+def _eval_span_cap(view: PlanView, args: dict) -> tuple[str, str]:
+    """Q1 duration policy: a placed card may not span past the tier cap."""
+    name = str(args["name"])
+    max_min = int(args["max_minutes"])
+    hits = view.by_name(name)
+    if not hits:
+        return "skipped", "%r absent (coverage is requested_coverage's job)" % name
+    timed = [c for c in hits if c.timed]
+    if not timed:
+        return "fail", "%r present but untimed" % name
+    card = timed[0]
+    span = (card.end_min or 0) - (card.start_min or 0)
+    if span <= max_min:
+        return "pass", "%r span %d min ≤ %d" % (name, span, max_min)
+    return "fail", "%r span %d min > %d (Q1 clamp)" % (name, span, max_min)
+
+
+def _eval_city_coherence(view: PlanView, args: dict) -> tuple[str, str]:
+    """C-07: no day mixes cities (cards must carry city data)."""
+    per_day: dict[int, set[str]] = {}
+    for card in view.cards:
+        if card.kind != KIND_VISIT or not card.timed or not card.city:
+            continue
+        per_day.setdefault(card.day, set()).add(card.city)
+    if not per_day:
+        return "skipped", "no timed visit carries city data in this view"
+    mixed = {d: sorted(cs) for d, cs in per_day.items() if len(cs) > 1}
+    if mixed:
+        return "fail", "days mixing cities (C-07): %s" % "; ".join(
+            "day %d=%s" % (d, "/".join(cs)) for d, cs in sorted(mixed.items())
+        )
+    return "pass", "all %d city-known days are single-city" % len(per_day)
+
+
 _EVALUATORS = {
     "sequence": lambda view, args, ctx: _eval_sequence(view, args),
     "time_range": lambda view, args, ctx: _eval_time_range(view, args, ctx.snapshot),
@@ -270,6 +331,9 @@ _EVALUATORS = {
     "disclosure_contains": lambda view, args, ctx: _eval_disclosure_contains(view, args),
     "day_start_floor": lambda view, args, ctx: _eval_day_start_floor(view, args),
     "day_end_ceiling": lambda view, args, ctx: _eval_day_end_ceiling(view, args),
+    "remote_day_purity": lambda view, args, ctx: _eval_remote_day_purity(view, args),
+    "span_cap": lambda view, args, ctx: _eval_span_cap(view, args),
+    "city_coherence": lambda view, args, ctx: _eval_city_coherence(view, args),
 }
 
 

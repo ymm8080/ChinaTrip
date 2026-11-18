@@ -40,3 +40,28 @@ Rules:
   from fresh incident dumps when the corpus expands.
 - `entry_cap` is recorded only where the legacy response exposed it; the
   `no_entry_cap_breach` assertion skips cards without it (no heuristics).
+
+## In-process replay recordings (P2-B)
+
+`python -m app.services.trip_solver.shadow --replay-legacy` regenerates a
+missing recording by replaying the snapshot through the REAL legacy cascade
+(`PlanningAgent._generate_v0`) with every I/O stubbed from the snapshot
+itself: the POI store serves exactly the snapshot's candidates, weather
+comes from the snapshot's weather rows, the LLM is a boom sentinel
+(algorithm mode is the default path and must stay zero-LLM), trains/flights
+are the deterministic mocks. Each replay runs twice; `provenance` carries
+`kind: "in-process-replay"`, `runs: 2`, `determinism: bool` (the two-run
+calibration the `deterministic` assertion consumes on the legacy side),
+`auto_restaurants: false` (meal-card fidelity and access-leg capture are
+the next P2-B iteration — meal assertions pend honestly) and
+`llm: "boom-sentinel"`.
+
+Rules:
+
+- Hand recordings (`kind: "recorded-actual-output"`) are **never**
+  overwritten, with or without `--replay-force`; they are ground truth
+  from incident dumps. `--replay-force` only refreshes existing
+  in-process-replay recordings.
+- Replay recordings carry per-item `city` (C-07 checks) and `poi_id`.
+- Verbatim rule unchanged: card times/unplaced/disclosures are recorded
+  exactly as the cascade produced them, defects included.

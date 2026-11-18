@@ -56,6 +56,7 @@ class CardView:
     poi_id: Optional[str] = None
     cid: Optional[str] = None  # model-side candidate id (cap/leg lookup)
     remote: bool = False
+    city: Optional[str] = None  # candidate city (C-07 coherence)
     anchor: Optional[str] = None  # meal anchor (same_venue check)
     leg: Optional[dict] = None  # access-leg detail {board, arrive} if known
     entry_cap: Optional[str] = None  # legacy recordings may carry it
@@ -121,6 +122,7 @@ def view_from_solution(solution: Solution, snapshot: FactSnapshot) -> PlanView:
                 poi_id=cand.poi_id if cand else None,
                 cid=item.cid,
                 remote=bool(cand.remote) if cand else False,
+                city=cand.city if cand else None,
             )
         )
     return PlanView(
@@ -159,6 +161,7 @@ def view_from_recording(raw: dict[str, Any]) -> PlanView:
                     ),
                     poi_id=item.get("poi_id"),
                     remote=bool(item.get("remote", False)),
+                    city=item.get("city"),
                     anchor=item.get("anchor"),
                     leg=leg,
                     entry_cap=item.get("entry_cap"),

@@ -78,15 +78,35 @@ def _run_legacy(scenario: Scenario) -> Optional[EngineRun]:
     view = view_from_recording(scenario.legacy_raw)
     ctx = AssertContext(snapshot=scenario.snapshot, enriched=None)
     results = [evaluate(a, view, ctx) for a in scenario.expect]
-    # the recording is a single run — legacy determinism needs ≥ 2 recordings
-    # of the same request (P2-B calibration); never fake a verdict here
+    # P2-B: in-process replay recordings carry their own two-run
+    # calibration in provenance; hand recordings stay skipped — never
+    # fake a verdict either way
+    prov = scenario.legacy_raw.get("provenance") or {}
+    kind = scenario.legacy_raw.get("kind") or prov.get("kind")
+    calibrated = (
+        prov.get("determinism")
+        if kind == "in-process-replay" and "determinism" in prov
+        else None
+    )
     for res in results:
         if res["type"] == "deterministic":
-            res.update(
-                status="skipped",
-                detail="runner-level check: legacy determinism needs ≥ 2 "
-                "recordings of the same request (P2-B calibration)",
-            )
+            if calibrated is None:
+                res.update(
+                    status="skipped",
+                    detail="runner-level check: legacy determinism needs ≥ 2 "
+                    "recordings of the same request (P2-B calibration)",
+                )
+            elif calibrated:
+                res.update(
+                    status="pass",
+                    detail="two in-process replays byte-identical (P2-B calibration)",
+                )
+            else:
+                res.update(
+                    status="fail",
+                    detail="in-process replays diverged — legacy engine is "
+                    "non-deterministic on this snapshot",
+                )
     return EngineRun(
         view=view,
         signature=signature(view),
@@ -148,6 +168,14 @@ def shadow_compare(scenario: Scenario, budget_s: float = DEFAULT_BUDGET_S) -> di
     if legacy is not None:
         legacy_block = {
             "source": scenario.legacy_path,
+            # top-level kind (provenance fallback; P2-A hand recordings
+            # and P2-B replay recordings both carry the top-level field)
+            "kind": scenario.legacy_raw.get("kind")
+            or (scenario.legacy_raw.get("provenance") or {}).get("kind")
+            or "recorded-actual-output",
+            "determinism": (scenario.legacy_raw.get("provenance") or {}).get(
+                "determinism"
+            ),
             "assertions": legacy.results,
             "violations": legacy.violations,
             "violation_counts": violation_counts(legacy.violations),

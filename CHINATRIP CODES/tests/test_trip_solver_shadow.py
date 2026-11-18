@@ -41,21 +41,52 @@ G01 = default_golden_path()
 # --- corpus (F-60) -----------------------------------------------------------
 
 
-def test_corpus_v1_loads_four_scenarios():
+V2_STEMS = (
+    "g02_tower_late_gate",
+    "g03_third_cluster",
+    "g04_endpoint_transit",
+    "g05_rain_rebalance",
+    "g06_reopen_pins",
+    "g07_name_variants",
+    "g08_remote_exclusive",
+    "g09_duration_clamp",
+    "g10_city_coherence",
+    "g11_trip_scale",
+    "g12_closed_weekday",
+    "g13_twin_content_dup",
+)
+
+
+def test_corpus_v2_loads_thirteen():
+    from app.services.trip_solver.types import validate_snapshot
+
     scenarios = load_corpus()
     names = [s.name for s in scenarios]
     assert "g01" in names
-    for stem in ("g02_tower_late_gate", "g03_third_cluster", "g04_endpoint_transit"):
+    for stem in V2_STEMS:
         assert stem in names, names
-    assert len(scenarios) >= 4
+    assert len(scenarios) == 13  # M9 floor is 12
+    for s in scenarios:
+        assert validate_snapshot(s.snapshot) == [], s.name
+        assert s.expect, s.name
+        assert any(a.get("type") == "deterministic" for a in s.expect), s.name
+        # anonymized (M3): no device/account/session residue in any fixture
+        with open(s.path, "r", encoding="utf-8") as fh:
+            blob = fh.read()
+        for banned in ("session_id", "device_id", "account_id", "@qq.com"):
+            assert banned not in blob, (s.name, banned)
 
 
-def test_g01_has_recording_g02_g04_do_not():
+def test_every_scenario_has_a_recording_after_p2b():
     scenarios = {s.name: s for s in load_corpus()}
-    assert scenarios["g01"].has_recording
-    assert scenarios["g01"].legacy_raw["days"]
-    for stem in ("g02_tower_late_gate", "g03_third_cluster", "g04_endpoint_transit"):
-        assert not scenarios[stem].has_recording
+    for name, s in scenarios.items():
+        assert s.has_recording, name
+    g01 = scenarios["g01"].legacy_raw
+    assert (g01.get("provenance") or {}).get("kind") != "in-process-replay"
+    g02 = scenarios["g02_tower_late_gate"].legacy_raw
+    prov = g02.get("provenance") or {}
+    assert g02.get("kind") == "in-process-replay"
+    assert prov.get("runs") == 2 and prov.get("determinism") is True
 
 
 def test_scenario_hash_is_stable():
@@ -371,11 +402,27 @@ def test_shadow_compare_g01_full_shape():
 
 
 def test_shadow_compare_scenario_without_recording():
-    scenario = load_scenario(G01)
+    # every corpus scenario has a recording after P2-B, so isolate one in a
+    # legacy-free directory to keep the no-recording path covered
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmp:
+        scenario = load_scenario(G01, legacy_dir=tmp)
+        assert not scenario.has_recording
+        report = shadow_compare(scenario)
+        assert report["legacy"] is None and report["not_worse"] is None
+        assert report["new"]["assertion_counts"]["fail"] == 0
+
+
+def test_replay_recording_feeds_legacy_determinism():
+    # a replay recording's calibration flips the legacy-side deterministic
+    # assertion from skipped to pass (P2-B wiring in compare._run_legacy)
     scenarios = {s.name: s for s in load_corpus()}
     report = shadow_compare(scenarios["g02_tower_late_gate"])
-    assert report["legacy"] is None and report["not_worse"] is None
-    assert report["new"]["assertion_counts"]["fail"] == 0
+    assert report["legacy"] is not None
+    det = [r for r in report["legacy"]["assertions"] if r["type"] == "deterministic"]
+    assert det and det[0]["status"] == "pass", det
+    assert report["legacy"]["kind"] == "in-process-replay"
 
 
 def test_acceptance_metrics_verdict_and_gates():
@@ -388,11 +435,201 @@ def test_acceptance_metrics_verdict_and_gates():
     }
     assert metrics["legacy_violations_total"]["B-01"] == 1
     gates = metrics["gates"]
-    assert gates["corpus_size"]["pass"] is False  # 4 < 12 until P2-B
+    assert gates["corpus_size"]["pass"] is True  # 13 ≥ 12 since P2-B
     assert gates["violation_classes_zero_new"]["pass"] is True
     assert gates["convergence_rate_new"]["pass"] is True
     assert gates["determinism_rate"]["pass"] is True
     assert gates["not_worse_vs_recording"]["pass"] is True
+    assert gates["legacy_no_solution_disclosures"]["pass"] is True
     assert gates["plan_score_delta"]["pass"] is None  # pending P1-D/P1-F
-    assert metrics["verdict"]["mode"] == "shadow-instrument (P2-A)"
+    assert metrics["verdict"]["mode"] == "shadow-instrument+legacy-replay (P2-B)"
     assert metrics["verdict"]["switch_ready"] is False
+    side = metrics["legacy_side"]
+    assert side["recorded"] == len(scenarios)
+    assert side["kinds"]["in-process-replay"] == len(scenarios) - 1
+    assert side["replay_deterministic"] == "%d/%d" % (
+        len(scenarios) - 1,
+        len(scenarios) - 1,
+    )
+
+
+# --- P2-B evaluators ----------------------------------------------------------
+
+
+def _view_with(*cards, engine="cpsat"):
+    return PlanView(engine=engine, cards=list(cards))
+
+
+def _card(name, *, day=1, start="09:00", end="11:00", requested=None, remote=False, city=None, kind="visit"):
+    return CardView(
+        name=name, day=day, start=start, end=end, kind=kind,
+        requested=requested, remote=remote, city=city,
+    )
+
+
+def test_remote_day_purity_pass_fail_skip():
+    from app.services.trip_solver.shadow.asserts import evaluate
+
+    snap = _mini_snapshot()
+    ctx = AssertContext(snapshot=snap)
+    ok = evaluate(
+        {"type": "remote_day_purity", "args": {"name": "远郊点"}},
+        _view_with(_card("远郊点", requested=True, remote=True), _card("城心必去", requested=True)),
+        ctx,
+    )
+    assert ok["status"] == "pass"
+    bad = evaluate(
+        {"type": "remote_day_purity", "args": {"name": "远郊点"}},
+        _view_with(_card("凑数甲", requested=False), _card("远郊点", requested=True, remote=True)),
+        ctx,
+    )
+    assert bad["status"] == "fail" and "B-08" in bad["detail"]
+    skip = evaluate(
+        {"type": "remote_day_purity", "args": {"name": "不存在"}},
+        _view_with(_card("别的", requested=True)),
+        ctx,
+    )
+    assert skip["status"] == "skipped"
+
+
+def test_span_cap_pass_fail_skip():
+    from app.services.trip_solver.shadow.asserts import evaluate
+
+    ctx = AssertContext(snapshot=_mini_snapshot())
+    ok = evaluate(
+        {"type": "span_cap", "args": {"name": "大公园", "max_minutes": 240}},
+        _view_with(_card("大公园", start="08:30", end="12:30")),
+        ctx,
+    )
+    assert ok["status"] == "pass" and "240" in ok["detail"]
+    bad = evaluate(
+        {"type": "span_cap", "args": {"name": "大公园", "max_minutes": 240}},
+        _view_with(_card("大公园", start="08:30", end="14:00")),
+        ctx,
+    )
+    assert bad["status"] == "fail"
+    skip = evaluate(
+        {"type": "span_cap", "args": {"name": "不在场", "max_minutes": 240}},
+        _view_with(_card("大公园")),
+        ctx,
+    )
+    assert skip["status"] == "skipped"
+    untimed = evaluate(
+        {"type": "span_cap", "args": {"name": "大公园", "max_minutes": 240}},
+        _view_with(CardView(name="大公园", day=1)),
+        ctx,
+    )
+    assert untimed["status"] == "fail"
+
+
+def test_city_coherence_pass_fail_skip():
+    from app.services.trip_solver.shadow.asserts import evaluate
+
+    ctx = AssertContext(snapshot=_mini_snapshot())
+    ok = evaluate(
+        {"type": "city_coherence", "args": {}},
+        _view_with(
+            _card("外滩", day=1, city="上海"),
+            _card("豫园", day=1, city="上海"),
+            _card("西湖", day=2, city="杭州"),
+        ),
+        ctx,
+    )
+    assert ok["status"] == "pass"
+    bad = evaluate(
+        {"type": "city_coherence", "args": {}},
+        _view_with(
+            _card("外滩", day=1, city="上海"),
+            _card("西湖", day=1, city="杭州"),
+        ),
+        ctx,
+    )
+    assert bad["status"] == "fail" and "C-07" in bad["detail"]
+    skip = evaluate({"type": "city_coherence", "args": {}}, _view_with(), ctx)
+    assert skip["status"] == "skipped"
+
+
+# --- P2-B in-process replay ----------------------------------------------------
+
+
+def test_replay_store_serves_only_snapshot_candidates():
+    from app.services.trip_solver.shadow.replay import SnapshotStore
+
+    scenario = load_scenario(G01)
+    store = SnapshotStore(scenario.snapshot.candidates)
+    names = {r["name"] for r in store.top_pois_in_city("北京", limit=40)}
+    assert "天安门广场" in names and "慕田峪长城" in names
+    assert not store.top_pois_in_city("上海")
+    row = store.candidate_by_name("北京", "慕田峪长城")
+    assert row and row["location"] and row["_tier"] == 1
+    assert store.candidate_by_name("北京", "不存在的点") is None
+    hits = store.match_text_names("北京", "我想去慕田峪长城玩")
+    assert any(h["name"] == "慕田峪长城" for h in hits)
+
+
+def test_replay_scenario_records_verbatim_shape():
+    from app.services.trip_solver.shadow.replay import (
+        replay_scenario_sync,
+    )
+    from app.services.trip_solver.shadow.views import view_from_recording
+
+    scenario = load_scenario(G01, legacy_dir="")  # never touch the recording
+    rec = replay_scenario_sync(scenario)
+    assert rec["schema_version"] == 1
+    assert rec["engine"] == "legacy" and rec["kind"] == "in-process-replay"
+    assert rec["days"] and rec["provenance"]["auto_restaurants"] is False
+    musts = {m.name for m in scenario.snapshot.request.musts}
+    view = view_from_recording(rec)
+    placed_musts = {c.name for c in view.cards if c.requested}
+    assert placed_musts <= musts  # only snapshot musts ever requested-true
+    # hotel structure cards are classified, not counted as visits
+    kinds = {c.kind for c in view.cards}
+    assert "hotel" in kinds
+    # no device/session residue in the serialized recording
+    blob = repr(rec)
+    for banned in ("shadow-replay", "session_id", "account_id"):
+        assert banned not in blob
+
+
+def test_replay_deterministic_on_small_scenario():
+    from app.services.trip_solver.shadow.replay import replay_scenario_sync
+    from app.services.trip_solver.shadow.views import (
+        signature,
+        view_from_recording,
+    )
+
+    import glob
+    import os
+
+    path = os.path.join(os.path.dirname(G01), "g02_tower_late_gate.json")
+    scenario = load_scenario(path, legacy_dir="")
+    a = replay_scenario_sync(scenario)
+    b = replay_scenario_sync(scenario)
+    assert signature(view_from_recording(a)) == signature(view_from_recording(b))
+
+
+def test_corpus_v2_builder_matches_disk():
+    # regeneration guard: builder output == committed fixtures (deep equal)
+    import json
+    import os
+    import sys
+
+    golden_dir = os.path.dirname(G01)
+    sys.path.insert(0, golden_dir)
+    import build_corpus_v2  # noqa: E402
+
+    g01 = json.load(open(G01, encoding="utf-8"))
+    built = {
+        "g05_rain_rebalance.json": build_corpus_v2.build_g05(g01),
+        "g06_reopen_pins.json": build_corpus_v2.build_g06(g01),
+        "g07_name_variants.json": build_corpus_v2.build_g07(g01),
+        "g08_remote_exclusive.json": build_corpus_v2.build_g08(),
+        "g09_duration_clamp.json": build_corpus_v2.build_g09(),
+        "g10_city_coherence.json": build_corpus_v2.build_g10(),
+        "g11_trip_scale.json": build_corpus_v2.build_g11(),
+        "g12_closed_weekday.json": build_corpus_v2.build_g12(),
+        "g13_twin_content_dup.json": build_corpus_v2.build_g13(),
+    }
+    for name, fixture in built.items():
+        on_disk = json.load(open(os.path.join(golden_dir, name), encoding="utf-8"))
+        assert on_disk == fixture, name

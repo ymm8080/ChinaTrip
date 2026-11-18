@@ -49,6 +49,18 @@ def acceptance_metrics(reports: Iterable[dict[str, Any]]) -> dict[str, Any]:
         for r in recorded
     )
 
+    replay_kinds: dict[str, int] = {}
+    replay_det = 0
+    replay_total = 0
+    for r in recorded:
+        kind = (r.get("legacy") or {}).get("kind") or "unknown"
+        replay_kinds[kind] = replay_kinds.get(kind, 0) + 1
+        det = (r.get("legacy") or {}).get("determinism")
+        if det is not None:
+            replay_total += 1
+            if det:
+                replay_det += 1
+
     corpus_ok = len(corpus) >= CORPUS_TARGET
     conv_rate = (converged / len(corpus)) if corpus else 0.0
     det_rate = (deterministic / len(corpus)) if corpus else 0.0
@@ -58,7 +70,7 @@ def acceptance_metrics(reports: Iterable[dict[str, Any]]) -> dict[str, Any]:
         "corpus_size": {
             "value": "%d/%d" % (len(corpus), CORPUS_TARGET),
             "pass": corpus_ok,
-            "note": "corpus v1 ships 4; P2-B expands to ≥ 12",
+            "note": "corpus v2 ships 13 scenarios (P2-B families); M9 floor is 12",
         },
         "violation_classes_zero_new": {
             "value": new_violations,
@@ -99,7 +111,7 @@ def acceptance_metrics(reports: Iterable[dict[str, Any]]) -> dict[str, Any]:
     evaluated = [g for g in gates.values() if g["pass"] is not None]
     blocked = [g for g in gates.values() if g["pass"] is None]
     verdict = {
-        "mode": "shadow-instrument (P2-A)",
+        "mode": "shadow-instrument+legacy-replay (P2-B)",
         "switch_ready": False,
         "reason": "P3 switch requires P1-D/E/F (objectives, slack ladder, "
         "assembly) + corpus ≥ 12 (P2-B) + quiet window; this report is the "
@@ -113,6 +125,16 @@ def acceptance_metrics(reports: Iterable[dict[str, Any]]) -> dict[str, Any]:
         "corpus": [r.get("scenario") for r in corpus],
         "legacy_violations_total": legacy_violations,
         "new_violations_total": new_violations,
+        "legacy_side": {
+            "recorded": len(recorded),
+            "kinds": replay_kinds,
+            "replay_deterministic": "%d/%d" % (replay_det, replay_total)
+            if replay_total
+            else None,
+            "note": "in-process replay recordings (P2-B) carry two-run "
+            "calibration; hand recordings keep kind "
+            "recorded-actual-output",
+        },
         "gates": gates,
         "verdict": verdict,
     }
