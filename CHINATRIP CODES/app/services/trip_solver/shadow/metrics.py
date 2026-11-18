@@ -71,9 +71,10 @@ PARITY_DOMAINS: tuple[tuple[str, str, str, str], ...] = (
     ),
     (
         "编辑与会话生命周期",
-        "P4 F-50/F-51（F-24 hint 已落，edit 模块未落）",
-        "pending",
-        "P4",
+        "P4 F-50/F-51 edit.py（retime/pin=用户钉 C-04、move/duration/delete、"
+        "hint 重解、Q7 800ms 超时保现计划+披露）",
+        "covered",
+        "test_trip_solver_edit",
     ),
     (
         "审计与披露",

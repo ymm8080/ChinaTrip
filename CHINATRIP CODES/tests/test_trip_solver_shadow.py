@@ -632,8 +632,7 @@ def test_acceptance_metrics_verdict_and_gates():
     assert psd["pass"] is False  # 4/12 within −2%: model under-fills (burn-down)
     assert re.match(r"\d+/\d+ scored within", str(psd["value"]))
     parity = gates["parity_domains_14"]
-    assert parity["value"] == "13/14" and parity["pass"] is False
-    assert "P4" in parity["note"] or "编辑" in parity["note"]
+    assert parity["value"] == "14/14" and parity["pass"] is True  # P4 landed
     assert metrics["verdict"]["mode"] == "shadow-instrument+legacy-replay (P2-B)"
     assert metrics["verdict"]["switch_ready"] is False
     side = metrics["legacy_side"]
