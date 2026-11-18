@@ -781,38 +781,79 @@ async def start_plan(
         start_days = request.days or 0
         start_brief = request.brief
         start_city_days = request.city_days
+    # P3 seam (F-35/F-42, default legacy = zero behavior change): when
+    # TRIP_SOLVER=cpsat and the serving stack is ready, generate through
+    # the model engine in a worker thread; any failure falls back to the
+    # legacy cascade with a disclosure (M8 rollback shape).
+    trip_session = None
+    trip_outcome = None
     try:
-        session = await agent.start(
-            device_id=x_device_id,
-            cities=start_cities,
-            days=start_days,
-            preferences=request.preferences or "",
-            city_days=start_city_days,
-            start_date=request.start_date,
-            intercity_mode=request.intercity_mode,
-            lang=request.lang,
-            brief=start_brief,
-            arrival_no=request.arrival_no,
-            arrival_time=request.arrival_time,
-            departure_no=request.departure_no,
-            departure_time=request.departure_time,
-            arrival_date=request.arrival_date,
-            departure_date=request.departure_date,
-            intake=request.intake,
-            days_override=request.days_override,
-            arrival_no_override=request.arrival_no_override,
-            departure_no_override=request.departure_no_override,
-            images=_decode_image_payloads(request.images),
+        from app.services.trip_solver.entry import (
+            ENGINE_CPSAT,
+            engine_flag,
+            serving_ready,
         )
-    except PoiStoreUnavailableError:
-        # 库降级（DB 锁存+空内存）不出占位假行程——干净 503 让前端
-        # 提示稍后重试（2026-10-25 占位事故门禁）。
-        logger.warning("plan/start poi_store_unavailable")
-        raise HTTPException(status_code=503, detail="poi_store_unavailable")
-    except LLMError as exc:
-        # LLMError messages are sanitized (never contain the API key).
-        logger.exception("plan/start llm_error: %s", exc)
-        raise HTTPException(status_code=502, detail="llm_error") from exc
+        from app.services.trip_solver.live import generate_session_via_trip_solver
+
+        if engine_flag() == ENGINE_CPSAT and serving_ready()[0]:
+
+            def _ts_generate():
+                return generate_session_via_trip_solver(
+                    device_id=x_device_id,
+                    cities=list(start_cities or []),
+                    days=start_days or 0,
+                    start_date=request.start_date,
+                    musts=[],
+                    store=get_poi_detail_store(),
+                    preferences=request.preferences or "",
+                    arrival_time=request.arrival_time,
+                    departure_time=request.departure_time,
+                )
+
+            trip_session, trip_outcome = await asyncio.to_thread(_ts_generate)
+    except Exception:
+        logger.exception("plan/start trip_solver seam failed; legacy serves")
+    if trip_session is not None:
+        session = trip_session
+    else:
+        try:
+            session = await agent.start(
+                device_id=x_device_id,
+                cities=start_cities,
+                days=start_days,
+                preferences=request.preferences or "",
+                city_days=start_city_days,
+                start_date=request.start_date,
+                intercity_mode=request.intercity_mode,
+                lang=request.lang,
+                brief=start_brief,
+                arrival_no=request.arrival_no,
+                arrival_time=request.arrival_time,
+                departure_no=request.departure_no,
+                departure_time=request.departure_time,
+                arrival_date=request.arrival_date,
+                departure_date=request.departure_date,
+                intake=request.intake,
+                days_override=request.days_override,
+                arrival_no_override=request.arrival_no_override,
+                departure_no_override=request.departure_no_override,
+                images=_decode_image_payloads(request.images),
+            )
+        except PoiStoreUnavailableError:
+            # 库降级（DB 锁存+空内存）不出占位假行程——干净 503 让前端
+            # 提示稍后重试（2026-10-25 占位事故门禁）。
+            logger.warning("plan/start poi_store_unavailable")
+            raise HTTPException(status_code=503, detail="poi_store_unavailable")
+        except LLMError as exc:
+            # LLMError messages are sanitized (never contain the API key).
+            logger.exception("plan/start llm_error: %s", exc)
+            raise HTTPException(status_code=502, detail="llm_error") from exc
+        if (
+            trip_outcome is not None
+            and getattr(trip_outcome, "fallback", False)
+            and trip_outcome.disclosures
+        ):
+            session.assumptions.append(trip_outcome.disclosures[0].get("zh", ""))
     # 2026-11-14（用户拍板「心愿单/已排期按 USER ID 出内容」）：会话记住
     # 登录账号——会话里建的心愿行落 owner_account_id
     session.account_id = account or session.account_id
