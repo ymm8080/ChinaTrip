@@ -37,7 +37,8 @@ jobs:
         run: |
           set +e
           echo "Waiting for CI checks to complete..."
-          MAX_WAIT=600  # 10 minutes
+          MAX_WAIT=3600  # 60 minutes——ci.yml test job 已放宽到 60 分钟
+          # （trip_solver 影子套件全量 ≥ 22 分钟，10 分钟会提前放行未绿的 CI）
           WAITED=0
           while [ $WAITED -lt $MAX_WAIT ]; do
             STATUS=$(gh pr checks "$PR" --json name,state,conclusion 2>/dev/null)
