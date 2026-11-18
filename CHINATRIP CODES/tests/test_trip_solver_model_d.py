@@ -376,6 +376,10 @@ def test_snapshot_hash_distinguishes_every_solver_input_family():
         replace(snapshot, candidates=with_first_candidate(quality=0.9)),
         replace(snapshot, candidates=with_first_candidate(best_visit_time="morning")),
         replace(snapshot, candidates=with_first_candidate(indoor="yes")),
+        replace(
+            snapshot,
+            request=replace(snapshot.request, preferences="喜欢博物馆人文"),
+        ),
     ]
     assert len({base, *(snapshot_hash(v) for v in variants)}) == len(variants) + 1
 
@@ -800,3 +804,50 @@ def test_large_snapshot_timeout_prefix_is_deterministic():
         )
 
     assert timeout_shape(first) == timeout_shape(second)
+
+
+def test_preference_reward_boosts_preferred_category():
+    """R8（拍板「偏好重排也要换 CP-SAT」）：偏好同类候选在场 +40/日——
+    单坑对决里偏好压过 quality 差（legacy「偏好位在 tier 之前」同向）。"""
+
+    from app.services.trip_solver.inputs.enrich import enrich
+    from app.services.trip_solver.model.solve import solve_snapshot
+    from app.services.trip_solver.types import CandidateItem, FactSnapshot, TripRequest
+
+    def cand(cid, name, cat, tier, quality, lon, lat):
+        return CandidateItem(
+            cid=cid,
+            name=name,
+            category=cat,
+            tier=tier,
+            quality=quality,
+            lon=lon,
+            lat=lat,
+            opening_hours="09:00-18:00",
+            suggested_duration_min=90,
+        )
+
+    def snap(prefs):
+        return FactSnapshot(
+            schema_version=2,
+            request=TripRequest(
+                days=1,
+                cities=("上海",),
+                preferences=prefs,
+                sight_cap_per_day=1,
+            ),
+            candidates=(
+                cand("park", "中山公园", "park", 1, 0.9, 121.42, 31.22),
+                cand("museum", "上海美术馆", "art", 4, 0.7, 121.47, 31.23),
+            ),
+        )
+
+    def placed_names(snapshot):
+        sol = solve_snapshot(enrich(snapshot), budget_s=3.0)
+        return [i.cid for i in sol.items if i.kind == "visit"]
+
+    control = placed_names(snap(""))
+    assert "park" in control and "museum" not in control
+
+    boosted = placed_names(snap("喜欢博物馆人文"))
+    assert "museum" in boosted and "park" not in boosted

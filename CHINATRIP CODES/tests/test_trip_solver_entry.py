@@ -283,3 +283,59 @@ def test_seam_plain_shape_gates_unsupported_start_shapes():
     assert seam_plain_shape(**{**base, "days": 0}) is False
     assert seam_plain_shape(**{**base, "cities": None}) is False
     assert seam_plain_shape(**{**base, "cities": []}) is False
+
+
+# --- R8 二期重解（偏好重排换引擎）-------------------------------------------
+
+
+def test_replan_seam_shape_guards():
+    from types import SimpleNamespace
+
+    from app.services.trip_solver.entry import replan_seam_shape
+
+    base = dict(
+        city_days={},
+        created_sites=[],
+        site_kinds={},
+        must_visits=["外滩"],
+        cities=["上海"],
+        days=2,
+    )
+    assert replan_seam_shape(SimpleNamespace(**base)) is True
+    # 分城天数 / 自造点 / 餐类必去 / 缺城市 / 缺天数 → legacy
+    assert (
+        replan_seam_shape(SimpleNamespace(**{**base, "city_days": {"杭州": 1}}))
+        is False
+    )
+    assert (
+        replan_seam_shape(SimpleNamespace(**{**base, "created_sites": ["自造点"]}))
+        is False
+    )
+    assert (
+        replan_seam_shape(
+            SimpleNamespace(
+                **{
+                    **base,
+                    "site_kinds": {"福和慧": "food"},
+                    "must_visits": ["福和慧"],
+                }
+            )
+        )
+        is False
+    )
+    assert replan_seam_shape(SimpleNamespace(**{**base, "cities": []})) is False
+    assert replan_seam_shape(SimpleNamespace(**{**base, "days": 0})) is False
+
+
+def test_seam_attempted_contextvar_roundtrip():
+    from app.services.trip_solver.entry import (
+        reset_seam_attempted,
+        seam_attempted,
+        set_seam_attempted,
+    )
+
+    assert seam_attempted() is False
+    token = set_seam_attempted()
+    assert seam_attempted() is True
+    reset_seam_attempted(token)
+    assert seam_attempted() is False

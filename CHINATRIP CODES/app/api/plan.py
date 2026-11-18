@@ -793,6 +793,7 @@ async def start_plan(
             engine_flag,
             seam_plain_shape,
             serving_ready,
+            set_seam_attempted,
         )
         from app.services.trip_solver.live import generate_session_via_trip_solver
 
@@ -818,6 +819,9 @@ async def start_plan(
                 cities=start_cities,
             )
         ):
+            # 二期：本请求已由 api 缝尝试引擎——_generate_v0 重解钩子
+            # 不再重试（防双跑/双披露）；失败回落由缝自带披露
+            set_seam_attempted()
 
             def _ts_generate():
                 return generate_session_via_trip_solver(
@@ -955,6 +959,7 @@ async def message_plan(
                 ENGINE_CPSAT,
                 engine_flag,
                 serving_ready,
+                set_seam_attempted,
             )
             from app.services.trip_solver.live import (
                 generate_session_via_trip_solver,
@@ -966,6 +971,9 @@ async def message_plan(
                 and _restart_route_only(request.text, restart_cities)
                 and (session.intercity_mode or "auto") == "auto"
             ):
+                # 二期：换局缝已尝试引擎——回落 restart_with_brief 内的
+                # _generate_v0 钩子不再重试
+                set_seam_attempted()
 
                 def _ts_restart():
                     return generate_session_via_trip_solver(

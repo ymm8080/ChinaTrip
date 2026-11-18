@@ -3818,3 +3818,97 @@ def test_message_new_trip_with_sites_stays_legacy(monkeypatch):
     assert r1.status_code == 200
     # 换局缝未被调用（残渣=点名地点）→ legacy restart 管线
     assert calls == [] or all("杭州" not in str(c.get("cities")) for c in calls)
+
+
+# --- R8：_generate_v0 偏好重排换引擎（钩子） -------------------------------
+
+
+def test_generate_v0_routes_replan_through_engine(monkeypatch):
+    """拍板「偏好重排也要换 CP-SAT」：形状 OK + 缝未先试 → 引擎重解
+    （_collect_candidates 哨兵证明 legacy 管线没跑）。"""
+    import asyncio
+
+    from app.services.agent.plan import PlanSession
+    from app.services.itinerary.models import DayPlan, ItineraryPlan
+    from app.services.trip_solver import live as _live
+
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    agent = PlanningAgent(StubAdapter([]))
+    session = PlanSession(
+        session_id="sess-r8",
+        device_id="d8",
+        cities=["上海"],
+        days=1,
+        start_date="2026-11-25",
+        must_visits=["外滩"],
+        preferences="喜欢博物馆人文",
+    )
+    calls = {}
+
+    async def _boom(*a, **k):
+        raise AssertionError("legacy pipeline must not run when engine serves")
+
+    monkeypatch.setattr(agent, "_collect_candidates", _boom)
+    monkeypatch.setattr(
+        "app.services.poi_details.get_poi_detail_store", _seam_fake_store
+    )
+
+    def _fake_replan(sess, *, store, extra_assumptions=None, budget_s=3.0):
+        calls["sid"] = sess.session_id
+        plan = ItineraryPlan(
+            itinerary_id="it-r8",
+            cities=list(sess.cities),
+            days=[DayPlan(day=1, base_city=sess.cities[0], items=[])],
+        )
+        plan.assumptions = ["引擎重排"]
+        sess.plan = plan
+        sess.assumptions = ["引擎重排"] + list(extra_assumptions or [])
+        sess.state = "ready"
+
+        class _O:
+            engine = "cpsat"
+            fallback = False
+            disclosures = []
+
+        return _O()
+
+    monkeypatch.setattr(_live, "replan_session_via_trip_solver", _fake_replan)
+    out = asyncio.run(agent._generate_v0(session, extra_assumptions=["偏好已兑现"]))
+    assert calls["sid"] == "sess-r8"
+    assert out.session_id == "sess-r8"
+    assert session.state == "ready"
+    assert session.history[-1].role == "assistant"
+    assert "偏好已兑现" in session.assumptions
+
+
+def test_generate_v0_falls_back_when_seam_attempted(monkeypatch):
+    """api 缝已尝试过（ContextVar）→ 钩子不重试，legacy 管线接管。"""
+    import asyncio
+
+    from app.services.agent.plan import PlanSession
+    from app.services.trip_solver.entry import (
+        reset_seam_attempted,
+        set_seam_attempted,
+    )
+
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    agent = PlanningAgent(StubAdapter([]))
+    session = PlanSession(
+        session_id="sess-r8b",
+        device_id="d8",
+        cities=["上海"],
+        days=1,
+        start_date="2026-11-25",
+        must_visits=[],
+    )
+
+    async def _sentinel(*a, **k):
+        raise RuntimeError("legacy-path")
+
+    monkeypatch.setattr(agent, "_collect_candidates", _sentinel)
+    token = set_seam_attempted()
+    try:
+        with pytest.raises(RuntimeError, match="legacy-path"):
+            asyncio.run(agent._generate_v0(session))
+    finally:
+        reset_seam_attempted(token)

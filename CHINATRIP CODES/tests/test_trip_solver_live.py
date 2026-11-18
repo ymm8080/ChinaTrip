@@ -198,3 +198,89 @@ def test_generator_passes_lang_to_session(monkeypatch):
         lang="en",
     )
     assert session is not None and session.lang == "en"
+
+
+def _pref_store():
+    return SnapshotStore(
+        [
+            CandidateItem(
+                cid="p%d" % i,
+                name=name,
+                poi_id="poi_%d" % i,
+                city="上海",
+                category=cat,
+                tier=tier,
+                lon=121.47 + i * 0.01,
+                lat=31.23,
+                opening_hours="09:00-18:00",
+                suggested_duration_min=90,
+            )
+            for i, (name, cat, tier) in enumerate(
+                [
+                    ("中山公园", "park", 1),
+                    ("静安寺", "temple", 2),
+                    ("复兴公园", "park", 3),
+                    ("上海美术馆", "art", 4),
+                ]
+            )
+        ]
+    )
+
+
+def test_pool_boost_pulls_preferred_category_into_pool():
+    """R8：偏好非空 → 2× 取数 + 偏好命中稳定前置（组内保库序）截回
+    limit——legacy「偏好位在 tier 之前」的池侧同款；偏好为空零变化。"""
+    snap = snapshot_from_request(
+        cities=["上海"],
+        days=1,
+        start_date="2026-11-25",
+        musts=[],
+        store=_pref_store(),
+        preferences="喜欢博物馆人文",
+        pool_limit=2,
+    )
+    names = [c.name for c in snap.candidates if c.kind == "fill"]
+    assert "上海美术馆" in names  # tier4 借偏好进池
+
+    ctrl = snapshot_from_request(
+        cities=["上海"],
+        days=1,
+        start_date="2026-11-25",
+        musts=[],
+        store=_pref_store(),
+        preferences="",
+        pool_limit=2,
+    )
+    ctrl_names = [c.name for c in ctrl.candidates if c.kind == "fill"]
+    assert "上海美术馆" not in ctrl_names
+
+
+def test_replan_session_via_trip_solver_mutates_in_place(monkeypatch):
+    """R8：会话级重解——session_id/history 保留、plan 就位、偏好文本
+    进快照；旗关 = None（legacy 零变化）。"""
+    from app.services.agent.plan import PlanSession
+    from app.services.trip_solver.live import replan_session_via_trip_solver
+
+    session = PlanSession(
+        session_id="sess-r8",
+        device_id="d8",
+        cities=["上海"],
+        days=1,
+        start_date="2026-11-25",
+        must_visits=["外滩"],
+        preferences="喜欢博物馆人文",
+    )
+    out = replan_session_via_trip_solver(
+        session, store=_store(), extra_assumptions=["已按偏好重排"]
+    )
+    assert out is None  # default flag=legacy → 钩子静默
+    assert session.plan is None
+
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    out2 = replan_session_via_trip_solver(
+        session, store=_store(), extra_assumptions=["已按偏好重排"]
+    )
+    assert out2 is not None and out2.engine == "cpsat"
+    assert session.plan is not None and session.state == "ready"
+    assert session.session_id == "sess-r8"
+    assert "已按偏好重排" in session.assumptions

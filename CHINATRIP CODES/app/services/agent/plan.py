@@ -22196,6 +22196,61 @@ class PlanningAgent:
             # 行程外心愿披露（2026-11-07 具名体验愿望案）：跳过也要让用户看见，
             # 不再静默蒸发（2026-10-25 日志铁律）。
             extra_assumptions = list(extra_assumptions or []) + skip_notes
+        # P3 二期（2026-11-18 拍板「偏好重排也要换 CP-SAT」）：引擎可完整
+        # 承载的会话形状（replan_seam_shape）且本请求未被 api 缝先试过时，
+        # _generate_v0 的全量重解改走模型引擎——偏好文本随快照入池（偏好
+        # 位在 tier 之前）+ tier② 偏好奖励，解析与 legacy 同源；钉住的卡
+        # 折进必去（在场保证）。失败回落本管线并披露，绝不静默。
+        try:
+            from app.services.trip_solver.entry import (
+                replan_seam_shape,
+                seam_attempted,
+            )
+            from app.services.trip_solver.live import (
+                replan_session_via_trip_solver,
+            )
+        except Exception:  # pragma: no cover - 引擎模块不可用时走 legacy
+            replan_session_via_trip_solver = None
+        if (
+            replan_session_via_trip_solver is not None
+            and seam_attempted() is False
+            and replan_seam_shape(session)
+        ):
+            from app.services.poi_details import get_poi_detail_store
+
+            outcome = replan_session_via_trip_solver(
+                session,
+                store=get_poi_detail_store(),
+                extra_assumptions=extra_assumptions,
+            )
+            if (
+                outcome is not None
+                and getattr(outcome, "engine", "") == "cpsat"
+                and session.plan is not None
+            ):
+                session.history.append(
+                    ChatMessage(
+                        role="assistant",
+                        content=L(
+                            f"初版行程已生成（{session.days} 天）。"
+                            f"假设：{'；'.join(session.assumptions)}",
+                            f"Draft itinerary ready ({session.days} days). "
+                            "Assumptions: " + "; ".join(session.assumptions),
+                        ),
+                    )
+                )
+                self._sync_wish_rows(session)
+                self._sync_planned_rows(session)
+                return session
+            if (
+                outcome is not None
+                and getattr(outcome, "fallback", False)
+                and outcome.disclosures
+            ):
+                extra_assumptions = [
+                    *(extra_assumptions or []),
+                    outcome.disclosures[0].get("zh", ""),
+                ]
         t0 = perf_counter()
         candidates, poi_assumptions = await self._collect_candidates(
             session.cities,

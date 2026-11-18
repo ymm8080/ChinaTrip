@@ -165,6 +165,7 @@ def snapshot_from_request(
     avoid: Optional[list[str]] = None,
     weather_lookup: Optional[Callable[[str, str], Any]] = None,
     service_rows: Optional[list[dict]] = None,
+    preferences: str = "",
     pool_limit: int = POOL_LIMIT_PER_CITY,
 ) -> FactSnapshot:
     """Build a schema-v2 FactSnapshot from request fields + live stores."""
@@ -215,10 +216,39 @@ def snapshot_from_request(
             )
             must_names_bound.add(name)
 
+    # R8 偏好池 boost（同源 _preference_tokens/_pref_category_hit）：偏好
+    # 非空时取 2×池再按「偏好命中在前、组内保库序（tier 梯子）」稳定
+    # 重排后截回 pool_limit——legacy「偏好位在 tier 之前」的池侧同款；
+    # 偏好为空时行为与旧版完全一致（单倍取数、不重排）。
+    pref_tokens: tuple = ()
+    pref_show = False
+    if (preferences or "").strip():
+        try:
+            from app.services.agent.plan import (
+                _preference_tokens as _ptoks,
+            )
+
+            pref_tokens, pref_show = _ptoks(preferences)
+        except Exception:
+            pref_tokens = ()
     pool: list[dict] = []
     seen_names = set(must_names_bound)
     for city in cities:
-        for row in store.top_pois_in_city(city, limit=pool_limit):
+        rows = list(
+            store.top_pois_in_city(
+                city, limit=pool_limit * 2 if pref_tokens else pool_limit
+            )
+        )
+        if pref_tokens and rows:
+            try:
+                from app.services.agent.plan import (
+                    _pref_category_hit as _phit,
+                )
+
+                rows.sort(key=lambda r: 0 if _phit(r, pref_tokens, pref_show) else 1)
+            except Exception:
+                pass
+        for row in rows[:pool_limit]:
             name = str(row.get("name") or "")
             if not name or name in seen_names:
                 continue
@@ -273,6 +303,7 @@ def snapshot_from_request(
             departure_time=departure_time,
             arrival_mode=_mode_from_no(arrival_no),
             departure_mode=_mode_from_no(departure_no),
+            preferences=preferences or "",
         ),
         candidates=tuple(candidates),
         access_profiles=tuple(profiles),
@@ -344,6 +375,7 @@ def generate_session_via_trip_solver(
         avoid=[],
         weather_lookup=_weather,
         service_rows=service_rows,
+        preferences=preferences or "",
     )
     errors = validate_snapshot(snapshot)
     if errors:
@@ -375,3 +407,98 @@ def generate_session_via_trip_solver(
     session.assumptions = list(getattr(outcome.plan, "assumptions", []) or [])
     session.state = "ready"
     return session, outcome
+
+
+def replan_session_via_trip_solver(
+    session,
+    *,
+    store,
+    extra_assumptions=None,
+    budget_s: float = 3.0,
+):
+    """F-35 二期会话级重解（2026-11-18 拍板「偏好重排也要换 CP-SAT」）。
+
+    就地换引擎：session_id/history/会话状态全保留（引擎连续性），plan
+    换成模型引擎产物；用户钉住的卡折进必去（在场保证，槽位重解——
+    F-50 FixedPin 全保位是后续升级位）。返回 SolveOutcome：
+    - engine=cpsat 且 plan 落位 → 调用方直接收工；
+    - fallback=True → 调用方走 legacy 并附 disclosures[0]；
+    - None（旗未开/快照不可验证）→ 调用方走 legacy，行为零变化。
+    """
+    from .entry import (
+        ENGINE_CPSAT,
+        FALLBACK_DISCLOSURE,
+        engine_flag,
+        serving_ready,
+        solve_trip,
+    )
+    from .types import validate_snapshot
+
+    flag = engine_flag()
+    if flag != ENGINE_CPSAT or not serving_ready()[0]:
+        return None
+
+    musts = list(
+        dict.fromkeys(
+            [
+                *(getattr(session, "must_visits", None) or []),
+                *_pinned_names(session),
+            ]
+        )
+    )
+    service_rows: list[dict] = []
+    try:
+        from app.services.access_service_store import AccessServiceStore
+
+        services = AccessServiceStore(None).access_services(list(session.cities or []))
+        service_rows = list(services or [])
+    except Exception:
+        service_rows = []
+
+    snapshot = snapshot_from_request(
+        cities=list(session.cities or []),
+        days=max(1, int(getattr(session, "days", 1) or 1)),
+        start_date=getattr(session, "start_date", None),
+        musts=musts,
+        store=store,
+        arrival_time=getattr(session, "arrival_time", None),
+        departure_time=getattr(session, "departure_time", None),
+        arrival_no=getattr(session, "arrival_no", None),
+        departure_no=getattr(session, "departure_no", None),
+        avoid=list(getattr(session, "avoid_sites", None) or []),
+        preferences=(getattr(session, "preferences", "") or ""),
+        service_rows=service_rows,
+    )
+    if validate_snapshot(snapshot):
+        return None
+
+    outcome = solve_trip(snapshot, flag=ENGINE_CPSAT, budget_s=budget_s)
+    if outcome.engine != ENGINE_CPSAT or getattr(outcome, "plan", None) is None:
+        outcome.fallback = True
+        outcome.disclosures = [dict(FALLBACK_DISCLOSURE)]
+        return outcome
+
+    session.plan = outcome.plan
+    session.assumptions = list(getattr(outcome.plan, "assumptions", []) or []) + list(
+        extra_assumptions or []
+    )
+    session.state = "ready"
+    session.brief_notes = []
+    return outcome
+
+
+def _pinned_names(session) -> list:
+    """用户钉住的卡折进必去（F-51 v1：在场保证；槽位保位是 F-50 升级位）。"""
+    from app.services.itinerary.models import VisitItem
+
+    plan = getattr(session, "plan", None)
+    if plan is None:
+        return []
+    out = []
+    for day in plan.days:
+        for item in day.items:
+            if isinstance(item, VisitItem) and getattr(item, "pinned", False):
+                name = str(item.name or "").strip()
+                if name:
+                    out.append(name)
+    return out

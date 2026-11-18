@@ -102,6 +102,7 @@ def snapshot_from_dict(raw: dict[str, Any]) -> FactSnapshot:
         departure_mode=req_raw.get("departure_mode"),
         day1_start=req_raw.get("day1_start"),
         lang=req_raw.get("lang", "zh"),
+        preferences=str(req_raw.get("preferences", "") or ""),
         pins=tuple(
             FixedPin(
                 rid=str(p["rid"]),
@@ -172,6 +173,7 @@ def snapshot_hash(snapshot: FactSnapshot) -> str:
             "departure_time": snapshot.request.departure_time,
             "day1_start": snapshot.request.day1_start,
             "lang": snapshot.request.lang,
+            "preferences": snapshot.request.preferences,
             "pins": [(p.rid, p.day, p.start_min, p.cid) for p in snapshot.request.pins],
             "hotel_anchors": snapshot.request.hotel_anchors,
             "day_load_budget_min": snapshot.request.day_load_budget_min,

@@ -108,6 +108,10 @@ class TripRequest:
     departure_mode: Optional[str] = None
     day1_start: Optional[str] = None
     lang: str = "zh"
+    # R8（2026-11-18 拍板「偏好重排也要换 CP-SAT」）：偏好文本随快照入
+    # 模型——池排序 boost + tier② 偏好奖励，解析与 legacy
+    # _preference_tokens/_pref_category_hit 同源
+    preferences: str = ""
     pins: tuple["FixedPin", ...] = ()  # C-04 fixed placements
     hotel_anchors: bool = True  # C-13 morning departure + night return
     day_load_budget_min: int = 570  # legacy _MUST_DAY_USABLE_MIN

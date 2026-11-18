@@ -23,6 +23,7 @@ The adapter is synchronous; callers invoke it via ``asyncio.to_thread``
 
 from __future__ import annotations
 
+import contextvars
 import hashlib
 import logging
 import os
@@ -132,6 +133,46 @@ def seam_plain_shape(
     if intake or days_override or arrival_no_override or departure_no_override:
         return False
     if not days or not cities:
+        return False
+    return True
+
+
+# 二期（2026-11-18）：api 缝（start/restart）已在本请求尝试过引擎的
+# 标记——_generate_v0 重解钩子不再重试（防双跑/双披露）。ContextVar 按
+# 请求上下文隔离：换局消息等新请求拿到干净默认值，钩子照常工作。
+_SEAM_ATTEMPTED = contextvars.ContextVar("trip_solver_seam_attempted", default=False)
+
+
+def set_seam_attempted():
+    """api 缝尝试引擎前调用；返回 token 供 reset（测试用）。"""
+    return _SEAM_ATTEMPTED.set(True)
+
+
+def reset_seam_attempted(token):
+    """测试复位（生产无需：每请求上下文自带默认 False）。"""
+    _SEAM_ATTEMPTED.reset(token)
+
+
+def seam_attempted() -> bool:
+    return _SEAM_ATTEMPTED.get()
+
+
+def replan_seam_shape(session) -> bool:
+    """二期重解形状闸：引擎可完整承载的会话形状才换道。
+
+    分城天数（引擎无逐城拆窗）/ 自造点（池=底库行）/ 餐类必去（餐厅
+    复杂度留 legacy）任一命中 → legacy；天数/城市齐备才可解。"""
+    if getattr(session, "city_days", None):
+        return False
+    if getattr(session, "created_sites", None):
+        return False
+    site_kinds = getattr(session, "site_kinds", None) or {}
+    musts = getattr(session, "must_visits", None) or []
+    if any((site_kinds or {}).get(m) == "food" for m in musts):
+        return False
+    if not getattr(session, "cities", None):
+        return False
+    if not (getattr(session, "days", 0) or 0) > 0:
         return False
     return True
 

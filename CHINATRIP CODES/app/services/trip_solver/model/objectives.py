@@ -29,6 +29,10 @@ MORNING_OCCUPIED_REWARD = 40
 CITYWALK_AFTERNOON_REWARD = 12  # 2026-11-06 拍板镜像：CITYWALK 倾向下午场
 BIG_FIRST_REWARD = 12  # 2026-11-04 拍板镜像：大点先排（池 ≤20 才建对）
 AFTERNOON_BIG_SINGLE_REWARD = 12  # 同拍板软面：下午大点 ≤1/日（镜像 scorer −12）
+# R8 偏好镜像（2026-11-18 拍板「偏好重排也要换 CP-SAT」）：偏好同类
+# 候选在场 +40/日——与 legacy「偏好位在 tier 之前」同向；同类可多个
+# （奖励逐张叠加无衰减=拍板「偏好可以是同一类型多个景点」）
+PREFERENCE_CATEGORY_REWARD = 40
 MORNING_MINUTE = 12 * 60
 ENTERTAINMENT_PRESENT_REWARD = 40
 CATEGORY_DIVERSITY_REWARD = 20
@@ -79,17 +83,46 @@ def _preference(
     negative: list = []
     weather_by_key = {(poi, day): cond for poi, day, cond in snapshot.weather}
 
+    # R8：偏好解析一次（同源 legacy _preference_tokens）
+    pref_tokens: tuple = ()
+    pref_show = False
+    _pref_text = (getattr(snapshot.request, "preferences", "") or "").strip()
+    if _pref_text:
+        try:
+            from app.services.agent.plan import _preference_tokens as _ptoks
+
+            pref_tokens, pref_show = _ptoks(_pref_text)
+        except Exception:
+            pref_tokens = ()
+
     for cand in snapshot.candidates:
         tier = enriched.tiers[cand.cid]
         deviation = model.NewIntVar(0, tier[2], "obj_dd_%s" % cand.cid)
         model.AddAbsEquality(deviation, bundle.dur[cand.cid] - tier[1])
         negative.append(DURATION_DEVIATION_PENALTY * deviation)
+        pref_bonus = 0
+        if pref_tokens:
+            try:
+                from app.services.agent.plan import (
+                    _pref_category_hit as _phit,
+                )
+
+                if _phit(
+                    {"name": cand.name, "category": cand.category},
+                    pref_tokens,
+                    pref_show,
+                ):
+                    pref_bonus = PREFERENCE_CATEGORY_REWARD
+            except Exception:
+                pref_bonus = 0
 
         quality = int(round(float(cand.quality or 0) * QUALITY_SCALE))
         for day in bundle.days:
             lit = bundle.presence[(cand.cid, day)]
             if quality:
                 positive.append(quality * lit)
+            if pref_bonus:
+                positive.append(pref_bonus * lit)
             if not cand.rid:
                 positive.append(FILL_REWARD * lit)
             if (
