@@ -45,6 +45,9 @@ class VarBundle:
     day_active: dict[int, "cp_model.IntVar"] = field(default_factory=dict)
     day_end_vars: dict[int, "cp_model.IntVar"] = field(default_factory=dict)
     travel_terms: list = field(default_factory=list)  # F-23 tier ③
+    fill_gates: dict[str, "cp_model.IntVar"] = field(
+        default_factory=dict
+    )  # tier-① fill-free assumption gates
 
 
 def define_variables(enriched: "EnrichedSnapshot") -> VarBundle:
@@ -60,6 +63,7 @@ def define_variables(enriched: "EnrichedSnapshot") -> VarBundle:
     active_start: dict[tuple[str, int], object] = {}
     active_dur: dict[tuple[str, int], object] = {}
     active_end: dict[tuple[str, int], object] = {}
+    fill_gates: dict[str, object] = {}
 
     for cand in snapshot.candidates:
         if cand.rid:
@@ -113,6 +117,10 @@ def define_variables(enriched: "EnrichedSnapshot") -> VarBundle:
             continue  # governed by the requested link above
         total = sum(presence[(cand.cid, d)] for d in days)
         model.Add(total <= 1)  # fill candidates: at most one day
+        gate = model.NewBoolVar("fill_gate_%s" % cand.cid)
+        for day in days:
+            model.Add(presence[(cand.cid, day)] <= gate)
+        fill_gates[cand.cid] = gate
 
     return VarBundle(
         model=model,
@@ -126,4 +134,5 @@ def define_variables(enriched: "EnrichedSnapshot") -> VarBundle:
         active_start=active_start,
         active_dur=active_dur,
         active_end=active_end,
+        fill_gates=fill_gates,
     )

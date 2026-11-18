@@ -26,7 +26,7 @@ DEFAULT_BUDGET_SECONDS = 3.0
 # Deterministic work cap per lexicographic tier. Wall-clock slices below are
 # only a safety envelope; deterministic time decides how much search every
 # run performs, so machine load cannot change the emitted plan.
-TIER_DETERMINISTIC_BUDGET = 0.1
+TIER_DETERMINISTIC_BUDGET = 0.2
 
 
 def solve(
@@ -42,6 +42,15 @@ def solve(
     fully_optimized = False
 
     for index, tier in enumerate(tiers):
+        coverage_assumptions = index == 0 and bool(bundle.fill_gates)
+        if coverage_assumptions:
+            # Tier ① ignores fill variables. Solving that projection without
+            # the optional-fill search space is mathematically identical (fills
+            # cannot reduce unplaced requested items) and keeps trip-scale
+            # corpora inside the Q3 budget.
+            bundle.model.AddAssumptions(
+                [gate.Not() for gate in bundle.fill_gates.values()]
+            )
         candidate_solver = cp_model.CpSolver()
         candidate_solver.parameters.num_workers = 1
         candidate_solver.parameters.random_seed = SOLVER_SEED
@@ -57,6 +66,8 @@ def solve(
             bundle.model.Maximize(tier.expression)
         status_code = candidate_solver.Solve(bundle.model)
         status = candidate_solver.StatusName(status_code)
+        if coverage_assumptions:
+            bundle.model.ClearAssumptions()
         if status == "INFEASIBLE":
             return Solution(
                 status="INFEASIBLE",

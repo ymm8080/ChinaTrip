@@ -312,7 +312,7 @@ def build_g08() -> dict:
     the remote day may not carry unrequested fill (g03 is the third-cluster
     variant; this is the minimal standalone)."""
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "source": "golden-fixture",
         "library_version": "poi-snapshot-2026-11-17",
         "request": _request(
@@ -410,7 +410,7 @@ def build_g09() -> dict:
     """Duration family (B-19/Q1): park-type must with library duration 300 →
     typ clamps to 240 (F-15). span_cap ≤ 240 is the Q1 policy target."""
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "source": "golden-fixture",
         "library_version": "poi-snapshot-2026-11-17",
         "request": _request(
@@ -478,7 +478,7 @@ def build_g10() -> dict:
     """Multi-city family (C-07): 上海×2 + 杭州×1, musts in both cities; no
     day may mix cities."""
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "source": "golden-fixture",
         "library_version": "poi-snapshot-2026-11-17",
         "request": _request(
@@ -654,7 +654,7 @@ def build_g11() -> dict:
         *sh_fills,
     ]
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "source": "golden-fixture",
         "library_version": "poi-snapshot-2026-11-17",
         "request": _request(
@@ -705,7 +705,7 @@ def build_g12() -> dict:
     """Closed-day family (C-01): start on a Monday; the museum row closes
     Mondays → must be unplaced+disclosed, never silently dropped."""
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "source": "golden-fixture",
         "library_version": "poi-snapshot-2026-11-17",
         "request": _request(
@@ -779,7 +779,7 @@ def build_g13() -> dict:
     share the 宝顶镇 cluster with the anchor site."""
     x, y = XY["大足石刻"]
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "source": "golden-fixture",
         "library_version": "poi-snapshot-2026-11-17",
         "request": _request(

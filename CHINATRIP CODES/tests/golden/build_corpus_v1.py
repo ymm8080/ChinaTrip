@@ -58,7 +58,7 @@ def _write(name: str, fixture: dict) -> None:
 def build_g02() -> dict:
     """B-07: tower must respect the entry cap with post-rollback attributes."""
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "source": "golden-fixture",
         "library_version": "poi-snapshot-2026-11-17",
         "request": {
@@ -181,11 +181,19 @@ def build_g03(base: dict) -> dict:
         },
         {
             "type": "sequence",
-            "args": {"day": 1, "order": ["天安门广场", "慕田峪长城"], "note": "E-1 shape with the 07:10 pin"},
+            "args": {
+                "day": 1,
+                "order": ["天安门广场", "慕田峪长城"],
+                "note": "E-1 shape with the 07:10 pin",
+            },
         },
         {
             "type": "no_unrequested_before",
-            "args": {"day": 1, "before": "慕田峪长城", "note": "B-03a/C-15: no filler precedes the remote leg"},
+            "args": {
+                "day": 1,
+                "before": "慕田峪长城",
+                "note": "B-03a/C-15: no filler precedes the remote leg",
+            },
         },
         {
             "type": "no_entry_cap_breach",
@@ -201,7 +209,8 @@ def build_g04(base: dict) -> dict:
     fixture = copy.deepcopy(base)
     fixture["source"] = "golden-fixture-variant"
     fixture["provenance"] = {
-        "incident": "B-11 endpoint days: arrival/departure times constrain day 1 and the last day",
+        "incident": "B-11 endpoint days: arrival/departure times constrain "
+        "day 1 and the last day",
         "built_at": "2026-11-18",
         "builder": "tests/golden/build_corpus_v1.py",
         "base": "g01.json (ids stripped)",
@@ -214,21 +223,35 @@ def build_g04(base: dict) -> dict:
     fixture["expect"] = [
         {
             "type": "requested_coverage",
-            "args": {"note": "musts timed or disclosed-unplaced — the endpoint "
-            "windows may make all five unseatable, which must be disclosed, "
-            "never silently dropped (B-01)"},
+            "args": {
+                "note": "musts timed or disclosed-unplaced — the endpoint "
+                "windows may make all five unseatable, which must be disclosed, "
+                "never silently dropped (B-01)"
+            },
         },
         {
             "type": "day_start_floor",
-            "args": {"day": 1, "not_before": "11:30", "note": "C-05: arrival 09:00 + 150 floor"},
+            "args": {
+                "day": 1,
+                "not_before": "11:30",
+                "note": "C-05: arrival 09:00 + 150 floor",
+            },
         },
         {
             "type": "day_end_ceiling",
-            "args": {"day": 2, "not_after": "17:30", "note": "C-05: departure 19:00 − 90 buffer"},
+            "args": {
+                "day": 2,
+                "not_after": "17:30",
+                "note": "C-05: departure 19:00 − 90 buffer",
+            },
         },
         {
             "type": "no_unrequested_before",
-            "args": {"day": 1, "before": "慕田峪长城", "note": "C-15 still holds on the endpoint arrival day"},
+            "args": {
+                "day": 1,
+                "before": "慕田峪长城",
+                "note": "C-15 still holds on the endpoint arrival day",
+            },
         },
         {"type": "deterministic", "args": {"runs": 2}},
     ]

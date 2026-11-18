@@ -142,6 +142,8 @@ def render_markdown(report: dict) -> str:
                     "- `%s` day %s: %s" % (v["bug"], v.get("day"), v["evidence"])
                 )
         lines.append("")
+    while lines and not lines[-1]:
+        lines.pop()
     return "\n".join(lines) + "\n"
 
 

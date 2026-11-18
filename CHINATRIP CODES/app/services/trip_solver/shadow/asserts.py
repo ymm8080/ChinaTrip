@@ -27,7 +27,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Optional
 
-from .views import KIND_VISIT, PlanView, hhmm_to_min
+from .views import KIND_VISIT, CardView, PlanView, hhmm_to_min, min_to_hhmm
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..inputs.enrich import EnrichedSnapshot
@@ -129,6 +129,29 @@ def _eval_same_venue(view: PlanView, args: dict) -> tuple[str, str]:
     )
 
 
+def _meal_bridges_arrival(
+    view: PlanView, card: CardView, day: int, name: str, arrive: int
+) -> bool:
+    """F-22 same-venue meal bridges card start and leg arrival."""
+    start = card.start_min or 0
+    if view.engine == "cpsat":
+        cid = getattr(card, "cid", None)
+        return any(
+            meal.get("day") == day
+            and meal.get("host_cid") == cid
+            and meal.get("start_min") == arrive
+            and meal.get("end_min") == start
+            for meal in view.meal_anchors
+        )
+    return any(
+        meal.kind == "meal"
+        and meal.anchor == name
+        and meal.start_min == arrive
+        and meal.end_min == start
+        for meal in view.day_cards(day)
+    )
+
+
 def _eval_card_leg(view: PlanView, args: dict) -> tuple[str, str]:
     day, name = int(args["day"]), str(args["name"])
     hits = [c for c in view.by_name(name) if c.day == day]
@@ -150,6 +173,12 @@ def _eval_card_leg(view: PlanView, args: dict) -> tuple[str, str]:
         arrive = leg.get("arrive_poi_min")
         if arrive is not None and (card.start_min or 0) == arrive:
             return "pass", "visit start == leg arrival (%s)" % card.start
+        if arrive is not None and _meal_bridges_arrival(view, card, day, name, arrive):
+            return (
+                "pass",
+                "visit starts %s after the same-venue meal bridging leg "
+                "arrival (%s)" % (card.start, min_to_hhmm(arrive)),
+            )
         return "fail", "visit start %s != leg arrival %s" % (
             card.start,
             arrive,
@@ -160,6 +189,12 @@ def _eval_card_leg(view: PlanView, args: dict) -> tuple[str, str]:
         return "skipped", "recording carries no leg times for %r" % name
     if (card.start_min or 0) == arrive:
         return "pass", "card start == leg arrive (%s)" % card.start
+    if _meal_bridges_arrival(view, card, day, name, arrive):
+        return (
+            "pass",
+            "card starts %s after the same-venue meal bridging leg arrive (%s)"
+            % (card.start, leg.get("arrive")),
+        )
     return "fail", "card start %s != leg arrive %s (B-03c)" % (
         card.start,
         leg.get("arrive"),

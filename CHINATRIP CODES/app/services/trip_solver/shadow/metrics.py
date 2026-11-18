@@ -104,7 +104,8 @@ def acceptance_metrics(reports: Iterable[dict[str, Any]]) -> dict[str, Any]:
         "plan_score_delta": {
             "value": None,
             "pass": None,
-            "note": "pending P1-D tiered objective + P1-F plan materialisation",
+            "note": "pending P1-F plan materialisation (P1-D objectives landed; "
+            "score needs assembled plan cards)",
         },
         "parity_domains_14": {
             "value": None,
@@ -118,7 +119,7 @@ def acceptance_metrics(reports: Iterable[dict[str, Any]]) -> dict[str, Any]:
     verdict = {
         "mode": "shadow-instrument+legacy-replay (P2-B)",
         "switch_ready": False,
-        "reason": "P3 switch requires P1-D/E/F (objectives, slack ladder, "
+        "reason": "P3 switch requires P1-E/P1-F (slack ladder/certificates, "
         "assembly) + corpus ≥ 12 (P2-B) + quiet window; this report is the "
         "baseline measurement, not the gate decision.",
         "gates_pass": sum(1 for g in evaluated if g["pass"]),
