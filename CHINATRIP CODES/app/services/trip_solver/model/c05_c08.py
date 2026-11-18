@@ -87,7 +87,13 @@ def add_c05_endpoints(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
             ).OnlyEnforceIf(lit)
 
 
-def add_c06_remote_exclusivity(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
+def add_c06_remote_exclusivity(
+    bundle: VarBundle, enriched: "EnrichedSnapshot", relax: bool = False
+) -> None:
+    """C-06; ``relax=True`` is F-25 rung 5 (remote-day exclusivity,
+    disclosed) — the constraint group is skipped entirely."""
+    if relax:
+        return
     snapshot = enriched.snapshot
     profiled = _profile_keys(enriched)
     remote_cands = [c for c in snapshot.candidates if (c.poi_id or c.cid) in profiled]

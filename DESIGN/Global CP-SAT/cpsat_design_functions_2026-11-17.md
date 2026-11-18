@@ -137,15 +137,33 @@ Resolves **B-02** (with C-14); replaces `_morning_extra_cost/_big_first_cost/...
 **F-24 `solve_budgeted(model, budget=3s, workers=1, seed=fixed, hint?) -> Solution|INFEASIBLE`**
 Fixed workers+seed; optional previous-solution hint (edits); returns solution or tagged-infeasible — **never** a sequential fallback.
 Covers D14. Resolves B-05 (determinism), removes B-04's fallback path.
+**✅ 2026-11-18 (P1-E)**: `model/solve.py` — tier loop keeps workers=1 +
+seed + per-tier deterministic budgets (wall stays a safety hat);
+`solve_snapshot(enriched, budget_s, hint=…)` accepts a previous solution
+as a warm-start hint (P4 edit re-solve); `hint_used`/`n_vars`/`n_cons`
+ride on `Solution` for F-36 telemetry.
 
 **F-25 `slack_ladder(model) -> relaxation steps`**
 Declared order, each step logged for disclosure: drop fill candidates → relax diversity caps → relax soft time-of-day preferences → relax weather penalties → relax remote-day exclusivity **only with disclosure** → (never relax: open windows, entry cap, user pins, timed legs, requested-coverage disclosure link).
 Each relaxation emits a structured reason; the last resort is infeasibility with certificate, not a silently degraded plan.
 Resolves B-04 (fallback replaced by explicit, disclosed relaxation).
+**✅ 2026-11-18 (P1-E)**: `model/slack.py` — `SlackFlags` cumulative rungs
+(drop fill → diversity caps → time-of-day → weather → remote
+exclusivity, disclosed); INFEASIBLE re-solves rebuilt relaxed models
+under a smaller deterministic cap; every applied rung renders a
+bilingual `slack_reasons` line; `NEVER_RELAX` is the hard floor
+(C-01/C-02/C-04/C-08/F-20 link).
 
 **F-26 `infeasibility_certificate(model, assumption tags) -> reason set`**
 `sufficient_assumptions_for_infeasibility` → minimal conflicting rule set → reason codes (e.g. 「故宫 15:30 停止检票 + 颐和园需 ≥240min + 天坛 150min ⇒ D2 不可全排」). Reason codes attach to `unplaced_var[rid]`.
 Resolves B-01/E-4 (honest "why"), B-04 (no 「未收敛」 hand-wave).
+**✅ 2026-11-18 (P1-E)**: `model/certificate.py` — deterministic static
+analysis (no extra solves): 7 reason codes
+(window/entry-cap/pin/remote-exclusive/family/day-capacity/
+no-seatable-day) attach to `unplaced[rid]` (`reason_codes` + zh text)
+and to `Solution.certificate` on terminal INFEASIBLE; bilingual
+templates in `trip_solver/disclosure_templates.json` with a 100%
+coverage test (audit M13).
 
 ### Performance envelope (audit M4)
 
@@ -179,6 +197,10 @@ Covers D10/D13. Engine-independent; behavior unchanged, driven by F-30's materia
 
 **F-40 `runtime_gates(plan, request) -> violations`** — P0 gates retained verbatim: must三分律, double-presence dedupe, entry-cap read gate, rain_outdoor, twin-substitution disclosure. Any generation path (old or new) must pass; on the new engine these should be vacuously green (proof of "class eliminated").
 **F-41 `determinism_guard(snapshot) -> bool`** — same snapshot → byte-identical plan; red-line test in CI.
+**✅ 2026-11-18 (P1-E)**: `model/solve.py` — `determinism_guard` +
+`canonical_solution` (plan-bearing content minus `wall_ms`); hint-
+aware; asserted on synthetic snapshots and by the corpus's two-run
+byte-identity checks.
 **F-42 `runtime_offload`** — solver runs in `to_thread` (or a worker); event-loop freeze budget ≤ today's post-fix level (p95 target ≤ ~250 ms during generation).
 Covers D11/D14; resolves B-15 regression risk.
 

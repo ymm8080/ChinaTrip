@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 
 from ..inputs.weather import RAIN_INDOOR_PENALTY, is_rainy
 from .c01_c04 import day_date
+from .slack import SlackFlags
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..inputs.enrich import EnrichedSnapshot
@@ -47,9 +48,15 @@ def _coverage(bundle: "VarBundle", enriched: "EnrichedSnapshot") -> ObjectiveTie
     return ObjectiveTier("coverage", expression, "min")
 
 
-def _preference(bundle: "VarBundle", enriched: "EnrichedSnapshot") -> ObjectiveTier:
+def _preference(
+    bundle: "VarBundle",
+    enriched: "EnrichedSnapshot",
+    slack: SlackFlags | None = None,
+) -> ObjectiveTier:
     snapshot = enriched.snapshot
     model = bundle.model
+    relax_tod = bool(slack and slack.relax_time_of_day)
+    relax_wx = bool(slack and slack.relax_weather)
     positive: list = []
     negative: list = []
     weather_by_key = {(poi, day): cond for poi, day, cond in snapshot.weather}
@@ -78,11 +85,16 @@ def _preference(bundle: "VarBundle", enriched: "EnrichedSnapshot") -> ObjectiveT
             iso = day_dt.isoformat() if day_dt is not None else None
             condition = weather_by_key.get((cand.poi_id, iso))
             rainy = is_rainy(condition)
-            if cand.rid and day_dt is not None and day_dt.weekday() >= 5:
+            if (
+                cand.rid
+                and day_dt is not None
+                and day_dt.weekday() >= 5
+                and not (relax_tod or relax_wx)
+            ):
                 negative.append(WEEKEND_PENALTY * lit)
                 if rainy:
                     negative.append(RAIN_WEEKEND_EXTRA * lit)
-            if rainy:
+            if rainy and not relax_wx:
                 weather = enriched.weather.get((cand.cid, iso))
                 if weather:
                     negative.append(int(weather["penalty"]) * lit)
@@ -93,7 +105,7 @@ def _preference(bundle: "VarBundle", enriched: "EnrichedSnapshot") -> ObjectiveT
                 if cand.rid and cand.remote:
                     negative.append(REMOTE_RAIN_EXTRA * lit)
 
-            if (cand.best_visit_time or "").lower() == "show":
+            if (cand.best_visit_time or "").lower() == "show" and not relax_tod:
                 early = model.NewBoolVar("obj_se_%s_%d" % (cand.cid, day))
                 model.Add(early <= lit)
                 start = bundle.start[(cand.cid, day)]
@@ -152,11 +164,13 @@ def _makespan(bundle: "VarBundle", enriched: "EnrichedSnapshot") -> ObjectiveTie
 
 
 def build_objectives(
-    bundle: "VarBundle", enriched: "EnrichedSnapshot"
+    bundle: "VarBundle",
+    enriched: "EnrichedSnapshot",
+    slack: SlackFlags | None = None,
 ) -> list[ObjectiveTier]:
     return [
         _coverage(bundle, enriched),
-        _preference(bundle, enriched),
+        _preference(bundle, enriched, slack),
         _travel(bundle, enriched),
         _makespan(bundle, enriched),
     ]

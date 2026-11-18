@@ -192,7 +192,7 @@ def test_rollback_flip_env_back_to_legacy(monkeypatch):
 # --- F-36 telemetry shape ------------------------------------------------------
 
 
-def test_telemetry_record_shape_with_honest_blanks():
+def test_telemetry_record_shape_p1e_fields():
     snapshot = _mini_snapshot()
     solution = Solution(
         status="OPTIMAL",
@@ -219,5 +219,8 @@ def test_telemetry_record_shape_with_honest_blanks():
     ):
         assert key in record, key
     assert record["fill_count"] == 0  # c1 is requested, not fill
-    assert record["slack_level"] is None and record["n_vars"] is None
+    # P1-E landed the machinery: blanks became real values when a real
+    # Solution carries them (hand-built ones stay None honestly).
+    assert record["slack_level"] == 0
+    assert record["n_vars"] is None and record["n_cons"] is None
     assert isinstance(record["solver_version"], str) and record["solver_version"]

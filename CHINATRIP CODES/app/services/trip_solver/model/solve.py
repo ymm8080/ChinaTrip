@@ -1,24 +1,32 @@
-"""Deterministic lexicographic solve + extraction (P1-D).
+"""Deterministic lexicographic solve + extraction (P1-D; F-24/F-25/F-41).
 
 Each F-23 tier is solved in sequence under a fixed deterministic-work cap;
-the overall wall-clock budget is only a safety envelope. A proven optimum is
-fixed before the next tier starts; if a tier cannot prove optimality, the last
-proven-optimal prefix is returned as FEASIBLE (or UNKNOWN when no prefix
-exists). INFEASIBLE never falls back to sequencing.
+the overall wall-clock budget is only a safety envelope. A proven optimum
+is fixed before the next tier starts; if a tier cannot prove optimality,
+the last proven-optimal prefix is returned as FEASIBLE (or UNKNOWN when
+no prefix exists). INFEASIBLE never falls back to sequencing: the F-25
+slack ladder re-solves with disclosed relaxations first, and when even
+the ladder cannot seat the request the F-26 certificate explains why
+(``certificate.py``). ``determinism_guard`` (F-41) is the red-line
+utility: same snapshot (and hint) must give a byte-identical plan.
 """
 
 from __future__ import annotations
 
+import json
 import time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from ortools.sat.python import cp_model
 
 from ..types import Solution, SolutionItem
+from .certificate import explain_infeasibility, unplaced_reasons
 from .objectives import build_objectives
+from .slack import SlackFlags, ladder_levels, slack_disclosures
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..inputs.enrich import EnrichedSnapshot
+    from ..types import FactSnapshot
     from .vars import VarBundle
 
 SOLVER_SEED = 7
@@ -27,15 +35,46 @@ DEFAULT_BUDGET_SECONDS = 3.0
 # only a safety envelope; deterministic time decides how much search every
 # run performs, so machine load cannot change the emitted plan.
 TIER_DETERMINISTIC_BUDGET = 0.2
+# Ladder rungs are strictly easier (fewer active constraints), so they run
+# under a smaller deterministic cap; the whole INFEASIBLE path stays inside
+# the same budget shape (audit M4: ladder + certificate bounded by it).
+LADDER_TIER_DETERMINISTIC_BUDGET = 0.1
+
+
+def _apply_hint(bundle: "VarBundle", hint: "Solution") -> None:
+    """F-24: seed the search with a previous solution (edit re-solve, P4).
+    Hints only warm-start -- the deterministic budget still decides how
+    much search runs, so determinism is unaffected."""
+    model = bundle.model
+    seated = {(it.cid, it.day) for it in hint.items}
+    for key, lit in bundle.presence.items():
+        model.AddHint(lit, 1 if key in seated else 0)
+    for it in hint.items:
+        start = bundle.start.get((it.cid, it.day))
+        if start is not None:
+            model.AddHint(start, it.start_min)
+        dur = bundle.dur.get(it.cid)
+        if dur is not None:
+            model.AddHint(dur, it.end_min - it.start_min)
+    unplaced_rids = {u.get("rid") for u in hint.unplaced}
+    for rid, lit in bundle.unplaced.items():
+        if rid in unplaced_rids:
+            model.AddHint(lit, 1)
 
 
 def solve(
     bundle: "VarBundle",
     enriched: "EnrichedSnapshot",
     budget_s: float = DEFAULT_BUDGET_SECONDS,
+    *,
+    hint: Optional["Solution"] = None,
+    slack: Optional[SlackFlags] = None,
+    tier_det: float = TIER_DETERMINISTIC_BUDGET,
 ) -> Solution:
     started = time.perf_counter()
-    tiers = build_objectives(bundle, enriched)
+    if hint is not None:
+        _apply_hint(bundle, hint)
+    tiers = build_objectives(bundle, enriched, slack)
     solver = None
     status = "UNKNOWN"
     objective_values: dict[str, int] = {}
@@ -59,7 +98,7 @@ def solve(
         # tiers on elapsed wall time, which would reintroduce load-dependent
         # output on slow machines.
         candidate_solver.parameters.max_time_in_seconds = budget_s
-        candidate_solver.parameters.max_deterministic_time = TIER_DETERMINISTIC_BUDGET
+        candidate_solver.parameters.max_deterministic_time = tier_det
         if tier.sense == "min":
             bundle.model.Minimize(tier.expression)
         else:
@@ -73,6 +112,7 @@ def solve(
                 status="INFEASIBLE",
                 wall_ms=int((time.perf_counter() - started) * 1000),
                 objective_values=objective_values,
+                hint_used=hint is not None,
             )
         if status == "FEASIBLE":
             # A timeout may stop at an arbitrary feasible point. Accepting it
@@ -93,7 +133,10 @@ def solve(
     wall_ms = int((time.perf_counter() - started) * 1000)
     if solver is None:
         return Solution(
-            status="UNKNOWN", wall_ms=wall_ms, objective_values=objective_values
+            status="UNKNOWN",
+            wall_ms=wall_ms,
+            objective_values=objective_values,
+            hint_used=hint is not None,
         )
 
     items: list[SolutionItem] = []
@@ -125,14 +168,15 @@ def solve(
                 {
                     "rid": req.rid,
                     "name": req.name,
-                    "reason": "no-feasible-slot",
-                    "note": "certificate detail lands with F-26 (P1-E)",
                 }
             )
+    # F-26: replace the placeholder with real reason codes + zh text.
+    unplaced = unplaced_reasons(enriched, unplaced)
 
     from .c05_c08 import extract_access_legs
     from .c09_c16 import extract_hotel_anchors, extract_meal_anchors
 
+    proto = bundle.model.Proto()
     return Solution(
         status="OPTIMAL" if fully_optimized else "FEASIBLE",
         items=items,
@@ -142,13 +186,102 @@ def solve(
         meal_anchors=extract_meal_anchors(bundle, enriched, solver),
         hotel_anchors=extract_hotel_anchors(bundle, enriched, solver),
         objective_values=objective_values,
+        hint_used=hint is not None,
+        n_vars=len(proto.variables),
+        n_cons=len(proto.constraints),
     )
 
 
 def solve_snapshot(
-    enriched: "EnrichedSnapshot", budget_s: float = DEFAULT_BUDGET_SECONDS
+    enriched: "EnrichedSnapshot",
+    budget_s: float = DEFAULT_BUDGET_SECONDS,
+    *,
+    hint: Optional["Solution"] = None,
+    use_ladder: bool = True,
 ) -> Solution:
+    """F-24 entry: budgeted deterministic solve; optional previous-solution
+    hint; INFEASIBLE goes through the F-25 ladder (disclosed relaxations)
+    and, failing that, the F-26 certificate -- never a sequential fallback."""
+    import time as _time
+
     from .c01_c04 import build_model
 
+    started = _time.perf_counter()
     bundle = build_model(enriched)
-    return solve(bundle, enriched, budget_s)
+    solution = solve(bundle, enriched, budget_s, hint=hint)
+    if solution.status != "INFEASIBLE":
+        return solution
+    if use_ladder:
+        for flags in ladder_levels()[1:]:
+            relaxed_bundle = build_model(enriched, flags)
+            remaining = max(0.2, budget_s - (_time.perf_counter() - started))
+            relaxed = solve(
+                relaxed_bundle,
+                enriched,
+                remaining,
+                slack=flags,
+                tier_det=LADDER_TIER_DETERMINISTIC_BUDGET,
+            )
+            if relaxed.status in ("OPTIMAL", "FEASIBLE"):
+                relaxed.slack_level = flags.level()
+                relaxed.disclosures = relaxed.disclosures + slack_disclosures(flags)
+                return relaxed
+    solution.certificate = explain_infeasibility(enriched)
+    return solution
+
+
+def canonical_solution(solution: "Solution") -> str:
+    """F-41 comparison key: everything plan-bearing except ``wall_ms``
+    (measurement, not plan)."""
+    payload = {
+        "status": solution.status,
+        "slack_level": solution.slack_level,
+        "items": [
+            [it.day, it.start_min, it.end_min, it.cid]
+            for it in sorted(solution.items, key=lambda i: (i.day, i.start_min, i.cid))
+        ],
+        "unplaced": sorted(
+            [
+                str(u.get("rid")),
+                str(u.get("name")),
+                ",".join(u.get("reason_codes", ())),
+            ]
+            for u in solution.unplaced
+        ),
+        "disclosures": sorted(solution.disclosures),
+        "certificate": sorted(
+            json.dumps(c, ensure_ascii=False, sort_keys=True)
+            for c in solution.certificate
+        ),
+        "access_legs": sorted(
+            json.dumps(leg, ensure_ascii=False, sort_keys=True)
+            for leg in solution.access_legs
+        ),
+        "meal_anchors": sorted(
+            json.dumps(m, ensure_ascii=False, sort_keys=True)
+            for m in solution.meal_anchors
+        ),
+        "hotel_anchors": sorted(
+            json.dumps(h, ensure_ascii=False, sort_keys=True)
+            for h in solution.hotel_anchors
+        ),
+        "objective_values": dict(sorted(solution.objective_values.items())),
+    }
+    return json.dumps(
+        payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    )
+
+
+def determinism_guard(
+    snapshot: "FactSnapshot",
+    budget_s: float = DEFAULT_BUDGET_SECONDS,
+    *,
+    hint: Optional["Solution"] = None,
+) -> bool:
+    """F-41 red line: same snapshot (and hint) -> byte-identical plan."""
+    from ..inputs.enrich import enrich
+
+    enriched = enrich(snapshot)
+    first = solve_snapshot(enriched, budget_s=budget_s, hint=hint, use_ladder=False)
+    second = solve_snapshot(enriched, budget_s=budget_s, hint=hint, use_ladder=False)
+    return canonical_solution(first) == canonical_solution(second)

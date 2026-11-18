@@ -174,9 +174,9 @@ def solve_trip(
             disclosures=[dict(FALLBACK_DISCLOSURE)],
         )
     try:
-        solution = solve_snapshot(
-            enrich(snapshot), budget_s=budget_s
-        )  # hint plumbing lands with P1-E/F-24
+        solution = solve_snapshot(  # F-24: hint seeds the re-solve (P4)
+            enrich(snapshot), budget_s=budget_s, hint=hint
+        )
         record = emit(
             solve_telemetry(
                 snapshot, solution, engine=ENGINE_CPSAT, hint_used=hint is not None

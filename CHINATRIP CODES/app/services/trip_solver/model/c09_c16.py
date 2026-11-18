@@ -562,7 +562,12 @@ def add_c15_remote_departure(bundle: VarBundle, enriched: "EnrichedSnapshot") ->
                 ).OnlyEnforceIf([pr, pf])
 
 
-def add_c16_diversity_caps(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
+def add_c16_diversity_caps(
+    bundle: VarBundle, enriched: "EnrichedSnapshot", relax: bool = False
+) -> None:
+    """C-16; ``relax=True`` is F-25 rung 2 (diversity caps, disclosed)."""
+    if relax:
+        return
     snapshot = enriched.snapshot
     sight_cap = int(getattr(snapshot.request, "sight_cap_per_day", SIGHT_CAP_PER_DAY))
     fill_cap = int(getattr(snapshot.request, "fill_cap_per_day", FILL_CAP_PER_DAY))

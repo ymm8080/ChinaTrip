@@ -18,6 +18,7 @@ from datetime import date, timedelta
 from typing import TYPE_CHECKING
 
 from ..inputs.travel import lookup
+from .slack import SlackFlags
 from .vars import DAY_END_MINUTES, DAY_START_MINUTES, VarBundle, define_variables
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -158,7 +159,9 @@ def add_c04_pins(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
                 )
 
 
-def build_model(enriched: "EnrichedSnapshot") -> VarBundle:
+def build_model(
+    enriched: "EnrichedSnapshot", slack: "SlackFlags | None" = None
+) -> VarBundle:
     from .c05_c08 import (
         add_c05_endpoints,
         add_c06_remote_exclusivity,
@@ -166,13 +169,21 @@ def build_model(enriched: "EnrichedSnapshot") -> VarBundle:
         add_c08_access,
     )
 
+    flags = slack or SlackFlags()
     bundle = define_variables(enriched)
+    if flags.drop_fill:
+        # F-25 rung 1: fills forced absent (vars stay for lookups).
+        for cand in enriched.snapshot.candidates:
+            if cand.rid:
+                continue
+            for day in bundle.days:
+                bundle.model.Add(bundle.presence[(cand.cid, day)] == 0)
     add_c01_windows(bundle, enriched)
     add_c02_caps(bundle, enriched)
     add_c03_travel(bundle, enriched)
     add_c04_pins(bundle, enriched)
     add_c05_endpoints(bundle, enriched)
-    add_c06_remote_exclusivity(bundle, enriched)
+    add_c06_remote_exclusivity(bundle, enriched, relax=flags.relax_remote_exclusive)
     add_c07_city_coherence(bundle, enriched)
     add_c08_access(bundle, enriched)
 
@@ -194,5 +205,5 @@ def build_model(enriched: "EnrichedSnapshot") -> VarBundle:
     add_c13_hotels(bundle, enriched)
     add_c14_coverage_before_fill(bundle, enriched)
     add_c15_remote_departure(bundle, enriched)
-    add_c16_diversity_caps(bundle, enriched)
+    add_c16_diversity_caps(bundle, enriched, relax=flags.relax_diversity)
     return bundle

@@ -146,13 +146,18 @@ class Solution:
     items: list[SolutionItem] = field(default_factory=list)
     unplaced: list[dict] = field(default_factory=list)
     disclosures: list[str] = field(default_factory=list)
-    slack_level: int = 0
-    certificate: list[str] = field(default_factory=list)
+    slack_level: int = 0  # F-25: cumulative ladder rung applied
+    certificate: list[dict] = field(
+        default_factory=list
+    )  # F-26: {code,rid,name,detail,evidence}
     wall_ms: Optional[int] = None
     access_legs: list[dict] = field(default_factory=list)  # C-08 intervals
     meal_anchors: list[dict] = field(default_factory=list)  # C-09/F-22
     hotel_anchors: list[dict] = field(default_factory=list)  # C-13
     objective_values: dict[str, int] = field(default_factory=dict)  # F-23
+    hint_used: bool = False  # F-24: previous solution seeded the search
+    n_vars: Optional[int] = None  # F-36 telemetry
+    n_cons: Optional[int] = None  # F-36 telemetry
 
 
 def validate_snapshot(snapshot: FactSnapshot) -> list[str]:

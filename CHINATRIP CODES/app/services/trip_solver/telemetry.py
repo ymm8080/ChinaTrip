@@ -2,7 +2,7 @@
 
 Emitted for every model-engine solve (serving, shadow sample, or fallback
 attempt) so the F-62 convergence metric, the P2 diff report and the M8
-rollback triggers all read the same shape. Fields that need P1-E machinery
+rollback triggers all read the same shape. Fields landed by P1-E machinery
 (``slack_level`` / ``n_vars`` / ``n_cons``) are emitted as ``None`` until
 the slack ladder lands — honest blanks, never fakes.
 """
@@ -59,11 +59,10 @@ def solve_telemetry(
         "wall_ms": solution.wall_ms if solution is not None else None,
         "unplaced_count": len(solution.unplaced) if solution is not None else None,
         "fill_count": sum(1 for it in items if it.cid in fill_ids),
-        "hint_used": bool(hint_used),
-        # P1-E machinery lands these; until then honest blanks
-        "slack_level": None,
-        "n_vars": None,
-        "n_cons": None,
+        "hint_used": bool(hint_used or (solution is not None and solution.hint_used)),
+        "slack_level": solution.slack_level if solution is not None else None,
+        "n_vars": solution.n_vars if solution is not None else None,
+        "n_cons": solution.n_cons if solution is not None else None,
         "solver_version": solver_version(),
         "fallback_reason": fallback_reason,
         "error": error,
