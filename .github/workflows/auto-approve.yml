@@ -27,7 +27,10 @@ jobs:
   auto-approve:
     name: Auto-Approve after CI
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # 2026-11-19 修复：MAX_WAIT=3600 必须配 ≥61min 的作业超时——166c055 只抬
+    # 了 MAX_WAIT 没抬 timeout-minutes，15min 把作业杀在等待循环里，放行步骤
+    # 永远跑不到（当日实证：连跑 29 次 cancelled/超时，0 次放行）。
+    timeout-minutes: 70
 
     steps:
       - name: Wait for CI checks to complete
@@ -41,7 +44,10 @@ jobs:
           # （trip_solver 影子套件全量 ≥ 22 分钟，10 分钟会提前放行未绿的 CI）
           WAITED=0
           while [ $WAITED -lt $MAX_WAIT ]; do
-            STATUS=$(gh pr checks "$PR" --json name,state,conclusion 2>/dev/null)
+            # gh ≥2.63 已无 conclusion 字段（valid: name/state/bucket/…）——
+            # 旧写法 --json ...,conclusion 每次轮询都报错退出，STATUS 恒空，
+            # 循环当「No checks yet」干转到 MAX_WAIT（2026-11-19 实证）。
+            STATUS=$(gh pr checks "$PR" --json name,state 2>/dev/null)
             if [ -z "$STATUS" ] || [ "$STATUS" = "[]" ]; then
               echo "No checks yet, waiting..."
               sleep 15
@@ -49,13 +55,11 @@ jobs:
               continue
             fi
 
-            # Check if all CI checks are done
-            PENDING=$(echo "$STATUS" | python3 -c "
-          import json, sys
-          data = json.load(sys.stdin)
-          pending = [c for c in data if c.get('state') in ('PENDING', 'IN_PROGRESS', 'QUEUED')]
-          print(len(pending))
-          " 2>/dev/null || echo "1")
+            # Check if all CI checks are done（排除本作业自身：它在轮询期间
+            # 必然 IN_PROGRESS，不排除=等自己=死等到底）。python -c 必须
+            # 单行：多行缩进版恒 IndentationError，被 2>/dev/null+||echo 1
+            # 静默吞成 PENDING 恒 1——初版即错，等待循环从没提前退出过。
+            PENDING=$(echo "$STATUS" | python3 -c "import json,sys; data=json.load(sys.stdin); print(len([c for c in data if c.get('state') in ('PENDING','IN_PROGRESS','QUEUED') and c.get('name') != 'Auto-Approve after CI']))" 2>/dev/null || echo "1")
 
             if [ "$PENDING" = "0" ]; then
               echo "All checks completed."
@@ -77,15 +81,11 @@ jobs:
           PR: ${{ github.event.pull_request.number }}
         run: |
           set +e
-          STATUS=$(gh pr checks "$PR" --json name,state,conclusion 2>/dev/null)
+          STATUS=$(gh pr checks "$PR" --json name,state 2>/dev/null)
 
-          # Check for failures
-          FAILED=$(echo "$STATUS" | python3 -c "
-          import json, sys
-          data = json.load(sys.stdin)
-          failed = [c for c in data if c.get('conclusion') in ('FAILURE', 'CANCELLED', 'TIMED_OUT', 'ACTION_REQUIRED')]
-          print(len(failed))
-          " 2>/dev/null || echo "1")
+          # Check for failures（state 字段大写枚举；排除本作业自身；python -c
+          # 单行，同上——缩进版 FAILED 恒 1，从没放行过）
+          FAILED=$(echo "$STATUS" | python3 -c "import json,sys; data=json.load(sys.stdin); print(len([c for c in data if c.get('state') in ('FAILURE','CANCELLED','TIMED_OUT','ACTION_REQUIRED') and c.get('name') != 'Auto-Approve after CI']))" 2>/dev/null || echo "1")
 
           if [ "$FAILED" != "0" ]; then
             echo "::warning::CI checks failed ($FAILED failures). Keeping merge blocked."
