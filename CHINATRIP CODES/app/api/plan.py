@@ -812,7 +812,10 @@ async def start_plan(
             serving_ready,
             set_seam_attempted,
         )
-        from app.services.trip_solver.live import generate_session_via_trip_solver
+        from app.services.trip_solver.live import (
+            _intake_day_no,
+            generate_session_via_trip_solver,
+        )
 
         if (
             engine_flag() == ENGINE_CPSAT
@@ -851,6 +854,20 @@ async def start_plan(
                     intercity_mode=request.intercity_mode,
                     city_days=dict(ts_city_days) if ts_city_days else None,
                     lang=request.lang,
+                    # R9-2：中途转移日——行前日期折天序入快照（C-05 地板/
+                    # 顶盖挪到该日；端点日=None 保持旧形状）
+                    arrival_day=_intake_day_no(
+                        request.arrival_date,
+                        request.start_date,
+                        ts_days or 0,
+                        1,
+                    ),
+                    departure_day=_intake_day_no(
+                        request.departure_date,
+                        request.start_date,
+                        ts_days or 0,
+                        ts_days or 1,
+                    ),
                 )
 
             trip_session, trip_outcome = await asyncio.to_thread(_ts_generate)

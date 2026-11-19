@@ -94,6 +94,30 @@ def compact_days(plan, snapshot):
             day1_floor = int(_hh) * 60 + int(_mm)
         except ValueError:
             day1_floor = None
+    _arr_day = getattr(getattr(snapshot, "request", None), "arrival_day", None)
+    _dep_day = getattr(getattr(snapshot, "request", None), "departure_day", None)
+    arrival_day_floor = (None, 0)
+    departure_day_cap: dict = {}
+    if _arr_day:
+        from ..model.c05_c08 import _hhmm as _c05_hhmm
+        from ..model.c05_c08 import arrival_floor_for
+
+        _at = _c05_hhmm(getattr(snapshot.request, "arrival_time", None))
+        if _at is not None:
+            arrival_day_floor = (
+                int(_arr_day),
+                _at
+                + arrival_floor_for(getattr(snapshot.request, "arrival_mode", None)),
+            )
+    if _dep_day:
+        from ..model.c05_c08 import _hhmm as _c05_hhmm
+        from ..model.c05_c08 import arrival_floor_for
+
+        _dt2 = _c05_hhmm(getattr(snapshot.request, "departure_time", None))
+        if _dt2 is not None:
+            departure_day_cap[int(_dep_day)] = _dt2 - arrival_floor_for(
+                getattr(snapshot.request, "departure_mode", None)
+            )
     for day in plan.days:
         timed = [i for i in day.items if i.start_time is not None]
         fixed = [
@@ -134,10 +158,18 @@ def compact_days(plan, snapshot):
         prev_end = 8 * 60 + 30
         if day.day == 1 and day1_floor:
             prev_end = max(prev_end, day1_floor)
+        # R9-2：中途转移日——到达日地板（到达时刻+模式缓冲）/离开日顶盖
+        # （C-05 同源），压实拉左不得越过
+        if day.day == arrival_day_floor[0]:
+            prev_end = max(prev_end, arrival_day_floor[1])
+        dep_cap = departure_day_cap.get(day.day)
         for card in sorted(timed, key=_m):
             if card in movable:
                 gap = _taxi_gap(prev, card) if prev is not None else 0
                 target = _earliest(card, prev_end + gap if prev else prev_end, prev)
+                if dep_cap is not None:
+                    dur = int(card.duration_minutes or 60)
+                    target = min(target, max(8 * 60 + 30, dep_cap - dur))
                 if target < _m(card):
                     _set(card, target, int(card.duration_minutes or 60))
             prev = card

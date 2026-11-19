@@ -4138,3 +4138,28 @@ def test_message_restart_food_must_whole_name(monkeypatch):
     names = [i["name"] for d in body["plan"]["days"] for i in d["items"]]
     assert "福和慧" in names
     assert "福" not in names and "慧" not in names
+
+
+def test_midtrip_intake_start_serves_via_engine(monkeypatch):
+    """R9-2：中途转移日开局（D2 到达/D2 离开）→ 引擎直服（端点闸拆除）。"""
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    app = make_app(agent)
+    client = TestClient(app)
+    monkeypatch.setattr("app.api.plan.get_poi_detail_store", _seam_fake_store)
+    resp = start(
+        client,
+        {
+            "cities": ["上海"],
+            "days": 2,
+            "start_date": "2026-11-25",
+            "arrival_date": "2026-11-26",
+            "arrival_time": "12:00",
+            "departure_date": "2026-11-27",
+            "departure_time": "20:00",
+        },
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["session_id"].startswith("ts-")
+    assert body["plan"]["days"]

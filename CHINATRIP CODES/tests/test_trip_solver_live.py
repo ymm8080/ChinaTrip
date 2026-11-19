@@ -595,3 +595,53 @@ def test_replan_folds_created_sites_as_musts(monkeypatch):
     # 库外自造点：骨架卡或 unplaced 披露（B-01 缝不吞点——绝不静默蒸发）
     unplaced = [u.name for u in (session.plan.unplaced or [])]
     assert ("用户自造点XYZ" in names) or ("用户自造点XYZ" in unplaced)
+
+
+def test_intake_day_no_helper():
+    from app.services.trip_solver.live import _intake_day_no
+
+    # 端点日 → None（=引擎默认形状，hash 兼容）
+    assert _intake_day_no("2026-11-25", "2026-11-25", 3, 1) is None
+    assert _intake_day_no("2026-11-27", "2026-11-25", 3, 3) is None
+    assert _intake_day_no(None, "2026-11-25", 3, 1) is None
+    # 中途 → 天序
+    assert _intake_day_no("2026-11-26", "2026-11-25", 3, 1) == 2
+    # R9-2 角色特定端点：到达的端点=首日（2 天行程 D2 到达=中途形状，
+    # 不归 None——此前误判致 day2 地板蒸发）；离开的端点=末日（首日
+    # 离开=中途）
+    assert _intake_day_no("2026-11-26", "2026-11-25", 2, 1) == 2
+    assert _intake_day_no("2026-11-25", "2026-11-25", 3, 3) == 1
+    # 越界 → clamp 到界内（角色端点仍判形状：到达 clamp 末日=中途；离开
+    # clamp 首日=中途）
+    assert _intake_day_no("2026-11-30", "2026-11-25", 3, 1) == 3
+    assert _intake_day_no("2026-11-20", "2026-11-25", 3, 3) == 1
+
+
+def test_midtrip_arrival_day_floor(monkeypatch):
+    """R9-2：到达落在第 2 天 14:00 → day2 首卡 ≥ 到达+缓冲（no-mode 150）；
+    day1 全天窗不受影响（legacy 撤腿重排同语义）。"""
+    from test_trip_solver_live import _pref_store  # noqa: F401
+
+    from app.services.trip_solver.inputs.enrich import enrich
+    from app.services.trip_solver.live import snapshot_from_request
+    from app.services.trip_solver.model.solve import solve_snapshot
+
+    snap = snapshot_from_request(
+        cities=["上海"],
+        days=2,
+        start_date="2026-11-25",
+        musts=[],
+        store=_pref_store(),
+        preferences="",
+        arrival_time="12:00",
+        arrival_day=2,
+    )
+    assert snap.request.arrival_day == 2
+    sol = solve_snapshot(enrich(snap), budget_s=3.0)
+    day2 = [i for i in sol.items if i.day == 2 and i.kind == "visit"]
+    assert day2, "day2 must place visits"
+    floor = 12 * 60 + 150  # arrival 12:00 + no-mode buffer
+    assert all(i.start_min >= floor for i in day2)
+    day1 = [i for i in sol.items if i.day == 1 and i.kind == "visit"]
+    if day1:
+        assert min(i.start_min for i in day1) < floor  # day1 不受地板影响

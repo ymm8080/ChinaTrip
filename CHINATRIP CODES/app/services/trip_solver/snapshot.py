@@ -177,6 +177,8 @@ def snapshot_hash(snapshot: FactSnapshot) -> str:
             "day1_start": snapshot.request.day1_start,
             "lang": snapshot.request.lang,
             "preferences": snapshot.request.preferences,
+            "arrival_day": snapshot.request.arrival_day,
+            "departure_day": snapshot.request.departure_day,
             "pins": [(p.rid, p.day, p.start_min, p.cid) for p in snapshot.request.pins],
             "city_days": [list(pair) for pair in snapshot.request.city_days],
             "hotel_anchors": snapshot.request.hotel_anchors,

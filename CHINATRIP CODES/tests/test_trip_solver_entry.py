@@ -270,13 +270,14 @@ def test_seam_plain_shape_gates_unsupported_start_shapes():
         seam_plain_shape(**{**base, "start_date": None, "arrival_date": "2026-11-25"})
         is True
     )
-    # 引擎尚无语义的形状仍留 legacy：brief/带图/中途转移日
-    # （分城天数已由 C-17 承载，api 缝透传直连，形状闸不再拦）
+    # 引擎尚无语义的形状仍留 legacy：brief/带图（读点确认轮 NLU）；
+    # R9-2：中途转移日已由 arrival_day/departure_day 建模（C-05 地板/
+    # 顶盖挪日），端点闸拆除——非端点行前日期照常放行
     assert seam_plain_shape(**{**base, "brief": "想去杭州三天"}) is False
     assert seam_plain_shape(**{**base, "brief": "  "}) is True
     assert seam_plain_shape(**{**base, "images": ["x"]}) is False
-    assert seam_plain_shape(**{**base, "arrival_date": "2026-11-21"}) is False
-    assert seam_plain_shape(**{**base, "departure_date": "2026-11-21"}) is False
+    assert seam_plain_shape(**{**base, "arrival_date": "2026-11-21"}) is True
+    assert seam_plain_shape(**{**base, "departure_date": "2026-11-21"}) is True
     # 缺天数/缺城市（追问轮形态）→ legacy
     assert seam_plain_shape(**{**base, "days": 0}) is False
     assert seam_plain_shape(**{**base, "cities": None}) is False

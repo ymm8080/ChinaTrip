@@ -120,10 +120,9 @@ def seam_plain_shape(
         return False
     if images:
         return False
-    if not _intake_dates_at_default_endpoints(
-        arrival_date, departure_date, start_date, days
-    ):
-        return False
+    # R9-2（2026-11-19）：中途转移日已由 arrival_day/departure_day 建模
+    # （C-05 地板/顶盖挪日，天窗外全天窗=legacy 撤腿重排同语义）——端点
+    # 闸拆除，唯余 brief/带图（读点确认轮 NLU）与缺天数/城市（追问轮）
     if not days or not cities:
         return False
     return True

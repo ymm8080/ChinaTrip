@@ -177,6 +177,8 @@ def snapshot_from_request(
     preferences: str = "",
     city_days: Optional[dict] = None,
     day1_start: Optional[str] = None,
+    arrival_day: Optional[int] = None,
+    departure_day: Optional[int] = None,
     pool_limit: int = POOL_LIMIT_PER_CITY,
 ) -> FactSnapshot:
     """Build a schema-v2 FactSnapshot from request fields + live stores."""
@@ -347,6 +349,8 @@ def snapshot_from_request(
                 sorted((str(k), int(v)) for k, v in dict(city_days or {}).items())
             ),
             day1_start=day1_start,
+            arrival_day=arrival_day,
+            departure_day=departure_day,
         ),
         candidates=tuple(candidates),
         access_profiles=tuple(profiles),
@@ -399,6 +403,8 @@ def generate_session_via_trip_solver(
     arrival_time: Optional[str] = None,
     departure_time: Optional[str] = None,
     lang: Optional[str] = None,
+    arrival_day: Optional[int] = None,
+    departure_day: Optional[int] = None,
     weather_lookup: Optional[Callable[[str, str], Any]] = None,
     budget_s: float = 3.0,
 ) -> tuple:
@@ -450,6 +456,8 @@ def generate_session_via_trip_solver(
         weather_lookup=_weather,
         service_rows=service_rows,
         preferences=preferences or "",
+        arrival_day=arrival_day,
+        departure_day=departure_day,
     )
     errors = validate_snapshot(snapshot)
     if errors:
@@ -555,6 +563,20 @@ def replan_session_via_trip_solver(
         # R9-1：brief「LEAVE HOTEL ON 11AM」语义随缝入模（C-04 day1 地板
         # 已实现）；legacy _apply_comment_day_start 只在它那边落位一次
         day1_start=getattr(session, "comment_day_start", None),
+        # R9-2：中途转移日——行前日期折天序（端点=None 保持旧形状），
+        # C-05 地板/顶盖挪到该日
+        arrival_day=_intake_day_no(
+            getattr(session, "arrival_date", None),
+            getattr(session, "start_date", None),
+            int(getattr(session, "days", 1) or 1),
+            1,
+        ),
+        departure_day=_intake_day_no(
+            getattr(session, "departure_date", None),
+            getattr(session, "start_date", None),
+            int(getattr(session, "days", 1) or 1),
+            int(getattr(session, "days", 1) or 1),
+        ),
     )
     # R8b 钉位保全（铁律 19 全保位）：用户钉住的卡按 C-04 FixedPin 钉死
     # 日+时刻（NEVER_RELAX——钉冲突只会 INFEASIBLE 回落 legacy 原生保钉，
@@ -662,3 +684,33 @@ def _pinned_cards(session) -> list:
                         }
                     )
     return out
+
+
+def _intake_day_no(date_iso, start_date, days: int, default_day: int) -> Optional[int]:
+    """行前日期 → 行程天序（legacy _intake_target_day 同口径）：读不出/
+    越界回默认（1=首日/末日）；端点日返回 None（=引擎默认形状，不显式
+    传日号，快照 hash 与旧形状兼容）。"""
+    import datetime as _dt
+
+    total = max(1, int(days or 1))
+    is_arrival = int(default_day) == 1
+
+    def _role_endpoint(d: int) -> Optional[int]:
+        # 端点=角色特定（R9-2 修正）：到达的默认端点=首日（末日到达=中途
+        # 形状）；离开的默认端点=末日（首日离开=中途形状）。此前
+        # day in (1, total) 把「2 天行程 D2 到达」误判端点归 None（live
+        # 实锤：day2 地板蒸发）。
+        if is_arrival:
+            return None if d == 1 else d
+        return None if d == total else d
+
+    if not date_iso or not start_date:
+        return _role_endpoint(max(1, min(int(default_day), total)))
+    try:
+        target = _dt.date.fromisoformat(str(date_iso)[:10])
+        base = _dt.date.fromisoformat(str(start_date)[:10])
+    except ValueError:
+        return _role_endpoint(max(1, min(int(default_day), total)))
+    day = (target - base).days + 1
+    day = max(1, min(day, total))
+    return _role_endpoint(day)

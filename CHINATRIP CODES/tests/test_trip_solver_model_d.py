@@ -916,3 +916,16 @@ def test_food_must_any_slot_assembles_single_named_card():
     assert cards[0].poi_id == "p-resto"
     assert cards[0].location is not None
     assert cards[0].category == "food"
+
+
+def test_snapshot_hash_distinguishes_arrival_day():
+    from dataclasses import replace
+
+    from app.services.trip_solver.snapshot import snapshot_hash
+
+    snapshot, _, _ = load_golden(G01)
+    base = snapshot_hash(snapshot)
+    other = snapshot_hash(
+        replace(snapshot, request=replace(snapshot.request, arrival_day=2))
+    )
+    assert base != other

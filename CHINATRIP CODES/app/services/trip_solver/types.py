@@ -112,6 +112,12 @@ class TripRequest:
     # 模型——池排序 boost + tier② 偏好奖励，解析与 legacy
     # _preference_tokens/_pref_category_hit 同源
     preferences: str = ""
+    # R9-2（2026-11-19 拍板「复杂开局也走 CP-SAT」收尾）：中途转移日
+    # ——到达/离开落在第 N 天（None=首/末日，S1 前的默认端点形状）。
+    # C-05 地板/顶盖挪到该日；天窗外仍全天窗（legacy 撤腿重排同语义
+    # ——日是行程日，不因到达晚而清空）
+    arrival_day: Optional[int] = None
+    departure_day: Optional[int] = None
     pins: tuple["FixedPin", ...] = ()  # C-04 fixed placements
     hotel_anchors: bool = True  # C-13 morning departure + night return
     day_load_budget_min: int = 570  # legacy _MUST_DAY_USABLE_MIN

@@ -84,20 +84,28 @@ def add_c05_endpoints(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
     departure = _hhmm(getattr(request, "departure_time", None))
     arrival_floor = arrival_floor_for(getattr(request, "arrival_mode", None))
     departure_buffer = arrival_floor_for(getattr(request, "departure_mode", None))
-    if arrival is not None and bundle.days:
+    # R9-2：到达/离开日定位（None=首/末，S1 前默认端点）——中途转移日
+    # （D2 才到/D3 就走）的地板/顶盖落在该日，天窗外全天窗（legacy
+    # 撤腿重排同语义）
+    arrival_day = getattr(request, "arrival_day", None) or (
+        bundle.days[0] if bundle.days else None
+    )
+    departure_day = getattr(request, "departure_day", None) or (
+        bundle.days[-1] if bundle.days else None
+    )
+    if arrival is not None and arrival_day in bundle.days:
         floor = arrival + arrival_floor
         for cand in enriched.snapshot.candidates:
-            lit = bundle.presence[(cand.cid, bundle.days[0])]
+            lit = bundle.presence[(cand.cid, arrival_day)]
             bundle.model.Add(
-                bundle.start[(cand.cid, bundle.days[0])] >= floor
+                bundle.start[(cand.cid, arrival_day)] >= floor
             ).OnlyEnforceIf(lit)
-    if departure is not None and bundle.days:
-        last = bundle.days[-1]
+    if departure is not None and departure_day in bundle.days:
         cap = departure - departure_buffer
         for cand in enriched.snapshot.candidates:
-            lit = bundle.presence[(cand.cid, last)]
+            lit = bundle.presence[(cand.cid, departure_day)]
             bundle.model.Add(
-                bundle.start[(cand.cid, last)] + bundle.dur[cand.cid] <= cap
+                bundle.start[(cand.cid, departure_day)] + bundle.dur[cand.cid] <= cap
             ).OnlyEnforceIf(lit)
 
 
