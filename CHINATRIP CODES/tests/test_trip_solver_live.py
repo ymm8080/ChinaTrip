@@ -1035,3 +1035,93 @@ def test_compact_days_barrier_tie_does_not_crash():
     )
     out = compact_days(plan, snapshot)  # 旧版此处直接 TypeError
     assert out is not None
+
+
+def test_edit_session_add_op_places_new_must(monkeypatch):
+    """R13-#2：add op → musts 注入道——引擎生身 2 天计划上 add 静安寺
+    （池内点 poi_3；avoid 先把它挡出 fill 池，注入是落卡唯一来路）；
+    新计划含静安寺卡，其余卡 keep 钉日不动。"""
+    from app.services.agent.plan import PlanSession
+    from app.services.trip_solver.live import (
+        edit_session_via_trip_solver,
+        replan_session_via_trip_solver,
+    )
+
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    session = PlanSession(
+        session_id="sess-add",
+        device_id="dadd",
+        cities=["上海"],
+        days=2,
+        start_date="2026-11-25",
+        must_visits=["外滩", "豫园"],
+        avoid_sites=["静安寺"],
+        preferences="",
+    )
+    out = replan_session_via_trip_solver(session, store=_edit_store())
+    assert out is not None and out.engine == "cpsat" and session.plan is not None
+    seated_before = [
+        (it.name, it.day)
+        for d in session.plan.days
+        for it in d.items
+        if (it.category or "") not in ("food", "hotel", "transport", "transfer")
+        # R12：leg-bridge-* 是派生交通卡（随装配重生成），不是可挪 POI
+        and not str(it.item_id or "").startswith("leg-bridge-")
+    ]
+    assert all(n != "静安寺" for n, _d in seated_before)
+    new_plan, outcome = edit_session_via_trip_solver(
+        session,
+        store=_edit_store(),
+        ops=[{"kind": "add", "name": "静安寺", "poi_id": "poi_3"}],
+    )
+    assert new_plan is not None, "engine add edit must serve on native plan"
+    seated_after = [
+        (it.name, it.day)
+        for d in new_plan.days
+        for it in d.items
+        if (it.category or "") not in ("food", "hotel", "transport", "transfer")
+        and not str(it.item_id or "").startswith("leg-bridge-")
+    ]
+    # 注入的 must 落卡（add 前池被 avoid 挡了——静安寺只可能来自注入）
+    assert any(n == "静安寺" for n, _d in seated_after), sorted(seated_after)
+    # keep 钉设计：其余卡日不动（时刻由引擎重排——布局可更优，卡不换天）
+    for name, day in seated_before:
+        assert (name, day) in set(seated_after), (name, day, sorted(seated_after))
+
+
+def test_edit_session_add_unknown_name_skeleton(monkeypatch):
+    """R13-#2：add 池外名（「用户随便说的地方」）→ 骨架兜底——引擎照常
+    服务（不 INFEASIBLE 不回落），B-01 不吞点：名字要么落卡要么留痕
+    plan.unplaced / unarranged_musts。"""
+    from app.services.agent.plan import PlanSession
+    from app.services.trip_solver.live import (
+        edit_session_via_trip_solver,
+        replan_session_via_trip_solver,
+    )
+
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    session = PlanSession(
+        session_id="sess-add2",
+        device_id="dadd2",
+        cities=["上海"],
+        days=2,
+        start_date="2026-11-25",
+        must_visits=["外滩", "豫园"],
+        preferences="",
+    )
+    out = replan_session_via_trip_solver(session, store=_edit_store())
+    assert out is not None and out.engine == "cpsat" and session.plan is not None
+    new_plan, outcome = edit_session_via_trip_solver(
+        session,
+        store=_edit_store(),
+        ops=[{"kind": "add", "name": "用户随便说的地方", "poi_id": None}],
+    )
+    assert new_plan is not None, "skeleton add must still serve via engine"
+    card_names = {it.name for d in new_plan.days for it in d.items if it.name}
+    unplaced_names = set(new_plan.unarranged_musts or []) | {
+        u.name for u in new_plan.unplaced
+    }
+    assert "用户随便说的地方" in (card_names | unplaced_names), (
+        sorted(card_names),
+        sorted(unplaced_names),
+    )

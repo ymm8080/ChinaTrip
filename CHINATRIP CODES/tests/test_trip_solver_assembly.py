@@ -25,9 +25,12 @@ from app.services.trip_solver.model.certificate import load_templates
 from app.services.trip_solver.model.solve import solve_snapshot
 from app.services.trip_solver.snapshot import default_golden_path, load_golden
 from app.services.trip_solver.types import (
+    AccessProfile,
     CandidateItem,
     FactSnapshot,
     RequestedItem,
+    Solution,
+    SolutionItem,
     TripRequest,
 )
 
@@ -422,3 +425,106 @@ def test_cards_carry_tier_and_best_visit_time():
             assert item.best_visit_time == cand.best_visit_time, item.name
             checked += 1
     assert checked >= 1
+
+
+# ------------------------------------------------- R13-#3 outbound cards
+
+
+def _outbound_fixture():
+    """One remote must + its access leg, hand-built so the leg fields are
+    exact (depart 08:00 → arrive 10:00, visit 10:10–12:10, return 15:00)."""
+    cand = CandidateItem(
+        cid="cr",
+        name="慕田峪长城",
+        poi_id="pr",
+        kind="requested",
+        rid="r1",
+        category="sight",
+        opening_hours="08:00-17:00",
+        suggested_duration_min=120,
+        lon=116.57,
+        lat=40.43,
+        remote=True,
+    )
+    snap = FactSnapshot(
+        schema_version=2,
+        request=TripRequest(
+            days=1,
+            cities=("北京",),
+            musts=(RequestedItem(rid="r1", name="慕田峪长城", poi_id="pr"),),
+        ),
+        candidates=(cand,),
+        access_profiles=(
+            AccessProfile(
+                gateway="东直门",
+                to_poi="pr",
+                ride_minutes=80,
+                last_mile_minutes=10,
+                departures=("08:00",),
+                returns=("15:00",),
+            ),
+        ),
+        source="synthetic",
+    )
+    solution = Solution(
+        status="FEASIBLE",
+        items=[SolutionItem(cid="cr", day=1, start_min=610, end_min=730)],
+        access_legs=[
+            {
+                "cid": "cr",
+                "day": 1,
+                "gateway": "东直门",
+                "depart_min": 480,
+                "arrive_poi_min": 600,
+                "visit_start_min": 610,
+                "visit_end_min": 730,
+                "return_depart_min": 900,
+                "arrive_city_min": 990,
+            }
+        ],
+    )
+    return snap, solution
+
+
+def test_outbound_card_rendered_before_remote_visit():
+    snapshot, solution = _outbound_fixture()
+    plan = materialize_plan(solution, snapshot)
+    items = plan.days[0].items
+    assert len(items) == 3  # 去程卡 + 访问卡 + 回城卡
+    out, site, ret = items
+    assert out.item_id == "access-out-" + site.item_id
+    assert ret.item_id == "access-return-" + site.item_id
+    assert out.category == "transfer" and out.synthetic
+    assert out.access_mode == "access"
+    assert out.start_time == time(8, 0) and out.end_time == time(10, 0)
+    assert out.duration_minutes == 120
+    assert out.address == "东直门"
+    assert "东直门" in out.name and "约120分" in out.name
+    # card ≡ leg：访问卡仍带同一腿字段，不被去程卡挤动
+    assert site.access_mode == "access"
+    assert site.start_time == time(10, 10)
+    assert site.access_service_minutes == 120
+
+
+def test_outbound_card_idempotent():
+    snapshot, solution = _outbound_fixture()
+    a = materialize_plan(solution, snapshot)
+    b = materialize_plan(solution, snapshot)
+    outs_a = [i for i in a.days[0].items if str(i.item_id).startswith("access-out-")]
+    outs_b = [i for i in b.days[0].items if str(i.item_id).startswith("access-out-")]
+    assert len(outs_a) == 1 and len(outs_b) == 1  # 两次装配各一张，不双渲染
+    assert outs_a[0].item_id == outs_b[0].item_id
+    assert a.model_dump_json() == b.model_dump_json()
+
+
+def test_outbound_card_without_return_leg():
+    """去程卡条件只看 depart/arrive：无返程班次的腿照样有去程安排可见。"""
+    snapshot, solution = _outbound_fixture()
+    solution.access_legs[0]["return_depart_min"] = None
+    solution.access_legs[0]["arrive_city_min"] = None
+    plan = materialize_plan(solution, snapshot)
+    items = plan.days[0].items
+    assert len(items) == 2  # 去程卡 + 访问卡（无回城卡）
+    assert [str(i.item_id).startswith("access-") for i in items] == [True, False]
+    out, site = items
+    assert out.item_id == "access-out-" + site.item_id

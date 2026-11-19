@@ -66,7 +66,14 @@ def _row_to_candidate(
     return CandidateItem(
         cid=cid,
         name=str(row.get("name") or ""),
-        poi_id=(str(row["id"]) if row.get("id") else None),
+        # R13（#4 修复）：真库 PoiDetailStore 行的 id 键=source_poi_id
+        # （SnapshotStore 假库才叫 id）——两个键都认，ts- 会话卡片自 R8
+        # 起无 poi_id 的根因（pin/换点/详情对餐馆卡受限一并解除）
+        poi_id=(
+            str(row["id"])
+            if row.get("id")
+            else (str(row["source_poi_id"]) if row.get("source_poi_id") else None)
+        ),
         kind=kind,  # type: ignore[arg-type]
         rid=rid,
         category=row.get("category"),
@@ -432,8 +439,10 @@ def generate_session_via_trip_solver(
     from .types import validate_snapshot
 
     flag = engine_flag()
-    if flag != ENGINE_CPSAT or not serving_ready()[0]:
-        return None, None
+    if flag != ENGINE_CPSAT:
+        return None, None  # legacy 模式：agent.start 是正常路径，无需披露
+    if not serving_ready()[0]:
+        return None, _disclosed_fallback()
 
     def _weather(city: str, iso: str):
         if weather_lookup is None:
@@ -473,7 +482,7 @@ def generate_session_via_trip_solver(
     )
     errors = validate_snapshot(snapshot)
     if errors:
-        return None, None
+        return None, _disclosed_fallback()
 
     outcome = solve_trip(snapshot, flag=ENGINE_CPSAT, budget_s=budget_s)
     if (
@@ -534,12 +543,14 @@ def replan_session_via_trip_solver(
     from .types import validate_snapshot
 
     flag = engine_flag()
-    if flag != ENGINE_CPSAT or not serving_ready()[0]:
-        return None
+    if flag != ENGINE_CPSAT:
+        return None  # legacy 模式：legacy 管线是正常路径
+    if not serving_ready()[0]:
+        return _disclosed_fallback()
 
     snapshot = _session_snapshot(session, store)
     if snapshot is None:
-        return None
+        return _disclosed_fallback()
 
     # R8b 钉位保全（铁律 19 全保位）：用户钉住的卡按 C-04 FixedPin 钉死
     # 日+时刻（NEVER_RELAX——钉冲突只会 INFEASIBLE 回落 legacy 原生保钉，
@@ -679,9 +690,11 @@ def _intake_day_no(date_iso, start_date, days: int, default_day: int) -> Optiona
     return _role_endpoint(day)
 
 
-def _session_snapshot(session, store):
+def _session_snapshot(session, store, extra_musts=None):
     """R10：会话 → 快照重建（replan/edit 共用）——musts=必去+钉卡+自造点，
-    班次/分城/中途日/偏好/首日出发全参数随缝；None=引擎不可载。"""
+    班次/分城/中途日/偏好/首日出发全参数随缝；None=引擎不可载。
+    R13-#2：extra_musts=编辑 add 注入的新必去名（尾插去重——重复名会
+    造同名多候选，毒 by_name 的保形/映射），绑定链自然兜底。"""
     from .types import validate_snapshot
 
     musts = list(
@@ -693,6 +706,10 @@ def _session_snapshot(session, store):
             ]
         )
     )
+    for _extra in extra_musts or []:
+        _name = str(_extra or "").strip()
+        if _name and _name not in musts:
+            musts.append(_name)
     service_rows: list = []
     try:
         from app.services.access_service_store import AccessServiceStore
@@ -745,7 +762,10 @@ def edit_session_via_trip_solver(
     """R10（2026-11-19 拍板「anywhere legacy exists, switch to cp-sat」）：
     消息 diff 道的引擎编辑重解——F-50 edit_resolve；ops=agent 侧 dict op
     （{kind,name,poi_id,day}，move/delete）。保形=keep 钉（未被动到的
-    已排观光卡钉住所在日、时刻自由）。返回 (plan|None, outcome|None)。"""
+    已排观光卡钉住所在日、时刻自由）。返回 (plan|None, outcome|None)。
+    R13-#2：add 类 op（{kind:"add", name, poi_id}，day 不传）走 musts
+    注入道——名字尾插快照必去（绑定链兜底、覆盖层保放置），引擎自由
+    择位；add 永远可映射（骨架兜底），move/delete 不可映射照旧回落。"""
     from .edit import DiffOp as _EditOp
     from .edit import edit_resolve
     from .entry import ENGINE_CPSAT, engine_flag, serving_ready
@@ -753,10 +773,25 @@ def edit_session_via_trip_solver(
     flag = engine_flag()
     if flag != ENGINE_CPSAT or not serving_ready()[0]:
         return None, None
-    snapshot = _session_snapshot(session, store)
+    # R13-#2：add 类 op（{kind:"add", name, poi_id}）不走 DiffOp——名字
+    # 注入快照 musts（引擎绑定链精确名→文本匹配→骨架兜底自然处理，
+    # 覆盖层保证放置或留痕不吞点）；move/delete 照旧走引擎 DiffOp。
+    # 名字缺失的 add=不可映射，整批回落 legacy 原道（绝不静默丢改动）。
+    ops = list(ops or [])
+    if not ops:
+        return None, None
+    add_ops = [op for op in ops if (op.get("kind") or "") == "add"]
+    edit_ops = [op for op in ops if (op.get("kind") or "") != "add"]
+    add_names = []
+    for op in add_ops:
+        _name = str(op.get("name") or "").strip()
+        if not _name:
+            return None, None
+        add_names.append(_name)
+    snapshot = _session_snapshot(session, store, extra_musts=add_names or None)
     if snapshot is None:
         return None, None
-    engine_ops = _dict_ops_to_diffops(snapshot, ops)
+    engine_ops = _dict_ops_to_diffops(snapshot, edit_ops) if edit_ops else []
     if engine_ops is None:
         return None, None
 
@@ -790,7 +825,15 @@ def edit_session_via_trip_solver(
     # R10 修复（P4 遗留）：tier① fill-free 假设投影与「钉 fill presence」
     # 直接矛盾 → 编辑必 INFEASIBLE。被 move/delete/keep 点到的 fill
     # 候选全部升格 requested（用户点名语义，投影纯净）。
-    touched = {op.cid for op in engine_ops} | {op.cid for op in keep_ops}
+    # R13-#2：add 点名的 cid 也进升格面——add 名撞上池内存量 fill 行
+    # （poi/名两道解析得到）时升格 requested，同用户点名语义；musts
+    # 注入生出的候选本就是 requested，解析不到则此处自然空转。
+    add_cids = set()
+    for op in add_ops:
+        _cid = by_poi.get(op.get("poi_id")) or by_name.get(op.get("name"))
+        if _cid:
+            add_cids.add(_cid)
+    touched = {op.cid for op in engine_ops} | {op.cid for op in keep_ops} | add_cids
     if any(c.kind == "fill" for c in snapshot.candidates if c.cid in touched):
         snapshot = replace(
             snapshot,
@@ -895,3 +938,22 @@ def _seated_cards(session) -> list:
                         }
                     )
     return out
+
+
+def _disclosed_fallback():
+    """R13（#1 修复）：cpsat 旗下引擎不可服务（快照验证失败/未就绪）→
+    返回披露型 fallback outcome——绝不裸 (None, None) 静默落 legacy
+    （旧行为绕过了 api 缝的披露 append=违反「绝不静默」原则）。"""
+    from .entry import (
+        ENGINE_CPSAT,
+        ENGINE_LEGACY,
+        FALLBACK_DISCLOSURE,
+        SolveOutcome,
+    )
+
+    return SolveOutcome(
+        engine=ENGINE_LEGACY,
+        requested=ENGINE_CPSAT,
+        fallback=True,
+        disclosures=[dict(FALLBACK_DISCLOSURE)],
+    )

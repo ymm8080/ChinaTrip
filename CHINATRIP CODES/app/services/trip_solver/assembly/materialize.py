@@ -1,10 +1,10 @@
 """F-30 materialise_plan: Solution -> ItineraryPlan.
 
 Cards start/end come from solution intervals; access-leg fields and the
-independent return card come from the *same* F-14 intervals the model
+independent outbound/return cards come from the *same* F-14 intervals the model
 constrained (card == leg by construction — the legacy
 ``attach_return_cards`` reads annotate_legs' display chain instead, so
-assembly synthesises the return card from the authoritative solution
+assembly synthesises the transfer cards from the authoritative solution
 intervals directly). A requested item not present becomes an
 ``unplaced`` entry with reason codes + bilingual reason; an untimed
 requested card cannot exist by type (SolutionItem always carries
@@ -30,6 +30,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from ..types import FactSnapshot, Solution
 
 RETURN_CARD_PREFIX = "access-return-"
+OUTBOUND_CARD_PREFIX = "access-out-"
 RETURN_HINT = {
     "zh": "游玩结束后按返程班次回城（独立回城卡）",
     "en": "Return shuttle after the visit (separate return card)",
@@ -187,7 +188,7 @@ def materialize_plan(
     *,
     itinerary_id: Optional[str] = None,
 ) -> ItineraryPlan:
-    """Base cards + access fields + return cards + unplaced (F-30)."""
+    """Base cards + access fields + outbound/return cards + unplaced (F-30)."""
     cand_by_cid = {c.cid: c for c in snapshot.candidates}
     legs_by_cid_day = {
         (leg.get("cid"), leg.get("day")): leg for leg in solution.access_legs
@@ -254,6 +255,39 @@ def materialize_plan(
                     "depart_min", 0
                 )
                 card.return_hint = RETURN_HINT["zh"]
+                # R13-#3 去程接驳卡（回城卡的镜像，同一 F-14 区间）：市区
+                # 乘车点→远郊景点的班次段独立成卡，插在访问卡之前。synthetic
+                # transfer + access_mode → compact_days 固定屏障；卡不带坐标
+                # → leg_pairs 透明，前站→远郊点的接驳详情链不受影响。
+                depart = leg.get("depart_min")
+                arrive_poi = leg.get("arrive_poi_min")
+                if depart is not None and arrive_poi is not None:
+                    gateway = str(leg.get("gateway") or "")
+                    ride = int(arrive_poi) - int(depart)
+                    if gateway:
+                        name = "🚌 去程 · %s → 班车约%d分" % (gateway, ride)
+                        name_en = "🚌 Outbound · shuttle from %s (~%d min)" % (
+                            gateway,
+                            ride,
+                        )
+                    else:
+                        name = "🚌 去程 · 班车约%d分" % ride
+                        name_en = "🚌 Outbound shuttle (~%d min)" % ride
+                    out = VisitItem(
+                        item_id="%s%s" % (OUTBOUND_CARD_PREFIX, card.item_id),
+                        name=name,
+                        name_en=name_en,
+                        category="transfer",
+                        city=_base_city(snapshot, day_no),
+                        day=day_no,
+                        start_time=_hhmm(int(depart)),
+                        end_time=_hhmm(int(arrive_poi)),
+                        duration_minutes=ride,
+                        synthetic=True,
+                        access_mode="access",
+                        address=gateway or None,
+                    )
+                    items.append(out)
             items.append(card)
             if leg is not None and leg.get("return_depart_min") is not None:
                 arrive_city = leg.get("arrive_city_min")

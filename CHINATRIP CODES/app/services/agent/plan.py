@@ -33920,10 +33920,13 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
         # 戳——未见于用户原话的 retime/move 时刻剥成时段偏好，条目解钉
         # 交排程器重排（H5 直接 move/retime 端点是用户动作，不经此处）。
         # R10（2026-11-19 拍板「anywhere legacy exists, switch to cp-sat」）：
-        # 纯 move/remove 结构 diff（无时刻戳、无天数改动）先走 F-50 引擎
-        # 编辑重解——全局重排语义（hint 保形热启动、用户钉 C-04 保位），
-        # 留痕披露；不可映射的 ops（add/retime 时刻戳、库外卡）是卡片
-        # 操作不是求解，照旧落本修复管线。
+        # 纯 move/remove/add 结构 diff（无时刻戳、无天数改动）先走 F-50
+        # 引擎编辑重解——全局重排语义（hint 保形热启动、用户钉 C-04
+        # 保位），留痕披露；不可映射的 ops（retime 时刻戳、库外卡、
+        # item 缺失的 add）是卡片操作不是求解，照旧落本修复管线。
+        # R13-#2（2026-11-19）：add 类 diff 不再落 legacy 卡片道——名字
+        # 注入引擎 musts（新卡不在 plan 上，item 直取 name/poi_id；
+        # day 不传=引擎自由择位，质量更优）。
         # R12 编辑营救（2026-11-19）：引擎编辑失手 → 照旧落本修复
         # 管线（卡片操作+修复），绝不静默。
         try:
@@ -33934,7 +33937,7 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
                 diffs
                 and target_days is None
                 and all(
-                    d.op in ("move", "remove") and d.new_start_time is None
+                    d.op in ("move", "remove", "add") and d.new_start_time is None
                     for d in diffs
                 )
             ):
@@ -33950,6 +33953,22 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
                 }
                 _ops = []
                 for d in diffs:
+                    if d.op == "add":
+                        # R13-#2：add 的新卡不在 session.plan 上——item
+                        # 直取 name/poi_id（day 不传，引擎自由择位）；
+                        # item 缺失/无名=不可映射，整批回落原道
+                        _add_name = str(getattr(d.item, "name", None) or "").strip()
+                        if not _add_name:
+                            _ops = None
+                            break
+                        _ops.append(
+                            {
+                                "kind": "add",
+                                "name": _add_name,
+                                "poi_id": getattr(d.item, "poi_id", None),
+                            }
+                        )
+                        continue
                     card = _card_by_id.get(d.item_id or "")
                     if card is None:
                         _ops = None
