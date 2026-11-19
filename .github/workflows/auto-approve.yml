@@ -85,6 +85,9 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_PAT || github.token }}
           PR: ${{ github.event.pull_request.number }}
           SHA: ${{ github.event.pull_request.head.sha }}
+          # 本工作流无 checkout 步：cwd 非 git repo，gh pr view/comment 靠 git
+          # 探测仓库会 fatal（当日 log 实证），显式指 GH_REPO 免 checkout
+          GH_REPO: ${{ github.repository }}
         run: |
           set +e
           STATUS=$(gh api "repos/$GITHUB_REPOSITORY/commits/$SHA/check-runs?per_page=100" \
