@@ -110,18 +110,27 @@ def _access_profiles_for(
         target = next(
             (r for n, r in by_name.items() if n and _name_hits(poi_name, n)), None
         )
-        if target is None or not target.get("id"):
+        # R13c（2026-11-19）：真库 PoiDetailStore 行的 id 键=source_poi_id
+        # （同 R13 #4 根因的另一处）——此前 live 全链接驳档案恒空（C-08
+        # 班次约束空转、引擎去程/回城卡永不渲染，live 回城卡全靠响应层）。
+        if target is None or not (target.get("id") or target.get("source_poi_id")):
             continue
+
+        def _hhmm(v):
+            # R13c2（2026-11-19）：AccessServiceStore 真库行班次是 '07:30'
+            # 字符串（此前只认 int 分钟——live 档案恒空=C-08 空转的另一半
+            # 根因）；两种形态都归一成 HH:MM。
+            if isinstance(v, int):
+                return "%02d:%02d" % (v // 60, v % 60)
+            s = str(v or "").strip()
+            return s if ":" in s else None
+
         try:
             departures = [
-                "%02d:%02d" % (m // 60, m % 60)
-                for m in (row.get("outbound_times") or [])
-                if isinstance(m, int)
+                d for d in (_hhmm(m) for m in (row.get("outbound_times") or [])) if d
             ]
             returns = [
-                "%02d:%02d" % (m // 60, m % 60)
-                for m in (row.get("return_times") or [])
-                if isinstance(m, int)
+                d for d in (_hhmm(m) for m in (row.get("return_times") or [])) if d
             ]
             ride = int(row.get("ride_minutes") or 0)
             if ride <= 0 or not departures:
@@ -130,7 +139,7 @@ def _access_profiles_for(
             out.append(
                 AccessProfile(
                     gateway=str(row.get("boarding_stop") or "乘车点"),
-                    to_poi=str(target["id"]),
+                    to_poi=str(target.get("id") or target["source_poi_id"]),
                     ride_minutes=ride,
                     wait_minutes=int(row.get("outbound_frequency_minutes") or 0),
                     last_mile_minutes=int(row.get("last_mile_minutes") or 0),

@@ -150,6 +150,30 @@ def test_access_profile_binds_pool_row():
     assert yuyuan.remote is True
 
 
+def test_access_profiles_for_real_store_shapes():
+    # R13c/R13c2（2026-11-19）：真库 PoiDetailStore 行 id 键=source_poi_id、
+    # 班次是 '07:30' 字符串——两种形态都必须能绑（此前 live 接驳档案
+    # 恒空：C-08 班次约束空转、引擎去程/回城卡永不渲染）。
+    from app.services.trip_solver.live import _access_profiles_for
+
+    pool = [{"name": "慕田峪长城", "source_poi_id": "ct_北京_8"}]
+    svc = {
+        "poi_name": "慕田峪长城",
+        "boarding_stop": "前门大街北口",
+        "outbound_times": ["07:30", "08:30"],
+        "return_times": ["14:30"],
+        "ride_minutes": 90,
+        "last_mile_minutes": 8,
+    }
+    profiles = _access_profiles_for(pool, [svc])
+    assert len(profiles) == 1
+    p = profiles[0]
+    assert p.to_poi == "ct_北京_8"
+    assert p.departures == ("07:30", "08:30")
+    assert p.returns == ("14:30",)
+    assert p.ride_minutes == 90
+
+
 def test_weather_bilingualised():
     assert bilingual_weather("小雨") == "小雨 (rain)"
     assert bilingual_weather("大雨") == "大雨 (heavy rain)"

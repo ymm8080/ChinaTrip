@@ -108,11 +108,13 @@ PEN_VENUE_STRAND = 60  # 场馆亲和拆簇罚（2026-11-08 远郊演出案）�
 
 def _is_big_visit(v: VisitItem) -> bool:
     """大点判定（与 solver._is_big_site 同口径，2026-11-04 拍板）：
-    时长>80min、非街区（tier8）、非餐/酒店/演出、非夜属性；用户自钉
-    且有时刻（铁律 19）不计。"""
+    时长>80min、非街区（tier8）、非餐/酒店/演出/转场、非夜属性；用户
+    自钉且有时刻（铁律 19）不计。R13b（2026-11-19）：transfer（合成
+    接驳卡 access-out-/access-return-）是转场投影不是游览件——大点/
+    轻点/负载全链豁免（legacy 录制件从不带这些卡，豁免后两侧同口径）。"""
     if v.pinned and v.start_time is not None:
         return False
-    if str(v.category or "") in ("food", "hotel", "entertainment"):
+    if str(v.category or "") in ("food", "hotel", "entertainment", "transfer"):
         return False
     if str(v.best_visit_time or "") in ("evening", "sunset", "show"):
         return False
@@ -122,10 +124,11 @@ def _is_big_visit(v: VisitItem) -> bool:
 
 
 def _is_light_visit(v: VisitItem) -> bool:
-    """轻点判定（大点先排另一侧，与 solver._is_light_sight 同口径）。"""
+    """轻点判定（大点先排另一侧，与 solver._is_light_sight 同口径）。
+    R13b：transfer 转场投影同 _is_big_visit 豁免。"""
     if v.pinned and v.start_time is not None:
         return False
-    if str(v.category or "") in ("food", "hotel", "entertainment"):
+    if str(v.category or "") in ("food", "hotel", "entertainment", "transfer"):
         return False
     return not _is_big_visit(v)
 
@@ -253,7 +256,7 @@ def plan_score(
         untimed += sum(1 for v in visits if v.start_time is None)
         # 活动日空白上午（hotel-only 日不算活动日——入住卡不占上午）
         has_activity = any(
-            str(v.category or "") not in ("food", "hotel") for v in visits
+            str(v.category or "") not in ("food", "hotel", "transfer") for v in visits
         )
         if has_activity and not _morning_occupied(day):
             blank += 1
@@ -276,7 +279,7 @@ def plan_score(
             if v.start_time is not None
             and not (v.pinned and v.start_time is not None)
             and _minutes(v.start_time) < LUNCH_ANCHOR_MINUTES
-            and str(v.category or "") not in ("food", "hotel")
+            and str(v.category or "") not in ("food", "hotel", "transfer")
         )
         morning_crowd += max(0, morning_sites - 1)
         # 下午单大点 + 大点先排（2026-11-04 拍板）：与 solver 插入/CP
@@ -382,7 +385,7 @@ def plan_score(
         load = sum(
             v.duration_minutes or 0
             for v in visits
-            if str(v.category or "") not in ("food", "hotel")
+            if str(v.category or "") not in ("food", "hotel", "transfer")
         )
         over = load - (DAY_VISIT_BUDGET_MINUTES + BUDGET_SLACK_MINUTES)
         if over > 0:

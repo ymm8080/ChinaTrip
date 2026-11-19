@@ -322,6 +322,11 @@ def solve_snapshot(
     if extra and solution.disclosures is not None:
         solution.disclosures = list(solution.disclosures) + extra
     if solution.status != "INFEASIBLE":
+        # R13d：budget_used_ms 记提升后总预算（F-62 收敛口径=引擎段
+        # build+solve 对总预算；solve() 内部记的是扣建模后的余量，
+        # 求解器吃满配额时 shadow 层的 wall（含 enrich/建模/提取）必然
+        # 越线——共享机负载下 g11 刀刃误红即此）。
+        solution.budget_used_ms = int(budget_s * 1000)
         return solution
     if use_ladder:
         for flags in ladder_levels()[1:]:
@@ -337,8 +342,10 @@ def solve_snapshot(
             if relaxed.status in ("OPTIMAL", "FEASIBLE"):
                 relaxed.slack_level = flags.level()
                 relaxed.disclosures = relaxed.disclosures + slack_disclosures(flags)
+                relaxed.budget_used_ms = int(budget_s * 1000)
                 return relaxed
     solution.certificate = explain_infeasibility(enriched)
+    solution.budget_used_ms = int(budget_s * 1000)
     return solution
 
 

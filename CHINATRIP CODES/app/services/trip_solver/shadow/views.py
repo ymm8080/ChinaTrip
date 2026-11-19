@@ -87,6 +87,9 @@ class PlanView:
     access_legs: list[dict] = field(default_factory=list)  # model: C-08 legs
     meal_anchors: list[dict] = field(default_factory=list)  # model: C-09/F-22
     wall_ms: Optional[int] = None
+    # R13d：引擎段墙钟（build+solve+ladder，enrich 属数据准备不计——
+    # 引擎预算契约覆盖建模+求解，注释见 solve.py Q3 段）。
+    engine_ms: Optional[int] = None
 
     def day_cards(self, day: int) -> list[CardView]:
         return [c for c in self.cards if c.day == day]
