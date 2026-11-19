@@ -774,3 +774,27 @@ def test_engine_meal_cards_in_legacy_fold_classification():
     assert _meal_card_slot(ph) is None  # 占位=槽位，不占卡
     assert _day_meal_card_taken(day, "dinner")
     assert not _day_meal_card_taken(day, "lunch")
+
+
+def test_named_meal_card_without_poi_id_is_not_placeholder():
+    """R12-M2b：无 poi_id 的命名餐卡（d286d44 实证形态）绝不能被误判
+    成占位——误判=被 legacy 吸收/去重闸当空卡吃掉（真餐厅静默消失）。"""
+    from app.services.restaurants import is_dinner_placeholder, is_lunch_placeholder
+
+    named_no_poi = VisitItem(
+        item_id="meal-dinner-3",
+        name="四季民福烤鸭店（故宫店）",
+        category="food",
+        city="北京",
+        day=1,
+    )
+    ph_no_poi = VisitItem(
+        item_id="meal-lunch-3",
+        name="午餐",
+        category="food",
+        city="北京",
+        day=1,
+    )
+    assert not is_lunch_placeholder(named_no_poi)
+    assert not is_dinner_placeholder(named_no_poi)
+    assert is_lunch_placeholder(ph_no_poi)
