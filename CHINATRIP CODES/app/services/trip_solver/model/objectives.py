@@ -43,6 +43,16 @@ MEAL_SLOT_BAND_REWARD = 25
 # （「尽量」=软罚：池内无替代时不阻断）。
 MEAL_SAME_CUISINE_DAY_PENALTY = 150
 MEAL_SAME_CUISINE_TRIP_PENALTY = 60
+# R12-F（2026-11-19 用户拍板「尽量把重要的时间长的大景点放一天比较
+# 早的时间」）：必去大点（requested 且时长>80）每分钟提早拉力——
+# 天安门后故宫先于天坛（距离相近时优先级+时长破平局），填充大点
+# （景山）不吃此拉力、只进剩余时段。0.25/min≈半天差 100+，足够翻
+# 平局、不压走行地理。
+BIG_MUST_MIN_DURATION = 80
+# R12-F2：晚开分段罚（CP-SAT 线性表达式只吃整系数——0.25/min 浮点直
+# 接炸 40 测）。镜像打分器 late_entries 口径：≥12:30 罚 40、≥14:00 再
+# 罚 80——必去大点让出下午/傍晚给填充，天安门后故宫先于天坛。
+BIG_MUST_LATE_BANDS = ((12 * 60 + 30, 40), (14 * 60, 80))
 MORNING_MINUTE = 12 * 60
 ENTERTAINMENT_PRESENT_REWARD = 40
 CATEGORY_DIVERSITY_REWARD = 20
@@ -168,6 +178,10 @@ def _preference(
         deviation = model.NewIntVar(0, tier[2], "obj_dd_%s" % cand.cid)
         model.AddAbsEquality(deviation, bundle.dur[cand.cid] - tier[1])
         negative.append(DURATION_DEVIATION_PENALTY * deviation)
+        # R12-F4（2026-11-19 用户拍板「填充弹性只在傍晚入选闸适用；
+        # 故宫要收缩则景山就不该插入」）：必去压缩×填充互斥走 c09
+        # 硬闸（_r12f_fill_yields_gate）——软罚已撤（×2 曾漂移 g01
+        # canon：remote 班次 570→450 实锤）。
         pref_bonus = 0
         if pref_tokens:
             try:
@@ -185,10 +199,26 @@ def _preference(
                 pref_bonus = 0
 
         quality = int(round(float(cand.quality or 0) * QUALITY_SCALE))
+        big_must = bool(
+            cand.rid and int(cand.suggested_duration_min or 0) > BIG_MUST_MIN_DURATION
+        )
         for day in bundle.days:
             lit = bundle.presence[(cand.cid, day)]
             if quality:
                 positive.append(quality * lit)
+            if big_must:
+                # R12-F2：必去大点晚开分段罚（不在场 start=0 天然不触发）。
+                for _threshold, _weight in BIG_MUST_LATE_BANDS:
+                    _late = model.NewBoolVar(
+                        "bml_%s_%d_%d" % (cand.cid, day, _threshold)
+                    )
+                    model.Add(
+                        bundle.start[(cand.cid, day)] >= _threshold
+                    ).OnlyEnforceIf(_late)
+                    model.Add(bundle.start[(cand.cid, day)] < _threshold).OnlyEnforceIf(
+                        _late.Not()
+                    )
+                    negative.append(_weight * _late)
             if pref_bonus:
                 positive.append(pref_bonus * lit)
             if not cand.rid:

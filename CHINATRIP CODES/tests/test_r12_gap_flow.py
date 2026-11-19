@@ -617,3 +617,178 @@ def test_evict_trigger_counts_untimed_must_named_engine_cards():
     notes = evict_fillers_when_must_unseated(plan, must_names=["天坛"])
     assert notes  # 引擎卡无 must 标记但名字命中名册 → 填充让位
     assert all(i.item_id != "v2" for i in plan.days[0].items)
+
+
+# ---------- R12-F: 引擎必去标 + 必去大点提早（2026-11-19 审计拍板） ----------
+
+
+def test_materialize_marks_requested_cards_as_must():
+    """引擎必去卡打 must 标（legacy 判定面全链对齐）——live 实锤天坛/景山
+    案的类根修。"""
+    from app.services.trip_solver.assembly.materialize import materialize_plan
+
+    site = _cand(
+        "site", rid="r-site", category="historic", hours="08:30-18:00", duration=90
+    )
+    fill = _cand(
+        "fill", category="park", hours="08:30-18:00", duration=90, lon=116.40, lat=39.91
+    )
+    snap = _snap([site, fill], musts=("r-site",))
+    sol = solve_snapshot(enrich(snap))
+    assert sol.status in ("OPTIMAL", "FEASIBLE"), sol.status
+    plan = materialize_plan(sol, snap)
+    cards = {c.name: c for d in plan.days for c in d.items}
+    assert cards["site"].must is True
+    assert cards["fill"].must is False
+
+
+def test_pre_remote_eviction_spares_marked_must():
+    """远郊日清场（B-03a）不撤打标必去——此前引擎必去（无 must 标）会被
+    当 filler 误撤。"""
+    from app.services.itinerary.hotfix_1117 import evict_pre_remote_fillers
+
+    anchor = _card(
+        "v1",
+        "天安门广场",
+        "attraction",
+        7 * 60 + 10,
+        8 * 60 + 40,
+        poi_id="p-1",
+        must=True,
+    )
+    remote = _card(
+        "v9", "慕田峪长城", "historic", 12 * 60 + 8, 15 * 60 + 8, poi_id="p-9"
+    )
+    plan = _plan(anchor, remote)
+    evict_pre_remote_fillers(plan)
+    ids = [i.item_id for i in plan.days[0].items]
+    assert "v1" in ids and "v9" in ids
+
+
+def test_big_musts_go_early_fills_take_leftover():
+    """R12-F2：必去大点晚开分段罚——锚后必去大点先排（故宫/天坛进上午
+    早段），填充大点（景山）让出到下午剩余时段。"""
+    site = _cand(
+        "anchor", rid="r-a", category="attraction", hours="07:00-20:00", duration=60
+    )
+    palace = _cand(
+        "palace",
+        rid="r-p",
+        name="故宫博物院",
+        category="museum",
+        hours="08:30-17:00",
+        duration=120,
+    )
+    tiantan = _cand(
+        "tiantan",
+        rid="r-t",
+        name="天坛",
+        category="temple",
+        hours="06:30-22:00",
+        duration=150,
+    )
+    fill = _cand(
+        "jingshan",
+        name="景山公园",
+        category="park",
+        hours="06:30-20:00",
+        duration=120,
+    )
+    snap = _snap(
+        [site, palace, tiantan, fill],
+        musts=("r-a", "r-p", "r-t"),
+        pins=({"rid": "r-a", "day": 1, "start_min": 450},),
+    )
+    sol = solve_snapshot(enrich(snap))
+    assert sol.status in ("OPTIMAL", "FEASIBLE"), sol.status
+    placed = {i.cid: i for i in sol.items}
+    # 填充可选：只进真余量（F4b 预算放不下就挪天/不进均合法）
+    # 必去大点不进晚开带：故宫/天坛都在 12:30 前（或至少早于填充）
+    assert placed["palace"].start_min < 12 * 60 + 30
+    assert placed["tiantan"].start_min < 14 * 60
+    # 填充大点吃剩余：进场时晚于其同日最早必去大点（不进=预算不许可）
+    if "jingshan" in placed:
+        same_day = [
+            placed[c].start_min
+            for c in ("palace", "tiantan")
+            if placed[c].day == placed["jingshan"].day
+        ]
+        if same_day:
+            assert placed["jingshan"].start_min > min(same_day)
+
+
+def test_fill_budget_blocks_shrink_causing_fill():
+    """R12-F4b（用户纠正「引起收缩的填充不应插入」——不是连坐）：必去
+    满档+骨架已近日容，再塞 120 分钟填充必靠必去压缩腾位 → 预算（按
+    满档 mid 计）直接不允许该填充进场；填充去有余量的天。"""
+    anchor = _cand(
+        "anchor", rid="r-a", category="attraction", hours="07:00-20:00", duration=90
+    )
+    palace = _cand(
+        "palace",
+        rid="r-p",
+        name="故宫博物院",
+        category="museum",
+        hours="08:30-17:00",
+        duration=150,
+    )
+    tiantan = _cand(
+        "tiantan",
+        rid="r-t",
+        name="天坛",
+        category="temple",
+        hours="06:30-22:00",
+        duration=150,
+    )
+    fill = _cand(
+        "jingshan",
+        name="景山公园",
+        category="park",
+        hours="06:30-20:00",
+        duration=120,
+    )
+    snap = _snap(
+        [anchor, palace, tiantan, fill],
+        musts=("r-a", "r-p", "r-t"),
+        pins=({"rid": "r-a", "day": 1, "start_min": 510},),
+        days=2,
+    )
+    sol = solve_snapshot(enrich(snap))
+    assert sol.status in ("OPTIMAL", "FEASIBLE"), sol.status
+    placed = {i.cid: i for i in sol.items}
+    # 锚+故宫+天坛满档（390+缝 90+骨架 240=720≈750 日容）：景山
+    # （120+30）不可能靠压缩必去进第 1 天——只去第 2 天余量或不进
+    jing = placed.get("jingshan")
+    day1_musts = [c for c in ("palace", "tiantan") if placed[c].day == 1]
+    if jing is not None and len(day1_musts) == 2:
+        assert jing.day != 1
+    # 必去全排上
+    assert {"anchor", "palace", "tiantan"} <= set(placed)
+
+
+def test_innocent_fill_survives_window_caused_shrink():
+    """R12-F4b 反向（无辜填充不连坐）：必去被自己的窄窗逼缩（与填充
+    无关），且满档预算仍放得下填充 → 填充照常进场。"""
+    palace = _cand(
+        "palace",
+        rid="r-p",
+        name="故宫博物院",
+        category="museum",
+        hours="10:00-11:45",  # 105 分钟窗：120 档必须缩
+        duration=120,
+    )
+    fill = _cand(
+        "jingshan",
+        name="景山公园",
+        category="park",
+        hours="06:30-20:00",
+        duration=120,
+    )
+    snap = _snap([palace, fill], musts=("r-p",))
+    sol = solve_snapshot(enrich(snap))
+    assert sol.status in ("OPTIMAL", "FEASIBLE"), sol.status
+    placed = {i.cid: i for i in sol.items}
+    p = placed["palace"]
+    assert p.end_min - p.start_min < 120  # 窄窗自缩
+    # 无辜景山照常在场（同日）——压缩是窗造成的，不是它
+    assert "jingshan" in placed and placed["jingshan"].day == p.day

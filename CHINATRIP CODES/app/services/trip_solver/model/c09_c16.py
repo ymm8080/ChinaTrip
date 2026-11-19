@@ -266,6 +266,57 @@ def add_c09_meals(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
 
     # R12-D3：池内餐馆硬闸（同菜系同日≤1 + 槽位时段对齐；必去豁免）
     _r12d_hard_gates(bundle, enriched)
+    # R12-F4b：填充日预算（因果版——必去满档计，压缩不产预算）
+    _r12f_fill_yields_gate(bundle, enriched)
+
+
+def _r12f_fill_yields_gate(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
+    """R12-F4b（2026-11-19 用户纠正「不是该天填充一律不得在场，而是
+    引起收缩的填充不应插入」）：因果编码=日预算——必去按**满档 mid**
+    计入预算（压缩不产生填充预算：为容填充而缩在预算上不可能），填充
+    只能消费真余量；必去自挤溢出日（满档+骨架超容）豁免预算——必去
+    自己缩合法（傍晚收口闸/窄窗自缩与填充无关，无辜填充照常进场）。
+    填充可选，永不致不可行。
+    """
+    model = bundle.model
+    cands = enriched.snapshot.candidates
+    reqs = [c for c in cands if c.rid]
+    fills = [c for c in cands if not c.rid]
+    if not reqs or not fills:
+        return
+    capacity = DAY_END_MINUTES - DAY_START_MINUTES  # 750
+    skeleton = 240  # 午+晚餐满档 150 + 晨/夜酒店锚 90
+    gap = 30  # 邻卡走行地板/卡
+    remote_chain = 200  # 远郊接驳链（去+回）占的日时间
+    for day in bundle.days:
+        must_mid = model.NewIntVar(0, 10000, "fbm_%d" % day)
+        model.Add(
+            must_mid
+            == sum(
+                (enriched.tiers[c.cid][1] + gap) * bundle.presence[(c.cid, day)]
+                for c in reqs
+            )
+        )
+        base = skeleton
+        remote_lits = [bundle.presence[(c.cid, day)] for c in cands if c.remote]
+        if remote_lits:
+            remote_lit = model.NewBoolVar("fbr_%d" % day)
+            model.AddMaxEquality(remote_lit, remote_lits)
+            base = base + remote_chain * remote_lit
+        # 溢出=必去满档自挤（+骨架）超容：豁免预算（必去自己缩）
+        overflow = model.NewBoolVar("fbo_%d" % day)
+        model.Add(must_mid + base >= capacity + 1).OnlyEnforceIf(overflow)
+        model.Add(must_mid + base <= capacity).OnlyEnforceIf(overflow.Not())
+        fill_mid = model.NewIntVar(0, 10000, "fbf_%d" % day)
+        model.Add(
+            fill_mid
+            == sum(
+                (enriched.tiers[f.cid][1] + gap) * bundle.presence[(f.cid, day)]
+                for f in fills
+            )
+        )
+        # 预算：必去满档 + 骨架 + 填充 ≤ 日容（溢出日豁免）
+        model.Add(must_mid + base + fill_mid <= capacity).OnlyEnforceIf(overflow.Not())
 
 
 def _r12d_hard_gates(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:

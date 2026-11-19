@@ -231,6 +231,11 @@ def materialize_plan(
                 end_time=_hhmm(sol_item.end_min),
                 duration_minutes=sol_item.end_min - sol_item.start_min,
                 pinned=bool(sol_item.pinned),  # F-20/F-51: 铁律 19 豁免面
+                # R12-F（2026-11-19 用户令「查有多少应该起作用但没起
+                # 作用的」）：引擎必去卡打 must 标——legacy 全链判定
+                # （hotfix 让位/降级/铁律 19/占位识别）此前对引擎卡
+                # 全盲（live 实锤：天坛被剥成想去而景山不让位）。
+                must=(cand.kind == "requested"),
                 synthetic=False,
                 # R6: 打分器/审计的大点豁免与免检口径需要与模型同源——
                 # tier 与 best_visit_time 必须随卡（此前只给了 unplaced 行）
