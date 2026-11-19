@@ -476,6 +476,26 @@ def generate_session_via_trip_solver(
     except Exception:
         service_rows = []
 
+    # R13f（2026-11-19 用户令「fix all」收口实测）：start 缝的
+    # preferences/brief 通道此前只把文本当软偏好（R8 boost）——「必去
+    # 慕田峪长城」这类强意图点名词被吞成偏好信号，接驳档案生效后远郊
+    # 成本变真，引擎合法不选 → 用户必去意图静默丢失。message 换局缝
+    # （_restart_named_musts）有硬通道，start 缝同口径补齐：强意图短语
+    # （必去/要去/必须去/务必去/打卡）收进 musts，「想去」仍留软偏好
+    # （语义不对等，R8 链）；绑定走快照链（精确名→文本→骨架，缝不吞
+    # 点、B-01）；与显式 musts 同名去重。
+    try:
+        from app.services.trip_orchestrator.nlu import _restart_named_musts
+
+        _named = _restart_named_musts(preferences or "", store=store, cities=cities)
+        if _named:
+            _have = {str(m or "").strip() for m in (musts or [])}
+            musts = list(musts or []) + [
+                p for p in _named if str(p or "").strip() not in _have
+            ]
+    except Exception:
+        pass  # 收取失败退回纯偏好语义（现状），绝不拦生成
+
     snapshot = snapshot_from_request(
         cities=cities,
         days=days,

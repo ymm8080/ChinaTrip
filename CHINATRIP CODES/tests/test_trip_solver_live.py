@@ -209,6 +209,29 @@ def test_generator_serves_when_cpsat(monkeypatch):
     assert session.plan.days
 
 
+def test_generator_harvests_named_musts_from_preferences(monkeypatch):
+    """R13f（2026-11-19「fix all」收口实测）：start 缝 preferences 里的
+    强意图点名词（必去/要去/打卡…）折进 musts 硬覆盖——此前只当软偏
+    好，接驳档案生效后远郊成本变真，引擎合法不选=用户必去意图静默丢
+    失（live 实锤：必去慕田峪长城无墙无披露）。「想去」仍留软偏好。"""
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    session, outcome = generate_session_via_trip_solver(
+        device_id="t-r13f",
+        cities=["上海"],
+        days=1,
+        start_date="2026-11-25",
+        musts=[],
+        store=_store(),
+        preferences="必去豫园",
+    )
+    assert outcome is not None and outcome.engine == "cpsat"
+    assert session is not None and session.plan is not None
+    names = [it.name for day in session.plan.days for it in day.items]
+    assert any("豫园" in (n or "") for n in names) or any(
+        "豫园" in str(u.get("name")) for u in session.plan.unplaced
+    )
+
+
 def test_generator_passes_lang_to_session(monkeypatch):
     """二期：语言随缝透传（EN 用户不再被默认成 zh）。"""
     monkeypatch.setenv("TRIP_SOLVER", "cpsat")
