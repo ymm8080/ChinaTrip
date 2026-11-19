@@ -465,7 +465,13 @@ def generate_session_via_trip_solver(
     try:
         from app.services.access_service_store import AccessServiceStore
 
-        services = AccessServiceStore(None).access_services(list(cities))
+        # R13e：真会话工厂（store._factory，同 plan.py 显式注入口径）——
+        # 此前传 None：access_services 里 self._factory() 直接 TypeError
+        # 被吞成 0 行，live 引擎接驳档案恒空（C-08 空转、去程卡不渲染的
+        # 最后一洞；键名/班次形态修复 R13c/c2 之上）。
+        services = AccessServiceStore(getattr(store, "_factory", None)).access_services(
+            list(cities)
+        )
         service_rows = list(services or [])
     except Exception:
         service_rows = []
@@ -723,7 +729,9 @@ def _session_snapshot(session, store, extra_musts=None):
     try:
         from app.services.access_service_store import AccessServiceStore
 
-        services = AccessServiceStore(None).access_services(list(session.cities or []))
+        services = AccessServiceStore(getattr(store, "_factory", None)).access_services(
+            list(session.cities or [])
+        )
         service_rows = list(services or [])
     except Exception:
         service_rows = []
