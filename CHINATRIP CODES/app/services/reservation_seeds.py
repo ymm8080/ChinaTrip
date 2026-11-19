@@ -49,6 +49,7 @@ official_channel_foreign 列（38 馆逐馆直核+129 行分类规则）；陕�
 
 import csv
 import logging
+import re
 from functools import lru_cache
 from pathlib import Path
 
@@ -347,6 +348,188 @@ FOREIGNER_TIP_EN = (
     "website instead; Potala Palace requires an organized tour with "
     "agency booking)"
 )
+
+
+# --- 匹配守卫（2026-11-19 抢票日历误报修复）----------------------------------
+#
+# 事故：短键「故宫」⊂「四季民福烤鸭店（故宫店）」——L1 抢票日历把餐厅名
+# 当放票任务渲染（「2026-11-18 20:00 开抢 · 四季民福烤鸭店」）、行程卡
+# reservation_hint 挂故宫口径、09 表兜底吸判词。守卫只作用于「包含」分支，
+# 精确名命中=正身不设防：
+#   ①剥括号注记——（故宫店）是分店名不是名字材料（api/pois 剥括号免疫层
+#     的样板口径）；
+#   ②城市守卫——种子/09 表行城市 vs 调用方城市，两侧明确且不符即拒
+#     （南京「明故宫」酒店不再吃北京故宫的票、徐州汉兵马俑不再吃西安
+#     兵马俑的票）；城市未知（空/未标注）不设防（老调用方/脏 city 行）；
+#   ③非游览设施词守卫——店名带 酒店/餐厅/咖啡 等词的不是预约制场馆
+#     （无括号的「北京雍和宫漫心酒店」类残余靠它杀）；
+#   ④长种子优先——陕历博秦汉馆（17:30）不再被主馆键（17:00）抢先。
+
+_PAREN_NOTE_RE = re.compile("[（(][^（）()]*[)）]")
+
+# 名字含这些词的不是场馆本体（RESERVATION_V0/09 表键均不含这些词，
+# 正身零误伤；键覆盖完备性由 tests/test_reservation_guards.py 锁住）
+_NON_SITE_TOKENS: tuple[str, ...] = (
+    "酒店",
+    "宾馆",
+    "民宿",
+    "公寓",
+    "客栈",
+    "旅馆",
+    "饭店",
+    "餐厅",
+    "咖啡",
+    "下午茶",
+    "小吃",
+    "茶社",
+    "茶楼",
+    "茶室",
+    "茶宿",
+    "大排档",
+    "酒楼",
+    "甜品",
+    "奶茶",
+    "面馆",
+    "汤泉",
+)
+
+# 种子 → 城市守卫白名单（含省级/县级形态；DB city 有 德阳/四川/未标注
+# 类杂值——只有「已知且明确不符」才拒；键覆盖完备性由测试锁死）
+SEED_CITY_GUARD: dict[str, tuple[str, ...]] = {
+    "故宫": ("北京",),
+    "故宫博物院": ("北京",),
+    "中国国家博物馆": ("北京",),
+    "天安门广场": ("北京",),
+    "毛主席纪念堂": ("北京",),
+    "国家自然博物馆": ("北京",),
+    "中国科学技术馆": ("北京",),
+    "八达岭长城": ("北京",),
+    "雍和宫": ("北京",),
+    "恭王府": ("北京",),
+    "陕西历史博物馆": ("西安",),
+    "陕西历史博物馆秦汉馆": ("西安", "咸阳"),
+    "秦始皇帝陵博物院": ("西安",),
+    "兵马俑": ("西安",),
+    "三星堆博物馆": ("德阳", "广汉", "四川"),
+    "湖南博物院": ("长沙", "湖南"),
+    "南京博物院": ("南京",),
+    "四川大熊猫繁育研究基地": ("成都", "四川"),
+    "成都大熊猫繁育研究基地": ("成都", "四川"),
+    "敦煌莫高窟": ("敦煌", "酒泉", "甘肃"),
+    "布达拉宫": ("拉萨", "西藏"),
+    "上海天文馆": ("上海",),
+    "上海博物馆": ("上海",),
+    "中共一大纪念馆": ("上海",),
+    "苏州博物馆": ("苏州",),
+    "拙政园": ("苏州",),
+    "湖北省博物馆": ("武汉", "湖北"),
+    "河南博物院": ("郑州", "河南"),
+    "甘肃省博物馆": ("兰州", "甘肃"),
+    "梵净山": ("铜仁", "贵州"),
+    "灵隐飞来峰": ("杭州",),
+    "大梅沙海滨公园": ("深圳",),
+    "黄山风景区": ("黄山",),
+    "殷墟": ("安阳", "河南"),
+    "中山陵": ("南京",),
+    "侵华日军南京大屠杀遇难同胞纪念馆": ("南京",),
+    "澄江化石地": ("玉溪", "澄江", "云南"),
+    "景德镇中国陶瓷博物馆": ("景德镇", "江西"),
+}
+
+_SEEDS_BY_LEN: tuple[str, ...] = tuple(sorted(RESERVATION_V0, key=len, reverse=True))
+_UNKNOWN_CITY = frozenset(("", "未标注", "?", "unknown", "none"))
+
+
+def _city_token(c: str | None) -> str:
+    c = (c or "").strip()
+    return c[:-1] if c.endswith("市") else c
+
+
+def _city_known(c: str | None) -> bool:
+    return _city_token(c) not in _UNKNOWN_CITY
+
+
+def _seed_city_ok(seed_name: str, city: str | None) -> bool:
+    if not _city_known(city):
+        return True  # 城市未知（老调用方/未标注行）不设防
+    tokens = SEED_CITY_GUARD.get(seed_name)
+    if not tokens:
+        return True  # 未映射的新种子不设防（完备性由测试锁住）
+    c = _city_token(city)
+    return any(c == _city_token(t) for t in tokens)
+
+
+def _pair_city_ok(row: dict, city: str | None) -> bool:
+    """09 表行（city/province 列）vs 调用方城市：两侧明确且无包含关系即拒。
+
+    行城市可能是市/省级或复合形态（酒泉（敦煌）），双向包含放行；
+    行城市全空/未标注 = 无法设防，放行。
+    """
+    if not _city_known(city):
+        return True
+    c = _city_token(city)
+    known = False
+    for key in ("city", "province"):
+        t = _city_token(str(row.get(key) or ""))
+        if not t or t in _UNKNOWN_CITY:
+            continue
+        known = True
+        if c == t or (len(c) >= 2 and len(t) >= 2 and (c in t or t in c)):
+            return True
+    return not known
+
+
+def bare_site_name(name: str) -> str:
+    """剥括号注记（（故宫店）是分店名不是名字材料）+ 去空白。"""
+    return re.sub(r"\s+", "", _PAREN_NOTE_RE.sub("", name or ""))
+
+
+def _non_site_name(bare: str) -> bool:
+    return any(tok in bare for tok in _NON_SITE_TOKENS)
+
+
+def match_seed(name: str, city: str | None = None) -> tuple[str, dict] | None:
+    """预约名单 v0 守卫匹配（2026-11-19）：精确名直过（正身不设防）；
+    包含分支=剥括号注记 + 城市守卫 + 非游览设施词守卫，长种子优先。
+    命中返回 (种子名, meta)，否则 None。
+    """
+    n = (name or "").strip()
+    if not n:
+        return None
+    meta = RESERVATION_V0.get(n)
+    if meta:
+        return (n, meta)
+    bare = bare_site_name(n)
+    if not bare or _non_site_name(bare):
+        return None
+    for seed_name in _SEEDS_BY_LEN:
+        if seed_name in bare and _seed_city_ok(seed_name, city):
+            return (seed_name, RESERVATION_V0[seed_name])
+    return None
+
+
+def match_reservation_csv_row(name: str, city: str | None = None) -> dict | None:
+    """09 号表守卫匹配（2026-11-19）：精确名直取；包含分支=剥括号注记 +
+    行城市守卫 + 非游览设施词守卫，长键优先、不做 _same_site 尾剥容错
+    （「西湖店」分支/瘦西湖类邻名/跨城同名街镇不再吸判词）。"""
+    n = (name or "").strip()
+    if not n:
+        return None
+    idx = reservation_pois_index()
+    if not idx:
+        return None
+    hit = idx.get(n)
+    if hit:
+        return hit
+    bare = bare_site_name(n)
+    if not bare or _non_site_name(bare):
+        return None
+    for key in sorted(idx, key=len, reverse=True):
+        if len(key) < 2 or key not in bare:
+            continue
+        if _pair_city_ok(idx[key], city):
+            return idx[key]
+    return None
 
 
 def reservation_meta_for(name: str) -> dict | None:

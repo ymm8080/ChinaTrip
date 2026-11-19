@@ -33,8 +33,7 @@ from app.services.poi_tag_selector import GROUPS_BY_FAMILY
 from app.services.reservation_seeds import (
     FOREIGNER_TIP,
     FOREIGNER_TIP_EN,
-    RESERVATION_V0,
-    reservation_meta_for,
+    match_seed,
 )
 
 logger = logging.getLogger(__name__)
@@ -165,21 +164,13 @@ def _norm_name(name: str) -> str:
     return re.sub(r"\s+", "", re.sub(r"[（(][^（）()]*[)）]", "", name))
 
 
-def _seed_meta_for(name: str) -> dict | None:
-    """RESERVATION_V0 名单命中：精确名优先，_same_site 同款互含容错
-    （「故宫博物院」⊂ 名单键「故宫」）。与 plan._reservation_hint 的兜底
-    语义一致——去动词前缀那一半只服务愿望短语，库内 canonical 名用不到。"""
-    meta = reservation_meta_for(name)
-    if meta:
-        return meta
-    n = _norm_name(name or "")
-    if len(n) < 2:
-        return None
-    for seed_name, m in RESERVATION_V0.items():
-        s = _norm_name(seed_name)
-        if (s in n or n in s) and min(len(s), len(n)) >= 2:
-            return m
-    return None
+def _seed_meta_for(name: str, city: str | None = None) -> dict | None:
+    """RESERVATION_V0 名单命中（2026-11-19 守卫版）：精确名直过；包含
+    分支与 reservation_seeds.match_seed 同守卫（剥括号注记 + 城市守卫 +
+    酒店/餐厅词守卫、长种子优先）——「（故宫店）」分支、跨城同名与
+    无括号酒店名不再吸入。"""
+    hit = match_seed(name, city)
+    return hit[1] if hit else None
 
 
 def _booking_fields(row: Poi) -> dict:
@@ -188,7 +179,10 @@ def _booking_fields(row: Poi) -> dict:
     恒由名单补，库列缺天数而名单命中同馆时天数照补（同一官方口径）；
     名单口径 "00:00"=未注明 → 出参 None。foreigner_tip 预约成立即挂
     （外籍小程序常败是 G1 第一痛）。"""
-    seed = _seed_meta_for(row.name_zh) or {}
+    if (row.category or "").strip().lower() in ("food", "hotel", "transport"):
+        seed = {}  # 餐/住/接驳行不是预约制场馆（2026-11-19 误报修复）
+    else:
+        seed = _seed_meta_for(row.name_zh, row.city) or {}
     db_first = bool(row.reservation_required or row.reservation_advance_days)
     rel = seed.get("release")
     required = bool(row.reservation_required or row.reservation_advance_days or seed)

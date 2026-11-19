@@ -2335,7 +2335,8 @@ function planCard(plan) {
   // L1 行前放票日历（booking-auto/tasks）：预约制馆开抢日提醒
   const rsvVisits = [];
   (plan.days || []).forEach(d => (d.items || []).forEach(it => {
-    if (!it.from_city) rsvVisits.push({ name: it.name, city: it.city, day: d.day });
+    // 2026-11-19 抢票日历误报修复：餐/住/接驳卡不是预约制场馆，不再上报
+    if (!it.from_city && !["food", "hotel", "transport"].includes(it.category)) rsvVisits.push({ name: it.name, city: it.city, day: d.day, category: it.category });
   }));
   if (rsvVisits.length && plan.start_date) {
     api("/api/v1/booking-auto/tasks", { visits: rsvVisits.slice(0, 60), start_date: plan.start_date })

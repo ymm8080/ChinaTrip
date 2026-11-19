@@ -38,11 +38,12 @@ def test_reservation_hint_library_column_en():
 
 def test_reservation_hint_seed_fallback_en_uses_note_en_and_tip_en():
     set_lang("en")
-    # "故宫" is the first seed whose key is a substring of the full site name
+    # 2026-11-19 守卫版：精确名优先——「故宫博物院」命中自己的键（旧字典
+    # 序曾先吃短键「故宫」的 note_en），note_en 与 FOREIGNER_TIP_EN 双用上。
     hint = _reservation_hint("故宫博物院", {})
     assert hint is not None
     assert hint.startswith("Book 7 days ahead (")
-    assert "passports accepted for booking" in hint
+    assert "Same as the Palace Museum" in hint  # 故宫博物院 seed 的 note_en
     assert "standard workaround" in hint  # FOREIGNER_TIP_EN
     assert "微信小程序" not in hint
 
