@@ -977,3 +977,61 @@ def test_pool_food_lands_on_meal_card_not_visit(monkeypatch):
     assert len(duck_cards) == 1, "no second (visit-shaped) duck card"
     placeholders = [i for i in items if (i.name or "") in ("午餐", "晚饭")]
     assert placeholders, "the other slot keeps its placeholder card"
+
+
+# ---------- R12-M2: barriers 平手排序雷（双卡同时刻不崩） ----------
+
+
+def test_compact_days_barrier_tie_does_not_crash():
+    """R12-M2 排序雷回归锁：compact_days 的 barriers=sorted([(start, end,
+    card)]) 元组第三位是 VisitItem——两张 barrier 卡同时刻（双渲染/重复
+    卡形态）时 Python 平手比较卡对象直接 TypeError。key 只比前两位。"""
+    from datetime import time as _time
+
+    from app.services.itinerary.models import DayPlan, ItineraryPlan, VisitItem
+    from app.services.trip_solver.assembly.materialize import compact_days
+    from app.services.trip_solver.types import FactSnapshot, TripRequest
+
+    meal = VisitItem(
+        item_id="meal-lunch-1",
+        name="午餐",
+        category="food",
+        city="北京",
+        day=1,
+        start_time=_time(12, 0),
+        end_time=_time(13, 0),
+        duration_minutes=60,
+    )
+    pin = VisitItem(
+        item_id="v-pin",
+        name="天坛",
+        category="temple",
+        city="北京",
+        day=1,
+        start_time=_time(12, 0),
+        end_time=_time(13, 0),
+        duration_minutes=60,
+        pinned=True,
+    )
+    movable = VisitItem(
+        item_id="v-m",
+        name="景山公园",
+        category="park",
+        city="北京",
+        day=1,
+        start_time=_time(14, 0),
+        end_time=_time(15, 30),
+        duration_minutes=90,
+    )
+    plan = ItineraryPlan(
+        itinerary_id="it-tie",
+        cities=["北京"],
+        days=[DayPlan(day=1, base_city="北京", items=[meal, pin, movable])],
+    )
+    snapshot = FactSnapshot(
+        schema_version=2,
+        request=TripRequest(days=1, cities=("北京",)),
+        candidates=(),
+    )
+    out = compact_days(plan, snapshot)  # 旧版此处直接 TypeError
+    assert out is not None

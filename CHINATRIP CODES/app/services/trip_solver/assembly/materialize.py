@@ -133,8 +133,12 @@ def compact_days(plan, snapshot):
         ]
         if not movable:
             continue
+        # R12-M2 排序雷修复（2026-11-19）：元组第三位是 VisitItem——平手
+        # 时 Python 比较卡对象直接 TypeError（双卡同时刻即崩，R12 中间态
+        # 双渲染实测触发过）。key 只比前两位，平手保原序（sorted 稳定）。
         barriers = sorted(
-            [(_m(f), _m(f) + int(f.duration_minutes or 60), f) for f in fixed]
+            [(_m(f), _m(f) + int(f.duration_minutes or 60), f) for f in fixed],
+            key=lambda b: (b[0], b[1]),
         )
 
         def _earliest(card, after_min, prev_card):
