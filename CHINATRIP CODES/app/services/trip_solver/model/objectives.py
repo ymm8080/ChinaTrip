@@ -89,7 +89,7 @@ def _preference(
     _pref_text = (getattr(snapshot.request, "preferences", "") or "").strip()
     if _pref_text:
         try:
-            from app.services.agent.plan import _preference_tokens as _ptoks
+            from app.services.trip_orchestrator.nlu import _preference_tokens as _ptoks
 
             pref_tokens, pref_show = _ptoks(_pref_text)
         except Exception:
@@ -103,7 +103,7 @@ def _preference(
         pref_bonus = 0
         if pref_tokens:
             try:
-                from app.services.agent.plan import (
+                from app.services.trip_orchestrator.nlu import (
                     _pref_category_hit as _phit,
                 )
 

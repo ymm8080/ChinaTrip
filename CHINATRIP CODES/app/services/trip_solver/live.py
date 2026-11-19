@@ -239,7 +239,7 @@ def snapshot_from_request(
     pref_show = False
     if (preferences or "").strip():
         try:
-            from app.services.agent.plan import (
+            from app.services.trip_orchestrator.nlu import (
                 _preference_tokens as _ptoks,
             )
 
@@ -281,7 +281,7 @@ def snapshot_from_request(
         )
         if pref_tokens and rows:
             try:
-                from app.services.agent.plan import (
+                from app.services.trip_orchestrator.nlu import (
                     _pref_category_hit as _phit,
                 )
 

@@ -129,6 +129,10 @@ from app.services.state_persist import (
 from app.services.task_queue import TaskStore, get_task_store
 from app.services.trains import get_train_service
 from app.services.translate import TranslationService
+from app.services.trip_orchestrator.nlu import (
+    _restart_named_musts,
+    _restart_route_only,
+)
 from app.services.weather import daily_weather_text
 from app.services.web_reader import find_urls
 
@@ -1373,102 +1377,6 @@ def _audit_must_coverage(session: PlanSession) -> None:
     # 假设块折叠着用户不看，「必去未排上」必须一眼可见（想去 chip 只是
     # 次要面，无宿主卡时连 chip 都没有）。每次过闸重算，编辑后自愈。
     session.plan.unarranged_musts = unarranged_must_visits(session.plan, must_names)
-
-
-def _restart_route_only(text: str, cities: list) -> bool:
-    """换局句是否纯路线声明（二期消息轮换引擎守卫，2026-11-18）。
-
-    剥掉城市名、天数（数字/汉字数词）、常见路线词与标点后无残渣 →
-    引擎可承接；有残渣（可能点名地点，如「必去西湖」）→ legacy 确认
-    轮管线（读点→点选→排期，F-03 缝不吞点）。保守方向：拿不准留给
-    legacy（_brief_is_route_declaration 是短句读点护栏，口径过窄，
-    不适配换局句）。"""
-    import re as _re
-
-    probe = _re.sub(r"\s+", "", text or "")
-    if not probe:
-        return True
-    for city in cities or []:
-        base = _re.sub(r"\s+", "", city or "").removesuffix("市")
-        if base:
-            probe = probe.replace(base + "市", "").replace(base, "")
-    probe = _re.sub(r"[0-9０-９一二两三四五六七八九十半]+", "", probe)
-    probe = _re.sub(
-        r"[天日早晚去玩行程安排规划新重开改成换到出发回从，。！？、,.!?;:：\'\"]+",
-        "",
-        probe,
-    )
-    return not probe
-
-
-def _restart_named_musts(text: str, store=None, cities=None) -> list[str]:
-    """换局句里的点名地点短语（二期 2026-11-18 拍板「点名长句也换引擎」）。
-
-    只认强意图点名词（必去/要去/必须去/一定要去/务必去/打卡）后到句读
-    为止的短语，按「和/与/跟/及/还有/以及/、」拆开；「想去」是心愿软
-    语义（R8 偏好/心愿链），引擎 musts=硬覆盖，语义不对等——留 legacy。
-    短语不做底库校验：绑定交给快照绑定链（精确名→文本匹配→骨架兜底，
-    缝不吞点、B-01）；底库没有的点（如楼外楼）由骨架候选诚实承载，
-    或文本匹配合并到短语内最近已知点。负向语境（不必去/别必去）不读；
-    琐碎短语（「然后回酒店休息」类）按黑名单丢弃。空返回=没有可承接
-    点名 → 调用方落回 legacy 管线。
-    """
-    import re as _re
-
-    def _known(name: str) -> bool:
-        # R8-S4：整名精确命中底库（如「福和慧」含「和」）——整名
-        # 直进 musts，绝不按连接词裂开（裂词案：福和慧→福+慧
-        # 两张骨架卡）。库外名称仍走裂词（现状）。
-        if store is None or not name:
-            return False
-        try:
-            for c in cities or []:
-                if store.candidate_by_name(c, name):
-                    return True
-        except Exception:
-            return False
-        return False
-
-    marker_re = _re.compile(r"一定要去|必须去|务必去|必到|必去|要去|打卡")
-    junk_re = _re.compile(
-        r"然后|接着|之后|另外|要少|别太|太多|较少|安排|规划|节奏|时间"
-    )
-    probe = text or ""
-    out: list[str] = []
-    seen: set[str] = set()
-    for m in marker_re.finditer(probe):
-        # 负向语境：「不必去/别必去/无必去」不是点名
-        if probe[max(0, m.start() - 1) : m.start()] in ("不", "别", "无"):
-            continue
-        # 短语 = 标记后到句读为止（：和 、不算句读——「必去：A、B」是名单）
-        seg = probe[m.end() : m.end() + 48]
-        cut = len(seg)
-        for i, ch in enumerate(seg):
-            if ch in "。！？；;，,.!?" or ch.isspace():
-                cut = i
-                break
-        whole = seg[:cut].strip(" ：:、，,；;。.！!？?\"'「」【】（）()·\t")
-        if _known(whole):
-            if len(whole) <= 16 and not junk_re.search(whole):
-                if whole not in seen:
-                    seen.add(whole)
-                    out.append(whole)
-                    if len(out) >= 8:  # 同 agent.MAX_BRIEF_SITES 口径
-                        return out
-            continue
-        for part in _re.split(r"还有|以及|[和与跟及、]", seg[:cut]):
-            p = part.strip(" ：:、，,；;。.！!？?\"'「」【】（）()·\t")
-            if len(p) < 2 or p in seen:
-                # R8-S4：单字碎片不是地名（福/慧案）——丢弃，宁空
-                # 返 legacy 读点确认轮，不出垃圾卡
-                continue
-            if len(p) > 16 or junk_re.search(p):
-                continue
-            seen.add(p)
-            out.append(p)
-            if len(out) >= 8:  # 同 agent.MAX_BRIEF_SITES 口径
-                return out
-    return out
 
 
 def _plan_turn_body(session, reply: str, change, *, alternatives: bool = True) -> dict:

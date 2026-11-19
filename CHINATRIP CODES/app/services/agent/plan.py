@@ -177,6 +177,18 @@ from app.services.trip_items import (
     _wish_key,
     strip_scheduled_note,
 )
+from app.services.trip_orchestrator.nlu import (
+    _SITE_NAME_JUNK,
+    _SITE_TAILS,
+    _STREET_DISTRICT_RE,
+    _bare_preference_statement,
+    _cand_is_show,
+    _norm_pref_text,
+    _norm_site_name,
+    _parse_text_day_start,
+    _pref_category_hit,
+    _preference_tokens,
+)
 from app.services.video_reader import build_video_reader
 from app.services.web_reader import (
     HttpLinkReader,
@@ -425,9 +437,6 @@ _UNCAPPED_CATEGORIES = ("", "attraction", "sight", "food", "entertainment")
 # （11-08 二拍「最多二个」——主题街区/街道类体验可两档共存）。
 _ITIN_BUCKET_CAPS = {"museum": 1, "scenic": 2, "citywalk": 2}
 _SCENIC_NAME_RE = re.compile("山|峡|谷|江|河|湖|瀑|洞|森林|草原|湿地|地质|喀斯特|风景")
-# 街区型体验的名字语素（2026-11-08 主题街区案）：库品类不可靠
-# （show 源主题街区行=entertainment），名字兜底认街区身份。
-_STREET_DISTRICT_RE = re.compile("主题街区|街区|步行街")
 
 
 def _itin_cap_bucket(cand: dict) -> str | None:
@@ -497,26 +506,6 @@ def _has_usable_time_info(hours: str | None) -> bool:
             r"\d{1,2}[:：]\d{2}\s*[-–~—至]\s*\d{1,2}[:：]\d{2}",
             text,
         )
-    )
-
-
-def _cand_is_show(cand: dict) -> bool:
-    """演出候选判定（2026-10-29 功能标签批打后认 tags）：04 演艺源 /
-    娱乐类 / 宜演出时段之外，标签 show 同样算——amap 源的川剧院等
-    （label_pois 名称内核补判）按同一场晚间档参与提案。街区型体验豁免
-    （2026-11-08 主题街区案拍板「是 CITYWALK 直接插入」）：名字
-    带主题街区/街区/步行街且品类 citywalk 的行走体验不是演出——show
-    源血缘/best_visit_time 旧键不再把它推晚间档与演出闸。"""
-    if str(cand.get("category") or "") == "citywalk" and _STREET_DISTRICT_RE.search(
-        str(cand.get("name") or "")
-    ):
-        return False
-    tags = {str(t).strip().lower() for t in (cand.get("tags") or [])}
-    return (
-        cand.get("category") == "entertainment"
-        or cand.get("best_visit_time") == "show"
-        or str(cand.get("source") or "").strip().lower() == "show"
-        or "show" in tags
     )
 
 
@@ -3193,45 +3182,6 @@ def _count_text_dates(text: str) -> int:
     return count
 
 
-_TEXT_DAY_START_RE = re.compile(
-    r"(?:leav\w*|depart(?:ing)?|check\s*-?\s*out|start(?:ing)?)"
-    r"[^0-9\n]{0,24}?(\d{1,2})(?::(\d{2}))?\s*(am|pm)?(?!\d)"
-    r"|(\d{1,2})(?::(\d{2}))?\s*(am|pm)?[^0-9\n。；;]{0,8}"
-    r"(?:出发|离店|退房|离开酒店)",
-    re.IGNORECASE,
-)
-
-
-def _parse_text_day_start(text: str) -> str | None:
-    """文字里「第一天几点出发」（2026-11-17「LEAVE HOTEL ON 11AM, PLS
-    ARRANGE」案）：leave/depart/出发/退房 + 时刻 → 「HH:MM」。只作 day-1
-    起排锚，不建交通腿（行前卡的 arrival_time 是班次语义，别混）。读不
-    出或时刻不在 05:00-20:00 → None。"""
-    # R9-1：取第一个「有效」匹配而非第一个原始匹配——「11月25日出发」
-    # 会先命中中文分支（hour=25 越界），旧版 single-search 直接 None，把
-    # 句尾真正的 LEAVE HOTEL ON 11AM 遮掉（live 实锤）。finditer 跳过越
-    # 界假命中，口径不变（窗 05:00-20:00 内的首个时刻）。
-    for m in _TEXT_DAY_START_RE.finditer(str(text or "")):
-        if m.group(1):
-            hour, minute, ap = int(m.group(1)), m.group(2), m.group(3)
-        else:
-            hour, minute, ap = int(m.group(4)), m.group(5), m.group(6)
-        if minute is None:
-            minute = "00"
-        if ap:
-            if ap.lower() == "pm" and 1 <= hour <= 11:
-                hour += 12
-            elif ap.lower() == "am" and hour == 12:
-                hour = 0
-        if not (5 <= hour <= 20):
-            continue
-        try:
-            return time(hour, int(minute)).strftime("%H:%M")
-        except ValueError:
-            continue
-    return None
-
-
 def _resolve_brief_cities(brief_cities: list[str], form_cities: list[str]) -> list[str]:
     """简报城市 → 最终路线（2026-11-13/14 口径的纯函数版）：与表单不同时以
     简报为准；简报只报一个目的地时出发城沿用表单（「成都 3 天」→ 北京→成都）。
@@ -3268,12 +3218,6 @@ def _is_new_trip_request(text: str) -> bool:
     if _RESTART_TRIP_RE.search(text):
         return True
     return bool(_GO_PLAY_RE.search(text) and days and days >= 2)
-
-
-_SITE_NAME_JUNK = r"[\s（）()\[\]【】「」·、，,。.\-—_'\"”]"
-
-# venue-type tails that add nothing to identity (「石窟样本景区」==「石窟样本」)
-_SITE_TAILS = ("旅游风景区", "风景名胜区", "旅游景区", "风景区", "景区", "旅游区")
 
 
 _NEGATION_CUES: tuple[str, ...] = (
@@ -3361,18 +3305,6 @@ def _brief_standin(name: str) -> str | None:
         if any(key in probe or probe in key for key in keys):
             return standin
     return None
-
-
-def _norm_site_name(name: str) -> str:
-    s = re.sub(_SITE_NAME_JUNK, "", name or "")
-    stripped = True
-    while stripped:
-        stripped = False
-        for tail in _SITE_TAILS:
-            if s.endswith(tail) and len(s) - len(tail) >= 2:
-                s = s[: -len(tail)]
-                stripped = True
-    return s
 
 
 def _brief_day_value(raw) -> int | None:
@@ -4991,13 +4923,6 @@ def _category_search_keyword(name: str) -> str | None:
 #   同偏好组内仍按 tier 保库序——多个同类景点自然入选）。
 
 
-def _norm_pref_text(text: str) -> str:
-    """偏好文本规整：剥「偏好：」前缀与首尾标点，转小写（en 词形对齐）。"""
-    s = (text or "").strip()
-    s = re.sub(r"^(偏好|preference)[:：\s]*", "", s, flags=re.IGNORECASE)
-    return s.strip(" \t，。,.、!！?？;；~～-").lower()
-
-
 # 问答题面的风格选项词与「无特别要求」类元话语：整串没有任何具体地点/
 # 活动要求——既不是心愿（建行会变无坐标占位卡），也映射不出品类动作。
 PREFERENCE_STYLE_OPTIONS: tuple[str, ...] = (
@@ -5172,173 +5097,6 @@ def _wish_grounded_in_user_text(wish: str, user_texts: list[str]) -> bool:
     if not units:
         return False
     return units <= _significant_units(corpus)
-
-
-# 偏好→品类映射（拍板③）：(偏好触发词, 库内 category 值, 名字兜底 token)。
-# category 为主（库内已分类 museum/nature/park/…），名字 token 只兜底
-# 跨源未分类行——宁缺勿滥，防单字误配（「海」误吃城市名博物馆这类）。
-PREFERENCE_CATEGORY_SPECS: tuple[
-    tuple[tuple[str, ...], tuple[str, ...], tuple[str, ...]], ...
-] = (
-    (
-        ("博物馆人文", "博物馆", "人文", "历史", "museum", "history"),
-        ("museum", "historic", "temple", "art"),
-        (
-            "博物馆",
-            "纪念馆",
-            "美术馆",
-            "艺术馆",
-            "科技馆",
-            "展览馆",
-            "故居",
-            "遗址",
-            "文庙",
-            "书院",
-            "教堂",
-        ),
-    ),
-    (
-        ("自然风光", "自然", "山水", "风景", "nature", "scenic", "户外"),
-        ("nature", "park", "viewpoint"),
-        (
-            "风景名胜",
-            "森林公园",
-            "湿地公园",
-            "地质公园",
-            "国家公园",
-            "草原",
-            "瀑布",
-            "峡谷",
-            "雪山",
-            "竹海",
-            "花海",
-        ),
-    ),
-    (
-        ("美食街区", "美食", "小吃", "吃货", "夜市", "food"),
-        ("citywalk",),
-        ("夜市", "美食", "小吃", "步行街", "美食街", "食品街"),
-    ),
-    (
-        ("亲子休闲", "亲子", "孩子", "小孩", "带娃", "family", "kids"),
-        ("theme_park", "zoo"),
-        (
-            "动物园",
-            "海洋馆",
-            "海底世界",
-            "水族馆",
-            "乐园",
-            "欢乐谷",
-            "迪士尼",
-            "熊猫",
-            "植物园",
-            "科技馆",
-        ),
-    ),
-    (
-        ("古镇", "古城", "水乡"),
-        ("ancient_town",),
-        ("古镇", "古城", "水乡", "古街"),
-    ),
-    (
-        ("喝茶", "泡茶", "品茶", "茶馆", "咖啡", "奶茶", "tea", "coffee"),
-        # 茶体验档（2026-11-07 拍板：茶体验正主归此档）：类别精确
-        # 通道；token 带下划线不会子串误伤英文名（裸 "tea"⊂"steak/steam"）
-        ("tea_experience",),
-        ("茶馆", "茶楼", "咖啡", "奶茶"),
-    ),
-    # 娱乐/夜生活组（2026-11-05 SHOW/ENTERTAINMENT 事故）：偏好只作
-    # 选点排序信号；库内 entertainment 行=演出池同源。
-    (
-        ("娱乐", "entertainment", "夜生活", "nightlife"),
-        ("entertainment",),
-        ("娱乐", "演艺", "夜生活"),
-    ),
-)
-
-
-def _preference_tokens(text: str) -> tuple[tuple[str, ...], bool]:
-    """偏好文本 → (品类命中 token 并集, 是否演出偏好)。多品类并存
-    （「喜欢博物馆和美食」→ 博物馆类+美食类同时优先）。"""
-    low = _norm_pref_text(text)
-    if not low:
-        return (), False
-    toks: list[str] = []
-    for triggers, cats, name_toks in PREFERENCE_CATEGORY_SPECS:
-        if any(t in low for t in triggers):
-            toks.extend(cats)
-            toks.extend(name_toks)
-    show_pref = any(
-        t in low for t in ("看演出", "演出", "看秀", "show", "娱乐", "entertainment")
-    )
-    if show_pref:
-        toks.extend(("演出", "剧场", "剧院", "戏院", "相声"))
-    return tuple(dict.fromkeys(toks)), show_pref
-
-
-def _pref_category_hit(
-    cand: dict, tokens: tuple[str, ...], show_pref: bool = False
-) -> bool:
-    """候选是否偏好同类（拍板③）：category 精确命中 / 名字或 tags 包含
-    token / 演出偏好走 _cand_is_show 结构判定。"""
-    if show_pref and _cand_is_show(cand):
-        return True
-    if not tokens:
-        return False
-    name = _norm_site_name(str(cand.get("name") or "")).lower()
-    category = str(cand.get("category") or "").strip().lower()
-    tags = " ".join(str(t) for t in (cand.get("tags") or [])).lower()
-    return any(t in name or t == category or t in tags for t in tokens)
-
-
-# R8b（2026-11-18 用户拍板「裸偏好也触发全量引擎重排」）：点名/心愿/
-# 结构变更标记词——命中即不算纯偏好语句，照旧走原道（单点心愿已被
-# try_fast_wish 上游拦截，这里再兜一层语义分界）。
-_PREFERENCE_INTENT_MARKERS: tuple[str, ...] = (
-    "必去",
-    "要去",
-    "想去",
-    "必须",
-    "务必",
-    "打卡",
-    "加上",
-    "加个",
-    "加一个",
-    "添",
-    "去掉",
-    "删除",
-    "取消",
-    "改成",
-    "换",
-    "重新规划",
-    "重新安排",
-    # R8b-CI 收口（2026-11-19）：心愿/编辑动词补齐——「我想看/想喝/想逛/
-    # 想吃/想玩」是活动类心愿语句（愿 lane 原道，如 想喝茶/想逛夜市/
-    # 我想看点博物馆人文）；「插入」是编辑动词（quota-dead 等编辑披露
-    # 必须照旧：插入陕西历史博物馆）；英文 want 同口径（I want to
-    # watch…）。注意「想看」刻意不在列——想看演出是裸偏好（重排）。
-    "我想",
-    "想喝",
-    "想逛",
-    "想吃",
-    "想玩",
-    "插入",
-    "want",
-)
-
-
-def _bare_preference_statement(text: str) -> bool:
-    """纯品类偏好语句判定（R8b）：偏好 token 命中且无任何点名/心愿/
-    结构变更标记——整句就是品类/风格倾向（「我喜欢博物馆」「多排几家
-    博物馆」）。点名/心愿/改结构语句各走原道；风格词（慢慢逛/暴走）
-    不在品类名录，天然不触发。"""
-    s = (text or "").strip()
-    if not s:
-        return False
-    if any(m in s for m in _PREFERENCE_INTENT_MARKERS):
-        return False
-    toks, show = _preference_tokens(s)
-    return bool(toks or show)
 
 
 def _same_category_full(
