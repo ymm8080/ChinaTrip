@@ -115,19 +115,24 @@ def _same_cuisine_penalty(bundle, enriched) -> list:
                         if day == d2
                         else MEAL_SAME_CUISINE_TRIP_PENALTY
                     )
-                    for a_slot, b_slot in (("lunch", "dinner"), ("dinner", "lunch")):
-                        la = _binding_lit(bundle, c1, day, a_slot)
-                        lb = _binding_lit(bundle, c2, d2, b_slot)
-                        if la is None or lb is None:
-                            continue
-                        both = model.NewBoolVar(
-                            "sc_%s_%s_%d_%d" % (c1.cid, c2.cid, day, d2)
-                            + a_slot[0]
-                            + b_slot[0]
-                        )
-                        model.AddBoolAnd([la, lb]).OnlyEnforceIf(both)
-                        model.AddBoolOr([la.Not(), lb.Not()]).OnlyEnforceIf(both.Not())
-                        negative.append(weight * both)
+                    # 4 种槽组合全枚举：同日同槽天然不可行（同时刻重叠），
+                    # 跨日同槽（两天都吃烤鸭午餐）必须吃到罚项。
+                    for a_slot in ("lunch", "dinner"):
+                        for b_slot in ("lunch", "dinner"):
+                            la = _binding_lit(bundle, c1, day, a_slot)
+                            lb = _binding_lit(bundle, c2, d2, b_slot)
+                            if la is None or lb is None:
+                                continue
+                            both = model.NewBoolVar(
+                                "sc_%s_%s_%d_%d" % (c1.cid, c2.cid, day, d2)
+                                + a_slot[0]
+                                + b_slot[0]
+                            )
+                            model.AddBoolAnd([la, lb]).OnlyEnforceIf(both)
+                            model.AddBoolOr([la.Not(), lb.Not()]).OnlyEnforceIf(
+                                both.Not()
+                            )
+                            negative.append(weight * both)
     return negative
 
 
