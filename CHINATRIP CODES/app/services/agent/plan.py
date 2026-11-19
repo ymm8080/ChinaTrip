@@ -3182,26 +3182,29 @@ def _parse_text_day_start(text: str) -> str | None:
     ARRANGE」案）：leave/depart/出发/退房 + 时刻 → 「HH:MM」。只作 day-1
     起排锚，不建交通腿（行前卡的 arrival_time 是班次语义，别混）。读不
     出或时刻不在 05:00-20:00 → None。"""
-    m = _TEXT_DAY_START_RE.search(str(text or ""))
-    if m is None:
-        return None
-    if m.group(1):
-        hour, minute, ap = int(m.group(1)), m.group(2), m.group(3)
-    else:
-        hour, minute, ap = int(m.group(4)), m.group(5), m.group(6)
-    if minute is None:
-        minute = "00"
-    if ap:
-        if ap.lower() == "pm" and 1 <= hour <= 11:
-            hour += 12
-        elif ap.lower() == "am" and hour == 12:
-            hour = 0
-    if not (5 <= hour <= 20):
-        return None
-    try:
-        return time(hour, int(minute)).strftime("%H:%M")
-    except ValueError:
-        return None
+    # R9-1：取第一个「有效」匹配而非第一个原始匹配——「11月25日出发」
+    # 会先命中中文分支（hour=25 越界），旧版 single-search 直接 None，把
+    # 句尾真正的 LEAVE HOTEL ON 11AM 遮掉（live 实锤）。finditer 跳过越
+    # 界假命中，口径不变（窗 05:00-20:00 内的首个时刻）。
+    for m in _TEXT_DAY_START_RE.finditer(str(text or "")):
+        if m.group(1):
+            hour, minute, ap = int(m.group(1)), m.group(2), m.group(3)
+        else:
+            hour, minute, ap = int(m.group(4)), m.group(5), m.group(6)
+        if minute is None:
+            minute = "00"
+        if ap:
+            if ap.lower() == "pm" and 1 <= hour <= 11:
+                hour += 12
+            elif ap.lower() == "am" and hour == 12:
+                hour = 0
+        if not (5 <= hour <= 20):
+            continue
+        try:
+            return time(hour, int(minute)).strftime("%H:%M")
+        except ValueError:
+            continue
+    return None
 
 
 def _resolve_brief_cities(brief_cities: list[str], form_cities: list[str]) -> list[str]:
@@ -19549,6 +19552,15 @@ class PlanningAgent:
                 # Either the mandatory/optional question, or a single-site
                 # link that already rode the pipeline as a must-visit.
                 return session
+        # R9-1（2026-11-19 拍板「复杂开局也走 CP-SAT」）：表单齐全时
+        # _understand 不跑，但 brief 里的「LEAVE HOTEL ON 11AM」首日出
+        # 发语义只有原句里有——正则轻读（零 LLM），读出即
+        # comment_day_start（引擎 C-04 地板 + compact 地板同源消费）。
+        _brief_src = (session.brief_text or session.preferences or "").strip()
+        if _brief_src and not session.comment_day_start:
+            _hm = _parse_text_day_start(_brief_src)
+            if _hm:
+                session.comment_day_start = _hm
         # LLM/底库先读懂那句话（2026-11-17 用户拍板「LLM UNDERSTAND USER
         # COMMENTS FIRST」+「城市按点名景点反推」）：表单没给城市/天数时先
         # 从自由输入原句补齐——日期/天数/出发时刻/城市（点名景点的所在城，

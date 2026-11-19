@@ -176,6 +176,7 @@ def snapshot_from_request(
     service_rows: Optional[list[dict]] = None,
     preferences: str = "",
     city_days: Optional[dict] = None,
+    day1_start: Optional[str] = None,
     pool_limit: int = POOL_LIMIT_PER_CITY,
 ) -> FactSnapshot:
     """Build a schema-v2 FactSnapshot from request fields + live stores."""
@@ -345,6 +346,7 @@ def snapshot_from_request(
             city_days=tuple(
                 sorted((str(k), int(v)) for k, v in dict(city_days or {}).items())
             ),
+            day1_start=day1_start,
         ),
         candidates=tuple(candidates),
         access_profiles=tuple(profiles),
@@ -520,6 +522,10 @@ def replan_session_via_trip_solver(
             [
                 *(getattr(session, "must_visits", None) or []),
                 *_pinned_names(session),
+                # R9-1（2026-11-19 拍板「复杂开局也走 CP-SAT」）：自造点折
+                # 必去——库内由绑定链接住、库外骨架兜底（B-01 缝不吞点），
+                # legacy 的 CREATED 顶池打标语义由 tier① 覆盖优先级承载
+                *(getattr(session, "created_sites", None) or []),
             ]
         )
     )
@@ -546,6 +552,9 @@ def replan_session_via_trip_solver(
         preferences=(getattr(session, "preferences", "") or ""),
         city_days=dict(getattr(session, "city_days", None) or {}),
         service_rows=service_rows,
+        # R9-1：brief「LEAVE HOTEL ON 11AM」语义随缝入模（C-04 day1 地板
+        # 已实现）；legacy _apply_comment_day_start 只在它那边落位一次
+        day1_start=getattr(session, "comment_day_start", None),
     )
     # R8b 钉位保全（铁律 19 全保位）：用户钉住的卡按 C-04 FixedPin 钉死
     # 日+时刻（NEVER_RELAX——钉冲突只会 INFEASIBLE 回落 legacy 原生保钉，

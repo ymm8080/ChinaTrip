@@ -180,12 +180,11 @@ def seam_attempted() -> bool:
 
 
 def replan_seam_shape(session) -> bool:
-    """R8 重解形状闸：引擎可完整承载的会话形状才换道。
-
-    自造点（池=底库行）留 legacy；餐类必去已由 C-09 any-槽承载（R8-S2b
-    真餐厅顶餐卡）；分城天数由 C-17 承载（R8-S2）；天数/城市齐备才可解。"""
-    if getattr(session, "created_sites", None):
-        return False
+    """R9-1 重解形状闸（2026-11-19 拍板「复杂开局也走 CP-SAT」）：全形状
+    放行——自造点折 musts 由快照绑定链接住（库内→行、库外→骨架兜底，
+    B-01 缝不吞点）；餐类必去=C-09 any-槽（S2b）；分城天数=C-17（S2）。
+    唯余中途转移日（到达/离开≠端点日）留 R9-2 C-08 建模。天数/城市齐备
+    才可解（缺=追问轮）。"""
     if not getattr(session, "cities", None):
         return False
     if not (getattr(session, "days", 0) or 0) > 0:

@@ -304,10 +304,11 @@ def test_replan_seam_shape_guards():
     assert (
         replan_seam_shape(SimpleNamespace(**{**base, "city_days": {"杭州": 1}})) is True
     )
-    # 自造点 / 缺城市 / 缺天数 → legacy
+    # R9-1（2026-11-19 拍板「复杂开局也走 CP-SAT」）：自造点折 musts 由
+    # 快照绑定链骨架兜底（B-01 缝不吞点）→ 放行
     assert (
         replan_seam_shape(SimpleNamespace(**{**base, "created_sites": ["自造点"]}))
-        is False
+        is True
     )
     # R8-S2b：餐类必去已由 C-09 any-槽承载 → 换道
     assert (

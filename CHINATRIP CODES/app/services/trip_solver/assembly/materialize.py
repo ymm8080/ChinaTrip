@@ -83,6 +83,17 @@ def compact_days(plan, snapshot):
         item.end_time = _time(end // 60 % 24, end % 60)
 
     cand_by_poi = {c.poi_id: c for c in snapshot.candidates if c.poi_id}
+    # R9-1：day1_start 地板（C-04 同源解析）——压实起点不得早于用户
+    # 指定的首日出发时刻（brief「LEAVE HOTEL ON 11AM」），否则拉左会把
+    # 合规解压回 08:30/开窗早档
+    day1_floor = None
+    _d1 = getattr(getattr(snapshot, "request", None), "day1_start", None)
+    if _d1:
+        try:
+            _hh, _mm = str(_d1).split(":")
+            day1_floor = int(_hh) * 60 + int(_mm)
+        except ValueError:
+            day1_floor = None
     for day in plan.days:
         timed = [i for i in day.items if i.start_time is not None]
         fixed = [
@@ -121,6 +132,8 @@ def compact_days(plan, snapshot):
 
         prev = None
         prev_end = 8 * 60 + 30
+        if day.day == 1 and day1_floor:
+            prev_end = max(prev_end, day1_floor)
         for card in sorted(timed, key=_m):
             if card in movable:
                 gap = _taxi_gap(prev, card) if prev is not None else 0

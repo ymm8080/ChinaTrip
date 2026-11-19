@@ -539,3 +539,59 @@ def test_all_fill_multi_city_places_fills(monkeypatch):
     assert session is not None
     total = sum(len(d.items) for d in session.plan.days)
     assert total >= 6  # 空排=回归失败
+
+
+def test_replan_honors_comment_day_start_floor(monkeypatch):
+    """R9-1：brief「LEAVE HOTEL ON 11AM」语义随缝入模——C-04 day1
+    地板（重排后首观光 ≥ 指定时刻）。"""
+    from app.services.agent.plan import PlanSession
+    from app.services.trip_solver.live import replan_session_via_trip_solver
+
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    session = PlanSession(
+        session_id="sess-d1s",
+        device_id="dd",
+        cities=["上海"],
+        days=1,
+        start_date="2026-11-25",
+        musts=["外滩"],
+        preferences="",
+        comment_day_start="11:00",
+    )
+    outcome = replan_session_via_trip_solver(session, store=_store())
+    assert outcome is not None and outcome.engine == "cpsat"
+    starts = [
+        it.start_time
+        for d in session.plan.days
+        for it in d.items
+        if getattr(it, "start_time", None) is not None
+        and (it.category or "") not in ("food", "hotel")
+    ]
+    assert starts
+    assert all(st.hour >= 11 for st in starts)
+
+
+def test_replan_folds_created_sites_as_musts(monkeypatch):
+    """R9-1（拍板「复杂开局也走 CP-SAT」）：自造点折必去——库内绑定
+    排入（外滩在库）；库外骨架兜底不吞点。"""
+    from app.services.agent.plan import PlanSession
+    from app.services.trip_solver.live import replan_session_via_trip_solver
+
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    session = PlanSession(
+        session_id="sess-cs",
+        device_id="dc",
+        cities=["上海"],
+        days=1,
+        start_date="2026-11-25",
+        musts=[],
+        preferences="",
+        created_sites=["外滩", "用户自造点XYZ"],
+    )
+    outcome = replan_session_via_trip_solver(session, store=_store())
+    assert outcome is not None and outcome.engine == "cpsat"
+    names = [it.name for d in session.plan.days for it in d.items]
+    assert "外滩" in names  # 库内自造点=绑定排入
+    # 库外自造点：骨架卡或 unplaced 披露（B-01 缝不吞点——绝不静默蒸发）
+    unplaced = [u.name for u in (session.plan.unplaced or [])]
+    assert ("用户自造点XYZ" in names) or ("用户自造点XYZ" in unplaced)
