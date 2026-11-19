@@ -264,6 +264,53 @@ def add_c09_meals(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
                         bundle.presence[(guest.cid, day)]
                     )
 
+    # R12-D3：池内餐馆硬闸（同菜系同日≤1 + 槽位时段对齐；必去豁免）
+    _r12d_hard_gates(bundle, enriched)
+
+
+def _r12d_hard_gates(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
+    """R12-D3（2026-11-19 拍板「选餐点：尽量不要同样的菜肴」）：池内
+    自动选的餐馆（fill、无 rid）两道硬闸——用户必去（rid）不受限（显式
+    选择优先）。
+
+    ① 同菜系两店同日至多一家在场（any-槽：在场⇔绑定——同日双绑即双在
+       场，presence 和 ≤1 一式即闸）；
+    ② 槽位时段对齐：午槽绑定 ⇒ 时刻 <15:00、晚槽绑定 ⇒ ≥15:00（倒挂
+       直接不可行——槽标签跟时刻走，不再受 tier_det 搜索预算摆布；
+       软罚/软奖励继续服务必去餐馆与跨天去重）。占位餐卡永远可兜底，
+       两闸均不会造成不可行。
+    """
+    model = bundle.model
+    split = 15 * 60
+    fill_foods = [
+        c
+        for c in enriched.snapshot.candidates
+        if (c.category or "") == "food" and not c.rid and getattr(c, "cuisine", None)
+    ]
+    for day in bundle.days:
+        for i, c1 in enumerate(fill_foods):
+            for c2 in fill_foods[i + 1 :]:
+                if c1.cuisine != c2.cuisine:
+                    continue
+                model.Add(
+                    bundle.presence[(c1.cid, day)] + bundle.presence[(c2.cid, day)] <= 1
+                )
+        for c in fill_foods:
+            ms = getattr(c, "meal_slot", None)
+            for slot in ("lunch", "dinner"):
+                if ms == slot:
+                    blit = bundle.presence[(c.cid, day)]
+                elif ms == "any":
+                    blit = bundle.meal_bound.get((c.cid, day, slot))
+                else:
+                    blit = None
+                if blit is None:
+                    continue
+                if slot == "lunch":
+                    model.Add(bundle.start[(c.cid, day)] < split).OnlyEnforceIf(blit)
+                else:
+                    model.Add(bundle.start[(c.cid, day)] >= split).OnlyEnforceIf(blit)
+
 
 def add_c10_remote_lunch(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
     """F-22 remote meals: lunch before/after visit; dinner by the 19:30 gate."""
