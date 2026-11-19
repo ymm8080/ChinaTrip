@@ -35414,6 +35414,63 @@ class PlanningAgent:
         # PR3（2026-11-01 用户批《求解器升级建议》）：LLM 不得发明时间
         # 戳——未见于用户原话的 retime/move 时刻剥成时段偏好，条目解钉
         # 交排程器重排（H5 直接 move/retime 端点是用户动作，不经此处）。
+        # R10（2026-11-19 拍板「anywhere legacy exists, switch to cp-sat」）：
+        # 纯 move/remove 结构 diff（无时刻戳、无天数改动）先走 F-50 引擎
+        # 编辑重解——全局重排语义（hint 保形热启动、用户钉 C-04 保位），
+        # 留痕披露；不可映射/引擎失败回落本修复管线原样（M8 形状）。
+        try:
+            _ts_edit = None
+            if (
+                diffs
+                and target_days is None
+                and all(
+                    d.op in ("move", "remove") and d.new_start_time is None
+                    for d in diffs
+                )
+            ):
+                from app.services.poi_details import get_poi_detail_store
+                from app.services.trip_solver.live import (
+                    edit_session_via_trip_solver,
+                )
+
+                _card_by_id = {
+                    it.item_id: it
+                    for _d in (session.plan.days if session.plan else [])
+                    for it in _d.items
+                }
+                _ops = []
+                for d in diffs:
+                    card = _card_by_id.get(d.item_id or "")
+                    if card is None:
+                        _ops = None
+                        break
+                    _ops.append(
+                        {
+                            "kind": "move" if d.op == "move" else "delete",
+                            "name": card.name,
+                            "poi_id": getattr(card, "poi_id", None),
+                            "day": d.new_day,
+                        }
+                    )
+                if _ops:
+                    _ts_edit, _ts_outcome = edit_session_via_trip_solver(
+                        session,
+                        store=get_poi_detail_store(),
+                        ops=_ops,
+                        extra_assumptions=[
+                            L(
+                                "已按新求解引擎重排本次改动。",
+                                "Re-arranged by the new solver engine.",
+                            )
+                        ],
+                    )
+            if _ts_edit is not None:
+                _note = L("已按你的改动重排。", "Re-arranged with your change.")
+                return _ts_edit, None, [_note]
+        except Exception:
+            logger.warning(
+                "plan: ts edit seam failed; legacy repair serves", exc_info=True
+            )
         original_plan = session.plan
         plan_before = _plan_with_extra_days(original_plan, target_days)
         repair_session = (

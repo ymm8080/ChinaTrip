@@ -146,6 +146,17 @@ def _apply_bundle_ops(bundle, enriched, ops: list[DiffOp]) -> list[DiffOp]:
                     continue
                 bundle.model.Add(lit == (1 if day == op.day else 0))
             applied.append(op)
+        elif op.kind == "keep" and op.day is not None:
+            # R10 编辑保形（day 钉）：未被动到的已排卡钉住所在日、时刻
+            # 自由——比 FixedPin（时刻也钉）弱一档：不与引擎晨闸/餐锚/
+            # 贴锚形状打架（live 实锤：时刻硬钉对 C-12c must 豁免面与
+            # C-09 贴锚的组合会 INFEASIBLE），又守住「不换天」的用户预期
+            for day in bundle.days:
+                lit = bundle.presence.get((op.cid, day))
+                if lit is None:
+                    continue
+                bundle.model.Add(lit == (1 if day == op.day else 0))
+            applied.append(op)
         elif op.kind == "duration" and op.duration_min is not None:
             low, _typ, high, _clamped = enriched.tiers[op.cid]
             target = max(low, min(high, int(op.duration_min)))

@@ -645,3 +645,111 @@ def test_midtrip_arrival_day_floor(monkeypatch):
     day1 = [i for i in sol.items if i.day == 1 and i.kind == "visit"]
     if day1:
         assert min(i.start_min for i in day1) < floor  # day1 不受地板影响
+
+
+def _edit_store():
+    from app.services.trip_solver.shadow.replay import SnapshotStore
+
+    return SnapshotStore(
+        [
+            CandidateItem(
+                cid="p%d" % i,
+                name=name,
+                poi_id="poi_%d" % i,
+                city="上海",
+                category=cat,
+                tier=tier,
+                lon=121.47 + i * 0.008,
+                lat=31.23,
+                opening_hours="09:00-18:00",
+                suggested_duration_min=90,
+            )
+            for i, (name, cat, tier) in enumerate(
+                [
+                    ("外滩", "sight", 1),
+                    ("豫园", "sight", 2),
+                    ("南京路步行街", "citywalk", 6),
+                    ("静安寺", "temple", 3),
+                    ("复兴公园", "park", 5),
+                    ("上海美术馆", "art", 4),
+                ]
+            )
+        ]
+    )
+
+
+def test_edit_session_move_to_day(monkeypatch):
+    """R10：move op → 引擎编辑重解——引擎生身计划（先 replan）上 move
+    一张卡到指定日；其余卡 C-04 硬钉保形；退化不出。"""
+    from app.services.agent.plan import PlanSession
+    from app.services.trip_solver.live import (
+        edit_session_via_trip_solver,
+        replan_session_via_trip_solver,
+    )
+
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    session = PlanSession(
+        session_id="sess-e",
+        device_id="de",
+        cities=["上海"],
+        days=2,
+        start_date="2026-11-25",
+        musts=["外滩", "豫园"],
+        preferences="",
+    )
+    out = replan_session_via_trip_solver(session, store=_edit_store())
+    assert out is not None and out.engine == "cpsat" and session.plan is not None
+    before = [
+        (it.name, it.day, it.start_time.strftime("%H:%M"))
+        for d in session.plan.days
+        for it in d.items
+        if (it.category or "") not in ("food", "hotel")
+    ]
+    src = next((n, d) for n, d, _s in before if d == 1)
+    moved_name, from_day = src
+    target_day = 2
+    new_plan, outcome = edit_session_via_trip_solver(
+        session,
+        store=_edit_store(),
+        ops=[{"kind": "move", "name": moved_name, "day": target_day}],
+    )
+    assert new_plan is not None, "engine edit must serve on native plan"
+    after = {
+        (it.name, it.day): it.start_time.strftime("%H:%M")
+        for d in new_plan.days
+        for it in d.items
+        if (it.category or "") not in ("food", "hotel")
+    }
+    assert any(d == target_day for (n, d) in after if n == moved_name), (
+        moved_name,
+        after,
+    )
+    # keep 钉设计：其余卡日不动（时刻由引擎重排——全局重排语义，布局
+    # 可更优，卡不换天不消失）
+    for name, day, st in before:
+        if name == moved_name:
+            continue
+        assert (name, day) in after, (name, day, after)
+
+
+def test_edit_session_unmappable_op_returns_none(monkeypatch):
+    """R10：库外卡（快照池匹不上）→ None → 调用方回落 legacy 修复。"""
+    from app.services.agent.plan import PlanSession
+    from app.services.trip_solver.live import edit_session_via_trip_solver
+
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    session = PlanSession(
+        session_id="sess-e2",
+        device_id="de2",
+        cities=["上海"],
+        days=1,
+        start_date="2026-11-25",
+        must_visits=[],
+        preferences="",
+    )
+    plan, outcome = edit_session_via_trip_solver(
+        session,
+        store=_store(),
+        ops=[{"kind": "move", "name": "不存在的点", "poi_id": None, "day": 1}],
+    )
+    assert plan is None and outcome is None

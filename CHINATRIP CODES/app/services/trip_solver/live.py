@@ -525,66 +525,17 @@ def replan_session_via_trip_solver(
     if flag != ENGINE_CPSAT or not serving_ready()[0]:
         return None
 
-    musts = list(
-        dict.fromkeys(
-            [
-                *(getattr(session, "must_visits", None) or []),
-                *_pinned_names(session),
-                # R9-1（2026-11-19 拍板「复杂开局也走 CP-SAT」）：自造点折
-                # 必去——库内由绑定链接住、库外骨架兜底（B-01 缝不吞点），
-                # legacy 的 CREATED 顶池打标语义由 tier① 覆盖优先级承载
-                *(getattr(session, "created_sites", None) or []),
-            ]
-        )
-    )
-    service_rows: list[dict] = []
-    try:
-        from app.services.access_service_store import AccessServiceStore
+    snapshot = _session_snapshot(session, store)
+    if snapshot is None:
+        return None
 
-        services = AccessServiceStore(None).access_services(list(session.cities or []))
-        service_rows = list(services or [])
-    except Exception:
-        service_rows = []
-
-    snapshot = snapshot_from_request(
-        cities=list(session.cities or []),
-        days=max(1, int(getattr(session, "days", 1) or 1)),
-        start_date=getattr(session, "start_date", None),
-        musts=musts,
-        store=store,
-        arrival_time=getattr(session, "arrival_time", None),
-        departure_time=getattr(session, "departure_time", None),
-        arrival_no=getattr(session, "arrival_no", None),
-        departure_no=getattr(session, "departure_no", None),
-        avoid=list(getattr(session, "avoid_sites", None) or []),
-        preferences=(getattr(session, "preferences", "") or ""),
-        city_days=dict(getattr(session, "city_days", None) or {}),
-        service_rows=service_rows,
-        # R9-1：brief「LEAVE HOTEL ON 11AM」语义随缝入模（C-04 day1 地板
-        # 已实现）；legacy _apply_comment_day_start 只在它那边落位一次
-        day1_start=getattr(session, "comment_day_start", None),
-        # R9-2：中途转移日——行前日期折天序（端点=None 保持旧形状），
-        # C-05 地板/顶盖挪到该日
-        arrival_day=_intake_day_no(
-            getattr(session, "arrival_date", None),
-            getattr(session, "start_date", None),
-            int(getattr(session, "days", 1) or 1),
-            1,
-        ),
-        departure_day=_intake_day_no(
-            getattr(session, "departure_date", None),
-            getattr(session, "start_date", None),
-            int(getattr(session, "days", 1) or 1),
-            int(getattr(session, "days", 1) or 1),
-        ),
-    )
     # R8b 钉位保全（铁律 19 全保位）：用户钉住的卡按 C-04 FixedPin 钉死
     # 日+时刻（NEVER_RELAX——钉冲突只会 INFEASIBLE 回落 legacy 原生保钉，
     # 绝不静默挪位）；绑定链=精确名→包含匹配；钉名同时留在 musts 里保证
     # 候选行存在（must+pin 双表示自洽：must 保存在，pin 保槽位）。
     pinned_cards = _pinned_cards(session)
     if pinned_cards:
-        pins = list(getattr(snapshot.request, "pins", ()) or ())
+        pins = list(getattr(snapshot.request, "pins", ()) or [])
         for card in pinned_cards:
             cand = next(
                 (c for c in snapshot.candidates if c.name == card["name"]),
@@ -714,3 +665,242 @@ def _intake_day_no(date_iso, start_date, days: int, default_day: int) -> Optiona
     day = (target - base).days + 1
     day = max(1, min(day, total))
     return _role_endpoint(day)
+
+
+def _session_snapshot(session, store):
+    """R10：会话 → 快照重建（replan/edit 共用）——musts=必去+钉卡+自造点，
+    班次/分城/中途日/偏好/首日出发全参数随缝；None=引擎不可载。"""
+    from .types import validate_snapshot
+
+    musts = list(
+        dict.fromkeys(
+            [
+                *(getattr(session, "must_visits", None) or []),
+                *_pinned_names(session),
+                *(getattr(session, "created_sites", None) or []),
+            ]
+        )
+    )
+    service_rows: list = []
+    try:
+        from app.services.access_service_store import AccessServiceStore
+
+        services = AccessServiceStore(None).access_services(list(session.cities or []))
+        service_rows = list(services or [])
+    except Exception:
+        service_rows = []
+    snapshot = snapshot_from_request(
+        cities=list(session.cities or []),
+        days=max(1, int(getattr(session, "days", 1) or 1)),
+        start_date=getattr(session, "start_date", None),
+        musts=musts,
+        store=store,
+        arrival_time=getattr(session, "arrival_time", None),
+        departure_time=getattr(session, "departure_time", None),
+        arrival_no=getattr(session, "arrival_no", None),
+        departure_no=getattr(session, "departure_no", None),
+        avoid=list(getattr(session, "avoid_sites", None) or []),
+        preferences=(getattr(session, "preferences", "") or ""),
+        city_days=dict(getattr(session, "city_days", None) or {}),
+        service_rows=service_rows,
+        day1_start=getattr(session, "comment_day_start", None),
+        arrival_day=_intake_day_no(
+            getattr(session, "arrival_date", None),
+            getattr(session, "start_date", None),
+            int(getattr(session, "days", 1) or 1),
+            1,
+        ),
+        departure_day=_intake_day_no(
+            getattr(session, "departure_date", None),
+            getattr(session, "start_date", None),
+            int(getattr(session, "days", 1) or 1),
+            int(getattr(session, "days", 1) or 1),
+        ),
+    )
+    if validate_snapshot(snapshot):
+        return None
+    return snapshot
+
+
+def _prev_solution_from_plan(snapshot, session):
+    """R10：卡片计划 → 近似 Solution（hint 用）——cid 按 name/poi 匹配，
+    时刻/时长从卡；匹不上的卡跳过（hint 不完整=只影响热启动质量）。"""
+    from .types import Solution, SolutionItem
+
+    plan = getattr(session, "plan", None)
+    if plan is None:
+        return None
+    by_name = {}
+    by_poi = {}
+    for c in snapshot.candidates:
+        if c.name:
+            by_name.setdefault(c.name, c.cid)
+        if c.poi_id:
+            by_poi.setdefault(c.poi_id, c.cid)
+    items = []
+    for day in plan.days:
+        for it in day.items:
+            from app.services.itinerary.models import VisitItem
+
+            if not isinstance(it, VisitItem) or it.start_time is None:
+                continue
+            cid = by_poi.get(it.poi_id) or by_name.get(it.name)
+            if not cid:
+                continue
+            start = it.start_time.hour * 60 + it.start_time.minute
+            dur = int(it.duration_minutes or 60)
+            items.append(
+                SolutionItem(
+                    cid=cid,
+                    day=int(getattr(it, "day", day.day) or day.day),
+                    start_min=start,
+                    end_min=start + dur,
+                )
+            )
+    if not items:
+        return None
+    return Solution(status="FEASIBLE", items=items, wall_ms=0)
+
+
+def edit_session_via_trip_solver(
+    session,
+    *,
+    store,
+    ops,
+    extra_assumptions=None,
+    budget_s: float = 3.0,
+):
+    """R10（2026-11-19 拍板「anywhere legacy exists, switch to cp-sat」）：
+    消息 diff 道的引擎编辑重解——F-50 edit_resolve；ops=agent 侧 dict op
+    （{kind,name,poi_id,day}，move/delete）。保形=keep 钉（未被动到的
+    已排观光卡钉住所在日、时刻自由）。返回 (plan|None, outcome|None)。"""
+    from .edit import DiffOp as _EditOp
+    from .edit import edit_resolve
+    from .entry import ENGINE_CPSAT, engine_flag, serving_ready
+
+    flag = engine_flag()
+    if flag != ENGINE_CPSAT or not serving_ready()[0]:
+        return None, None
+    snapshot = _session_snapshot(session, store)
+    if snapshot is None:
+        return None, None
+    engine_ops = _dict_ops_to_diffops(snapshot, ops)
+    if engine_ops is None:
+        return None, None
+
+    # keep 钉（day 不动、时刻自由）：未被动到的已排观光卡——比
+    # FixedPin（时刻也钉）弱一档，不与晨闸/餐锚/贴锚打架（live 实锤：
+    # 时刻硬钉对 C-12c must 豁免面与 C-09 贴锚组合 INFEASIBLE）；
+    # 餐/酒店/接驳系统卡不钉（C-09/C-13 模型自管）。
+    by_poi = {c.poi_id: c.cid for c in snapshot.candidates if c.poi_id}
+    by_name = {c.name: c.cid for c in snapshot.candidates if c.name}
+    keep_ops = []
+    for card in _seated_cards(session):
+        cid = by_poi.get(card["poi_id"]) or by_name.get(card["name"])
+        if not cid or cid in {op.cid for op in engine_ops}:
+            continue
+        keep_ops.append(_EditOp(kind="keep", cid=cid, day=card["day"]))
+
+    # R10 修复（P4 遗留）：tier① fill-free 假设投影与「钉 fill presence」
+    # 直接矛盾 → 编辑必 INFEASIBLE。被 move/delete/keep 点到的 fill
+    # 候选全部升格 requested（用户点名语义，投影纯净）。
+    touched = {op.cid for op in engine_ops} | {op.cid for op in keep_ops}
+    if any(c.kind == "fill" for c in snapshot.candidates if c.cid in touched):
+        snapshot = replace(
+            snapshot,
+            candidates=tuple(
+                (
+                    replace(
+                        c,
+                        kind="requested",
+                        rid=(c.rid or "edit-%s" % c.cid),
+                    )
+                    if (c.cid in touched and c.kind == "fill")
+                    else c
+                )
+                for c in snapshot.candidates
+            ),
+        )
+
+    try:
+        outcome = edit_resolve(
+            snapshot, None, [*engine_ops, *keep_ops], budget_s=budget_s
+        )
+    except Exception:
+        return None, None
+    solution = getattr(outcome, "solution", None)
+    if solution is None or not getattr(outcome, "ops_applied", None):
+        return None, None
+    from .assembly.materialize import materialize_plan
+
+    plan = materialize_plan(solution, snapshot)
+    if _degenerate_plan(plan):
+        return None, None
+    if extra_assumptions:
+        plan.assumptions = list(getattr(plan, "assumptions", []) or []) + list(
+            extra_assumptions
+        )
+    return plan, outcome
+
+
+def _dict_ops_to_diffops(snapshot, ops):
+    """R10：agent 侧 dict op（{kind,name,poi_id,day}）→ 引擎 DiffOp——
+    cid 按 name/poi 匹配；匹不上返回 None（调用方回落 legacy）。"""
+    from .edit import DiffOp as _Op
+
+    by_name = {}
+    by_poi = {}
+    for c in snapshot.candidates:
+        if c.name:
+            by_name.setdefault(c.name, c.cid)
+        if c.poi_id:
+            by_poi.setdefault(c.poi_id, c.cid)
+    out = []
+    for op in ops or []:
+        cid = by_poi.get(op.get("poi_id")) or by_name.get(op.get("name"))
+        if not cid:
+            return None
+        kind = op.get("kind")
+        if kind == "move":
+            day = op.get("day")
+            if not day:
+                return None
+            out.append(_Op(kind="move", cid=cid, day=int(day)))
+        elif kind == "delete":
+            out.append(_Op(kind="delete", cid=cid))
+        else:
+            return None
+    return out or None
+
+
+def _seated_cards(session) -> list:
+    """R10：已排卡的 (name, poi_id, day, start_min)——编辑保形素材
+    （全部有时刻的观光/餐卡，不只 pinned）。"""
+    from app.services.itinerary.models import VisitItem
+
+    plan = getattr(session, "plan", None)
+    if plan is None:
+        return []
+    out = []
+    for day in plan.days:
+        for item in day.items:
+            if (
+                isinstance(item, VisitItem)
+                and item.start_time is not None
+                # R10：只钉观光卡——餐/酒店/接驳是系统合成卡（C-09/C-13
+                # 模型侧自管），钉它们会与餐槽/酒店锚约束冲突（live 实锤）
+                and (item.category or "")
+                not in ("food", "hotel", "transport", "transfer")
+            ):
+                name = str(item.name or "").strip()
+                if name:
+                    out.append(
+                        {
+                            "name": name,
+                            "poi_id": getattr(item, "poi_id", None),
+                            "day": int(getattr(item, "day", day.day) or day.day),
+                            "start_min": item.start_time.hour * 60
+                            + item.start_time.minute,
+                        }
+                    )
+    return out

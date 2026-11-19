@@ -4163,3 +4163,51 @@ def test_midtrip_intake_start_serves_via_engine(monkeypatch):
     body = resp.json()
     assert body["session_id"].startswith("ts-")
     assert body["plan"]["days"]
+
+
+def test_apply_with_repair_routes_through_engine(monkeypatch):
+    """R10（拍板「anywhere legacy exists, switch to cp-sat」）：纯 move
+    结构 diff → F-50 引擎编辑重解（_apply_structural 哨兵证明 legacy
+    修复管线没跑）；库外卡/复杂 diff → legacy 管线原样。"""
+    import asyncio
+
+    from test_trip_solver_live import _edit_store
+
+    from app.services.agent.plan import DiffOp, PlanSession
+    from app.services.trip_solver.live import replan_session_via_trip_solver
+
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    session = PlanSession(
+        session_id="sess-r10",
+        device_id="dr",
+        cities=["上海"],
+        days=2,
+        start_date="2026-11-25",
+        must_visits=["外滩", "豫园"],
+        preferences="",
+    )
+    out = replan_session_via_trip_solver(session, store=_edit_store())
+    assert out is not None and session.plan is not None
+
+    async def _legacy_sentinel(*a, **k):
+        raise AssertionError("legacy repair pipeline must not run")
+
+    monkeypatch.setattr(agent, "_apply_structural", _legacy_sentinel)
+    monkeypatch.setattr("app.services.poi_details.get_poi_detail_store", _edit_store)
+    card = next(
+        it
+        for d in session.plan.days
+        for it in d.items
+        if it.day == 1 and (it.category or "") not in ("food", "hotel")
+    )
+    plan, summary, notes = asyncio.run(
+        agent._apply_with_repair(
+            session,
+            [DiffOp(op="move", item_id=card.item_id, new_day=2)],
+            "把" + card.name + "挪到第二天",
+        )
+    )
+    assert plan is not None
+    moved = [it for d in plan.days for it in d.items if it.name == card.name]
+    assert moved and moved[0].day == 2
