@@ -325,31 +325,6 @@ class PoiStoreUnavailableError(RuntimeError):
     """
 
 
-class SolverUnservedError(Exception):
-    """R11（2026-11-19 拍板「cpsat 垄断」）：cpsat 旗下引擎已试且
-    失败——诚实上抛双语披露（api 层映射 503 solver_unavailable），
-    绝不静默换 legacy 求解；legacy 旗（M8 回滚）不走此道。
-    """
-
-    def __init__(self, disclosure: str = ""):
-        disclosure = (disclosure or "").strip()
-        tail = "请调整天数/必去后重试，或联系管理员切换回旧引擎"
-        tail_en = (
-            "Please adjust the days/must-visits and retry, or ask the "
-            "admin to switch back to the legacy engine"
-        )
-        if disclosure:
-            self.zh = f"新引擎未能生成该行程：{disclosure}。{tail}"
-            self.en = (
-                "The new engine could not build this itinerary: "
-                f"{disclosure}. " + tail_en
-            )
-        else:
-            self.zh = f"新引擎未能生成该行程。{tail}"
-            self.en = "The new engine could not build this itinerary. " + tail_en
-        super().__init__(self.zh)
-
-
 def _unspecified() -> str:
     """「未标注」city placeholder — call-time so it follows the request lang
     (a module constant would freeze at import)."""
@@ -21127,24 +21102,10 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
                 self._ts_engine_served_sid = session.session_id
                 return session
             if outcome is not None and getattr(outcome, "fallback", False):
-                # R11（2026-11-19 拍板「cpsat 失败=诚实披露，绝不静默换
-                # legacy」）：cpsat 旗下引擎已试且失败 → 抛
-                # SolverUnservedError（api 层映射 503），计划不动；
-                # legacy 旗（M8 回滚）真 replan 直接返回 None 不交
-                # fallback——罕见 fallback 形状照旧落 legacy 并披露
-                # （现状不变）。
-                from app.services.trip_solver.entry import (
-                    ENGINE_CPSAT,
-                    engine_flag,
-                )
-
-                if engine_flag() == ENGINE_CPSAT:
-                    _disclosure = (
-                        str(outcome.disclosures[0].get("zh", "") or "")
-                        if outcome.disclosures
-                        else ""
-                    )
-                    raise SolverUnservedError(_disclosure)
+                # R12 质量营救（2026-11-19 用户拍板「cp-sat default,
+                # resort to legacy if fails + 选质量更好的」）：引擎已试
+                # 且失败 → 披露随附、legacy 管线服务（绝不静默——披露
+                # 必进假设区；legacy 产物照走读侧 P0 审计/入场闸同闸）。
                 if outcome.disclosures:
                     extra_assumptions = [
                         *(extra_assumptions or []),
@@ -33951,9 +33912,8 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
         # 编辑重解——全局重排语义（hint 保形热启动、用户钉 C-04 保位），
         # 留痕披露；不可映射的 ops（add/retime 时刻戳、库外卡）是卡片
         # 操作不是求解，照旧落本修复管线。
-        # R11（2026-11-19 拍板「cpsat 失败=诚实披露」）：ops 全可映射
-        # （引擎确已受理）却交不出计划 = 引擎失手——不再落 legacy 修复
-        # 环，原计划不动 + 失败披露；legacy 旗（M8）照旧回落。
+        # R12 编辑营救（2026-11-19）：引擎编辑失手 → 照旧落本修复
+        # 管线（卡片操作+修复），绝不静默。
         try:
             _ts_edit = None
             _ts_outcome = None
@@ -34009,25 +33969,6 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
             if _ts_edit is not None:
                 _note = L("已按你的改动重排。", "Re-arranged with your change.")
                 return _ts_edit, None, [_note]
-            if _ops:
-                # R11 垄断：引擎确已受理（ops 全可映射）却交不出计划 =
-                # 引擎失手——cpsat 旗下不再落 legacy 修复环（那是求解），
-                # 原计划不动 + 失败披露；legacy 旗（M8）照旧回落本环。
-                from app.services.trip_solver.entry import (
-                    ENGINE_CPSAT,
-                    engine_flag,
-                )
-
-                if engine_flag() == ENGINE_CPSAT:
-                    _note = L(
-                        "新引擎未能完成这次改动，行程保持原样；请调整后重试，"
-                        "或联系管理员切换回旧引擎。",
-                        "The new engine could not apply this change; the "
-                        "itinerary is unchanged. Please adjust and retry, "
-                        "or ask the admin to switch back to the legacy "
-                        "engine.",
-                    )
-                    return session.plan, None, [_note]
         except Exception:
             logger.warning(
                 "plan: ts edit seam failed; legacy repair serves", exc_info=True

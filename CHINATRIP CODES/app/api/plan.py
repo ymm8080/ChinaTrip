@@ -62,7 +62,6 @@ from app.services.agent.plan import (
     PlanSession,
     PlanSessionStore,
     PoiStoreUnavailableError,
-    SolverUnservedError,
     _count_text_dates,
     _extract_transport_numbers,
     _find_transfer_item,
@@ -881,12 +880,8 @@ async def start_plan(
     if trip_session is not None:
         session = trip_session
     else:
-        if trip_outcome is not None and getattr(trip_outcome, "fallback", False):
-            # R11（2026-11-19 拍板「cpsat 失败=诚实披露，绝不静默换
-            # legacy」）：缝引擎已试且失败（缝只在 cpsat 旗下跑）→ 诚实
-            # 503；legacy 旗缝不会尝试，agent.start 照旧（M8 现状）。
-            logger.warning("plan/start solver_unavailable: engine fallback")
-            raise HTTPException(status_code=503, detail="solver_unavailable")
+        # R12 质量营救（2026-11-19 用户拍板）：引擎失败 → agent.start
+        # （legacy）服务 + 缝披露随附（下方 append）——绝不静默。
         try:
             session = await agent.start(
                 device_id=x_device_id,
@@ -919,11 +914,13 @@ async def start_plan(
             # LLMError messages are sanitized (never contain the API key).
             logger.exception("plan/start llm_error: %s", exc)
             raise HTTPException(status_code=502, detail="llm_error") from exc
-        except SolverUnservedError:
-            # R11 垄断：缝未先试的形状走 agent.start 内的 _generate_v0
-            # 钩子，引擎失败上抛 → 同款 503 solver_unavailable。
-            logger.warning("plan/start solver_unavailable: engine unserved")
-            raise HTTPException(status_code=503, detail="solver_unavailable")
+        if (
+            trip_outcome is not None
+            and getattr(trip_outcome, "fallback", False)
+            and trip_outcome.disclosures
+        ):
+            # R12：legacy 营救的披露随附（绝不静默换引擎）
+            session.assumptions.append(trip_outcome.disclosures[0].get("zh", ""))
     # 2026-11-14（用户拍板「心愿单/已排期按 USER ID 出内容」）：会话记住
     # 登录账号——会话里建的心愿行落 owner_account_id
     session.account_id = account or session.account_id
@@ -1070,26 +1067,8 @@ async def message_plan(
                 "engine": "cpsat",
             }
             return body
-        if (
-            trip_session is None
-            and trip_outcome is not None
-            and getattr(trip_outcome, "fallback", False)
-        ):
-            # R11（2026-11-19 拍板「cpsat 失败=诚实披露」）：换局缝引擎
-            # 已试且失败 → 回复披露、原会话原计划不动，不再落
-            # restart_with_brief（legacy）；legacy 旗缝不会尝试（现状）。
-            reply = L(
-                "新引擎未能生成该行程，请调整后重试。",
-                "The new engine could not build this trip; please adjust and retry.",
-            )
-            body = _plan_turn_body(session, reply, None)
-            body["new_trip"] = False
-            body["lane"] = {
-                "lane": "main",
-                "intent": "new_trip",
-                "engine": "unserved",
-            }
-            return body
+        # R12（换局营救）：引擎失败 → restart_with_brief（legacy）服务
+        # + 披露随附（旧会话原样不动的语义不变——重开新会话）。
         try:
             session, reply = await agent.restart_with_brief(
                 session, request.text, brief
@@ -1100,12 +1079,13 @@ async def message_plan(
         except LLMError as exc:
             logger.exception("plan/message llm_error: %s", exc)
             raise HTTPException(status_code=502, detail="llm_error") from exc
-        except SolverUnservedError:
-            # R11 垄断：换局缝未先试的形状（非 auto 城际等）走
-            # restart_with_brief 内的 _generate_v0 钩子，引擎失败上抛
-            # → 503 solver_unavailable。
-            logger.warning("plan/message solver_unavailable: engine unserved")
-            raise HTTPException(status_code=503, detail="solver_unavailable")
+        if (
+            trip_outcome is not None
+            and getattr(trip_outcome, "fallback", False)
+            and trip_outcome.disclosures
+        ):
+            # R12：legacy 营救的披露随附
+            session.assumptions.append(trip_outcome.disclosures[0].get("zh", ""))
         store.save(session)
         body = _plan_turn_body(session, reply, None)
         body["new_trip"] = True
@@ -1173,12 +1153,6 @@ async def message_plan(
     except LLMError as exc:
         logger.exception("plan/message llm_error: %s", exc)
         raise HTTPException(status_code=502, detail="llm_error") from exc
-    except SolverUnservedError:
-        # R11 垄断：主车道 agent.message 内的 _generate_v0 钩子（澄清
-        # 补答/偏好重排/读点确认收尾）引擎失败上抛 → 503
-        # solver_unavailable。
-        logger.warning("plan/message solver_unavailable: engine unserved")
-        raise HTTPException(status_code=503, detail="solver_unavailable")
     metrics.record(
         "main",
         ttft_ms=(monotonic() - started) * 1000.0,
@@ -1452,12 +1426,6 @@ async def confirm_plan_sites(
     except LLMError as exc:
         logger.exception("plan/sites_confirm llm_error: %s", exc)
         raise HTTPException(status_code=502, detail="llm_error") from exc
-    except SolverUnservedError:
-        # R11 垄断：读点确认收尾（_finish_link_sites）走 _generate_v0，
-        # 引擎失败上抛 → 503 solver_unavailable（本端点既有 5xx 同款
-        # 映射模式）。
-        logger.warning("plan/sites_confirm solver_unavailable: engine unserved")
-        raise HTTPException(status_code=503, detail="solver_unavailable")
     store.save(session)
     return _plan_turn_body(session, reply, change)
 

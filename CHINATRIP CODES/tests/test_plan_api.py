@@ -4228,13 +4228,12 @@ def test_apply_with_repair_routes_through_engine(monkeypatch):
 # --- R11：cpsat 垄断（引擎失败=诚实披露，绝不静默换 legacy） ----------------
 
 
-def test_generate_v0_engine_failure_disclosed_not_legacy(monkeypatch):
-    """cpsat 旗 + 引擎已试且失败（fallback outcome）→ 抛 SolverUnservedError
-    （双语披露带引擎披露文案），不落 legacy 生成管线；legacy 旗对照：同
-    outcome 不抛、照旧落 legacy（_collect_candidates 哨兵验证被调）。"""
+def test_generate_v0_engine_failure_falls_to_legacy(monkeypatch):
+    """R12 质量营救：cpsat 旗 + 引擎已试且失败（fallback outcome）→ 不抛
+    异常，披露随附、legacy 生成管线接管（哨兵验证被调）。"""
     import asyncio
 
-    from app.services.agent.plan import PlanSession, SolverUnservedError
+    from app.services.agent.plan import PlanSession
     from app.services.trip_solver import live as _live
 
     class _Out:
@@ -4245,7 +4244,7 @@ def test_generate_v0_engine_failure_disclosed_not_legacy(monkeypatch):
     monkeypatch.setenv("TRIP_SOLVER", "cpsat")
     agent = PlanningAgent(StubAdapter([]))
     session = PlanSession(
-        session_id="sess-r11a",
+        session_id="sess-r12a",
         device_id="da",
         cities=["上海"],
         days=1,
@@ -4255,21 +4254,15 @@ def test_generate_v0_engine_failure_disclosed_not_legacy(monkeypatch):
         "app.services.poi_details.get_poi_detail_store", _seam_fake_store
     )
     monkeypatch.setattr(_live, "replan_session_via_trip_solver", lambda *a, **k: _Out())
-    with pytest.raises(SolverUnservedError) as ei:
-        asyncio.run(agent._generate_v0(session))
-    assert "新引擎未能生成该行程" in ei.value.zh
-    assert "x" in ei.value.zh
-    assert "legacy engine" in ei.value.en
-    assert session.plan is None  # 计划不动
-    # legacy 旗对照（M8 回滚形状）：同 outcome 不抛，落 legacy 管线
-    monkeypatch.delenv("TRIP_SOLVER", raising=False)
 
     async def _legacy_sentinel(*a, **k):
         raise RuntimeError("legacy-path")
 
     monkeypatch.setattr(agent, "_collect_candidates", _legacy_sentinel)
+    # cpsat 旗 + 引擎失败 → 落 legacy 管线（哨兵响）——不再上抛垄断异常
     with pytest.raises(RuntimeError, match="legacy-path"):
         asyncio.run(agent._generate_v0(session))
+    assert session.plan is None  # legacy 未完成（哨兵截断）——计划不动
 
 
 def test_apply_intake_times_skipped_when_engine_served(monkeypatch):
@@ -4341,30 +4334,48 @@ def test_apply_intake_times_skipped_when_engine_served(monkeypatch):
         )
 
 
-def test_start_seam_engine_failure_503(monkeypatch):
-    """cpsat 旗 + start 缝引擎失败（fallback outcome）→ 503
-    solver_unavailable，不再静默换 legacy 生成（stub 空=无 LLM 余地）。"""
+def test_start_seam_engine_failure_legacy_rescue(monkeypatch):
+    """R12 质量营救：start 缝引擎失败（fallback outcome）→ agent.start
+    （legacy）接管服务 + 缝披露随附（assumptions），不是 503。"""
     monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    from app.services.agent.plan import PlanSession
     from app.services.trip_solver import live as _live
 
     class _Out:
         engine = "legacy"
         fallback = True
-        disclosures = [{"zh": "x", "en": "y"}]
+        disclosures = [{"zh": "旧引擎披露行", "en": "legacy disclosure"}]
 
     monkeypatch.setattr(
         _live, "generate_session_via_trip_solver", lambda **kw: (None, _Out())
     )
     agent = PlanningAgent(StubAdapter([]))
-    client = client_for(agent)
+    app = make_app(agent)
+    client = TestClient(app)
+    served = {}
+
+    async def _fake_start(**kw):
+        s = PlanSession(
+            session_id="sess-legacy-rescue",
+            device_id=kw.get("device_id") or "d",
+            cities=kw.get("cities") or ["上海"],
+            days=1,
+            start_date="2026-11-25",
+        )
+        s.state = "ready"
+        served["sid"] = s.session_id
+        return s
+
+    monkeypatch.setattr(agent, "start", _fake_start)
     resp = start(client, {"cities": ["上海"], "days": 1, "start_date": "2026-11-25"})
-    assert resp.status_code == 503
-    assert resp.json()["detail"] == "solver_unavailable"
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["session_id"] == served["sid"]  # legacy 接管服务
 
 
-def test_edit_hook_failure_keeps_plan(monkeypatch):
-    """cpsat 旗 + ops 全可映射 + 引擎编辑交不出计划 → 不落 legacy 修复环
-    （_apply_structural 哨兵不响），原计划不动 + 失败披露。"""
+def test_edit_hook_failure_falls_to_legacy_repair(monkeypatch):
+    """R12 质量营救：ops 全可映射 + 引擎编辑交不出计划 → 落 legacy 修复
+    管线（哨兵验证被调）——不再「原计划不动+披露」硬停。"""
     import asyncio
 
     from test_trip_solver_live import _edit_store
@@ -4376,7 +4387,7 @@ def test_edit_hook_failure_keeps_plan(monkeypatch):
     monkeypatch.setenv("TRIP_SOLVER", "cpsat")
     agent = PlanningAgent(StubAdapter([V0_JSON]))
     session = PlanSession(
-        session_id="sess-r11d",
+        session_id="sess-r12d",
         device_id="dd",
         cities=["上海"],
         days=2,
@@ -4386,10 +4397,9 @@ def test_edit_hook_failure_keeps_plan(monkeypatch):
     )
     out = replan_session_via_trip_solver(session, store=_edit_store())
     assert out is not None and session.plan is not None
-    original = session.plan
 
-    async def _legacy_sentinel(*a, **k):
-        raise AssertionError("legacy repair pipeline must not run")
+    def _legacy_sentinel(*a, **k):
+        raise RuntimeError("legacy-repair-path")
 
     monkeypatch.setattr(agent, "_apply_structural", _legacy_sentinel)
     monkeypatch.setattr("app.services.poi_details.get_poi_detail_store", _edit_store)
@@ -4402,41 +4412,53 @@ def test_edit_hook_failure_keeps_plan(monkeypatch):
         for it in d.items
         if it.day == 1 and (it.category or "") not in ("food", "hotel")
     )
-    plan, summary, notes = asyncio.run(
-        agent._apply_with_repair(
-            session,
-            [DiffOp(op="move", item_id=card.item_id, new_day=2)],
-            "把" + card.name + "挪到第二天",
+    with pytest.raises(RuntimeError, match="legacy-repair-path"):
+        asyncio.run(
+            agent._apply_with_repair(
+                session,
+                [DiffOp(op="move", item_id=card.item_id, new_day=2)],
+                "把" + card.name + "挪到第二天",
+            )
         )
-    )
-    assert plan is original  # 计划不动（同一对象）
-    assert summary is None
-    assert notes and "新引擎" in notes[0] and "保持原样" in notes[0]
 
 
-def test_message_new_trip_restart_engine_failure_disclosed(monkeypatch):
-    """cpsat 旗 + 换局缝引擎失败（fallback outcome）→ 回复披露、原会话
-    原计划不动（new_trip=False），不再落 restart_with_brief（legacy）。"""
+def test_message_restart_engine_failure_legacy_rescue(monkeypatch):
+    """R12 质量营救：换局缝引擎失败 → restart_with_brief（legacy）接管
+    + 披露随附（assumptions），原会话不动语义照旧（重开新会话）。"""
     monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    from app.services.agent.plan import PlanSession
     from app.services.trip_solver import live as _live
 
+    class _Out:
+        engine = "legacy"
+        fallback = True
+        disclosures = [{"zh": "旧引擎披露行", "en": "legacy disclosure"}]
+
+    monkeypatch.setattr(
+        _live, "generate_session_via_trip_solver", lambda **kw: (None, _Out())
+    )
     agent = PlanningAgent(StubAdapter([V0_JSON]))
     app = make_app(agent)
     client = TestClient(app)
     monkeypatch.setattr("app.api.plan.get_poi_detail_store", _seam_fake_store)
     r0 = start(client, {"cities": ["上海"], "days": 1, "start_date": "2026-11-25"})
-    assert r0.status_code == 200
     sid = r0.json()["session_id"]
-    assert sid.startswith("ts-")
+    served = {}
 
-    class _Out:
-        engine = "legacy"
-        fallback = True
-        disclosures = [{"zh": "x", "en": "y"}]
+    async def _fake_restart(sess, text, brief):
+        fresh = PlanSession(
+            session_id="sess-restart-rescue",
+            device_id=sess.device_id,
+            cities=brief[0],
+            days=brief[1] or 1,
+            start_date=sess.start_date,
+        )
+        fresh.state = "ready"
+        fresh.assumptions = []
+        served["sid"] = fresh.session_id
+        return fresh, "已按新行程重开一局"
 
-    monkeypatch.setattr(
-        _live, "generate_session_via_trip_solver", lambda **kw: (None, _Out())
-    )
+    monkeypatch.setattr(agent, "restart_with_brief", _fake_restart)
     r1 = client.post(
         "/api/v1/plan/%s/message" % sid,
         json={"text": "重新规划，去杭州玩1天"},
@@ -4444,23 +4466,17 @@ def test_message_new_trip_restart_engine_failure_disclosed(monkeypatch):
     )
     assert r1.status_code == 200
     body = r1.json()
-    assert body["new_trip"] is False
-    assert body["session_id"] == sid  # 原会话不动
-    assert "新引擎未能生成该行程" in body["reply"]
-    assert body["plan"]["days"]  # 原计划还在
+    assert body["session_id"] == served["sid"]  # legacy 接管（新会话）
+    assert body["new_trip"] is True
 
 
-def test_message_restart_unserved_maps_503(monkeypatch):
-    """换局缝未先试的形状（非 auto 城际）→ restart_with_brief 内
-    _generate_v0 钩子引擎失败 → SolverUnservedError 映射 503
-    solver_unavailable。"""
+def test_message_restart_unserved_legacy_rescue(monkeypatch):
+    """R12 质量营救：换局缝未先试的形状（非 auto 城际）→
+    restart_with_brief 内 _generate_v0 钩子引擎「不接」（None）→ 不抛
+    503，落 legacy 管线服务 + 披露随附。"""
     monkeypatch.setenv("TRIP_SOLVER", "cpsat")
     from app.services.trip_solver import live as _live
 
-    # r0 确定性走 legacy：brief 非空让 api 缝形状闸不通过（不设
-    # seam_attempted——r1 restart_with_brief 内的钩子才跑得到）；带日期
-    # 的 brief 绕开行前卡闸、非空 preferences 绕开偏好轮（conftest
-    # autouse 打开）；引擎钩子替成「不接」（None）不碰真引擎。
     monkeypatch.setattr(_live, "replan_session_via_trip_solver", lambda *a, **k: None)
     agent = PlanningAgent(StubAdapter([V0_JSON]))
     app = make_app(agent)
@@ -4471,26 +4487,19 @@ def test_message_restart_unserved_maps_503(monkeypatch):
             "cities": ["杭州"],
             "days": 2,
             "start_date": "2026-11-25",
-            "intercity_mode": "train",
-            "preferences": "随便逛逛",
-            "brief": "11月25日去杭州玩两天",
+            "brief": "11月25日出发去杭州玩两天",
         },
     )
     assert r0.status_code == 200
     sid = r0.json()["session_id"]
-    assert not sid.startswith("ts-")  # brief 开局留 legacy（缝形状闸）
-    assert r0.json()["plan"]["days"]  # legacy v0 就位
-
-    class _Out:
-        engine = "legacy"
-        fallback = True
-        disclosures = [{"zh": "x", "en": "y"}]
-
-    monkeypatch.setattr(_live, "replan_session_via_trip_solver", lambda *a, **k: _Out())
     r1 = client.post(
         "/api/v1/plan/%s/message" % sid,
-        json={"text": "重新规划，去苏州玩1天"},
+        json={"text": "重新规划，去上海玩1天，火车出行"},
         headers=DEVICE_HEADERS,
     )
-    assert r1.status_code == 503
-    assert r1.json()["detail"] == "solver_unavailable"
+    # 非 auto 城际 → 缝不接 → restart_with_brief（legacy）接管：
+    # stub 驱动的 legacy 重开完成、不是 503
+    assert r1.status_code == 200
+    body = r1.json()
+    assert body.get("new_trip") is True
+    assert body.get("plan") is not None
