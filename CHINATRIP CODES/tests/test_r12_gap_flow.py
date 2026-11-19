@@ -440,3 +440,88 @@ def test_any_slot_restaurant_binds_time_matching_slot():
     dinner = next(m for m in sol.meal_anchors if m["slot"] == "dinner")
     assert lunch["bound_cid"] == "duck"  # 午段烤鸭=午餐卡
     assert dinner["bound_cid"] is None  # 晚餐槽照常占位
+
+
+# ---------- R12-D: 同菜系不重样（2026-11-19 拍板「尽量不要同样的菜肴」） ----------
+
+
+def test_cuisine_key_classifier():
+    from app.services.trip_solver.inputs.cuisine import cuisine_key
+
+    assert (
+        cuisine_key(
+            {
+                "category": "food",
+                "name": "四季民福烤鸭店（故宫店）",
+                "intro": "故宫旁果木烤鸭名店：果木烤鸭/京味爆肚",
+            }
+        )
+        == "烤鸭"
+    )
+    # 提督名字不含烤鸭——intro 是关键信号
+    assert (
+        cuisine_key(
+            {
+                "category": "food",
+                "name": "提督·TIDU（前门创始店）",
+                "intro": "北京坊新派烤鸭：提督烤鸭/糖油饼",
+            }
+        )
+        == "烤鸭"
+    )
+    assert (
+        cuisine_key(
+            {
+                "category": "food",
+                "name": "御仙都·皇家菜博物馆",
+                "intro": "宫廷礼仪乐舞伴宴",
+            }
+        )
+        is None
+    )
+    assert cuisine_key({"category": "attraction", "name": "故宫博物院"}) is None
+
+
+def test_same_cuisine_not_both_slots_same_day():
+    """两家烤鸭不再同日分占午晚双槽：同菜系罚项让池内异菜系替代者顶上
+    （quality 差 100 < 罚 150——罚项翻盘证明）。"""
+    site = _cand(
+        "site", rid="r-site", category="historic", hours="08:30-12:00", duration=90
+    )
+    duck1 = {
+        "cid": "duck1",
+        "name": "烤鸭店甲",
+        "poi_id": "p-duck1",
+        "kind": "fill",
+        "category": "food",
+        "opening_hours": "10:00-22:30",
+        "suggested_duration_min": 60,
+        "meal_slot": "any",
+        "quality": 0.95,
+        "cuisine": "烤鸭",
+    }
+    duck2 = dict(duck1, cid="duck2", name="烤鸭店乙", poi_id="p-duck2")
+    alt = dict(
+        duck1,
+        cid="alt",
+        name="川小馆",
+        poi_id="p-alt",
+        quality=0.85,
+        cuisine="川菜",
+    )
+    snap = _snap(
+        [site, duck1, duck2, alt],
+        musts=("r-site",),
+        pins=({"rid": "r-site", "day": 1, "start_min": 510},),
+    )
+    sol = solve_snapshot(enrich(snap))
+    assert sol.status in ("OPTIMAL", "FEASIBLE"), sol.status
+    placed = {i.cid for i in sol.items}
+    bound_foods = {m["bound_cid"] for m in sol.meal_anchors if m.get("bound_cid")}
+    # 两家烤鸭至多一家在场；替代异菜系餐馆顶上双槽
+    ducks_in = {"duck1", "duck2"} & placed
+    assert len(ducks_in) <= 1, f"同日两家烤鸭: {placed}"
+    assert bound_foods and len(bound_foods) >= 2
+    assert ("duck1" in bound_foods) != ("duck2" in bound_foods) or not ducks_in
+    if ducks_in:
+        assert "alt" in bound_foods

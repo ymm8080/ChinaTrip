@@ -59,6 +59,7 @@ def _cand(raw: dict[str, Any]) -> CandidateItem:
         family_id=raw.get("family_id"),
         meal_slot=raw.get("meal_slot"),
         same_venue=raw.get("same_venue"),
+        cuisine=raw.get("cuisine"),
     )
 
 

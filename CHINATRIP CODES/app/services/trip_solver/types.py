@@ -52,6 +52,8 @@ class CandidateItem:
     diversity_group: Optional[str] = None  # C-16 optional-fill diversity cap
     family_id: Optional[str] = None  # C-12 explicit must-family binding
     meal_slot: Optional[str] = None  # C-09 real restaurant → lunch/dinner card
+    # R12-D 菜系键（同菜系不重样罚项用；None=识别不出/非餐馆）
+    cuisine: Optional[str] = None
     same_venue: Optional[str] = None  # C-09 nested host cid or poi_id
 
 

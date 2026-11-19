@@ -61,6 +61,7 @@ def _row_to_candidate(
     remote: bool = False,
 ) -> CandidateItem:
     lon, lat = _row_location(row)
+    from .inputs.cuisine import cuisine_key  # R12-D 菜系键
     return CandidateItem(
         cid=cid,
         name=str(row.get("name") or ""),
@@ -78,6 +79,10 @@ def _row_to_candidate(
         suggested_duration_min=row.get("suggested_duration_min"),
         remote=remote,
         city=row.get("city"),
+        # R12-D 菜系键（同菜系不重样罚项的信号；识别不出=None）
+        cuisine=(
+            cuisine_key(row) if (row.get("category") or "") == "food" else None
+        ),
     )
 
 

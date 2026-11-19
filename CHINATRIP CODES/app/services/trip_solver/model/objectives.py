@@ -38,6 +38,11 @@ PREFERENCE_CATEGORY_REWARD = 40
 # 流式时刻仍优先，槽标签跟时刻走（杀「09:00 的晚餐卡」倒挂）。
 MEAL_SLOT_BAND_SPLIT = 15 * 60
 MEAL_SLOT_BAND_REWARD = 25
+# R12-D（2026-11-19 拍板「尽量不要同样的菜肴——两家烤鸭店同日
+# 不合适」）：同菜系餐馆同日分占午晚双槽=重罚；跨天重复=轻罚
+# （「尽量」=软罚：池内无替代时不阻断）。
+MEAL_SAME_CUISINE_DAY_PENALTY = 150
+MEAL_SAME_CUISINE_TRIP_PENALTY = 60
 MORNING_MINUTE = 12 * 60
 ENTERTAINMENT_PRESENT_REWARD = 40
 CATEGORY_DIVERSITY_REWARD = 20
@@ -75,6 +80,57 @@ def _coverage(bundle: "VarBundle", enriched: "EnrichedSnapshot") -> ObjectiveTie
     return ObjectiveTier("coverage", expression, "min")
 
 
+def _binding_lit(bundle, cand, day: int, slot: str):
+    """餐馆候选在 (day, slot) 的绑定真值：锁定槽=在场；any-槽=
+    meal_bound 自由布尔；非餐类/他槽=None。"""
+    if (cand.category or "") != "food":
+        return None
+    ms = getattr(cand, "meal_slot", None)
+    if ms == slot:
+        return bundle.presence[(cand.cid, day)]
+    if ms == "any":
+        return bundle.meal_bound.get((cand.cid, day, slot))
+    return None
+
+
+def _same_cuisine_penalty(bundle, enriched) -> list:
+    """R12-D：同菜系餐馆不重样——同日午晚双槽重罚/跨天轻罚。"""
+    model = bundle.model
+    foods = [
+        c
+        for c in enriched.snapshot.candidates
+        if (c.category or "") == "food"
+        and getattr(c, "meal_slot", None)
+        and getattr(c, "cuisine", None)
+    ]
+    negative: list = []
+    for i, c1 in enumerate(foods):
+        for c2 in foods[i + 1 :]:
+            if c1.cuisine != c2.cuisine:
+                continue
+            for day in bundle.days:
+                for d2 in bundle.days:
+                    weight = (
+                        MEAL_SAME_CUISINE_DAY_PENALTY
+                        if day == d2
+                        else MEAL_SAME_CUISINE_TRIP_PENALTY
+                    )
+                    for a_slot, b_slot in (("lunch", "dinner"), ("dinner", "lunch")):
+                        la = _binding_lit(bundle, c1, day, a_slot)
+                        lb = _binding_lit(bundle, c2, d2, b_slot)
+                        if la is None or lb is None:
+                            continue
+                        both = model.NewBoolVar(
+                            "sc_%s_%s_%d_%d" % (c1.cid, c2.cid, day, d2)
+                            + a_slot[0]
+                            + b_slot[0]
+                        )
+                        model.AddBoolAnd([la, lb]).OnlyEnforceIf(both)
+                        model.AddBoolOr([la.Not(), lb.Not()]).OnlyEnforceIf(both.Not())
+                        negative.append(weight * both)
+    return negative
+
+
 def _preference(
     bundle: "VarBundle",
     enriched: "EnrichedSnapshot",
@@ -87,6 +143,8 @@ def _preference(
     positive: list = []
     negative: list = []
     weather_by_key = {(poi, day): cond for poi, day, cond in snapshot.weather}
+    # R12-D 同菜系不重样（软罚，见 _same_cuisine_penalty）
+    negative += _same_cuisine_penalty(bundle, enriched)
 
     # R8：偏好解析一次（同源 legacy _preference_tokens）
     pref_tokens: tuple = ()
