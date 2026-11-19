@@ -722,46 +722,6 @@ def _session_snapshot(session, store):
     return snapshot
 
 
-def _prev_solution_from_plan(snapshot, session):
-    """R10：卡片计划 → 近似 Solution（hint 用）——cid 按 name/poi 匹配，
-    时刻/时长从卡；匹不上的卡跳过（hint 不完整=只影响热启动质量）。"""
-    from .types import Solution, SolutionItem
-
-    plan = getattr(session, "plan", None)
-    if plan is None:
-        return None
-    by_name = {}
-    by_poi = {}
-    for c in snapshot.candidates:
-        if c.name:
-            by_name.setdefault(c.name, c.cid)
-        if c.poi_id:
-            by_poi.setdefault(c.poi_id, c.cid)
-    items = []
-    for day in plan.days:
-        for it in day.items:
-            from app.services.itinerary.models import VisitItem
-
-            if not isinstance(it, VisitItem) or it.start_time is None:
-                continue
-            cid = by_poi.get(it.poi_id) or by_name.get(it.name)
-            if not cid:
-                continue
-            start = it.start_time.hour * 60 + it.start_time.minute
-            dur = int(it.duration_minutes or 60)
-            items.append(
-                SolutionItem(
-                    cid=cid,
-                    day=int(getattr(it, "day", day.day) or day.day),
-                    start_min=start,
-                    end_min=start + dur,
-                )
-            )
-    if not items:
-        return None
-    return Solution(status="FEASIBLE", items=items, wall_ms=0)
-
-
 def edit_session_via_trip_solver(
     session,
     *,
@@ -800,6 +760,20 @@ def edit_session_via_trip_solver(
         if not cid or cid in {op.cid for op in engine_ops}:
             continue
         keep_ops.append(_EditOp(kind="keep", cid=cid, day=card["day"]))
+
+    # R10b keep 去重守卫：同一 cid 可命中多张已排卡（重名卡分布在不同
+    # 天、或 poi/name 两道指到同池行）——day 不同的多个 keep 会让
+    # presence 在两天同时为 1，模型矛盾 INFEASIBLE → 编辑道静默回落
+    # legacy（用户无感知换引擎）。歧义=不钉：该 cid 的 keep 整组丢弃
+    # （让引擎自由放）；同 day 重复只留一个。
+    keep_days: dict = {}
+    for op in keep_ops:
+        keep_days.setdefault(op.cid, []).append(op.day)
+    keep_ops = [
+        _EditOp(kind="keep", cid=cid, day=day_list[0])
+        for cid, day_list in keep_days.items()
+        if len(set(day_list)) == 1
+    ]
 
     # R10 修复（P4 遗留）：tier① fill-free 假设投影与「钉 fill presence」
     # 直接矛盾 → 编辑必 INFEASIBLE。被 move/delete/keep 点到的 fill
@@ -845,14 +819,19 @@ def edit_session_via_trip_solver(
 
 def _dict_ops_to_diffops(snapshot, ops):
     """R10：agent 侧 dict op（{kind,name,poi_id,day}）→ 引擎 DiffOp——
-    cid 按 name/poi 匹配；匹不上返回 None（调用方回落 legacy）。"""
+    cid 按 poi/name 匹配；同名多行=歧义不进 by_name（只信 poi_id；两道
+    都无 → None 让调用方回落 legacy，绝不按「第一个同名」错钉别的卡）。"""
     from .edit import DiffOp as _Op
 
-    by_name = {}
-    by_poi = {}
+    name_cids: dict = {}
     for c in snapshot.candidates:
         if c.name:
-            by_name.setdefault(c.name, c.cid)
+            name_cids.setdefault(c.name, set()).add(c.cid)
+    by_name = {
+        name: next(iter(cids)) for name, cids in name_cids.items() if len(cids) == 1
+    }
+    by_poi = {}
+    for c in snapshot.candidates:
         if c.poi_id:
             by_poi.setdefault(c.poi_id, c.cid)
     out = []

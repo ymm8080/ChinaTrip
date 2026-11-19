@@ -753,3 +753,119 @@ def test_edit_session_unmappable_op_returns_none(monkeypatch):
         ops=[{"kind": "move", "name": "不存在的点", "poi_id": None, "day": 1}],
     )
     assert plan is None and outcome is None
+
+
+def test_edit_session_duplicate_names_keep_guard(monkeypatch):
+    """R10b 回归：重名卡守卫——同名孪生卡分布在两天时，同一 cid 的 keep
+    曾要求 presence 在两天同时为 1（模型矛盾 INFEASIBLE → 编辑道静默
+    回落 legacy）；守卫按 cid 去重（歧义=不钉）后 move 编辑照常服务。"""
+    from app.services.agent.plan import PlanSession
+    from app.services.itinerary.models import DayPlan, ItineraryPlan
+    from app.services.trip_solver.live import (
+        edit_session_via_trip_solver,
+        replan_session_via_trip_solver,
+    )
+
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    session = PlanSession(
+        session_id="sess-dup",
+        device_id="ddup",
+        cities=["上海"],
+        days=2,
+        start_date="2026-11-25",
+        musts=["外滩", "豫园"],
+        preferences="",
+    )
+    out = replan_session_via_trip_solver(session, store=_edit_store())
+    assert out is not None and out.engine == "cpsat" and session.plan is not None
+
+    # 重名卡构造：第一张已排观光卡 model_copy 成同名孪生卡放到另一天——
+    # _seated_cards 会为同一 cid 产出两个 day 不同的 keep 候选
+    seated = [
+        it
+        for d in session.plan.days
+        for it in d.items
+        if it.start_time is not None
+        and (it.category or "") not in ("food", "hotel", "transport", "transfer")
+    ]
+    assert len(seated) >= 2
+    dup = seated[0]
+    twin_day = 2 if dup.day == 1 else 1
+    twin = dup.model_copy(update={"item_id": dup.item_id + "-twin", "day": twin_day})
+    session.plan = ItineraryPlan(
+        itinerary_id=session.plan.itinerary_id,
+        cities=list(session.plan.cities),
+        days=[
+            DayPlan(
+                day=d.day,
+                base_city=d.base_city,
+                items=[twin, *d.items] if d.day == twin_day else list(d.items),
+            )
+            for d in session.plan.days
+        ],
+    )
+
+    # 对另一张卡做 move 编辑：守卫生效（歧义 cid 不钉）→ 引擎照常服务，
+    # 绝不因 keep 矛盾 INFEASIBLE 静默回落
+    moved = next(it for it in seated if it.name != dup.name)
+    target_day = 2 if moved.day == 1 else 1
+    new_plan, outcome = edit_session_via_trip_solver(
+        session,
+        store=_edit_store(),
+        ops=[{"kind": "move", "name": moved.name, "day": target_day}],
+    )
+    assert new_plan is not None, "duplicate-name keeps must not kill the engine edit"
+    after = {
+        it.name: it.day
+        for d in new_plan.days
+        for it in d.items
+        if (it.category or "") not in ("food", "hotel", "transport", "transfer")
+    }
+    assert after.get(moved.name) == target_day
+
+
+def test_dict_ops_to_diffops_name_ambiguity():
+    """R10b 回归：池内同名多行=歧义——by_name 不收（只信 poi_id）；name-
+    only op 返回 None（调用方回落 legacy），poi_id 命中照常映射。"""
+    from app.services.trip_solver.live import _dict_ops_to_diffops
+    from app.services.trip_solver.types import (
+        CandidateItem,
+        FactSnapshot,
+        RequestedItem,
+        TripRequest,
+    )
+
+    snapshot = FactSnapshot(
+        schema_version=2,
+        request=TripRequest(
+            days=1,
+            cities=("上海",),
+            musts=(RequestedItem(rid="r1", name="外滩"),),
+        ),
+        candidates=(
+            CandidateItem(
+                cid="c1",
+                name="外滩",
+                poi_id="ct_上海_20",
+                kind="requested",
+                rid="r1",
+            ),
+            CandidateItem(cid="f1", name="外滩", poi_id="poi_f1", kind="fill"),
+            CandidateItem(cid="f2", name="豫园", poi_id="ct_上海_21", kind="fill"),
+        ),
+    )
+    # 同名两行（c1/f1 都叫「外滩」）：name-only op 不再按第一个同名错钉
+    name_only = _dict_ops_to_diffops(
+        snapshot, [{"kind": "move", "name": "外滩", "day": 2}]
+    )
+    assert name_only is None
+    # poi_id 命中不受歧义影响
+    ops = _dict_ops_to_diffops(
+        snapshot,
+        [{"kind": "move", "name": "外滩", "poi_id": "ct_上海_20", "day": 2}],
+    )
+    assert ops is not None and len(ops) == 1
+    assert ops[0].kind == "move" and ops[0].cid == "c1" and ops[0].day == 2
+    # 无歧义的 name 照常映射（守卫不误伤单行名）
+    ops2 = _dict_ops_to_diffops(snapshot, [{"kind": "delete", "name": "豫园"}])
+    assert ops2 is not None and ops2[0].kind == "delete" and ops2[0].cid == "f2"

@@ -128,36 +128,6 @@ def seam_plain_shape(
     return True
 
 
-def _intake_dates_at_default_endpoints(arrival_date, departure_date, start_date, days):
-    """行前日期卡 → 端点日语义（legacy _intake_target_day 同口径）。
-
-    到达=首日/离开=末日（或缺省、映射不了）与引擎默认形状等价，直连；
-    中途到达/离开（D2 才到、D3 就走）引擎无对应约束——留 legacy
-    （_apply_intake_times 的撤腿重排在那边）。"""
-    import datetime as _dt
-
-    def _day_no(iso):
-        if not iso or not start_date:
-            return None
-        try:
-            return (
-                _dt.date.fromisoformat(str(iso)[:10])
-                - _dt.date.fromisoformat(str(start_date)[:10])
-            ).days + 1
-        except ValueError:
-            return None
-
-    if arrival_date:
-        arrived = _day_no(arrival_date)
-        if arrived is not None and arrived != 1:
-            return False
-    if departure_date:
-        left = _day_no(departure_date)
-        if left is not None and (days or 0) and left != days:
-            return False
-    return True
-
-
 # 二期（2026-11-18）：api 缝（start/restart）已在本请求尝试过引擎的
 # 标记——_generate_v0 重解钩子不再重试（防双跑/双披露）。ContextVar 按
 # 请求上下文隔离：换局消息等新请求拿到干净默认值，钩子照常工作。
