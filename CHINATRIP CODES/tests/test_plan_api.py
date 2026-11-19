@@ -1396,6 +1396,8 @@ def _day_visits(body: dict, day_no: int) -> list[dict]:
         if (
             "mode" not in i
             and not i.get("item_id", "").startswith("food-lunch-ph")
+            # R12：交通桥卡（leg-bridge-*）是渲染件不是景点
+            and not i.get("item_id", "").startswith("leg-bridge-")
             # 晚饭占位件同理（2026-11-07 起每晚都有餐窗占位）
             and not i.get("item_id", "").startswith("food-dinner-ph")
             # 酒店入住卡/每晚酒店卡/次日晨卡无坐标/不回填（2026-11-01/11-07/11-13）
@@ -2165,6 +2167,7 @@ def test_refresh_legs_backfills_missing_locations():
         and not str(i.get("item_id", "")).startswith("hotel-checkin")
         and not str(i.get("item_id", "")).startswith("hotel-night")
         and not str(i.get("item_id", "")).startswith("hotel-morning")
+        and not str(i.get("item_id", "")).startswith("leg-bridge-")
     ]
     assert visits and all(v.get("location") for v in visits), (
         "backfill must fill coordinates for every missing item"
@@ -2210,6 +2213,7 @@ def test_get_plan_session_returns_refreshed_plan():
         and not str(i.get("item_id", "")).startswith("hotel-checkin")
         and not str(i.get("item_id", "")).startswith("hotel-night")
         and not str(i.get("item_id", "")).startswith("hotel-morning")
+        and not str(i.get("item_id", "")).startswith("leg-bridge-")
     ]
     assert visits and all(v.get("location") for v in visits), (
         "GET must backfill missing coordinates"

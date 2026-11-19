@@ -139,9 +139,9 @@ from app.services.poi_names import (
 from app.services.reservation_seeds import (
     FOREIGNER_TIP,
     FOREIGNER_TIP_EN,
-    RESERVATION_V0,
+    match_reservation_csv_row,
+    match_seed,
     reservation_meta_for,
-    reservation_pois_index,
 )
 from app.services.restaurants import (
     DINNER_PLACEHOLDER_ID_PREFIX,
@@ -5184,7 +5184,14 @@ def _item_line(item: VisitItem | TransferItem) -> str:
 
 
 def _plan_digest(plan: ItineraryPlan) -> str:
-    return "\n".join(_item_line(i) for d in plan.days for i in d.items)
+    # R12：leg-bridge-* 交通桥卡是渲染件——不进编辑 LLM 的卡清单
+    # （item_id 必须来自当前行程，但桥卡不可 move/remove/add）。
+    return "\n".join(
+        _item_line(i)
+        for d in plan.days
+        for i in d.items
+        if not str(getattr(i, "item_id", "") or "").startswith("leg-bridge-")
+    )
 
 
 def _extension_base_city(plan: ItineraryPlan) -> str:
@@ -6398,11 +6405,15 @@ def _fmt_hm(t: time) -> str:
 
 
 def _reservation_hint(name: str, cand: dict) -> str | None:
-    """G1（§14.3）：预约制提示——库列优先，名单 v0 兜底（_same_site
-    容错匹配，覆盖「官署博物院」vs 库存短名类名字变体），
-    再退 09 号表全量判词（data/reservation_pois.csv：需预约/无需预约
-    都有官方渠道+外籍口径）。EN 走 reservation_seeds 的
-    note_en/FOREIGNER_TIP_EN；09 表渠道串无 EN 数据，保留中文原文。"""
+    """G1（§14.3）：预约制提示——库列优先，名单 v0 兜底，再退 09 号表
+    全量判词（data/reservation_pois.csv：需预约/无需预约都有官方渠道+
+    外籍口径）。EN 走 reservation_seeds 的 note_en/FOREIGNER_TIP_EN；
+    09 表渠道串无 EN 数据，保留中文原文。
+
+    2026-11-19 抢票日历误报修复：v0/09 表兜底改走 reservation_seeds
+    守卫匹配（剥「（故宫店）」类括号注记 + 城市守卫 + 酒店/餐厅词守卫、
+    长种子优先），餐/住类候选不出景区放票提示——「四季民福烤鸭店
+    （故宫店）」不再吸故宫口径。"""
     adv = cand.get("reservation_advance_days")
     if cand.get("reservation_required") or adv:
         return L(
@@ -6411,36 +6422,31 @@ def _reservation_hint(name: str, cand: dict) -> str | None:
             (f"Book {adv} days ahead" if adv else "Reservation required")
             + " (Trip.com/Klook can secure it for you)",
         )
-    for seed_name, meta in RESERVATION_V0.items():
-        if _same_site(name, seed_name) or seed_name in (name or ""):
-            note = meta.get("note") or ""
-            if is_en() and meta.get("note_en"):
-                note = meta["note_en"]
-            tip = L(FOREIGNER_TIP, FOREIGNER_TIP_EN)
-            return L(
-                f"需提前 {meta['days']} 天预约（{note}）——{tip}",
-                f"Book {meta['days']} days ahead ({note}) — {tip}",
-            )
-    row = _reservation_csv_row(name)
+    if (cand.get("category") or "").strip().lower() in ("food", "hotel"):
+        return None  # 餐/住卡不是预约制场馆（订座走 🍴 餐位道，2026-11-19）
+    hit = match_seed(name, cand.get("city"))
+    if hit:
+        meta = hit[1]
+        note = meta.get("note") or ""
+        if is_en() and meta.get("note_en"):
+            note = meta["note_en"]
+        tip = L(FOREIGNER_TIP, FOREIGNER_TIP_EN)
+        return L(
+            f"需提前 {meta['days']} 天预约（{note}）——{tip}",
+            f"Book {meta['days']} days ahead ({note}) — {tip}",
+        )
+    row = _reservation_csv_row(name, cand.get("city"))
     if row:
         return _reservation_hint_from_row(row)
     return None
 
 
-def _reservation_csv_row(name: str) -> dict | None:
-    """09 表行命中：精确名直取，再 _same_site 容错（先 exact 防
-    「石窟样本博物馆」被容错吸进「石窟样本」判词）。"""
-    n = (name or "").strip()
-    if not n:
-        return None
-    idx = reservation_pois_index()
-    hit = idx.get(n)
-    if hit:
-        return hit
-    for key, row in idx.items():
-        if _same_site(n, key) or key in n:
-            return row
-    return None
+def _reservation_csv_row(name: str, city: str | None = None) -> dict | None:
+    """09 表行命中（2026-11-19 守卫化）：精确名直取；包含分支走
+    reservation_seeds.match_reservation_csv_row（剥括号注记 + 行城市
+    守卫 + 酒店/餐厅词守卫，不做 _same_site 尾剥容错——「西湖店」分支
+    与跨城同名街镇不再吸判词）。"""
+    return match_reservation_csv_row(name, city)
 
 
 def _reservation_hint_from_row(row: dict) -> str | None:
@@ -13395,7 +13401,11 @@ def _open_meal_leg_gaps(plan: ItineraryPlan) -> list[str]:
             (
                 i
                 for i in day.items
-                if isinstance(i, VisitItem) and i.start_time is not None
+                if isinstance(i, VisitItem)
+                and i.start_time is not None
+                # R12：交通桥卡不吃餐缝推移（它是空档渲染件，读闸
+                # 末尾按最终形状幂等重挂——chain 里透明穿过）。
+                and not str(i.item_id or "").startswith("leg-bridge-")
             ),
             key=lambda i: _minutes_of(i.start_time),
         )
@@ -31177,6 +31187,8 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
             and not is_hotel_checkin(item)
             and not is_hotel_night(item)
             and not is_hotel_morning(item)
+            # R12 交通桥卡（leg-bridge-*）：渲染件，无 POI 可回填
+            and not str(item.item_id or "").startswith("leg-bridge-")
         ]
         if not missing:
             return

@@ -211,9 +211,22 @@ def test_small_gap_and_system_cards_not_bridged():
     )  # 30 分钟缝：leg 元数据足够，不出桥
     assert _bridges(attach_gap_bridges(_plan(a, near))) == []
 
-    # 占位午餐（无 POI）做目的地：不桥
+    # 占位午餐做目的地：不桥（名字判占位——poi 缺失不误杀命名卡）
     ph = _card("meal-lunch-1", "午餐", "food", 11 * 60 + 30, 12 * 60 + 30)
     assert _bridges(attach_gap_bridges(_plan(a, ph))) == []
+    # 命名餐卡（真餐厅顶卡）：常无 poi_id 但带坐标——必须可桥
+    from app.services.itinerary.models import GeoPoint
+
+    duck_nopoi = _card(
+        "meal-lunch-1",
+        "烤鸭店（故宫店）",
+        "food",
+        11 * 60 + 30,
+        12 * 60 + 30,
+        location=GeoPoint(lon=116.41, lat=39.92),
+    )
+    got_duck = _bridges(attach_gap_bridges(_plan(a, duck_nopoi)))
+    assert len(got_duck) == 1 and got_duck[0].end_time == time(11, 30)
 
     # 换程/回城卡做起点：不桥
     ret = _card("access-return-v1", "回城", "transfer", 15 * 60 + 30, 17 * 60)
@@ -262,6 +275,33 @@ def test_bridge_card_survives_pre_remote_eviction():
     ids = [i.item_id for i in plan.days[0].items]
     assert "leg-bridge-d1-1" in ids  # 交通桥卡不是填充活动，不撤
     assert "v1" in ids and "v9" in ids
+
+
+def test_attach_gap_bridges_is_idempotent():
+    """读闸 heal 挪卡后重挂：先清后挂——两次调用不双卡；挪卡后的
+    新空档照样补桥。"""
+    a = _card(
+        "v1",
+        "天安门广场",
+        "attraction",
+        8 * 60 + 30,
+        10 * 60,
+        poi_id="p-1",
+        next_leg_mode="walk",
+    )
+    duck = _card(
+        "meal-lunch-1", "烤鸭店", "food", 11 * 60 + 2, 12 * 60 + 2, poi_id="p-2"
+    )
+    plan = attach_gap_bridges(_plan(a, duck))
+    assert len(_bridges(plan)) == 1
+    # heal 挪卡：烤鸭改到 12:30（新空档 10:00→12:30）后重挂——仍只有一桥
+    duck.start_time = time(12, 30)
+    duck.end_time = time(13, 30)
+    duck.duration_minutes = 60
+    plan = attach_gap_bridges(plan)
+    got = _bridges(plan)
+    assert len(got) == 1
+    assert got[0].end_time == time(12, 30)  # 桥跟到新空档
 
 
 def test_bridge_gap_min_constant():

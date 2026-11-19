@@ -1240,6 +1240,21 @@ def _strip_untimed_items(plan):
     return plan.model_copy(update={"days": days, "unplaced": unplaced})
 
 
+def _with_gap_bridges(plan):
+    """R12 响应件：>=45 分钟同日空档挂「前往下一站」交通桥卡（幂等、
+    非变异链路下游再挂一次也安全）。展示糖——挂挂失守绝不挂挂挂挂
+    坏行程。"""
+    from app.services.trip_solver.assembly.bridges import (
+        attach_gap_bridges,
+    )
+
+    try:
+        return attach_gap_bridges(plan)
+    except Exception:
+        logger.warning("plan gap bridges attach failed", exc_info=True)
+        return plan
+
+
 def _plan_for_response(plan):
     """行程下发出口装配（2026-11-13 拍板「未安排卡不显示」）：先剔无时刻
     非钉参访卡（剔除件转 plan.unplaced，亮成宿主卡「想去」chip——只有
@@ -1249,9 +1264,21 @@ def _plan_for_response(plan):
     统一走本入口，禁止旁路。"""
     plan = _plan_with_alternatives(_morning_point_cards(_strip_untimed_items(plan)))
     try:
-        return attach_return_cards(plan)
+        plan = attach_return_cards(plan)
     except Exception:  # 展示糖：绝不能把行程卡拉挂
         logger.warning("plan return cards attach failed", exc_info=True)
+    # R12（2026-11-19 拍板「天安门后应该在去下一个景点的路上，而不是
+    # 空着等到午餐卡」）：>=45 分钟的同日空档挂可见「前往下一站」交通
+    # 桥卡——与回城卡同契约（响应副本、幂等先清后挂），session 本体
+    # 与持久会话零桥卡。
+    from app.services.trip_solver.assembly.bridges import (
+        attach_gap_bridges,
+    )
+
+    try:
+        return attach_gap_bridges(plan)
+    except Exception:  # 展示糖：绝不能把行程卡拉挂
+        logger.warning("plan gap bridges attach failed", exc_info=True)
         return plan
 
 
@@ -1392,7 +1419,7 @@ def _plan_turn_body(session, reply: str, change, *, alternatives: bool = True) -
         body["plan"] = (
             _plan_for_response(session.plan)
             if alternatives
-            else _strip_untimed_items(session.plan)
+            else _with_gap_bridges(_strip_untimed_items(session.plan))
         )
         body["violations"] = current_violations(session)
     if change is not None:

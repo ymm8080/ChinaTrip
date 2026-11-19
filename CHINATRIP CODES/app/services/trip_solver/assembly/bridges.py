@@ -41,17 +41,33 @@ def _mins(t) -> int | None:
 
 
 def _bridgeable(item: VisitItem) -> bool:
-    """酒店/换程系统卡不做桥的起点或目的地；无 POI 的占位餐卡（无目的
-    地可去）同样不桥。命名餐卡（真餐厅顶卡，带 poi_id）照常可桥。"""
+    """酒店/换程系统卡不做桥的起点或目的地；占位餐卡（无目的地可去）
+    同样不桥。占位判定按「名字」——命名餐卡（真餐厅顶卡）带坐标但
+    常无 poi_id（池内荐点行从未带过 id，R8 起实锤），按 poi 判会把
+    命名卡误杀成占位。"""
     if (item.category or "") in ("hotel", "transfer", "transport"):
         return False
-    if (item.item_id or "").startswith("meal-") and not item.poi_id:
-        return False
+    if (item.category or "") == "food":
+        name = str(item.name or "").strip()
+        if name in ("午餐", "晚饭", "Lunch", "Dinner"):
+            return False
+        if item.poi_id is None and item.location is None:
+            return False
     return True
 
 
 def attach_gap_bridges(plan: "ItineraryPlan") -> "ItineraryPlan":
-    """每段 >=BRIDGE_GAP_MIN 的同日真空档插一张「前往下一站」交通桥卡。"""
+    """每段 >=BRIDGE_GAP_MIN 的同日真空档插一张「前往下一站」交通桥卡。
+
+    幂等：先清掉既有 leg-bridge-* 再按当前形状重挂——装配期挂过、
+    读闸 heal（升旗锚/接驳对齐/餐卡顺延）挪卡后重挂，两次调用都安全。
+    """
+    for day in plan.days:
+        day.items = [
+            i
+            for i in day.items
+            if not str(getattr(i, "item_id", "") or "").startswith(BRIDGE_ID_PREFIX)
+        ]
     seq = 0
     for day in plan.days:
         timed = [

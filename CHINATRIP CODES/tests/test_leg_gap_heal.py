@@ -455,7 +455,13 @@ def test_get_endpoint_heals_stale_session():
     assert resp.status_code == 200
     day = next(d for d in resp.json()["plan"]["days"] if d["day"] == 2)
     placed = sorted(
-        (i for i in day["items"] if i.get("start_time")),
+        (
+            i
+            for i in day["items"]
+            if i.get("start_time")
+            # R12：交通桥卡是空档渲染件（起=前卡收尾），非背靠背
+            and not str(i.get("item_id", "")).startswith("leg-bridge-")
+        ),
         key=lambda i: i["start_time"],
     )
     for a, b in zip(placed, placed[1:]):
