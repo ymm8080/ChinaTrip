@@ -301,3 +301,84 @@ def retime_remote_day_from_access(
                     )
                 )
     return notes
+
+
+# ---------- R12-C: restaurant visit cards fold into meal cards ----------
+
+
+def _is_restaurant_visit(item) -> bool:
+    """真餐馆以「观光卡」形态出现（R12-M 之前的存量/回退形态，live 实锤
+    2026-11-19 会话 6259415f：四季民福 [v4] 11:02 观光卡与午餐占位并列）：
+    food 品类、有时刻、既非占位餐卡（engine meal-* 无 poi / legacy
+    food-*-ph*）也非引擎命名餐卡（meal-lunch/dinner-* 带 poi）。"""
+    from app.services.restaurants import is_dinner_placeholder, is_lunch_placeholder
+
+    if not isinstance(item, VisitItem) or (item.category or "") != "food":
+        return False
+    iid = str(getattr(item, "item_id", "") or "")
+    if iid.startswith(("meal-lunch", "meal-dinner")):
+        return False  # 引擎餐卡（占位或命名顶卡）——不是孤儿观光卡
+    if is_lunch_placeholder(item) or is_dinner_placeholder(item):
+        return False
+    return item.start_time is not None
+
+
+def fold_restaurant_visit_cards(plan, *, lang: str = "zh") -> list[str]:
+    """R12-C（2026-11-19 用户拍板「烤鸭店这类餐厅可以进行程、非常推荐进
+    行程，但放在午餐/晚餐卡上」）：读闸自愈——把以观光卡形态出现的真餐馆
+    折进当日对应时段的占位餐卡：占位卡顶替成命名餐卡（名字/坐标/POI/营业
+    时间/时刻全取餐馆卡——R8-S2b 同形态），观光卡撤除。午段（<15:00）折
+    午餐、晚段（≥15:00）折晚餐；对应槽无占位时不折（不发明新槽）。幂等。
+    """
+    from app.services.restaurants import is_dinner_placeholder, is_lunch_placeholder
+
+    notes: list[str] = []
+    for day in plan.days:
+        orphans = [v for v in day.items if _is_restaurant_visit(v)]
+        if not orphans:
+            continue
+        items = list(day.items)
+        changed = False
+        for orphan in orphans:
+            start = _mins(orphan.start_time)
+            if start is None:
+                continue
+            slot = "lunch" if start < 15 * 60 else "dinner"
+            is_ph = is_lunch_placeholder if slot == "lunch" else is_dinner_placeholder
+            target = next((v for v in items if v is not orphan and is_ph(v)), None)
+            if target is None:
+                continue
+            # 占位卡顶替成命名餐卡：本体=餐馆卡，槽位 id 保留（餐卡身份）
+            target.name = orphan.name
+            target.name_en = getattr(orphan, "name_en", None)
+            target.poi_id = orphan.poi_id
+            if orphan.location is not None:
+                target.location = orphan.location
+            if getattr(orphan, "address", None):
+                target.address = orphan.address
+            target.opening_hours = orphan.opening_hours
+            target.start_time = orphan.start_time
+            target.end_time = orphan.end_time
+            target.duration_minutes = orphan.duration_minutes
+            target.anchor_from_prev = False
+            if orphan.location is not None:
+                target.anchor_location = orphan.location
+            items.remove(orphan)
+            changed = True
+            notes.append(
+                _n(
+                    lang,
+                    f"第{day.day}天「{orphan.name}」已折进{slot}餐卡"
+                    "（餐厅进餐卡，不再与占位餐卡并列）",
+                    f"Day {day.day}: '{orphan.name}' folded into the {slot} meal card",
+                )
+            )
+        if changed:
+            day.items = items
+            day.items.sort(
+                key=lambda i: (
+                    (_mins(i.start_time) if i.start_time is not None else 24 * 60),
+                    str(getattr(i, "item_id", "") or ""),
+                )
+            )
+    return notes

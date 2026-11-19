@@ -28,10 +28,37 @@ from ...itinerary.models import VisitItem
 if TYPE_CHECKING:  # pragma: no cover
     from ...itinerary.models import ItineraryPlan
 
-BRIDGE_GAP_MIN = 45  # C-03 地板 max(30, taxi) 之上的死空气才桥
+# R12-C2（2026-11-19 拍板「所有景点后就是下一个景点，不需要
+# 45 分钟这个条件」）：每一段正时长转场都出桥——时间线全程
+# 「在路上」，不再只兜大空档。
+BRIDGE_GAP_MIN = 0
 _MODE_VERB = {"walk": "步行", "taxi": "乘车", "access": "接驳"}
 _MODE_ICON = {"walk": "🚶", "taxi": "🚕", "access": "🚌"}
 BRIDGE_ID_PREFIX = "leg-bridge-"
+
+
+def _haversine_km(a, b) -> float:
+    import math
+
+    if a is None or b is None:
+        return 0.0
+    lon1, lat1, lon2, lat2 = map(math.radians, (a.lon, a.lat, b.lon, b.lat))
+    h = (
+        math.sin((lat2 - lat1) / 2) ** 2
+        + math.cos(lat1) * math.cos(lat2) * math.sin((lon2 - lon1) / 2) ** 2
+    )
+    return 2 * 6371.0 * math.asin(math.sqrt(h))
+
+
+def _estimated_leg(a, b):
+    """无 annotate 腿元数据时的兜底估算：直线距离→步行(≤2km)/打车。
+    返回 (mode, minutes) 或 None（无坐标）。"""
+    km = _haversine_km(a, b)
+    if km <= 0:
+        return None
+    if km <= 2.0:
+        return ("walk", max(1, round(km * 1000 / 75)))
+    return ("taxi", round(min(180, km * 1.3 / 35 * 60)) + 30)
 
 
 def _mins(t) -> int | None:
@@ -41,19 +68,10 @@ def _mins(t) -> int | None:
 
 
 def _bridgeable(item: VisitItem) -> bool:
-    """酒店/换程系统卡不做桥的起点或目的地；占位餐卡（无目的地可去）
-    同样不桥。占位判定按「名字」——命名餐卡（真餐厅顶卡）带坐标但
-    常无 poi_id（池内荐点行从未带过 id，R8 起实锤），按 poi 判会把
-    命名卡误杀成占位。"""
-    if (item.category or "") in ("hotel", "transfer", "transport"):
-        return False
-    if (item.category or "") == "food":
-        name = str(item.name or "").strip()
-        if name in ("午餐", "晚饭", "Lunch", "Dinner"):
-            return False
-        if item.poi_id is None and item.location is None:
-            return False
-    return True
+    """酒店/换程系统卡不做桥的起点或目的地（晨出/夜归/回城卡自身
+    就是转场语义）。其余一切卡（含占位/命名餐卡）都参与每段转场——
+    2026-11-19 拍板「所有景点后就是下一个景点，不需要 45 分钟条件」。"""
+    return (item.category or "") not in ("hotel", "transfer", "transport")
 
 
 def attach_gap_bridges(plan: "ItineraryPlan") -> "ItineraryPlan":
@@ -91,8 +109,8 @@ def attach_gap_bridges(plan: "ItineraryPlan") -> "ItineraryPlan":
         added: list[VisitItem] = []
         for k in range(len(merged) - 1):
             g0, g1 = merged[k][1], merged[k + 1][0]
-            if g1 - g0 < BRIDGE_GAP_MIN:
-                continue
+            if g1 - g0 <= BRIDGE_GAP_MIN:
+                continue  # 仅零/负间隔（嵌套）不出桥
             # 嵌套同时刻多卡（宿主+嵌餐同起点）：起点取可桥卡中最晚者、
             # 终点取可桥卡中最早者——占位餐卡/系统卡不进桥的两端。
             prev = max(
@@ -117,20 +135,38 @@ def attach_gap_bridges(plan: "ItineraryPlan") -> "ItineraryPlan":
             )
             if prev is None or nxt is None:
                 continue
-            if getattr(prev, "next_leg_detail", None):
-                continue  # access/换程详情链自管该空档
+            # R12-C2：access/换程段也出桥（去程接驳此前无卡可见——
+            # 「前往下一站·接驳约N分钟」补上；班次详情仍在 prev 卡
+            # 的 next_leg_detail 元数据里）。
             seq += 1
             gap = g1 - g0
             mode = str(getattr(prev, "next_leg_mode", None) or "")
             minutes = getattr(prev, "next_leg_minutes", None)
             verb = _MODE_VERB.get(mode)
             icon = _MODE_ICON.get(mode, "🧭")
+            if not (verb and isinstance(minutes, int)):
+                est = _estimated_leg(
+                    getattr(prev, "location", None),
+                    getattr(nxt, "location", None),
+                )
+                if est is not None:
+                    mode, minutes = est
+                    verb = _MODE_VERB.get(mode)
+                    icon = _MODE_ICON.get(mode, "🧭")
+            wait = gap - minutes if isinstance(minutes, int) else gap
             if verb and isinstance(minutes, int):
                 name = "%s %s前往下一站·约%d分钟" % (icon, verb, minutes)
-                if gap - minutes > 10:
+                if wait > 60:
+                    name = "🕒 自由活动，随后%s前往下一站·约%d分钟" % (
+                        verb,
+                        minutes,
+                    )
+                elif wait > 10:
                     name += "（含自由等候）"
             else:
                 name = "🧭 前往下一站（自由安排）"
+                if wait > 60:
+                    name = "🕒 自由活动，随后前往下一站"
             nxt_en = "the next stop"
             added.append(
                 VisitItem(

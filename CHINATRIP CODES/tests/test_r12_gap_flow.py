@@ -14,10 +14,12 @@ from __future__ import annotations
 
 from datetime import time
 
-from app.services.itinerary.hotfix_1117 import evict_pre_remote_fillers
+from app.services.itinerary.hotfix_1117 import (
+    evict_pre_remote_fillers,
+    fold_restaurant_visit_cards,
+)
 from app.services.itinerary.models import DayPlan, ItineraryPlan, VisitItem
 from app.services.trip_solver.assembly.bridges import (
-    BRIDGE_GAP_MIN,
     attach_gap_bridges,
 )
 from app.services.trip_solver.inputs.enrich import enrich
@@ -201,37 +203,83 @@ def test_bridge_fallback_name_without_leg_metadata():
     plan = attach_gap_bridges(_plan(a, b))
     got = _bridges(plan)
     assert len(got) == 1
-    assert "前往下一站" in got[0].name and "自由安排" in got[0].name
+    assert "前往下一站" in got[0].name and "自由活动" in got[0].name
 
 
-def test_small_gap_and_system_cards_not_bridged():
-    a = _card("v1", "天安门广场", "attraction", 8 * 60 + 30, 10 * 60, poi_id="p-1")
-    near = _card(
-        "v2", "故宫博物院", "museum", 10 * 60 + 30, 12 * 60 + 30, poi_id="p-3"
-    )  # 30 分钟缝：leg 元数据足够，不出桥
-    assert _bridges(attach_gap_bridges(_plan(a, near))) == []
-
-    # 占位午餐做目的地：不桥（名字判占位——poi 缺失不误杀命名卡）
-    ph = _card("meal-lunch-1", "午餐", "food", 11 * 60 + 30, 12 * 60 + 30)
-    assert _bridges(attach_gap_bridges(_plan(a, ph))) == []
-    # 命名餐卡（真餐厅顶卡）：常无 poi_id 但带坐标——必须可桥
+def test_bridge_estimated_name_from_coordinates():
+    """无腿元数据但有坐标：兜底按直线距离估步行/打车并写进卡名。"""
     from app.services.itinerary.models import GeoPoint
 
-    duck_nopoi = _card(
-        "meal-lunch-1",
-        "烤鸭店（故宫店）",
-        "food",
-        11 * 60 + 30,
-        12 * 60 + 30,
-        location=GeoPoint(lon=116.41, lat=39.92),
+    a = _card(
+        "v1",
+        "天安门广场",
+        "attraction",
+        8 * 60 + 30,
+        10 * 60,
+        poi_id="p-1",
+        location=GeoPoint(lon=116.397, lat=39.910),
     )
-    got_duck = _bridges(attach_gap_bridges(_plan(a, duck_nopoi)))
-    assert len(got_duck) == 1 and got_duck[0].end_time == time(11, 30)
+    b = _card(
+        "v2",
+        "景山公园",
+        "attraction",
+        10 * 60 + 30,
+        12 * 60 + 30,
+        poi_id="p-2",
+        location=GeoPoint(lon=116.403, lat=39.917),
+    )
+    got = _bridges(attach_gap_bridges(_plan(a, b)))
+    assert len(got) == 1
+    assert "步行" in got[0].name and "分钟" in got[0].name
 
-    # 换程/回城卡做起点：不桥
+
+def test_every_hop_bridged_and_system_cards_not():
+    """R12-C2（2026-11-19 拍板「所有景点后就是下一个景点，不需要
+    45 分钟这个条件」）：每一段正时长转场都出桥——30 分钟缝也出；
+    酒店/换程系统卡两端仍不桥；去程接驳段出「接驳前往下一站」。"""
+    a = _card("v1", "天安门广场", "attraction", 8 * 60 + 30, 10 * 60, poi_id="p-1")
+    near = _card("v2", "故宫博物院", "museum", 10 * 60 + 30, 12 * 60 + 30, poi_id="p-3")
+    got = _bridges(attach_gap_bridges(_plan(a, near)))
+    assert len(got) == 1  # 30 分钟缝也出桥
+    assert got[0].start_time == time(10, 0) and got[0].end_time == time(10, 30)
+
+    # 占位午餐做目的地：照常出桥（去吃饭也是在路上）
+    ph = _card("meal-lunch-1", "午餐", "food", 11 * 60 + 30, 12 * 60 + 30)
+    got_ph = _bridges(attach_gap_bridges(_plan(a, ph)))
+    assert len(got_ph) == 1
+
+    # access/换程段（去程接驳）出桥：🚌 接驳前往下一站（腿字段在 prev
+    # 卡上——annotate 口径：锚→慕田峪的接驳腿写在锚卡上）
+    anchor_acc = _card(
+        "v0",
+        "天安门广场",
+        "attraction",
+        8 * 60 + 51,
+        8 * 60 + 51,
+        poi_id="p-0",
+        next_leg_mode="access",
+        next_leg_minutes=98,
+        next_leg_detail={"service_name": "前门旅游专线"},
+    )
+    shut = _card(
+        "v3",
+        "慕田峪长城",
+        "historic",
+        11 * 60 + 8,
+        14 * 60 + 8,
+        poi_id="p-5",
+    )
+    got_acc = _bridges(attach_gap_bridges(_plan(anchor_acc, shut)))
+    assert len(got_acc) == 1
+    assert "接驳" in got_acc[0].name and "98" in got_acc[0].name
+
+    # 换程/回城卡做起点或目的地：仍不桥（系统卡自管）
     ret = _card("access-return-v1", "回城", "transfer", 15 * 60 + 30, 17 * 60)
     din = _card("meal-dinner-1", "晚饭（烤鸭）", "food", 19 * 60, 20 * 60, poi_id="p-4")
     assert _bridges(attach_gap_bridges(_plan(ret, din))) == []
+    # 酒店夜卡做目的地：不桥
+    hn = _card("hotel-night-d1", "回酒店·夜间休息", "hotel", 21 * 60, 22 * 60)
+    assert _bridges(attach_gap_bridges(_plan(din, hn))) == []
 
 
 def test_nested_host_span_and_multi_gap():
@@ -304,5 +352,91 @@ def test_attach_gap_bridges_is_idempotent():
     assert got[0].end_time == time(12, 30)  # 桥跟到新空档
 
 
-def test_bridge_gap_min_constant():
-    assert BRIDGE_GAP_MIN == 45
+def test_fold_restaurant_visit_cards_into_meal_card():
+    """R12-C（2026-11-19 拍板「餐厅放午餐/晚餐卡上」）：存量计划的
+    观光卡烤鸭折进当日占位餐卡——占位顶替成命名餐卡、观光卡撤除、
+    幂等。"""
+    from app.services.itinerary.models import GeoPoint
+
+    anchor = _card("v3", "天安门广场", "attraction", 8 * 60 + 30, 10 * 60, poi_id="p-3")
+    duck = _card(
+        "v4",
+        "四季民福烤鸭店（故宫店）",
+        "food",
+        11 * 60 + 2,
+        11 * 60 + 57,
+        location=GeoPoint(lon=116.410, lat=39.925),
+        opening_hours="10:30-22:30",
+    )
+    lunch_ph = _card("meal-lunch-1", "午餐", "food", 12 * 60 + 30, 13 * 60 + 30)
+    plan = _plan(anchor, duck, lunch_ph)
+    notes = fold_restaurant_visit_cards(plan)
+    assert notes and "四季民福" in notes[0]
+    names = [(i.name, i.item_id) for i in plan.days[0].items]
+    assert ("四季民福烤鸭店（故宫店）", "meal-lunch-1") in names
+    assert all(
+        n != "四季民福烤鸭店（故宫店）" or iid == "meal-lunch-1" for n, iid in names
+    )
+    meal = next(i for i in plan.days[0].items if i.item_id == "meal-lunch-1")
+    assert meal.start_time == time(11, 2) and meal.end_time == time(11, 57)
+    assert meal.location is not None
+    # 幂等：二次运行无新动作
+    assert fold_restaurant_visit_cards(plan) == []
+
+
+def test_fold_evening_restaurant_into_dinner_placeholder():
+    duck = _card(
+        "v4",
+        "四季民福烤鸭店（故宫店）",
+        "food",
+        19 * 60 + 58,
+        21 * 60 + 28,
+        poi_id="p-4",
+    )
+    dinner_ph = _card("meal-dinner-1", "晚饭", "food", 17 * 60 + 58, 19 * 60 + 28)
+    sight = _card("v1", "天坛", "temple", 14 * 60, 15 * 60 + 30, poi_id="p-1")
+    plan = _plan(sight, duck, dinner_ph)
+    notes = fold_restaurant_visit_cards(plan)
+    assert notes
+    meal = next(i for i in plan.days[0].items if i.item_id == "meal-dinner-1")
+    assert meal.name == "四季民福烤鸭店（故宫店）"
+    assert meal.start_time == time(19, 58)
+
+
+def test_fold_no_placeholder_leaves_orphan_untouched():
+    duck = _card("v4", "蜀宴赋", "food", 16 * 60 + 48, 18 * 60 + 48, poi_id="p-4")
+    sight = _card("v1", "武侯祠", "historic", 9 * 60, 11 * 60, poi_id="p-1")
+    plan = _plan(sight, duck)
+    assert fold_restaurant_visit_cards(plan) == []
+    assert any(i.item_id == "v4" for i in plan.days[0].items)
+
+
+def test_any_slot_restaurant_binds_time_matching_slot():
+    """R12-C3：any-槽按时段对齐——上午流式的烤鸭落午餐卡（不是晚餐卡
+    的 09:00 倒挂）。"""
+    site = _cand(
+        "site", rid="r-site", category="historic", hours="08:30-12:00", duration=90
+    )
+    duck = _cand(
+        "duck",
+        rid="r-duck",
+        name="烤鸭店",
+        category="food",
+        hours="09:00-22:30",
+        duration=60,
+        meal_slot="any",
+    )
+    snap = _snap(
+        [site, duck],
+        musts=("r-site", "r-duck"),
+        pins=({"rid": "r-site", "day": 1, "start_min": 510},),
+    )
+    sol = solve_snapshot(enrich(snap))
+    assert sol.status in ("OPTIMAL", "FEASIBLE"), sol.status
+    placed = {i.cid: i for i in sol.items}
+    d = placed["duck"]
+    assert d.start_min < 15 * 60  # 上午流式（营业地板+缝）
+    lunch = next(m for m in sol.meal_anchors if m["slot"] == "lunch")
+    dinner = next(m for m in sol.meal_anchors if m["slot"] == "dinner")
+    assert lunch["bound_cid"] == "duck"  # 午段烤鸭=午餐卡
+    assert dinner["bound_cid"] is None  # 晚餐槽照常占位

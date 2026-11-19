@@ -33,6 +33,11 @@ AFTERNOON_BIG_SINGLE_REWARD = 12  # 同拍板软面：下午大点 ≤1/日（�
 # 候选在场 +40/日——与 legacy「偏好位在 tier 之前」同向；同类可多个
 # （奖励逐张叠加无衰减=拍板「偏好可以是同一类型多个景点」）
 PREFERENCE_CATEGORY_REWARD = 40
+# R12-C3（2026-11-19 拍板「餐厅放在午餐/晚餐卡上」）：绑定槽按时段
+# 对齐——午段（<15:00）落午餐卡、晚段（≥15:00）落晚餐卡。软奖励：
+# 流式时刻仍优先，槽标签跟时刻走（杀「09:00 的晚餐卡」倒挂）。
+MEAL_SLOT_BAND_SPLIT = 15 * 60
+MEAL_SLOT_BAND_REWARD = 25
 MORNING_MINUTE = 12 * 60
 ENTERTAINMENT_PRESENT_REWARD = 40
 CATEGORY_DIVERSITY_REWARD = 20
@@ -131,6 +136,32 @@ def _preference(
                 and str(cand.indoor or "").lower() in {"yes", "true", "1", "indoor"}
             ):
                 positive.append(INDOOR_DINNER_REWARD * lit)
+            if cand.category == "food" and getattr(cand, "meal_slot", None) == "any":
+                # R12-C3：any-槽绑定按时段对齐（meal_bound 里的自由
+                # 绑定布尔——lunch↔午段 / dinner↔晚段）。
+                for slot in ("lunch", "dinner"):
+                    blit = bundle.meal_bound.get((cand.cid, day, slot))
+                    if blit is None:
+                        continue
+                    band = model.NewBoolVar("msb_%s_%d_%s" % (cand.cid, day, slot))
+                    if slot == "lunch":
+                        model.Add(
+                            bundle.start[(cand.cid, day)] < MEAL_SLOT_BAND_SPLIT
+                        ).OnlyEnforceIf(band)
+                        model.Add(
+                            bundle.start[(cand.cid, day)] >= MEAL_SLOT_BAND_SPLIT
+                        ).OnlyEnforceIf(band.Not())
+                    else:
+                        model.Add(
+                            bundle.start[(cand.cid, day)] >= MEAL_SLOT_BAND_SPLIT
+                        ).OnlyEnforceIf(band)
+                        model.Add(
+                            bundle.start[(cand.cid, day)] < MEAL_SLOT_BAND_SPLIT
+                        ).OnlyEnforceIf(band.Not())
+                    both = model.NewBoolVar("msbb_%s_%d_%s" % (cand.cid, day, slot))
+                    model.AddBoolAnd([blit, band]).OnlyEnforceIf(both)
+                    model.AddBoolOr([blit.Not(), band.Not()]).OnlyEnforceIf(both.Not())
+                    positive.append(MEAL_SLOT_BAND_REWARD * both)
 
             day_dt = day_date(snapshot.request.start_date, day)
             iso = day_dt.isoformat() if day_dt is not None else None

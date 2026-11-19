@@ -92,6 +92,7 @@ from app.services.itinerary import DiffOp, GeoPoint, VisitItem, mutate
 from app.services.itinerary.hotfix_1117 import (
     evict_fillers_when_must_unseated,
     evict_pre_remote_fillers,
+    fold_restaurant_visit_cards,
     retime_remote_day_from_access,
 )
 from app.services.itinerary.legs import annotate_legs, attach_return_cards
@@ -1338,6 +1339,9 @@ def _audit_must_coverage(session: PlanSession) -> None:
     )
     notes += evict_pre_remote_fillers(session.plan, lang=lang)
     notes += retime_remote_day_from_access(session.plan, lang=lang)
+    # R12-C（2026-11-19 拍板「餐厅放午餐/晚餐卡上」）：存量/回退计划
+    # 里观光卡形态的餐馆折进餐卡——读闸自愈，刷新即正。
+    notes += fold_restaurant_visit_cards(session.plan, lang=lang)
     untimed = demote_untimed_musts(session.plan, lang=lang)
     if notes or untimed:
         # 热修动了盘面（撤补点/挪卡/降级灰卡）→ 腿字段按新布局重算：
