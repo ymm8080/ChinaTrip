@@ -118,6 +118,16 @@ def evict_fillers_when_must_unseated(
     for v in _untimed_musts(plan):
         unseated_days.add(v.day)
     names = {str(n or "").strip() for n in (must_names or [])}
+    # R12-E：引擎卡不带 must 标记——无时刻卡名字命中必去名册同判
+    # （入场闸剥掉的必去也要让填充让位，live 实锤天坛/景山案）。
+    for day in plan.days:
+        for v in day.items:
+            if (
+                isinstance(v, VisitItem)
+                and v.start_time is None
+                and str(v.name or "").strip() in names
+            ):
+                unseated_days.add(day.day)
     for u in plan.unplaced or []:
         if names and str(u.name or "").strip() in names and u.day_hint:
             unseated_days.add(u.day_hint)
@@ -378,6 +388,109 @@ def fold_restaurant_visit_cards(plan, *, lang: str = "zh") -> list[str]:
             day.items.sort(
                 key=lambda i: (
                     (_mins(i.start_time) if i.start_time is not None else 24 * 60),
+                    str(getattr(i, "item_id", "") or ""),
+                )
+            )
+    return notes
+
+
+# ---------- R12-E: entry-gated must rescue ----------
+
+
+def rescue_entry_gated_musts(
+    plan, *, must_names: list[str] | None = None, lang: str = "zh"
+) -> list[str]:
+    """R12-E（2026-11-19 用户令「指定的天坛为什么漏了，而没指定的景山插进
+    去了」）：入场闸/读闸 heal 把**已排上的必去**推过入场闸剥成无时刻后，
+    当天未请求的填充卡必须让位——必去顶进让出的窗口（入场时刻 ≤ 闸 +
+    不与邻卡重叠）。营救不了的（无填充可让/窗放不下）保持无时刻，由
+    evict_fillers_when_must_unseated 清场兜底。幂等：有时刻的必去不再触发。
+    """
+    from app.services.itinerary.solver import generic_entry_cap
+
+    names = {str(n or "").strip() for n in (must_names or [])}
+    notes: list[str] = []
+    for day in plan.days:
+        stripped = [
+            v
+            for v in day.items
+            if isinstance(v, VisitItem)
+            and v.start_time is None
+            and str(v.name or "").strip() in names
+        ]
+        if not stripped:
+            continue
+        timed = sorted(
+            (
+                v
+                for v in day.items
+                if isinstance(v, VisitItem) and v.start_time is not None
+            ),
+            key=lambda v: (
+                v.start_time.hour * 60 + v.start_time.minute,
+                str(v.item_id or ""),
+            ),
+        )
+        fills = [v for v in timed if _is_filler(v)]
+        for must in stripped:
+            dur = int(must.duration_minutes or 120)
+            cap = generic_entry_cap(must, None)
+            placed = False
+            for fill in fills:
+                if fill in day.items and not _is_filler(fill):
+                    continue
+                fs = fill.start_time.hour * 60 + fill.start_time.minute
+                if cap is not None and fs > cap:
+                    continue
+                # 前一卡收尾 + 走行地板 = 最早可入
+                prev_end = 0
+                for v in timed:
+                    if v is fill:
+                        continue
+                    ve = (v.end_time.hour * 60 + v.end_time.minute) if v.end_time else 0
+                    if ve <= fs and ve > prev_end:
+                        prev_end = ve
+                start = max(fs, prev_end + 30)
+                if cap is not None and start > cap:
+                    continue
+                # 后一卡开场 = 最晚须收
+                next_start = 24 * 60
+                for v in timed:
+                    if v is fill:
+                        continue
+                    vs = v.start_time.hour * 60 + v.start_time.minute
+                    if vs >= fs and vs < next_start:
+                        next_start = vs
+                if start + dur + 30 > next_start:
+                    continue
+                day.items.remove(fill)
+                must.start_time = _time(start // 60 % 24, start % 60)
+                end = start + dur
+                must.end_time = _time(end // 60 % 24, end % 60)
+                placed = True
+                fills.remove(fill)
+                notes.append(
+                    _n(
+                        lang,
+                        f"必去优先：第{day.day}天「{must.name}」入场闸内改排 "
+                        f"{_hm(start)}-{_hm(end)}，未请求的「{fill.name}」让位",
+                        f"Day {day.day}: must-visit '{must.name}' rescheduled to "
+                        f"{_hm(start)}-{_hm(end)} inside its entry gate; "
+                        f"unrequested '{fill.name}' gave way",
+                    )
+                )
+                break
+            if not placed:
+                # 营救不了：让给 evict pass 清场（该必去仍无时刻）
+                continue
+        if notes and day.items:
+            day.items.sort(
+                key=lambda i: (
+                    (
+                        (i.start_time.hour * 60 + i.start_time.minute)
+                        if getattr(i, "start_time", None) is not None
+                        else 24 * 60
+                    ),
                     str(getattr(i, "item_id", "") or ""),
                 )
             )

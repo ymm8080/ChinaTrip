@@ -18323,7 +18323,10 @@ def enforce_entry_gate(plan: ItineraryPlan) -> list[str]:
     武康路类商业街 citywalk——与 _evict_evening_gate_breachers 同口径
     的本地 _hours_open_form 判定，排程内部带语义不变）；
     兜底排程、餐卡顺延、贴锚收口都无权推迟开场。幂等：无时刻卡不再
-    触发；只清时刻不动结构，后续重排仍可合法落位。"""
+    触发；只清时刻不动结构，后续重排仍可合法落位。
+
+    R12-E2 弹性（2026-11-16 拍板 ≤30 分钟容忍同口径）：越闸 ≤30 分钟
+    的微越线容忍不清时刻；>30 分钟才退回无时刻。"""
     hours_by_poi = {h.poi_id: h for h in _plan_poi_hours(plan)}
     notes: list[str] = []
     for day in plan.days:
@@ -18342,6 +18345,14 @@ def enforce_entry_gate(plan: ItineraryPlan) -> list[str]:
                 continue
             m = it.start_time.hour * 60 + it.start_time.minute
             if m <= cap:
+                continue
+            # R12-E2（2026-11-16 拍板「时长收缩 + ≤30 分钟容忍，
+            # diff within 30 minutes, accept」同口径——用户令
+            # 「入场闸可以弹性了，弹性已实现」）：越闸 ≤30 分钟=
+            # 容忍不清时刻（读闸 heal 顺延的微越线——live 实锤天坛
+            # 15:27 被顺延过 15:30 大点带，物理停止入园在 21:00，
+            # 政策带微越不构成进不去）；>30 分钟才退回无时刻转想去。
+            if m - cap <= _FLEX_TOLERANCE_MINUTES:
                 continue
             hh, mm = divmod(cap, 60)
             it.start_time = None

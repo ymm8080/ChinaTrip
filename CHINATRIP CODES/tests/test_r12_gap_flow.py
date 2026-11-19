@@ -80,15 +80,22 @@ def _snap(candidates, *, days: int = 1, musts=(), pins=()):
 
 
 def _card(item_id, name, cat, start, end, **extra):
+    dur = extra.pop("duration_minutes", None)
+    if start is None:  # 无时刻卡（入场闸剥掉的必去等）
+        st = en = None
+    else:
+        st = time(start // 60, start % 60)
+        en = time(end // 60, end % 60)
+        dur = end - start
     return VisitItem(
         item_id=item_id,
         name=name,
         category=cat,
         city="北京",
         day=1,
-        start_time=time(start // 60, start % 60),
-        end_time=time(end // 60, end % 60),
-        duration_minutes=end - start,
+        start_time=st,
+        end_time=en,
+        duration_minutes=dur,
         **extra,
     )
 
@@ -525,3 +532,88 @@ def test_same_cuisine_not_both_slots_same_day():
     assert ("duck1" in bound_foods) != ("duck2" in bound_foods) or not ducks_in
     if ducks_in:
         assert "alt" in bound_foods
+
+
+# ---------- R12-E: 入场闸营救（2026-11-19「指定的天坛漏了、没指定的景山
+# 插进去了」——必去顶填充窗口） ----------
+
+
+def test_rescue_entry_gated_must_takes_fill_window():
+    from app.services.itinerary.hotfix_1117 import rescue_entry_gated_musts
+
+    anchor = _card(
+        "v1",
+        "天安门广场",
+        "attraction",
+        7 * 60 + 9,
+        7 * 60 + 54,
+        poi_id="p-1",
+        pinned=True,
+    )
+    fill = _card(
+        "v2", "景山公园", "attraction", 8 * 60 + 30, 10 * 60 + 30, poi_id="p-2"
+    )
+    lunch = _card("meal-lunch-1", "午餐", "food", 12 * 60 + 2, 13 * 60 + 2)
+    palace = _card(
+        "v3",
+        "故宫博物院",
+        "museum",
+        13 * 60 + 2,
+        14 * 60 + 37,
+        poi_id="p-3",
+        pinned=True,
+    )
+    duck = _card(
+        "meal-dinner-1",
+        "四季民福烤鸭店（故宫店）",
+        "food",
+        19 * 60 + 16,
+        20 * 60 + 46,
+        poi_id="p-4",
+    )
+    tiantan = _card(
+        "v4", "天坛", "temple", None, None, poi_id="p-5", duration_minutes=150
+    )
+    plan = _plan(anchor, fill, lunch, palace, duck, tiantan)
+    notes = rescue_entry_gated_musts(plan, must_names=["天坛"])
+    assert notes and "必去优先" in notes[0] and "天坛" in notes[0]
+    ids = [i.item_id for i in plan.days[0].items]
+    assert "v2" not in ids  # 未请求的景山让位
+    seated = next(i for i in plan.days[0].items if i.item_id == "v4")
+    assert seated.start_time is not None and seated.end_time is not None
+    st = seated.start_time.hour * 60 + seated.start_time.minute
+    en = seated.end_time.hour * 60 + seated.end_time.minute
+    assert st == 8 * 60 + 30 and en == 11 * 60  # 顶进景山窗口
+    # 幂等：再跑一次无动作
+    assert rescue_entry_gated_musts(plan, must_names=["天坛"]) == []
+
+
+def test_rescue_no_fill_keeps_must_untimed():
+    from app.services.itinerary.hotfix_1117 import rescue_entry_gated_musts
+
+    palace = _card(
+        "v3",
+        "故宫博物院",
+        "museum",
+        13 * 60,
+        14 * 60 + 37,
+        poi_id="p-3",
+        pinned=True,
+    )
+    tiantan = _card("v4", "天坛", "temple", None, None, poi_id="p-5")
+    plan = _plan(palace, tiantan)
+    assert rescue_entry_gated_musts(plan, must_names=["天坛"]) == []
+    assert tiantan.start_time is None
+
+
+def test_evict_trigger_counts_untimed_must_named_engine_cards():
+    from app.services.itinerary.hotfix_1117 import evict_fillers_when_must_unseated
+
+    fill = _card(
+        "v2", "景山公园", "attraction", 8 * 60 + 30, 10 * 60 + 30, poi_id="p-2"
+    )
+    tiantan = _card("v4", "天坛", "temple", None, None, poi_id="p-5")
+    plan = _plan(fill, tiantan)
+    notes = evict_fillers_when_must_unseated(plan, must_names=["天坛"])
+    assert notes  # 引擎卡无 must 标记但名字命中名册 → 填充让位
+    assert all(i.item_id != "v2" for i in plan.days[0].items)

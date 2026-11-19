@@ -93,6 +93,7 @@ from app.services.itinerary.hotfix_1117 import (
     evict_fillers_when_must_unseated,
     evict_pre_remote_fillers,
     fold_restaurant_visit_cards,
+    rescue_entry_gated_musts,
     retime_remote_day_from_access,
 )
 from app.services.itinerary.legs import annotate_legs, attach_return_cards
@@ -1334,8 +1335,14 @@ def _audit_must_coverage(session: PlanSession) -> None:
     # 2026-11-17 事故热修（会话 24379abd）：必去优先三闸 + 灰卡降级。
     lang = getattr(session, "lang", "zh") or "zh"
     must_names = getattr(session, "must_visits", None) or []
+    # R12-E（2026-11-19 用户令「指定的天坛为什么漏了，没指定的景山
+    # 插进去了」）：先营救——被入场闸剥掉的必去顶进让出的填充窗口；
+    # 营救不了再走必让位清场。
     notes: list[str] = list(
-        evict_fillers_when_must_unseated(session.plan, must_names=must_names, lang=lang)
+        rescue_entry_gated_musts(session.plan, must_names=must_names, lang=lang)
+    )
+    notes += evict_fillers_when_must_unseated(
+        session.plan, must_names=must_names, lang=lang
     )
     notes += evict_pre_remote_fillers(session.plan, lang=lang)
     notes += retime_remote_day_from_access(session.plan, lang=lang)
