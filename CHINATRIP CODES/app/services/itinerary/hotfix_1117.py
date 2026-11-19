@@ -139,6 +139,12 @@ def evict_fillers_when_must_unseated(
         for item in list(day.items):
             if not _is_filler(item):
                 continue
+            # R12-F 补刀（test_audit_gate_sets_unarranged_musts 实证）：引擎
+            # 卡不带 must 标，触发面靠名册命中补——同一批卡在让位循环里也
+            # 会被 _is_filler 误判成填充，必去本体自己把自己撤了。点名必去
+            # 永远不是 filler：让位是未请求填充的义务。
+            if str(item.name or "").strip() in names:
+                continue
             day.items.remove(item)
             notes.append(
                 _n(

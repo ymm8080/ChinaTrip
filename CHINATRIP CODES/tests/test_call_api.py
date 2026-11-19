@@ -88,9 +88,10 @@ def test_full_chain_direct_exhausts_at_zero():
     )
     assert a.status_code == 200 and a.json()["status"] == "active"
     assert a.json()["agent"] == "op1"
-    # 轮询 active：剩余满额
+    # 轮询 active：剩余满额（started_at 按秒截断 + 轮询跨秒 → 最多差 1s；
+    # CI 慢机再抖几秒——断言用宽容区间，强结口径另行回拨 started_at 精确测）
     v = client.get(f"/api/v1/call/sessions/{s['session_id']}", headers=DEVICE).json()
-    assert v["status"] == "active" and v["remaining_seconds"] == 600
+    assert v["status"] == "active" and 595 <= v["remaining_seconds"] <= 600
     assert v["started_at"] is not None
     # 回拨计时起点 10 分钟前 → 到点强结 exhausted，余额 0 不退
     get_call_service = cs_module.get_call_service()
@@ -289,7 +290,8 @@ def test_agent_queue_exposes_remaining_and_enforces_exhaustion():
     )
     q = client.get("/api/v1/call/agent/queue", headers=_agent()).json()
     row = next(x for x in q["sessions"] if x["session_id"] == s["session_id"])
-    assert row["status"] == "active" and row["remaining_seconds"] == 300
+    # 同 test_full_chain：秒截断 + 读路径跨秒抖动，用宽容区间
+    assert row["status"] == "active" and 295 <= row["remaining_seconds"] <= 300
     # 回拨 started_at 到 6 分钟前 → 队列读路径直接强结 exhausted
     svc = cs_module.get_call_service()
     svc.store.update_session(s["session_id"], started_at="2026-10-25T09:00:00")
