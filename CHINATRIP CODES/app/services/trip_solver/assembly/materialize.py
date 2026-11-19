@@ -320,6 +320,7 @@ def assemble(
     display legs + fares); F-34 projections are derived separately in
     sync.py; F-33 lines also ride on the solution via
     render_disclosures so both langs stay derivable."""
+    from .bridges import attach_gap_bridges
     from .chips import attach_alternatives
     from .disclosures import render_disclosures
     from .meals import attach_meal_cards
@@ -331,5 +332,8 @@ def assemble(
     from ...itinerary.legs import annotate_legs
 
     plan = annotate_legs(plan)  # F-30 display legs + fare materialisation
+    # R12（2026-11-19 拍板「天安门后应该在去下一个景点的路上」）：
+    # >=45 分钟的同日空档插可见交通桥卡——时间线不留死空气。
+    plan = attach_gap_bridges(plan)
     plan.assumptions = render_disclosures(solution, snapshot, lang=lang)
     return plan

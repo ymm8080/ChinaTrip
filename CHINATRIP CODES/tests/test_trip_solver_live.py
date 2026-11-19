@@ -704,6 +704,8 @@ def test_edit_session_move_to_day(monkeypatch):
         for d in session.plan.days
         for it in d.items
         if (it.category or "") not in ("food", "hotel")
+        # R12：leg-bridge-* 是派生交通卡（随装配重生成），不是可挪 POI
+        and not str(it.item_id or "").startswith("leg-bridge-")
     ]
     src = next((n, d) for n, d, _s in before if d == 1)
     moved_name, from_day = src

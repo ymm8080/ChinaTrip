@@ -63,6 +63,9 @@ def _is_filler(item) -> bool:
     pinned / must / soft_pin / created / curated; food & hotel are skeleton."""
     return (
         isinstance(item, VisitItem)
+        # R12 交通桥卡（leg-bridge-*）是渲染件不是填充活动——绝不当
+        # filler 撤（远郊日清场/必去让位两 pass 都不动它）。
+        and not str(getattr(item, "item_id", "") or "").startswith("leg-bridge-")
         and (item.category or "") not in ("food", "hotel")
         and not item.pinned
         and not getattr(item, "must", False)

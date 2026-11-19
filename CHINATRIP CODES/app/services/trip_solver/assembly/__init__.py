@@ -5,6 +5,7 @@ solution only; never agent/plan. Serving-ready for the F-35 entry adapter
 (``entry.serving_ready`` imports this package).
 """
 
+from .bridges import attach_gap_bridges
 from .chips import attach_alternatives
 from .disclosures import render_disclosures
 from .materialize import assemble, materialize_plan
@@ -13,6 +14,7 @@ from .sync import planned_row_projection, wish_row_projection
 
 __all__ = [
     "assemble",
+    "attach_gap_bridges",
     "materialize_plan",
     "attach_meal_cards",
     "attach_alternatives",

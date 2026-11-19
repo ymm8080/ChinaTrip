@@ -137,15 +137,7 @@ def add_c09_meals(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
             en = model.NewIntVar(0, MINUTES_PER_DAY + 90, "me_%s_%d" % (slot, day))
             model.NewOptionalIntervalVar(st, du, en, lit, "mi_%s_%d" % (slot, day))
             lo, hi = MEAL_WINDOWS[slot]
-            if slot == "lunch":
-                # Ordinary cards keep the legacy 11:30–12:30 start band. A
-                # remote day needs 11:00 arrival nesting and post-visit lunch.
-                model.Add(st >= REMOTE_LUNCH_EARLIEST).OnlyEnforceIf(remote_day)
-                model.Add(st >= lo).OnlyEnforceIf(remote_day.Not())
-                model.Add(st <= hi).OnlyEnforceIf(remote_day.Not())
-            else:
-                model.Add(st >= lo).OnlyEnforceIf(lit)
-                model.Add(st <= hi).OnlyEnforceIf(lit)
+            # R12: 餐窗约束移至绑定循环之后，按 bound_any 分流（占位守窗/绑定流式）。
 
             meal = {
                 "p": lit,
@@ -156,6 +148,8 @@ def add_c09_meals(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
                 "hosts": {},
                 "bound": {},
                 "anchor_candidates": [],
+                # R12: 占位守窗与绑定真餐馆分流（约束见绑定循环之后）
+                "bound_any": model.NewBoolVar("mba_%s_%d" % (slot, day)),
             }
             bundle.meal_vars[(slot, day)] = meal
 
@@ -189,14 +183,9 @@ def add_c09_meals(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
                     # its data. Once selected, the binding cannot drift.
                     model.Add(st == c_start).OnlyEnforceIf(bound_lit)
                     model.Add(du == bundle.dur[cand.cid]).OnlyEnforceIf(bound_lit)
-                    remote_bound = any(
-                        getattr(cand, "same_venue", None) in (other.cid, other.poi_id)
-                        for other in snapshot.candidates
-                        if (other.poi_id or other.cid) in enriched.access_by_poi
-                    )
-                    if slot != "lunch" or not remote_bound:
-                        model.Add(c_start >= lo).OnlyEnforceIf(bound_lit)
-                        model.Add(c_start <= hi).OnlyEnforceIf(bound_lit)
+                    # R12（2026-11-19 拍板「烤鸭店算景点，不是一定 11:30」）：绑定真
+                    # 餐馆不再餐窗硬钳——时刻=营业时间（C-02）+C-03 走行缝+C-01 不重
+                    # 叠的流式解，直排前一景之后（此前仅远程 F-22 绑定豁免午餐钳）。
                     meal["bound"][cand.cid] = bound_lit
                     continue
 
@@ -227,6 +216,28 @@ def add_c09_meals(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
 
             if meal["hosts"]:
                 model.Add(sum(meal["hosts"].values()) <= 1)
+
+            # R12 流式餐卡（2026-11-19 用户拍板「烤鸭店算景点，不是一定
+            # 11:30；天安门后应该在去下一个景点的路上，不空等午餐卡」）：
+            # 餐窗只继续约束系统占位餐卡；绑定真餐馆（bound_any）时刻=
+            # 营业时间（C-02 hours_caps）+ C-03 走行缝 + C-01 不重叠的
+            # 流式解——直排前一景之后，不再受 [lo, hi] 硬钳。远程日午餐
+            # 仍保 11:00 到达地板（F-22 嵌套语义不变）。
+            if meal["bound"]:
+                model.AddMaxEquality(meal["bound_any"], list(meal["bound"].values()))
+            else:
+                model.Add(meal["bound_any"] == 0)
+            if slot == "lunch":
+                model.Add(st >= REMOTE_LUNCH_EARLIEST).OnlyEnforceIf(remote_day)
+                model.Add(st >= lo).OnlyEnforceIf(
+                    [remote_day.Not(), meal["bound_any"].Not()]
+                )
+                model.Add(st <= hi).OnlyEnforceIf(
+                    [remote_day.Not(), meal["bound_any"].Not()]
+                )
+            else:
+                model.Add(st >= lo).OnlyEnforceIf([lit, meal["bound_any"].Not()])
+                model.Add(st <= hi).OnlyEnforceIf([lit, meal["bound_any"].Not()])
 
             # A real same-venue restaurant determines both the system card and
             # its location anchor. This also covers palace same-site rulings.

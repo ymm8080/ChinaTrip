@@ -871,11 +871,11 @@ def test_food_must_any_slot_binds_exactly_one_meal():
     _ok(sol)
     placed = {i.cid: i for i in sol.items}
     f = placed["resto"]
-    from app.services.trip_solver.model.c09_c16 import MEAL_WINDOWS
-
-    lo_l, hi_l = MEAL_WINDOWS["lunch"]
-    lo_d, hi_d = MEAL_WINDOWS["dinner"]
-    assert lo_l <= f.start_min <= hi_l or lo_d <= f.start_min <= hi_d
+    # R12（2026-11-19 拍板「烤鸭店算景点，不是一定 11:30」）：绑定真
+    # 餐馆不再餐窗钳制——时刻=营业时间地板+接驳流式解（福和慧 11:00
+    # 开门，流式可早于午餐窗下沿 11:30）。断言改为营业时间地板；槽
+    # 绑定/单卡断言（上下文）不变。
+    assert f.start_min >= 11 * 60  # 11:00 开门地板（不再要求餐窗 [11:30,12:30]）
     bound = [m for m in sol.meal_anchors if m.get("bound_cid") == "resto"]
     assert len(bound) == 1
     assert bound[0]["start_min"] == f.start_min
