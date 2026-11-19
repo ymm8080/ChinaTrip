@@ -306,11 +306,19 @@ def snapshot_from_request(
             candidates[k] = replace(cand, remote=True)
     for j, row in enumerate(pool, start=1):
         poi_id = str(row["id"]) if row.get("id") else None
-        candidates.append(
-            _row_to_candidate(
-                "f%d" % j, row, remote=bool(poi_id and poi_id in profiled_ids)
-            )
+        pool_cand = _row_to_candidate(
+            "f%d" % j, row, remote=bool(poi_id and poi_id in profiled_ids)
         )
+        if pool_cand.category == "food":
+            # R12-M 餐厅进餐卡（2026-11-19 用户拍板「烤鸭店进餐卡」重修）：
+            # top_pois 荐点豁免入池的知名餐厅（2026-11-07 指令）此前无
+            # meal_slot——模型当普通观光排 + 照贴午/晚占位卡（live 实锤
+            # 北京四季民福 19:02/提督 09:00：观光卡与占位餐卡并列）。
+            # 与餐类必去（R8-S2b）同口径 any-槽：被选中即顶替占位卡成
+            # 命名餐卡（C-09 绑定/meals.py 命名卡/materialize.py 访视
+            # 去重全链已备），另一槽照常出占位。
+            pool_cand = replace(pool_cand, meal_slot="any")
+        candidates.append(pool_cand)
 
     weather: list[tuple] = []
     if weather_lookup is not None and start_date:

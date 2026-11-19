@@ -869,3 +869,109 @@ def test_dict_ops_to_diffops_name_ambiguity():
     # 无歧义的 name 照常映射（守卫不误伤单行名）
     ops2 = _dict_ops_to_diffops(snapshot, [{"kind": "delete", "name": "豫园"}])
     assert ops2 is not None and ops2[0].kind == "delete" and ops2[0].cid == "f2"
+
+
+# ---------- R12-M: pool food -> meal card（餐厅进餐卡，绝不与占位并列） ----------
+
+
+class _FoodExemptStore(SnapshotStore):
+    """top_pois 荐点豁免形态（2026-11-07 指令）：知名餐厅 food 行不被
+    exclude_food 过滤照常入池——live 北京四季民福/提督实录的 store 侧
+    形态（引擎池因此拿到 food 行）。"""
+
+    def top_pois_in_city(
+        self, city: str, limit: int = 30, *, exclude_food: bool = True
+    ):
+        return self._city_rows(city)[:limit]
+
+
+def _duck_store():
+    from app.services.trip_solver.types import CandidateItem
+
+    return _FoodExemptStore(
+        [
+            CandidateItem(
+                cid="c1",
+                name="故宫博物院",
+                poi_id="m1_885978e4c8a2",
+                city="北京",
+                category="museum",
+                tier=1,
+                lon=116.4097,
+                lat=39.9255,
+                opening_hours="08:30-17:00",
+                suggested_duration_min=120,
+            ),
+            CandidateItem(
+                cid="c2",
+                name="四季民福烤鸭店（故宫店）",
+                poi_id="ct_北京_food_1",
+                city="北京",
+                category="food",
+                tier=1,
+                lon=116.4028,
+                lat=39.9146,
+                opening_hours="10:30-22:30",
+                suggested_duration_min=60,
+            ),
+            CandidateItem(
+                cid="c3",
+                name="景山公园",
+                poi_id="ct_北京_2",
+                city="北京",
+                category="park",
+                tier=2,
+                lon=116.3965,
+                lat=39.9259,
+                opening_hours="06:00-20:00",
+                suggested_duration_min=90,
+            ),
+        ]
+    )
+
+
+def test_pool_food_binds_meal_slot_any():
+    """R12-M：池内 food 行（荐点豁免入池的知名餐厅）any-槽——与餐类必去
+    （R8-S2b）同口径；观光行照旧无槽。北京四季民福 live 案回归锁。"""
+    snapshot = snapshot_from_request(
+        cities=["北京"],
+        days=1,
+        start_date=None,
+        musts=["故宫博物院"],
+        store=_duck_store(),
+    )
+    pool_food = [c for c in snapshot.candidates if c.category == "food"]
+    assert pool_food, "food row must survive into the pool (exempt store)"
+    assert all(c.meal_slot == "any" for c in pool_food)
+    others = [c for c in snapshot.candidates if c.category != "food"]
+    assert others and all(c.meal_slot is None for c in others)
+
+
+def test_pool_food_lands_on_meal_card_not_visit(monkeypatch):
+    """R12-M 端到端：池内知名餐厅被选中→顶替午/晚占位卡成命名餐卡；
+    绝不再以观光卡形态与占位餐卡并列（2026-11-19 用户报告
+    「烤鸭店和午餐卡并列」回归锁）。"""
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    from app.services.trip_solver.entry import ENGINE_CPSAT, solve_trip
+
+    snapshot = snapshot_from_request(
+        cities=["北京"],
+        days=1,
+        start_date=None,
+        musts=["故宫博物院"],
+        store=_duck_store(),
+    )
+    outcome = solve_trip(snapshot, flag=ENGINE_CPSAT, budget_s=3.0)
+    plan = getattr(outcome, "plan", None)
+    assert plan is not None, "engine must serve the scenario"
+    items = plan.days[0].items
+    duck_cards = [i for i in items if "四季民福" in (i.name or "")]
+    assert duck_cards, "pool food should be selected (fill reward)"
+    duck = duck_cards[0]
+    assert duck.item_id.startswith("meal-"), (
+        "restaurant must render as the named meal card, got %s" % duck.item_id
+    )
+    assert duck.poi_id, "named meal card carries the restaurant POI"
+    assert len(duck_cards) == 1, "no second (visit-shaped) duck card"
+    placeholders = [i for i in items if (i.name or "") in ("午餐", "晚饭")]
+    assert placeholders, "the other slot keeps its placeholder card"

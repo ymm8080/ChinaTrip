@@ -694,3 +694,83 @@ def test_tight_day_lunch_drops_with_during_tour_comment():
     assert any(
         "游览途中就地解决" in str(a) and "午餐" in str(a) for a in plan.assumptions
     )
+
+
+# ---------- R12-M: 引擎餐卡与 legacy 折叠底座（餐厅进餐卡重修） ----------
+
+
+def test_engine_meal_placeholder_recognition():
+    """R12-M：引擎占位餐卡（meal-lunch-/meal-dinner-<day>）同认占位；
+    命名卡（真餐厅 any-槽顶卡，带 poi_id）不算占位——legacy 折叠闸
+    （吸收/去重/终装）对引擎会话的餐卡从此生效。"""
+    from app.services.restaurants import is_dinner_placeholder
+
+    ph_lunch = VisitItem(
+        item_id="meal-lunch-1",
+        name="午餐",
+        category="food",
+        city="北京",
+        day=1,
+    )
+    ph_dinner = VisitItem(
+        item_id="meal-dinner-2",
+        name="晚饭",
+        category="food",
+        city="北京",
+        day=2,
+    )
+    named = VisitItem(
+        item_id="meal-dinner-1",
+        name="四季民福烤鸭店（故宫店）",
+        poi_id="duck_1",
+        category="food",
+        city="北京",
+        day=1,
+    )
+    legacy_ph = VisitItem(
+        item_id="food-lunch-ph-d1",
+        name="午饭（自由安排）",
+        category="food",
+        city="北京",
+        day=1,
+    )
+
+    assert is_lunch_placeholder(ph_lunch)
+    assert is_dinner_placeholder(ph_dinner)
+    assert is_lunch_placeholder(legacy_ph)
+    assert not is_lunch_placeholder(named)
+    assert not is_dinner_placeholder(named)
+
+
+def test_engine_meal_cards_in_legacy_fold_classification():
+    """R12-M：legacy 折叠闸底座分类对引擎餐卡生效——命名卡按时刻归卡、
+    占位卡=槽位不占卡；「槽位被真餐厅占住」从此可判定（消息道 legacy
+    卡片操作落在引擎会话计划上时的地基）。"""
+    from app.services.agent.plan import _day_meal_card_taken, _meal_card_slot
+
+    named = VisitItem(
+        item_id="meal-dinner-1",
+        name="四季民福烤鸭店（故宫店）",
+        poi_id="duck_1",
+        category="food",
+        city="北京",
+        day=1,
+        start_time=time(17, 0),
+        end_time=time(18, 30),
+        duration_minutes=90,
+    )
+    ph = VisitItem(
+        item_id="meal-lunch-1",
+        name="午餐",
+        category="food",
+        city="北京",
+        day=1,
+        start_time=time(12, 0),
+        end_time=time(13, 0),
+        duration_minutes=60,
+    )
+    day = DayPlan(day=1, base_city="北京", items=[ph, named])
+    assert _meal_card_slot(named) == "dinner"
+    assert _meal_card_slot(ph) is None  # 占位=槽位，不占卡
+    assert _day_meal_card_taken(day, "dinner")
+    assert not _day_meal_card_taken(day, "lunch")
