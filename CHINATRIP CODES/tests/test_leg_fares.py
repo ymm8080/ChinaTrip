@@ -1265,3 +1265,44 @@ def test_engine_placeholder_dinner_anchors_to_city_stop():
     assert d.anchor_location is not None
     assert d.anchor_location.lon == 116.4074  # 跟下一站（酒店）吃
     assert (d.access_mode or None) is None  # 不再继承远郊点档案
+
+
+# ------------------------------------------- R13o⑨ 同址嵌套宿主收尾
+
+
+def test_plain_tail_return_waits_for_same_venue_host_end():
+    """R13o⑨：同址嵌套餐（F-22）下回城段从宿主散场起算——798 游到
+    20:16 时回城不得从晚饭 19:28 起算。"""
+    from datetime import time as dtime
+
+    host = _v(
+        "host798",
+        "798艺术区",
+        116.5847,
+        39.9842,
+        start_time=dtime(16, 46),
+        end_time=dtime(20, 16),
+        duration_minutes=210,
+    )
+    dinner = VisitItem(
+        item_id="meal-dinner-2",
+        name="晚饭",
+        category="food",
+        city="北京",
+        day=1,
+        start_time=dtime(17, 58),
+        end_time=dtime(19, 28),
+        duration_minutes=90,
+        anchor_location=GeoPoint(lon=116.5847, lat=39.9842),
+    )
+    plan = ItineraryPlan(
+        itinerary_id="x",
+        cities=["北京"],
+        days=[DayPlan(day=1, base_city="北京", items=[host, dinner])],
+        assumptions=[],
+    )
+    annotate_legs(plan)
+    d = dinner.next_leg_detail or {}
+    assert d.get("direction") == "return"
+    assert d.get("depart_time") is None or d["depart_time"] >= "20:16"
+    assert d.get("board_time") >= "20:16"

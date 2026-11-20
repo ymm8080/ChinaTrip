@@ -1044,7 +1044,18 @@ class PoiDetailStore:
                 return None
             return core
 
-        def consider(name_zh, name_en, aliases, category, row_city) -> None:
+        # R13o④/⑦a：命中行的完整列（source_poi_id/预约购票）——轻量行
+        # 带键，live 缝的别名兜底（match_text_names 路径）此前拿不到。
+        hit_rows: dict[str, dict] = {}
+
+        def consider(
+            name_zh,
+            name_en,
+            aliases,
+            category,
+            row_city,
+            extra=None,
+        ) -> None:
             name = (name_zh or "").strip()
             if not name or self._text_row_is_stay(name_zh, name_en, category):
                 return
@@ -1064,6 +1075,7 @@ class PoiDetailStore:
             prev = hits.get(name)
             if prev is None or score > prev[0]:
                 hits[name] = (score, name, name_en, row_city, category, fuzzy_word)
+                hit_rows[name] = dict(extra or {})
 
         if self._db_available():
             try:
@@ -1074,11 +1086,48 @@ class PoiDetailStore:
                         Poi.name_aliases,
                         Poi.category,
                         Poi.city,
+                        # R13o④/⑦a：带全列供命中行回填（source_poi_id/预约
+                        # 购票）。
+                        Poi.source_poi_id,
+                        Poi.booking_url,
+                        Poi.website,
+                        Poi.reservation_required,
+                        Poi.reservation_advance_days,
                     ).filter((Poi.status.is_(None)) | (Poi.status == "active"))
                     if city_names:
                         q = q.filter(Poi.city.in_(city_names))
                     for row in q.all():
-                        consider(*row)
+                        _row = tuple(row or ())
+                        if len(_row) < 10:
+                            # 短行容错（测试假会话只镜像旧 5 列形状）：
+                            # 右侧补 None 保命——不因解包炸整段退内存兜底。
+                            _row = _row + (None,) * (10 - len(_row))
+                        (
+                            _n_zh,
+                            _n_en,
+                            _n_alias,
+                            _n_cat,
+                            _n_city,
+                            _n_pid,
+                            _n_book,
+                            _n_web,
+                            _n_req,
+                            _n_adv,
+                        ) = _row[:10]
+                        consider(
+                            _n_zh,
+                            _n_en,
+                            _n_alias,
+                            _n_cat,
+                            _n_city,
+                            extra={
+                                "source_poi_id": _n_pid,
+                                "booking_url": _n_book,
+                                "website": _n_web,
+                                "reservation_required": _n_req,
+                                "reservation_advance_days": _n_adv,
+                            },
+                        )
             except Exception:
                 self._note_db_failure()
                 logger.warning(
@@ -1097,6 +1146,13 @@ class PoiDetailStore:
                 value.get("name_aliases") or value.get("aliases"),
                 value.get("category"),
                 value.get("city"),
+                extra={
+                    "source_poi_id": value.get("source_poi_id"),
+                    "booking_url": value.get("booking_url"),
+                    "website": value.get("website"),
+                    "reservation_required": value.get("reservation_required"),
+                    "reservation_advance_days": value.get("reservation_advance_days"),
+                },
             )
         # 近距档（2026-11-17 ZHUJIAZUI 案用户拍板「GIVE 模糊匹配结果 …
         # PROPOSE FOR CONFIRMATION」）：前缀容错认过的词，其另一个近距映射
@@ -1122,16 +1178,27 @@ class PoiDetailStore:
             for h in ranked
             if not any(h[1] != other and h[1] in other for other in names)
         ]
-        return [
-            {
-                "name": name,
-                "name_en": name_en,
-                "city": row_city,
-                "category": category,
-                "fuzzy_word": fuzzy_word,
-            }
-            for _score, name, name_en, row_city, category, fuzzy_word in kept[:limit]
-        ]
+        out_rows = []
+        for _score, name, name_en, row_city, category, fuzzy_word in kept[:limit]:
+            extra = hit_rows.get(name) or {}
+            out_rows.append(
+                {
+                    "name": name,
+                    "name_en": name_en,
+                    "city": row_city,
+                    "category": category,
+                    "fuzzy_word": fuzzy_word,
+                    # R13o④/⑦a：轻量行带全列——live 缝别名兜底此前拿不到
+                    # source_poi_id/预约购票列（长安十二时辰有名无 poi、
+                    # 别名命中的必去全无预约提示的根）。
+                    "source_poi_id": extra.get("source_poi_id"),
+                    "booking_url": extra.get("booking_url"),
+                    "website": extra.get("website"),
+                    "reservation_required": extra.get("reservation_required"),
+                    "reservation_advance_days": extra.get("reservation_advance_days"),
+                }
+            )
+        return out_rows
 
     def name_city_spread(self, name: str) -> list[str]:
         """同名行分布在哪些城市（active）——城市推断的歧义闸（2026-11-17

@@ -21,6 +21,7 @@ from ...itinerary.models import (
     DayPlan,
     GeoPoint,
     ItineraryPlan,
+    TransferItem,
     UnplacedCandidate,
     VisitItem,
 )
@@ -48,6 +49,35 @@ def _base_city(snapshot: "FactSnapshot", day: int) -> str:
     return cities[min(day - 1, len(cities) - 1)]
 
 
+def _day_label(items, snapshot: "FactSnapshot", day: int) -> str:
+    """R13o②：天的 base_city 按当天实际在排的卡取多数城——此前按
+    请求城市序做朴素索引映射（day2=城市2），自由分配/显式分城窗下标签
+    与内容错位（R13n 跨城探针：Day2/Day3 标「西安」但装的全是北京
+    景点）。空日回落分城日窗（C-17 同口径），再退旧索引兜底。
+    """
+    counts: dict[str, int] = {}
+    for it in items:
+        city = getattr(it, "city", None)
+        if city:
+            counts[str(city)] = counts.get(str(city), 0) + 1
+    if counts:
+        return max(counts.items(), key=lambda kv: (kv[1], kv[0]))[0]
+    try:
+        from ..model.c17_city_days import city_day_windows
+
+        windows = city_day_windows(
+            snapshot.request.cities,
+            snapshot.request.days,
+            dict(snapshot.request.city_days or {}),
+        )
+        for city, win in windows.items():
+            if win[0] <= day <= win[1]:
+                return city
+    except Exception:  # noqa: BLE001 - 窗口推导失败退旧口径
+        pass
+    return _base_city(snapshot, day)
+
+
 def _location(cand) -> Optional[GeoPoint]:
     if cand.lon is None or cand.lat is None:
         return None
@@ -68,7 +98,10 @@ def compact_days(plan, snapshot):
     from ..inputs.travel import haversine_km
 
     def _taxi_gap(a_item, b_item):
-        la, lb = a_item.location, b_item.location
+        # R13o①：城际腿卡（TransferItem）无坐标字段——getattr 口径，
+        # 前件是城际腿时按 30 分钟接驳地板。
+        la = getattr(a_item, "location", None)
+        lb = getattr(b_item, "location", None)
         if la is None or lb is None:
             return 30
         km = haversine_km(la.lon, la.lat, lb.lon, lb.lat)
@@ -124,7 +157,11 @@ def compact_days(plan, snapshot):
         fixed = [
             i
             for i in timed
-            if getattr(i, "synthetic", False)
+            # R13o①：城际腿卡（TransferItem）=固定屏障（无 category 字段，
+            # 此前 (i.category or "") 直接 AttributeError——只在带城际卡的
+            # 引擎计划上炸）。
+            if not isinstance(i, VisitItem)
+            or getattr(i, "synthetic", False)
             or (i.category or "") in ("transfer", "transport", "food")
             or getattr(i, "access_mode", None)
             or getattr(i, "pinned", False)
@@ -179,6 +216,56 @@ def compact_days(plan, snapshot):
                     _set(card, target, int(card.duration_minutes or 60))
             prev = card
             prev_end = max(prev_end, _m(card) + int(card.duration_minutes or 60))
+    return plan
+
+
+def push_after_intercity(plan: ItineraryPlan) -> ItineraryPlan:
+    """R13o①：城际腿屏障日的右推级联——compact_days 只向左压实不推右，
+    而城际卡是装配期新增屏障（引擎解不知道它），腿到时刻前开工的卡要
+    顺次右推保序。钉住卡（铁律 19）不推；推完游标连续（30 分钟接驳地板）。
+    幂等：卡已在腿后即零位移。"""
+    from datetime import time as _time
+
+    def _m(item):
+        return item.start_time.hour * 60 + item.start_time.minute
+
+    for day in plan.days:
+        if not day.items:
+            continue
+        # 晨卡可与腿同刻（attach_meal_cards 按 start+id 排序可能把
+        # hotel-morning 排在 xfer 前）——扫首个城际腿，不认 items[0]。
+        xfer = next(
+            (
+                i
+                for i in day.items
+                if isinstance(i, TransferItem)
+                and str(i.item_id or "").startswith("xfer-")
+            ),
+            None,
+        )
+        if xfer is None:
+            continue
+        arrive = _m(xfer) + int(xfer.duration_minutes or 120)
+        cursor = arrive + 30
+        for card in day.items:
+            if card is xfer:
+                continue
+            if not isinstance(card, VisitItem) or card.start_time is None:
+                continue
+            if getattr(card, "pinned", False):
+                cursor = max(cursor, _m(card) + int(card.duration_minutes or 60))
+                continue
+            cur = _m(card)
+            dur = int(card.duration_minutes or 60)
+            if cur < cursor:
+                shift = cursor - cur
+                new_start = cur + shift
+                card.start_time = _time(new_start // 60 % 24, new_start % 60)
+                card.end_time = _time(
+                    (new_start + dur) // 60 % 24, (new_start + dur) % 60
+                )
+                cur = new_start
+            cursor = max(cursor, cur + dur)
     return plan
 
 
@@ -242,6 +329,13 @@ def materialize_plan(
                 tier=getattr(cand, "tier", None),
                 best_visit_time=getattr(cand, "best_visit_time", None),
             )
+            # R13o④（R13n 审计「切换后失效了」）：预约提示/购票链接随卡
+            # ——legacy 卡从 poi 行带 reservation_hint/booking_url/website，
+            # 引擎卡此前全缺=前端所有观光卡显示「预约信息无」。字段随
+            # 候选（live 缝盖，含别名兜底的全列行）。
+            card.reservation_hint = getattr(cand, "reservation_hint", None)
+            card.booking_url = getattr(cand, "booking_url", None)
+            card.website = getattr(cand, "website", None)
             if leg is not None:
                 # card == leg: the same F-14 interval the model constrained.
                 profile = next(
@@ -340,8 +434,115 @@ def materialize_plan(
                     synthetic=True,
                 )
                 items.append(ret)
-        days.append(
-            DayPlan(day=day_no, base_city=_base_city(snapshot, day_no), items=items)
+        # R13o⑤⑥（R13n 审计）：C-13 酒店锚物化——求解器每天早就算好
+        # morning/night 酒店窗（c09 hotel_vars），extract_hotel_anchors 已
+        # 带出 solution.hotel_anchors，materialize 此前直接丢弃=引擎计划
+        # 零晨卡/零夜卡（2026-11-16 拍板「早晨卡只有出发时间」在响应层
+        # _morning_point_cards 收点生效）。
+        label = _day_label(items, snapshot, day_no)
+        hotel_by_slot = {
+            str(h.get("slot")): h
+            for h in getattr(solution, "hotel_anchors", ()) or ()
+            if int(h.get("day") or 0) == day_no
+        }
+        if "morning" in hotel_by_slot:
+            m = hotel_by_slot["morning"]
+            m_start = int(m.get("start_min") or 0)
+            m_end = int(m.get("end_min") or 0)
+            if m_end > m_start:
+                items.insert(
+                    0,
+                    VisitItem(
+                        item_id="hotel-morning-d%d" % day_no,
+                        name="🏨 从酒店出发",
+                        name_en="🏨 Depart from hotel",
+                        category="hotel",
+                        city=label,
+                        day=day_no,
+                        start_time=_hhmm(m_start),
+                        end_time=_hhmm(m_end),
+                        duration_minutes=m_end - m_start,
+                        synthetic=True,
+                        soft_pin=True,
+                    ),
+                )
+        if "night" in hotel_by_slot:
+            n = hotel_by_slot["night"]
+            n_start = int(n.get("start_min") or 0)
+            n_end = int(n.get("end_min") or 0)
+            # R13o：夜卡收口 DAY_END（21:30）——C-13 的 night_end 是
+            # min(start+60, 23:59)，正常日 21:00-22:00 会吃评分器日终
+            # 越界罚（overrun -60/卡，影子 plan_score 门实测漂-60）。
+            _day_end = 21 * 60 + 30
+            if n_end > _day_end:
+                n_end = _day_end
+            if n_start >= n_end:
+                n_start = max(0, n_end - 30)
+            if n_end > n_start:
+                items.append(
+                    VisitItem(
+                        item_id="hotel-night-d%d" % day_no,
+                        name="🏨 回酒店·夜间休息",
+                        name_en="🏨 Return to hotel for the night",
+                        category="hotel",
+                        city=label,
+                        day=day_no,
+                        start_time=_hhmm(n_start),
+                        end_time=_hhmm(n_end),
+                        duration_minutes=n_end - n_start,
+                        synthetic=True,
+                        soft_pin=True,
+                    )
+                )
+        days.append(DayPlan(day=day_no, base_city=label, items=items))
+
+    # R13o①（R13n 审计最重项）：城际腿卡——引擎从不物化 TransferItem，
+    # 跨城行程无车次/航班卡、无订票/改乘按钮（legacy 有）。结构卡：城市序
+    # 转场日的日始头卡，方式按距离闸（>600km 航班、≤600km 火车——legacy
+    # auto 同口径），时长按拍板「火车 2h/飞机 2.5h」；compact_days 以其为
+    # 固定屏障把当天可动卡右推；班次号经既有 /transfers/{item_id}/tno
+    # 端点回填真实车次。
+    def _city_coord(city: str):
+        from app.services.weather_open_meteo import CITY_COORDS
+
+        return CITY_COORDS.get(str(city or "").removesuffix("市"))
+
+    for _i in range(1, len(days)):
+        _prev_city = days[_i - 1].base_city
+        _cur_city = days[_i].base_city
+        if not _prev_city or not _cur_city or _prev_city == _cur_city:
+            continue
+        if not days[_i].items or isinstance(days[_i].items[0], TransferItem):
+            continue
+        _mode = "train"
+        _minutes = 120
+        try:
+            from ..inputs.travel import haversine_km
+
+            _a = _city_coord(_prev_city)
+            _b = _city_coord(_cur_city)
+            if _a and _b:
+                # CITY_COORDS 值是 (lat, lon) 元组；haversine_km 收标量。
+                _km = haversine_km(_a[1], _a[0], _b[1], _b[0])
+                if _km > 600:
+                    _mode = "flight"
+                    _minutes = 150
+        except Exception:  # noqa: BLE001 - 距离判失败退火车口径
+            pass
+        _dep = 8 * 60 + 30  # 日始（DAY_START_MINUTES 同值）
+        days[_i].items.insert(
+            0,
+            TransferItem(
+                item_id="xfer-d%d" % days[_i].day,
+                day=days[_i].day,
+                seq=0,
+                from_city=_prev_city,
+                to_city=_cur_city,
+                mode=_mode,
+                start_time=_hhmm(_dep),
+                end_time=_hhmm(_dep + _minutes),
+                duration_minutes=_minutes,
+            ),
         )
 
     cand_by_rid: dict[str, object] = {}
@@ -395,6 +596,8 @@ def assemble(
     plan = materialize_plan(solution, snapshot, itinerary_id=itinerary_id)
     plan = attach_meal_cards(plan, solution, snapshot)
     plan = compact_days(plan, snapshot)
+    # R13o①：城际腿屏障日右推（compact 只拉左；腿卡是装配期屏障）。
+    plan = push_after_intercity(plan)
     plan = attach_alternatives(plan, snapshot)
     from ...itinerary.legs import annotate_legs
 

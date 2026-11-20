@@ -596,6 +596,19 @@ def _attach_plain_tail_return(day: DayPlan, timed: list[VisitItem]) -> None:
     if km < TAIL_RETURN_MIN_KM or km > TAIL_RETURN_MAX_KM:
         return
     start_min = _clock_minutes(last.end_time or last.start_time)
+    # R13o⑨（R13n 审计）：同址嵌套餐（F-22 引擎餐锚）收尾晚于餐卡时，
+    # 回城段从宿主散场起算——此前按餐卡散场出回城，宿主还在游（798
+    # 16:46-20:16 套晚饭 17:58-19:28，回城卡 19:28 与 798 结束 20:16
+    # 矛盾）。向前吃同址簇的最大结束时刻。
+    for prev in reversed(timed[: timed.index(last)]):
+        prev_pt = _point(prev)
+        if prev_pt is None:
+            continue
+        if haversine_km(last_pt, prev_pt) > SAME_VENUE_KM:
+            break
+        prev_end = _clock_minutes(prev.end_time)
+        if prev_end is not None:
+            start_min = max(start_min, prev_end)
     minutes = taxi_leg_min(km)
     if minutes is None:
         return

@@ -931,6 +931,14 @@ async def start_plan(
     # 2026-11-14（用户拍板「心愿单/已排期按 USER ID 出内容」）：会话记住
     # 登录账号——会话里建的心愿行落 owner_account_id
     session.account_id = account or session.account_id
+    # R13o③（R13n 审计）：升旗锚接 start 缝尾——旗时最高优先（2026-11-14
+    # UAT 拍板）此前只接在 save/from-itinerary 开档缝，全新引擎会话首屏
+    # 不跑升旗链（北京新单天安门排 12:00 中午场）。幂等（R12-G 重叠推平
+    # 已内建）。
+    if session.plan is not None:
+        from app.services.agent.plan import _apply_flag_schedule
+
+        _apply_flag_schedule(session.plan)
     # 同款：save 前审计，生成首屏的披露/清脏直接落库（下方响应层的
     # _audit_must_coverage 保留为兜底，幂等无副作用）。
     # 白天入场闸读闸同位：生成首屏的越闸卡先清时刻再落库。
@@ -1430,6 +1438,11 @@ def _plan_turn_body(session, reply: str, change, *, alternatives: bool = True) -
         # 餐卡重排（装配/编辑/救急）都可能在收口后抹平间隙，这里在真正
         # 交付的 plan 上补回；幂等——无间隙时不产生备注、不改时刻。
         session.plan.assumptions.extend(_open_meal_leg_gaps(session.plan))
+        # R13o③：升旗锚在消息回合出站前同样收口（引擎 replan/edit 的新
+        # 计划此前不带旗时）——幂等，先于入场闸跑。
+        from app.services.agent.plan import _apply_flag_schedule
+
+        _apply_flag_schedule(session.plan)
         # 白天入场闸读闸（2026-11-17 二拍）：顺延/贴锚/兜底把非钉普通观光
         # 卡推过 16:00/15:30 开场带的，出站前退回无时刻并披露（幂等）。
         session.plan.assumptions.extend(enforce_entry_gate(session.plan))

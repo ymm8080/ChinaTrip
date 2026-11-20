@@ -4768,3 +4768,38 @@ def test_departure_endpoint_engine_return_shifts_site():
             assert leg.get("departures")
     finally:
         access_services.configure_store(None)
+
+
+# --------------------------------------- R13o③ 升旗锚缝接线（猴补丁验证）
+
+
+def test_departure_turn_runs_flag_schedule(monkeypatch):
+    """R13o③：消息回合出站缝调用升旗锚（引擎 replan/edit 的新计划
+    此前不带旗时）。猴补丁记录调用。"""
+    import app.services.agent.plan as agent_plan_mod
+
+    called = {}
+
+    def _fake_flag(plan):
+        called["plan"] = plan
+
+    monkeypatch.setattr(
+        agent_plan_mod, "_apply_flag_schedule", _fake_flag, raising=True
+    )
+    access_services = _engine_mutianyu_store()
+    app = _engine_departure_session_app()
+    try:
+        with TestClient(app, headers={"X-Device-ID": "device-1"}) as client:
+            r = client.post(
+                "/api/v1/plan/s-depe/departure",
+                json={
+                    "item_id": "access-out-mt",
+                    "direction": "out",
+                    "depart": "09:30",
+                },
+            )
+            assert r.status_code == 200, r.text
+    finally:
+        access_services.configure_store(None)
+    assert "plan" in called
+    assert called["plan"].days

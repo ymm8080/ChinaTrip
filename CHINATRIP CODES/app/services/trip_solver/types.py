@@ -55,6 +55,12 @@ class CandidateItem:
     # R12-D 菜系键（同菜系不重样罚项用；None=识别不出/非餐馆）
     cuisine: Optional[str] = None
     same_venue: Optional[str] = None  # C-09 nested host cid or poi_id
+    # R13o④（R13n 审计「切换后失效了」）：预约/购票显示字段随候选——
+    # live 缝盖（poi 行 + legacy _reservation_hint 同源），materialize
+    # 落卡。白名单不进 snapshot_hash=零哈希漂移。
+    booking_url: Optional[str] = None
+    website: Optional[str] = None
+    reservation_hint: Optional[str] = None
 
 
 @dataclass(frozen=True)
