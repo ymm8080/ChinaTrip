@@ -28,6 +28,8 @@ from .views import signature, view_from_recording, view_from_solution
 from .violations import scan_violations, violation_counts
 
 DEFAULT_BUDGET_S = 3.0
+# R13g：确定性对照预算（无墙压——tier det 决定搜索量，机器无关）
+DETERMINISM_BUDGET_S = 1e6
 NO_SOLUTION_DISCLOSURE = "求解器未收敛"
 
 
@@ -81,7 +83,27 @@ def _run_model(
                 score=run_score,
             )
         )
-    deterministic = runs[0].signature == runs[1].signature
+    # R13g：确定性对照负载免疫——实预算双跑任一侧被墙帽截断
+    # （wall_capped）时，层界随墙钟抖动=把机器负载误报成引擎不确定
+    # （2026-11-20 实锤：影子 CLI 与全量套件并发跑 g01/g11 双红，
+    # 隔离复跑全确定）。此时改跑一对无墙压解（预算 1e6，tier det
+    # 全权决定搜索量=机器无关）判 F-41；静机未被截断时照旧比较
+    # 实预算对（零额外开销）。
+    if any(getattr(r.view, "wall_capped", False) for r in runs):
+        det_sigs = [
+            signature(
+                view_from_solution(
+                    solve_snapshot(
+                        enrich(scenario.snapshot), budget_s=DETERMINISM_BUDGET_S
+                    ),
+                    scenario.snapshot,
+                )
+            )
+            for _ in range(2)
+        ]
+        deterministic = det_sigs[0] == det_sigs[1]
+    else:
+        deterministic = runs[0].signature == runs[1].signature
     # `deterministic` is a runner-level assertion: patch the per-view result
     # with the actual two-run signature comparison (F-41 instrument).
     for run in runs:

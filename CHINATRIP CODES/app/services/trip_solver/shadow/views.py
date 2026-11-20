@@ -90,6 +90,9 @@ class PlanView:
     # R13d：引擎段墙钟（build+solve+ladder，enrich 属数据准备不计——
     # 引擎预算契约覆盖建模+求解，注释见 solve.py Q3 段）。
     engine_ms: Optional[int] = None
+    # R13g：墙帽污染（Solution.wall_capped 透传）——影子层据此改判
+    # 确定性对照（无墙压对），F-41 不测机器负载。
+    wall_capped: bool = False
 
     def day_cards(self, day: int) -> list[CardView]:
         return [c for c in self.cards if c.day == day]
@@ -140,6 +143,7 @@ def view_from_solution(solution: Solution, snapshot: FactSnapshot) -> PlanView:
         access_legs=list(solution.access_legs),
         meal_anchors=list(solution.meal_anchors),
         wall_ms=solution.wall_ms,
+        wall_capped=bool(getattr(solution, "wall_capped", False)),
     )
 
 

@@ -177,6 +177,10 @@ class Solution:
     hint_used: bool = False  # F-24: previous solution seeded the search
     n_vars: Optional[int] = None  # F-36 telemetry
     n_cons: Optional[int] = None  # F-36 telemetry
+    # R13g：墙帽污染标——任一层的墙钟帽（remaining）先于 deterministic
+    # time 触发即置真（求解结果依赖机器快慢=负载敏感）。影子层据此改
+    # 用无墙压对照对判确定性（F-41 测代码级确定性，不测机器负载）。
+    wall_capped: bool = False
 
 
 def validate_snapshot(snapshot: FactSnapshot) -> list[str]:

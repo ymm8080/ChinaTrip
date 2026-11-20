@@ -15,8 +15,12 @@ import re
 from app.services.trip_solver.inputs.enrich import enrich
 from app.services.trip_solver.model.solve import solve_snapshot
 from app.services.trip_solver.shadow.asserts import AssertContext, evaluate
-from app.services.trip_solver.shadow.compare import shadow_compare
-from app.services.trip_solver.shadow.corpus import load_corpus, load_scenario
+from app.services.trip_solver.shadow.compare import _run_model, shadow_compare
+from app.services.trip_solver.shadow.corpus import (
+    default_corpus_dir,
+    load_corpus,
+    load_scenario,
+)
 from app.services.trip_solver.shadow.metrics import acceptance_metrics
 from app.services.trip_solver.shadow.views import (
     CardView,
@@ -849,3 +853,16 @@ def test_corpus_v2_builder_matches_disk():
     for name, fixture in built.items():
         on_disk = json.load(open(os.path.join(golden_dir, name), encoding="utf-8"))
         assert on_disk == fixture, name
+
+
+def test_determinism_load_immune_when_wall_capped(monkeypatch):
+    """R13g（2026-11-20）：墙帽截断的实预算双跑（=负载形态）改判无墙压
+    对照对——确定性不再被机器负载误报（实锤：影子 CLI 与全量套件并发
+    跑 g01/g11 双红，隔离复跑全确定；0.2s 预算强制每层墙帽触发）。"""
+    import os
+
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    scenario = load_scenario(os.path.join(default_corpus_dir(), "g01.json"))
+    first, _second, deterministic = _run_model(scenario, 0.2)
+    assert first.view.wall_capped is True  # 墙帽确实触发（污染路径）
+    assert deterministic is True  # 无墙压对照对判——负载免疫

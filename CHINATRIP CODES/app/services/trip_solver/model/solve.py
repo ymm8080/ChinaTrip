@@ -138,6 +138,9 @@ def solve(
     greedy_seeded = False
     fully_optimized = True  # R3b: stays True only if every tier proves OPTIMAL
 
+    # R13g：墙帽污染账——任一层的墙钟帽先于 det-time 触发即记真
+    # （求解被墙钟截断=结果负载敏感；对照见 Solution.wall_capped）。
+    wall_capped = False
     for index, tier in enumerate(tiers):
         coverage_assumptions = index == 0 and bool(bundle.fill_gates)
         if coverage_assumptions:
@@ -176,6 +179,10 @@ def solve(
             bundle.model.Maximize(tier.expression)
         status_code = candidate_solver.Solve(bundle.model)
         status = candidate_solver.StatusName(status_code)
+        # 判据宽松偏向标真（多标只多付对照对，绝不漏标=绝不把负载
+        # 抖动当引擎确定性回归）：WallTime 贴到帽（±0.1s）即视为墙截断
+        if candidate_solver.WallTime() >= remaining - 0.1:
+            wall_capped = True
         if coverage_assumptions:
             bundle.model.ClearAssumptions()
         if status == "INFEASIBLE":
@@ -184,6 +191,7 @@ def solve(
                 wall_ms=int((time.perf_counter() - started) * 1000),
                 objective_values=objective_values,
                 hint_used=hint is not None,
+                wall_capped=wall_capped,
             )
         if status == "UNKNOWN":
             # No feasible point found within the deterministic budget: keep
@@ -220,6 +228,7 @@ def solve(
             wall_ms=wall_ms,
             objective_values=objective_values,
             hint_used=hint is not None,
+            wall_capped=wall_capped,
         )
 
     items: list[SolutionItem] = []
@@ -275,6 +284,7 @@ def solve(
         hint_used=hint is not None,
         n_vars=len(proto.variables),
         n_cons=len(proto.constraints),
+        wall_capped=wall_capped,
     )
     # F-62 收敛口径=引擎实际预算（Q3 披露放宽后携带真实预算）
     sol.budget_used_ms = int(budget_s * 1000)
