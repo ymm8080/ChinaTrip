@@ -46,8 +46,11 @@ DAY_END_MINUTES = 21 * 60 + 30
 # 2026-11-17 拍板「晚闸是 16:30」：与 solver._GENERIC_ENTRY_CAP_MINUTES
 # 对齐拨回（16:00→16:30）。
 ENTRY_CAP_MINUTES = 16 * 60 + 30
+# R12-H23（2026-11-20 用户拍板「入场闸改成 16:00，然后又有入场闸的
+# 弹性调整」）：大点 960；检查含 +30 弹性（引擎 C-02/读闸同口径）。
+ENTRY_CAP_BIG_MINUTES = 16 * 60
+ENTRY_FLEX_MINUTES = 30
 # 大点开场带（11-04 拍板；2026-11-07 开场闸下保持并列上限）
-ENTRY_CAP_BIG_MINUTES = 15 * 60 + 30
 AFTERNOON_START_MINUTES = 13 * 60  # 下午起点（2026-11-04 拍板「下午单大点」）
 # CITYWALK 下午场带（2026-11-06 二拍；与 solver 同名常量同口径）
 CITYWALK_AFTERNOON_MINUTES = 13 * 60
@@ -452,7 +455,24 @@ def plan_score(
                     dur_v = 0
                 if dur_v > BIG_SITE_MIN_MINUTES and getattr(v, "tier", None) != 8:
                     entry_cap = ENTRY_CAP_BIG_MINUTES
-                if (v.start_time.hour * 60 + v.start_time.minute) > entry_cap:
+                # R12-H22 parity：远郊日返程后的「插一个」设计位——引擎
+                # C-06 豁免入场闸（用户拍板「回城有富裕时间回插小景点」），
+                # 打分器同口径：当日有回城卡且该卡紧随其后（≤30 分钟）。
+                _after_return = False
+                for _t in day.items:
+                    if (
+                        str(getattr(_t, "category", "") or "") == "transfer"
+                        and _t.end_time is not None
+                        and v.start_time is not None
+                    ):
+                        _te = _t.end_time.hour * 60 + _t.end_time.minute
+                        _vs = v.start_time.hour * 60 + v.start_time.minute
+                        if _te >= 14 * 60 and 0 <= _vs - _te <= 30:
+                            _after_return = True
+                if not _after_return and (
+                    v.start_time.hour * 60 + v.start_time.minute
+                    > entry_cap + ENTRY_FLEX_MINUTES
+                ):
                     late_entries += 1
             # 远郊件午后开场（2026-11-15）：远郊景点最佳游览时段=上午。
             if (

@@ -121,14 +121,21 @@ def test_c09_meal_anchors_use_windows_and_nest_or_avoid_overlap():
     snap = _snap([_cand("site", rid="r-site", duration=480)], musts=("r-site",))
     sol = _solve(snap)
     _ok(sol)
-    lunch = _meal(sol, "lunch")
+    site = next(i for i in sol.items if i.cid == "site")
+    # R12-H18：全天大点（480m）盖住午点核心 ⇒ 午餐被 COVER 无锚；
+    # 晚餐照常守窗。断言覆盖语义或（未被覆盖时）原窗口不变量。
+    try:
+        lunch = _meal(sol, "lunch")
+    except StopIteration:
+        assert site.start_min <= 12 * 60 and site.end_min >= 13 * 60
+        lunch = None
     dinner = _meal(sol, "dinner")
-    assert 11 * 60 + 30 <= lunch["start_min"] <= 12 * 60 + 30
-    assert lunch["end_min"] - lunch["start_min"] in {30, 45, 60}
+    if lunch is not None:
+        assert 11 * 60 + 30 <= lunch["start_min"] <= 12 * 60 + 30
+        assert lunch["end_min"] - lunch["start_min"] in {30, 45, 60}
     assert 17 * 60 <= dinner["start_min"] <= 19 * 60 + 30
     assert dinner["end_min"] - dinner["start_min"] in {45, 60, 90}
-    site = next(i for i in sol.items if i.cid == "site")
-    for meal in (lunch, dinner):
+    for meal in [m for m in (lunch, dinner) if m is not None]:
         if meal["host_cid"] == "site":
             assert meal["start_min"] >= site.start_min
             assert meal["end_min"] <= site.end_min
@@ -185,7 +192,13 @@ def test_remote_lunch_first_at_1108_and_earliest_feasible_bus():
     _ok(sol)
     mty = next(i for i in sol.items if i.cid == "c3")
     leg = next(leg for leg in sol.access_legs if leg["cid"] == "c3")
-    lunch = _meal(sol, "lunch", mty.day)
+    try:
+        lunch = _meal(sol, "lunch", mty.day)
+    except StopIteration:
+        # R12-H18：慕田峪满档盖住午点核心 ⇒ 午餐被 COVER（园内
+        # 解决）无锚——覆盖语义断言后收尾。
+        assert mty.start_min <= 12 * 60 and mty.end_min >= 13 * 60
+        return
     # iter2 审计对齐后同为最优的合法形状有两种：升旗锚当日（09:30 班）
     # 或故宫晨锚换日（10:30 班）——班次始终跟随实际晨锚的最早可行班
     _names = {c.cid: c.name for c in snapshot.candidates}
@@ -195,8 +208,13 @@ def test_remote_lunch_first_at_1108_and_earliest_feasible_bus():
     else:
         assert leg["depart_min"] in (510, 570, 630)  # 跟随其晨锚的最早班
     assert leg["arrive_poi_min"] == leg["depart_min"] + 98  # 90 ride + 8 last-mile
-    assert lunch["start_min"] == leg["arrive_poi_min"]  # F-22: lunch at arrival
-    assert mty.start_min == lunch["end_min"]  # visit after lunch (Q4)
+    if leg["arrive_poi_min"] < 11 * 60:
+        # Q4：11 点前到达=先游后餐（R12-H3 满档晨游+最早班下限 08:30）
+        assert mty.start_min == leg["arrive_poi_min"]
+        assert lunch["start_min"] == mty.end_min
+    else:
+        assert lunch["start_min"] == leg["arrive_poi_min"]  # F-22
+        assert mty.start_min == lunch["end_min"]  # visit after lunch
     assert lunch["host_cid"] == "c3"
     assert leg["visit_start_min"] == mty.start_min
 
@@ -465,8 +483,10 @@ def test_c12_day_load_budget_forces_honest_unplaced():
     candidates = [_cand(f"s{i}", rid=f"r{i}", duration=300) for i in range(4)]
     sol = _solve(_snap(candidates, musts=tuple(f"r{i}" for i in range(4))))
     _ok(sol)
-    assert len(sol.items) == 3  # 4 × 150 minimum > 570-minute usable day
-    assert len(sol.unplaced) == 1
+    # R12-H2：白天满档 + 晚带才许缩 → 1 满档（08:30-13:30）+ 1 晚带
+    # 缩到档低（14:00-16:30 收尾越闸）+ 2 诚实落选（超压缩值按规则删）
+    assert len(sol.items) == 2
+    assert len(sol.unplaced) == 2
 
 
 def test_c12_clear_weekend_beats_rainy_weekday_for_outdoor_must():
@@ -709,7 +729,11 @@ def test_c15_no_unrequested_item_precedes_remote_access():
     same_day_fills = [
         i for i in sol.items if i.day == leg["day"] and not by_cid[i.cid].rid
     ]
-    assert same_day_fills == []  # C-06 is stricter; C-15 bans pre-departure too
+    # R12-H24：远郊日返程后余量=小点回插位（老舍茶馆 968-1028 合法）；
+    # C-15 本义=出发前不得有未请求项。
+    assert all(i.start_min >= leg["arrive_city_min"] for i in same_day_fills), (
+        same_day_fills
+    )
 
 
 # ---------- C-16 caps + F-23 travel / determinism ----------

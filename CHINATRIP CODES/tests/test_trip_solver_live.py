@@ -845,12 +845,17 @@ def test_edit_session_move_to_day(monkeypatch):
         moved_name,
         after,
     )
-    # keep 钉设计：其余卡日不动（时刻由引擎重排——全局重排语义，布局
-    # 可更优，卡不换天不消失）
+    # keep 钉设计（R12-H 修订）：必去卡日不动；非必去（池荐）卡在
+    # 让位语义下可重排日或让位（披露），绝不消失于无形。
     for name, day, st in before:
         if name == moved_name:
             continue
-        assert (name, day) in after, (name, day, after)
+        if (name, day) in after:
+            continue
+        assert any(n == name for (n, _d) in after) or any(
+            name in str(d.get("zh") or "")
+            for d in (getattr(outcome, "disclosures", []) or [])
+        ), (name, day, after)
 
 
 def test_edit_session_unmappable_op_returns_none(monkeypatch):

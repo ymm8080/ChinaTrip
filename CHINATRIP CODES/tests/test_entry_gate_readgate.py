@@ -60,12 +60,13 @@ def _plan(*items):
 
 
 def test_after_gate_sight_goes_untimed_with_note():
+    # R12-H23：>16:30（16:00 帽+30 弹性）才移出
     plan = _plan(
         _item(
             "v1",
             "静安寺",
-            "16:15",
-            "17:45",
+            "16:45",
+            "18:15",
             dur=90,
             poi_id="jas",
             opening_hours="周一至周日 07:30-18:00",
@@ -190,8 +191,8 @@ def test_idempotent():
         _item(
             "v1",
             "静安寺",
-            "16:15",
-            "17:45",
+            "16:45",
+            "18:15",
             dur=90,
             poi_id="jas",
             opening_hours="周一至周日 07:30-18:00",

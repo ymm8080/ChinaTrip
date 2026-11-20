@@ -113,10 +113,21 @@ def test_g01_remote_day_card_equals_leg():
     )
     start_min = site.start_time.hour * 60 + site.start_time.minute
     meal = next(
-        m
-        for m in solution.meal_anchors
-        if m["day"] == day_no and m["slot"] == "lunch" and m.get("host_cid")
+        (
+            m
+            for m in solution.meal_anchors
+            if m["day"] == day_no and m["slot"] == "lunch" and m.get("host_cid")
+        ),
+        None,
     )
+    # R12-H18：大点盖饭点 → 午餐被 COVER（园内解决）时无托管餐锚——
+    # 断言覆盖语义（游览段盖住 12:00-13:00 核心）后跳过餐锚断言。
+    if meal is None:
+        assert (
+            site.start_time.hour * 60 + site.start_time.minute <= 12 * 60
+            and site.end_time.hour * 60 + site.end_time.minute >= 13 * 60
+        ), (site.start_time, site.end_time)
+        return
     # E-1 / B-03c + Q4：到点 ≥11:00 → 到站即餐、餐毕开游；到点 <11:00 →
     # 先游后餐（R1 后最优班次可早于 09:30，两形状都合法，按 Q4 断言）
     arrive = leg["arrive_poi_min"]
@@ -182,6 +193,21 @@ def test_meal_cards_anchor_at_host():
     remote_day = next(
         leg["day"] for leg in solution.access_legs if leg.get("cid") == remote.cid
     )
+    # R12-H18：大点盖饭点（慕田峪 10:08-13:28 盖午点核心）⇒ 远郊日午
+    # 餐被 COVER、无托管餐锚——本测只对「有托管餐锚」的形态断言。
+    if ("lunch", remote_day) not in meals:
+        remote_item = next(
+            i
+            for d in plan.days
+            if d.day == remote_day
+            for i in d.items
+            if isinstance(i, VisitItem) and i.poi_id == remote.poi_id
+        )
+        assert (
+            remote_item.start_time.hour * 60 + remote_item.start_time.minute <= 12 * 60
+            and remote_item.end_time.hour * 60 + remote_item.end_time.minute >= 13 * 60
+        )
+        return
     remote = next(c for c in snapshot.candidates if "慕田峪" in c.name)
     lunch_card = next(
         i

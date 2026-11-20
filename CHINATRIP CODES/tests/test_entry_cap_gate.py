@@ -53,8 +53,8 @@ def test_entry_cap_start_based_plain_sight():
     # 的 _evict_evening_gate_breachers），solver 排程带照旧。
     assert generic_entry_cap(_visit(duration_minutes=30), None) == CAP
     assert generic_entry_cap(_visit(), None) == CAP
-    # 90min > 80min = 大点 → 15:30 开场带并列上限。
-    assert generic_entry_cap(_visit(duration_minutes=90), None) == 15 * 60 + 30
+    # R12-H23：90min > 80min = 大点 → 16:00 开场带并列上限。
+    assert generic_entry_cap(_visit(duration_minutes=90), None) == 16 * 60
     # 时长缺省同样开场闸口径。
     assert generic_entry_cap(_visit(duration_minutes=None), None) == CAP
 
@@ -63,7 +63,7 @@ def test_entry_cap_big_sight_cap_and_exemptions():
     # 大点开场带（11-04，并列上限保留）：>80min 大点最晚 15:30 开场
     # （16:00 开场闸之下取 15:30）。
     big = _visit(duration_minutes=120)
-    assert generic_entry_cap(big, None) == 15 * 60 + 30
+    assert generic_entry_cap(big, None) == 16 * 60
     # 街区轻游（tier8=CityWalk）不算大点，走通用 16:30 开场闸。
     street = _visit(duration_minutes=120, tier=8)
     assert generic_entry_cap(street, None) == CAP
@@ -79,19 +79,15 @@ def test_entry_cap_big_sight_cap_and_exemptions():
     # 晚开门营业窗不豁免：15:45 开门的大点受 15:30 开场带约束 → 当天
     # 无档挪日；15:00 开门 120min：15:00-15:30 有档带内合法。
     late_open = PoiHours(poi_id="p7", opens=_t(15, 45), closes=_t(19, 0))
-    assert generic_entry_cap(big, late_open) == 15 * 60 + 30
+    assert generic_entry_cap(big, late_open) == 16 * 60
     ok_open = PoiHours(poi_id="p8", opens=_t(15, 0), closes=_t(18, 0))
-    assert generic_entry_cap(big, ok_open) == 15 * 60 + 30
+    assert generic_entry_cap(big, ok_open) == 16 * 60
 
 
 def test_scoring_big_entry_cap_aligned_with_solver():
     from app.services.itinerary import scoring, solver
 
-    assert (
-        scoring.ENTRY_CAP_BIG_MINUTES
-        == solver.BIG_SITE_ENTRY_CAP_MINUTES
-        == 15 * 60 + 30
-    )
+    assert scoring.ENTRY_CAP_BIG_MINUTES == solver.BIG_SITE_ENTRY_CAP_MINUTES == 16 * 60
     assert scoring.AFTERNOON_START_MINUTES == solver.AFTERNOON_START_MINUTES
     assert scoring.BIG_SITE_MIN_MINUTES == solver.BIG_SITE_MIN_MINUTES == 80
 

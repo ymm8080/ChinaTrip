@@ -70,12 +70,13 @@ def test_delete_fill_removes_and_delete_must_drops_obligation():
 def test_duration_op_clamps_into_tier():
     snap = _g01()
     prev = _base_solution(snap)
-    low, typ, high, _ = enrich(snap).tiers["c7"]  # 颐和园 tier [low, 300]
+    # R12-H：颐和园（c7）在新规则下可能诚实弃排——改靶已排的 c5 天坛
+    low, typ, high, _ = enrich(snap).tiers["c5"]  # 天坛 tier
     target = min(high, max(low, 999))  # op asks 999 → clamped to tier high
     out = edit_resolve(
-        snap, prev, [DiffOp(kind="duration", cid="c7", duration_min=999)]
+        snap, prev, [DiffOp(kind="duration", cid="c5", duration_min=999)]
     )
-    yihy = next(i for i in out.solution.items if i.cid == "c7")
+    yihy = next(i for i in out.solution.items if i.cid == "c5")
     assert yihy.end_min - yihy.start_min == target  # clamped, never beyond tier
 
 

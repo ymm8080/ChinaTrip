@@ -34,6 +34,12 @@ MEAL_WINDOWS = {
     "dinner": (17 * 60, 19 * 60 + 30),
 }
 MEAL_DURATIONS = {"lunch": (60, 45, 30), "dinner": (90, 60, 45)}
+# R12-H18（2026-11-20 用户拍板「如果景点很大，吃饭时间就在景点时间内
+# 时候可以直接被COVER掉。。而不是再安排」）：大点游览段盖住饭点核
+# 心（午 12:00-13:00 / 晚 18:00-19:00）⇒ 该槽占位餐卡取消（园内解
+# 决），紧凑行程尤其释放墙钟（慕田峪 10:08-13:28 盖午点→午餐被长城
+# COVER，13:28 收尾直上 14:30 班）；真餐馆绑定槽（烤鸭卡）不受取消。
+MEAL_COVER_CORE = {"lunch": (12 * 60, 13 * 60), "dinner": (18 * 60, 19 * 60)}
 REMOTE_LUNCH_EARLIEST = 11 * 60  # Q4
 REMOTE_LUNCH_LATEST = 13 * 60  # C-10 arrival band ends at 13:00
 REMOTE_DINNER_LATEST = 19 * 60 + 30  # 2026-11-18 用户拍板
@@ -128,7 +134,6 @@ def add_c09_meals(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
 
         for slot in ("lunch", "dinner"):
             lit = model.NewBoolVar("meal_%s_%d" % (slot, day))
-            model.Add(lit == active)
             st = model.NewIntVar(0, MINUTES_PER_DAY, "ms_%s_%d" % (slot, day))
             du = model.NewIntVarFromDomain(
                 cp_model.Domain.FromValues(MEAL_DURATIONS[slot]),
@@ -152,6 +157,56 @@ def add_c09_meals(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
                 "bound_any": model.NewBoolVar("mba_%s_%d" % (slot, day)),
             }
             bundle.meal_vars[(slot, day)] = meal
+            # R12-H18 大点盖饭：游览段盖住饭点核心 ⇒ 占位槽取消；
+            # 真餐馆绑定槽（bound_any）不受取消——烤鸭卡照常落午餐/晚餐。
+            from ..inputs.hours_caps import is_big_site as _is_big
+
+            _cover_lits = []
+            for c in snapshot.candidates:
+                if (c.category or "") in (
+                    "food",
+                    "hotel",
+                    "transport",
+                    "transfer",
+                ):
+                    continue
+                if not _is_big(
+                    duration_min=c.suggested_duration_min,
+                    category=c.category,
+                    best_visit_time=c.best_visit_time,
+                    tier=c.tier,
+                    pinned_with_time=False,
+                ):
+                    continue
+                _cl = model.NewBoolVar("mcover_%s_%s_%d" % (slot, c.cid, day))
+                _p = bundle.presence[(c.cid, day)]
+                # 未在场卡不得 COVER（否则弃排卡白送覆盖、误杀餐锚）
+                model.Add(_cl == 0).OnlyEnforceIf(_p.Not())
+                _lo, _hi = MEAL_COVER_CORE.get(slot, (0, 0))
+                model.Add(bundle.start[(c.cid, day)] <= _lo).OnlyEnforceIf([_p, _cl])
+                model.Add(
+                    bundle.start[(c.cid, day)] + bundle.dur[c.cid] >= _hi
+                ).OnlyEnforceIf([_p, _cl])
+                _late = model.NewBoolVar("mcovlate_%s_%s_%d" % (slot, c.cid, day))
+                model.Add(bundle.start[(c.cid, day)] > _lo).OnlyEnforceIf(
+                    [_p, _cl.Not(), _late]
+                )
+                model.Add(
+                    bundle.start[(c.cid, day)] + bundle.dur[c.cid] < _hi
+                ).OnlyEnforceIf([_p, _cl.Not(), _late.Not()])
+                _cover_lits.append(_cl)
+            covered = model.NewBoolVar("meal_covered_%s_%d" % (slot, day))
+            meal["covered"] = covered
+            if _cover_lits:
+                model.AddMaxEquality(covered, _cover_lits)
+            else:
+                model.Add(covered == 0)
+            model.Add(lit == 0).OnlyEnforceIf([covered, meal["bound_any"].Not()])
+            model.Add(lit == active).OnlyEnforceIf([covered.Not(), meal["bound_any"]])
+            model.Add(lit == active).OnlyEnforceIf([covered, meal["bound_any"]])
+            model.Add(lit == active).OnlyEnforceIf(
+                [covered.Not(), meal["bound_any"].Not()]
+            )
 
             for cand in snapshot.candidates:
                 p_cand = bundle.presence[(cand.cid, day)]
@@ -272,6 +327,58 @@ def add_c09_meals(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
     _r13h_twin_exclusivity(bundle, enriched)
     # R12-F4b：填充日预算（因果版——必去满档计，压缩不产预算）
     _r12f_fill_yields_gate(bundle, enriched)
+    # R12-H：收缩晚带闸（14:00 前满档，压到档低不够就按规则弃点）
+    _r12h_shrink_band_gate(bundle, enriched)
+
+
+def _r12h_shrink_band_gate(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
+    """R12-H3（2026-11-20 用户拍板「压缩只发生在晚上、晚闸 16:30 前
+    的景点上；超过规定的压缩值还不满足就开始按规则删景点」+纠正
+    「你不要规定开场时间」+「同样的PRIORITY 并且天气允许，先安排
+    远郊。远郊优先安排早晨 & 单天只有空闲才插入其它」）：时长收缩
+    只允许**收尾越过 min(晚闸16:30, 自家窗闭) 的卡**——晚带收尾
+    （颐和园 15:02-18:56 压 31 分收口 ✓）或贴自家闭馆墙（窗逼缩=
+    被迫合法 ✓）；故宫 13:54-14:54 收在闸前 ✗ 不许缩。钉住卡豁免
+    （铁律19：钉造成的收缩是用户自己的选择）；餐宿交通类豁免。压
+    到档低仍不满足 → tier① 覆盖按规则弃点：填充先让位（F4b 预算）、
+    必去诚实降「想去」+披露。远郊四条：同优先级（覆盖权重/晚开罚
+    通用）+天气允许先排远郊（日序拉引，雨天硬闸限可行面）+远郊优
+    先早晨（开场拉引+出程下限 08:30）+单天只空闲才插其它（F4b 日
+    预算）——拉引项在 objectives._remote_first。
+    """
+    model = bundle.model
+    evening_gate = 16 * 60 + 30
+    request = enriched.snapshot.request
+    pinned = {
+        c.cid
+        for pin in (getattr(request, "pins", ()) or ())
+        for c in enriched.snapshot.candidates
+        if pin.rid == c.rid or (pin.cid and pin.cid == c.cid)
+    }
+    for c in enriched.snapshot.candidates:
+        if (c.category or "") in (
+            "food",
+            "hotel",
+            "transport",
+            "transfer",
+        ):
+            continue
+        if c.cid in pinned:
+            continue  # 铁律19：钉造成的收缩是用户自己的选择
+        tier = enriched.tiers[c.cid]
+        if tier[1] <= tier[0]:
+            continue  # 无压缩空间（typ==min）
+        window = enriched.windows.get(c.cid)
+        gate = evening_gate if window is None else min(evening_gate, window[1])
+        shrunk = model.NewBoolVar("sbg_%s" % c.cid)
+        model.Add(bundle.dur[c.cid] < tier[1]).OnlyEnforceIf(shrunk)
+        model.Add(bundle.dur[c.cid] >= tier[1]).OnlyEnforceIf(shrunk.Not())
+        for day in bundle.days:
+            present = bundle.presence[(c.cid, day)]
+            # 收缩 ⇒ 收尾越过 min(晚闸, 窗闭)——晚带收尾/贴自家闭馆墙（合法）
+            model.Add(
+                bundle.start[(c.cid, day)] + bundle.dur[c.cid] >= gate
+            ).OnlyEnforceIf([shrunk, present])
 
 
 def _r12f_fill_yields_gate(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
@@ -440,7 +547,10 @@ def add_c10_remote_lunch(bundle: VarBundle, enriched: "EnrichedSnapshot") -> Non
             model.Add(before == 0).OnlyEnforceIf([lit, late])
             model.Add(before == 1).OnlyEnforceIf([lit, early.Not(), late.Not()])
 
-            model.Add(lunch["p"] == 1).OnlyEnforceIf(lit)
+            # R12-H18：远郊日午餐被大点盖住（如长城 10:08-13:28 盖午
+            # 点）⇒ 允许取消——强制锚会让早班形状不可行、班车漂移。
+            model.Add(lunch["p"] == 1).OnlyEnforceIf([lit, lunch["covered"].Not()])
+            model.Add(before == 0).OnlyEnforceIf([lit, lunch["covered"]])
             model.Add(lunch["start"] == arrival).OnlyEnforceIf([lit, before])
             model.Add(bundle.start[(cand.cid, day)] == lunch["end"]).OnlyEnforceIf(
                 [lit, before]
@@ -646,6 +756,9 @@ def add_c12c_morning_single(bundle: VarBundle, enriched: "EnrichedSnapshot") -> 
                 continue  # 餐/酒店/接驳不占上午点位
             if _is_pinned(snapshot, cand, day):
                 continue  # 铁律 19：用户钉件不计
+            if (cand.best_visit_time or "") == "sunrise":
+                continue  # R12-H11：晨锁带升旗锚（06:30-08:30）不计
+                # 上午单点点位——升旗后同日上午照排正式观光点
             lit = bundle.presence[(cand.cid, day)]
             ge = bundle.model.NewBoolVar("am_%s_%d" % (cand.cid, day))
             bundle.model.Add(ge == 0).OnlyEnforceIf(lit.Not())
@@ -681,8 +794,13 @@ def add_c13_hotels(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
                 model.Add(ready == 0).OnlyEnforceIf(lit.Not())
             else:
                 ready = bundle.start[(cand.cid, day)]
-                if not _is_pinned(snapshot, cand, day) and not (
-                    day == 1 and snapshot.request.day1_start
+                # R12-H21（2026-11-20）：晨锁带卡（升旗类，库内 bvt=
+                # 'sunrise'）豁免 09:00 酒店晨锚地板——钉件同款豁免语义
+                # （钉测可过正是靠 _is_pinned 豁免；无钉 sunrise 卡撞死）。
+                if (
+                    not _is_pinned(snapshot, cand, day)
+                    and (cand.best_visit_time or "") != "sunrise"
+                    and not (day == 1 and snapshot.request.day1_start)
                 ):
                     model.Add(ready >= HOTEL_MORNING_READY).OnlyEnforceIf(lit)
 

@@ -66,7 +66,7 @@ def test_open_form_allday_hours_kept_xintiandi_case():
 
 
 def test_enclosed_big_site_past_band_evicted_jingan_case():
-    """静安寺 07:30-18:00 受限窗+90min 大点：16:15 > 15:30 带 → 移出转想排。"""
+    """静安寺 90min 大点：16:45 > 16:00 带+30 弹性 → 移出转想排（R12-H23）。"""
     plan = _plan(
         [
             _v(
@@ -82,7 +82,7 @@ def test_enclosed_big_site_past_band_evicted_jingan_case():
         ]
     )
     notes = _evict_evening_gate_breachers(plan)
-    assert notes and "静安寺" in notes[0] and "15:30" in notes[0]
+    assert notes and "静安寺" in notes[0] and "16:00" in notes[0]
     assert [i.name for i in plan.days[0].items] == ["晚饭（自由安排）"]
     u = plan.unplaced[0]
     assert u.name == "静安寺"

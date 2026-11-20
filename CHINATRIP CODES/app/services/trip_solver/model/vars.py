@@ -41,6 +41,9 @@ class VarBundle:
     active_dur: dict[tuple[str, int], "cp_model.IntVar"] = field(default_factory=dict)
     active_end: dict[tuple[str, int], "cp_model.IntVar"] = field(default_factory=dict)
     meal_vars: dict = field(default_factory=dict)  # C-09/F-22 intervals
+    # R12-H22：余量槽闸豁免布尔（C-02 建、C-06 约束——返程后那
+    # 一个设计位才许 lift 入场闸）
+    cap_escapes: dict = field(default_factory=dict)
     hotel_vars: dict = field(default_factory=dict)  # C-13 intervals
     day_active: dict[int, "cp_model.IntVar"] = field(default_factory=dict)
     day_end_vars: dict[int, "cp_model.IntVar"] = field(default_factory=dict)

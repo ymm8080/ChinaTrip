@@ -138,6 +138,66 @@ def solve(
     greedy_seeded = False
     fully_optimized = True  # R3b: stays True only if every tier proves OPTIMAL
 
+    # R12-H19（2026-11-20 用户拍板「当第二天删去天安门、颐和园后 时间
+    # 有富裕可以回插一个 MUST VISIT 小景点。所以天安门能安排的下」）：
+    # 必去回插预检——覆盖层 dtime 帽内会把「多弃」次优解等式锁冻死
+    # （BJ 实锤：双弃 234 锁住，单弃 231 家族没被搜到、天安门被冤弃）。
+    # 最小弃排梯：k=0 全排 → k=1 按覆盖权重序单弃 → 首个可行即硬锁弃排
+    # 集；全探不可行才放开自然删点序（覆盖层自决，诚实披露）。
+    _req = getattr(enriched.snapshot.request, "musts", ()) or ()
+    _unp = {r.rid: bundle.unplaced[r.rid] for r in _req if r.rid in bundle.unplaced}
+    # R12-H19b：语料级大模型跳梯——6 探针 × 0.3 dtime 会吃爆 3s 总预
+    # 算（g11 实锤 UNKNOWN 5.7s）；小模型（BJ 实测 50 对）梯照常。
+    _ladder_ok = len(enriched.snapshot.candidates) * len(bundle.days) <= 150
+    if _unp and _ladder_ok:
+
+        def _probe() -> cp_model.CpSolver:
+            s = cp_model.CpSolver()
+            s.parameters.num_workers = 1
+            s.parameters.random_seed = SOLVER_SEED
+            s.parameters.max_deterministic_time = 0.1
+            return s
+
+        _weights = {r.rid: max(1, r.importance) for r in _req}
+        for c in enriched.snapshot.candidates:
+            if c.rid and c.kind == "requested" and getattr(c, "quality", None):
+                try:
+                    _weights[c.rid] = _weights.get(c.rid, 1) * max(
+                        1, int(float(c.quality))
+                    )
+                except Exception:
+                    pass
+        _remote_rids = {
+            c.rid
+            for c in enriched.snapshot.candidates
+            if c.rid and (c.poi_id or c.cid) in enriched.access_by_poi
+        }
+        if _remote_rids:
+            _city_ws = [w for rid, w in _weights.items() if rid not in _remote_rids]
+            if _city_ws:
+                _top = max(_city_ws)
+                for rid in _remote_rids:
+                    if rid in _weights:
+                        _weights[rid] = max(_weights[rid], _top + 1)
+        _locked = None
+        bundle.model.AddAssumptions([v.Not() for v in _unp.values()])
+        _st = _probe().Solve(bundle.model)
+        bundle.model.ClearAssumptions()
+        if _st in (cp_model.OPTIMAL, cp_model.FEASIBLE):
+            _locked = {}
+        else:
+            for _rid in sorted(_unp, key=lambda x: _weights.get(x, 1)):
+                _others = [v.Not() for x, v in _unp.items() if x != _rid]
+                bundle.model.AddAssumptions(_others)
+                _st = _probe().Solve(bundle.model)
+                bundle.model.ClearAssumptions()
+                if _st in (cp_model.OPTIMAL, cp_model.FEASIBLE):
+                    _locked = {_rid}
+                    break
+        if _locked is not None:
+            for _rid, _v in _unp.items():
+                bundle.model.Add(_v == (1 if _rid in _locked else 0))
+
     # R13g：墙帽污染账——任一层的墙钟帽先于 det-time 触发即记真
     # （求解被墙钟截断=结果负载敏感；对照见 Solution.wall_capped）。
     wall_capped = False

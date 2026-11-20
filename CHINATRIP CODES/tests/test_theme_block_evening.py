@@ -84,7 +84,8 @@ def test_cap_theme_block_exempt_in_flipped_shape():
 def test_cap_plain_sight_unchanged():
     # 2026-11-17 拍板：普带 16:30（开放形态豁免在删除层，带照旧）。
     assert generic_entry_cap(_sight(dur=60), None) == 16 * 60 + 30
-    assert generic_entry_cap(_sight(dur=120), None) == 15 * 60 + 30
+    # R12-H23：大点帽 16:00
+    assert generic_entry_cap(_sight(dur=120), None) == 16 * 60
 
 
 def test_cp_block_runs_into_evening():

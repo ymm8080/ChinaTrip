@@ -90,6 +90,14 @@ def add_c01_windows(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
                 continue
             lo = DAY_START_MINUTES
             hi = 23 * 60 if cand.best_visit_time == "show" else DAY_END_MINUTES
+            if (cand.best_visit_time or "") == "sunrise":
+                # R12-H11/H25（2026-11-20 用户令「天安门取真实的升旗
+                # 时间 FIX」）：晨锁带锚=flag_schedule 批次库真值
+                # （07:10/07:11 实测；空库回落静态 06:30）。
+                lo = 6 * 60 + 30
+                _ft = (getattr(enriched, "flag_times", None) or {}).get(day)
+                if _ft:
+                    lo = int(_ft)
             if (cand.cid, day) in _pinned_cids(snapshot.request, snapshot):
                 # 铁律19：钉住时刻不受 08:30 日始钳制（升旗/班次类）
                 lo = window[0] if window is not None else 0
@@ -101,13 +109,32 @@ def add_c01_windows(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
 
 
 def add_c02_caps(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
+    # R12-H16b/H22：入场闸硬口径，唯一豁免=远郊日返程后的「插一个」
+    # 设计位（用户拍板「第一天回城有富裕时间为么不可以加天坛」）。
+    # escape 布尔在此创建，C-06 填约束（esc ⇒ 远郊在场+返程后支+当日
+    # ≤1 槽——extras 计数同一环）；无远郊日的 esc 被 C-06 钉死为 0。
+    remote_keys = set(enriched.access_by_poi.keys())
     for cand in enriched.snapshot.candidates:
         cap, _reason = enriched.caps.get(cand.cid, (None, "unknown"))
         if cap is None:
             continue
+        is_remote = (cand.poi_id or cand.cid) in remote_keys
         for day in bundle.days:
             lit = bundle.presence[(cand.cid, day)]
-            bundle.model.Add(bundle.start[(cand.cid, day)] <= cap).OnlyEnforceIf(lit)
+            if is_remote:
+                bundle.model.Add(bundle.start[(cand.cid, day)] <= cap).OnlyEnforceIf(
+                    lit
+                )
+                continue
+            esc = bundle.model.NewBoolVar("capes_%s_%d" % (cand.cid, day))
+            bundle.cap_escapes[(cand.cid, day)] = esc
+            # R12-H23：入场闸弹性 +30（读闸 enforce_entry_gate 同口径
+            # ——2026-11-16 拍板「diff within 30 minutes, accept」）
+            from ..inputs.hours_caps import ENTRY_FLEX_MINUTES as _EFL
+
+            bundle.model.Add(bundle.start[(cand.cid, day)] <= cap + _EFL).OnlyEnforceIf(
+                [lit, esc.Not()]
+            )
 
 
 def add_c03_travel(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
@@ -220,9 +247,11 @@ def build_model(
     add_c03_travel(bundle, enriched)
     add_c04_pins(bundle, enriched)
     add_c05_endpoints(bundle, enriched)
-    add_c06_remote_exclusivity(bundle, enriched, relax=flags.relax_remote_exclusive)
     add_c07_city_coherence(bundle, enriched)
     add_c08_access(bundle, enriched)
+    # R12-H5：C-06 在 C-08 之后——返程到城变量（active_ret_vars）
+    # 由 C-08 创建，「返程后才许插一个」依赖它
+    add_c06_remote_exclusivity(bundle, enriched, relax=flags.relax_remote_exclusive)
 
     from .c09_c16 import (
         add_c09_meals,

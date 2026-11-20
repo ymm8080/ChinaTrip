@@ -180,6 +180,31 @@ def _legacy_outcome(requested: str) -> SolveOutcome:
     return SolveOutcome(engine=ENGINE_LEGACY, requested=requested)
 
 
+def _flag_times_for(snapshot) -> dict:
+    """R12-H25：升旗真值（flag_schedule 批次库）→ {day: minute}。
+    查不到/异常恒空 dict（模型侧回落静态 06:30）——纯 seam 侧 I/O。
+    """
+    out: dict[int, int] = {}
+    try:
+        from datetime import date as _d
+        from datetime import timedelta as _td
+
+        from ..flag_schedule import get_flag_time
+
+        start = getattr(snapshot.request, "start_date", None)
+        days = int(getattr(snapshot.request, "days", 0) or 0)
+        if not start or days <= 0:
+            return out
+        base = _d.fromisoformat(str(start))
+        for day in range(1, days + 1):
+            rise = get_flag_time((base + _td(days=day - 1)).isoformat(), "morning")
+            if rise is not None:
+                out[day] = rise.hour * 60 + rise.minute
+    except Exception:
+        return {}
+    return out
+
+
 def solve_trip(
     snapshot: FactSnapshot,
     *,
@@ -208,7 +233,10 @@ def solve_trip(
         if sample_key is not None and not should_sample(sample_key):
             return _legacy_outcome(requested)
         try:
-            solution = solve_snapshot(enrich(snapshot), budget_s=budget_s)
+            solution = solve_snapshot(
+                enrich(snapshot, flag_times=_flag_times_for(snapshot)),
+                budget_s=budget_s,
+            )
             record = emit(solve_telemetry(snapshot, solution, engine=ENGINE_SHADOW))
             return SolveOutcome(
                 engine=ENGINE_LEGACY,  # the cascade serves in shadow mode
@@ -245,7 +273,9 @@ def solve_trip(
         )
     try:
         solution = solve_snapshot(  # F-24: hint seeds the re-solve (P4)
-            enrich(snapshot), budget_s=budget_s, hint=hint
+            enrich(snapshot, flag_times=_flag_times_for(snapshot)),
+            budget_s=budget_s,
+            hint=hint,
         )
         record = emit(
             solve_telemetry(

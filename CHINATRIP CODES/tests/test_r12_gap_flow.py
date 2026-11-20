@@ -161,7 +161,15 @@ def test_placeholder_meal_keeps_window_when_no_restaurant_bound():
     snap = _snap([site], musts=("r-site",))
     sol = solve_snapshot(enrich(snap))
     assert sol.status in ("OPTIMAL", "FEASIBLE"), sol.status
-    lunch = next(m for m in sol.meal_anchors if m["slot"] == "lunch")
+    # R12-H18：全天大点盖住午点核心 ⇒ 占位午餐被 COVER（园内解决）；
+    # 未覆盖时占位照旧守窗。
+    try:
+        lunch = next(m for m in sol.meal_anchors if m["slot"] == "lunch")
+    except StopIteration:
+        site_item = next(i for i in sol.items if i.cid == "site")
+        assert site_item.start_min <= 12 * 60
+        assert site_item.end_min >= 13 * 60
+        return
     assert 11 * 60 + 30 <= lunch["start_min"] <= 12 * 60 + 30
     assert lunch["bound_cid"] is None
 

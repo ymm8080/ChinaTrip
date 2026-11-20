@@ -52,6 +52,29 @@ def _row_location(row: dict[str, Any]):
     return None, None
 
 
+_HERITAGE_TAGS = frozenset({"5a", "unesco", "国家一级博物馆"})
+_HERITAGE_SOURCES = frozenset({"museum1", "unesco"})
+
+
+def _data_priority_score(row) -> int:
+    """R12-H10b 库内数据优先级分（重要性真值：名录+评分）。
+    时长不进删点序（2026-11-20 用户纠正「天坛 4.7/150 < 颐和园 4.7/240
+    为什么」——时长是排程属性不是重要性；同名录同评分=平级，
+    删谁交给地理聚族/行程质量层裁决）。时长留在排位侧
+    （BIG_MUST_LATE_BANDS/大点先排等既有时序机制）。"""
+    tags = set(row.get("tags") or [])
+    heritage = (
+        bool(tags & _HERITAGE_TAGS) or (row.get("source") or "") in _HERITAGE_SOURCES
+    )
+    try:
+        rating = float(row.get("rating") or 0)
+    except Exception:
+        rating = 0.0
+    if rating <= 0 and heritage:
+        rating = 4.8  # 无评分名录行≈裸 4.8（top_pois 同哲学）
+    return max(1, int((30 if heritage else 0) + rating * 10))
+
+
 def _row_to_candidate(
     cid: str,
     row: dict[str, Any],
@@ -78,6 +101,13 @@ def _row_to_candidate(
         rid=rid,
         category=row.get("category"),
         tier=row.get("_tier") or row.get("tier"),
+        # R12-H10（2026-11-20 用户拍板「按库里的数据来排」）：必去
+        # 绑定把库内数据分（名录 tags/来源 + 真值评分[名录缺评按
+        # 4.8 地板——池排序同哲学] + 时长档）落到 quality——覆盖
+        # 层据此定删点序；fills 不占此字段。
+        quality=(
+            _data_priority_score(row) if kind == "requested" else row.get("quality")
+        ),
         lon=lon,
         lat=lat,
         opening_hours=row.get("opening_hours"),
@@ -922,6 +952,62 @@ def edit_session_via_trip_solver(
     except Exception:
         return None, _disclosed_fallback()
     solution = getattr(outcome, "solution", None)
+    _status = str(getattr(outcome, "status", "") or "")
+    if (_status == "INFEASIBLE" or solution is None) and keep_ops:
+        # R12-H（2026-11-20 用户拍板「排不上按规则删」）：编辑重解不可行时
+        # 填充先让位——非必去（不在 session.musts 名册）的 keep 降级重试
+        # （必去 keep 硬保；编辑快照 kind/rid 不可靠——测试库全 fill，名
+        # 册是唯一真源），让出的卡诚实披露；必去仍排不下才落披露型回落。
+        _roster = {str(n).strip() for n in (getattr(session, "must_visits", ()) or ())}
+        _roster |= {
+            str(getattr(m, "name", "") or "").strip()
+            for m in (getattr(snapshot.request, "musts", ()) or ())
+        }
+        _name_of = {c.cid: str(c.name or "").strip() for c in snapshot.candidates}
+        # 只降级 op 触及日的非名册 keep（move=目标日；无日信息=全日）
+        _op_days = {op.day for op in engine_ops if getattr(op, "day", None)}
+        demoted = [
+            op
+            for op in keep_ops
+            if (not _op_days or op.day in _op_days)
+            and _name_of.get(op.cid, "") not in _roster
+        ]
+        demoted_cids = {op.cid for op in demoted}
+        kept_ops = [op for op in keep_ops if op.cid not in demoted_cids]
+        if demoted_cids:
+            try:
+                outcome2 = edit_resolve(
+                    snapshot, None, [*engine_ops, *kept_ops], budget_s=budget_s
+                )
+            except Exception:
+                return None, _disclosed_fallback()
+            solution2 = getattr(outcome2, "solution", None)
+            if solution2 is not None and getattr(outcome2, "ops_applied", None):
+                from .assembly.materialize import materialize_plan
+
+                plan2 = materialize_plan(solution2, snapshot)
+                if not _degenerate_plan(plan2):
+                    placed2 = {i.cid for i in solution2.items}
+                    dropped = sorted({op.cid for op in demoted} - placed2)
+                    if dropped and hasattr(outcome2, "disclosures"):
+                        _dropped_names = [
+                            c.name for c in snapshot.candidates if c.cid in set(dropped)
+                        ]
+                        outcome2.disclosures = list(
+                            getattr(outcome2, "disclosures", []) or []
+                        ) + [
+                            {
+                                "zh": "目标日余量不足，已按规则让位："
+                                + "、".join(_dropped_names),
+                                "en": "Target day had no room; yielded per "
+                                "the rules: " + ", ".join(_dropped_names),
+                            }
+                        ]
+                    if extra_assumptions:
+                        plan2.assumptions = list(
+                            getattr(plan2, "assumptions", []) or []
+                        ) + list(extra_assumptions)
+                    return plan2, outcome2
     if solution is None or not getattr(outcome, "ops_applied", None):
         return None, _disclosed_fallback()
     from .assembly.materialize import materialize_plan

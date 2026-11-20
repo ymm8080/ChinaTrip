@@ -43,27 +43,43 @@ def test_e1_shape_tiananmen_then_direct_mutianyu_departure():
     legs = sol.access_legs
     assert len(legs) == 1
     leg = legs[0]
-    assert leg["depart_min"] in {450, 510, 570, 630}  # 只取班次表值
+    # R12-H4：默认最早班车 08:30（更早的行不进可排面）
+    assert leg["depart_min"] in {510, 570, 630}  # 只取班次表值
     assert leg["arrive_poi_min"] == leg["depart_min"] + 90 + 8
     assert mty.start_min == leg["visit_start_min"]
     lunch = next(
-        m for m in sol.meal_anchors if m["day"] == mty.day and m["slot"] == "lunch"
+        (m for m in sol.meal_anchors if m["day"] == mty.day and m["slot"] == "lunch"),
+        None,
     )
-    assert lunch["start_min"] == leg["arrive_poi_min"]
-    assert mty.start_min == lunch["end_min"]
-    # 晨锚先于出班：dep ≥ 天安门.end + taxi
-    assert leg["depart_min"] >= tian.end_min + 15
+    # R12-H18：慕田峪满档盖住午点核心 ⇒ 午餐被 COVER（园内解决）。
+    if lunch is None:
+        assert mty.start_min <= 12 * 60 and mty.end_min >= 13 * 60
+    # Q4 形状感知：11 点前到达=先游后餐；其余=餐在到点（F-22）
+    elif leg["arrive_poi_min"] < 11 * 60:
+        assert mty.start_min == leg["arrive_poi_min"]
+        assert lunch["start_min"] == mty.end_min
+    else:
+        assert lunch["start_min"] == leg["arrive_poi_min"]
+        assert mty.start_min == lunch["end_min"]
+    # 晨锚先于出班：dep ≥ 天安门.end + taxi（仅同日形态；R12-H 下
+    # 五必去全排优先于选天偏好时长城可落次日，跨日无比断言）
+    if tian.day == mty.day:
+        assert leg["depart_min"] >= tian.end_min + 15
     # P1-D 目标④已落地：早班偏好与确定性均由后续断言锁定
     assert leg["return_depart_min"] >= mty.end_min + 8
     assert leg["arrive_city_min"] == leg["return_depart_min"] + 90 + 8
-    # 远郊日纯度（C-06）：除 ≤1 个晨锚外不得有其它必去/补点；正典形状
-    # （升旗锚+慕田峪同日）为条件断言——iter2 审计对齐约束（叫车缓冲/
-    # 餐缝/下午单大点）后，故宫晨锚换日是同优合法形状（语料 g03 正典仍钉）
+    # 远郊日纯度（R12-H 修订）：除 ≤1 个晨锚外不得有其它必去；池荐补点
+    # 只许「返程到城后时间多余才插一个」（老舍茶馆即返程后补点，合法）
     remote_day_items = [i for i in sol.items if i.day == mty.day]
     names_remote_day = {by_cid[i.cid].name for i in remote_day_items}
     city_items = names_remote_day - {"慕田峪长城"}
-    assert len(city_items) <= 1  # C-06：晨锚至多一个
-    assert not any(by_cid[i.cid].name == "老舍茶馆" for i in remote_day_items)
+    assert len(city_items) <= 2  # 晨锚至多一个 + 补点至多一个
+    for it in remote_day_items:
+        nm = by_cid[i_cid].name if False else by_cid[it.cid].name
+        if nm not in ("慕田峪长城", "老舍茶馆"):
+            assert it.start_min <= 630  # 晨锚 ≤10:30
+        elif nm == "老舍茶馆":
+            assert it.start_min >= 968  # 补点在返程到城后（真余量）
     if "天安门广场" in city_items:
         assert city_items == {"天安门广场"}  # 正典：升旗锚当日直奔慕田峪
     # 其它必去落在另外一天（若其一充当远郊日晨锚则豁免——iter2 合法形状）
@@ -98,15 +114,19 @@ def test_remote_day_has_no_unrequested_fill():
     by_cid = {c.cid: c for c in snapshot.candidates}
     mty = next(i for i in sol.items if by_cid[i.cid].name == "慕田峪长城")
     same_day = [i for i in sol.items if i.day == mty.day]
-    # 老舍茶馆是未请求补点（fill），不得出现在远郊日
-    assert not any(by_cid[i.cid].name == "老舍茶馆" for i in same_day)
-    # 至多一个晨锚（本例无 pin，天安门在远郊日 ≤10:30）
-    anchors = [
-        i for i in same_day if by_cid[i.cid].rid and by_cid[i.cid].name != "慕田峪长城"
+    # R12-H（2026-11-20 拍板「单日就先排长城。然后时间有多余就插一个
+    # 景点」）：远郊日至多一个非远郊景点，且必须在返程到城之后开场
+    # （真余量；老舍茶馆 968 起=返程到城时刻）。
+    extras = [
+        i
+        for i in same_day
+        if by_cid[i.cid].name != "慕田峪长城"
+        and (by_cid[i.cid].category or "")
+        not in ("food", "hotel", "transport", "transfer", "entertainment")
     ]
-    assert len(anchors) <= 1
-    for a in anchors:
-        assert a.start_min <= 630
+    assert len(extras) <= 1
+    for e in extras:
+        assert e.start_min >= 968, (e, mty)
 
 
 def test_departure_day_cap():

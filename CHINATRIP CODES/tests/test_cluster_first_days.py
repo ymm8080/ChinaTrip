@@ -416,22 +416,22 @@ def test_important_family_gets_450_clean_day_waiver():
 def test_entry_cap_feasible_arithmetic():
     """⑨四轮锚（纯算术）：入场闸镜像——09:00(540) 起、已有负载按单块
     前置、相邻 30 分钟隔、降序连排，任一件开场超其入场闸即不可排。
-    大点帽 15:30(930)、普帽 16:30(990)（solver.generic_entry_cap 常量
-    镜像，2026-11-17 拍板拨回）。"""
-    # 空日 180+120+90：540→750→900，末件 90 开场 15:00 ≤16:00 可排
-    assert _entry_cap_feasible(540, 0, 0, [(180, 930), (120, 930), (90, 960)])
-    # +60 末件：90 后 t=1020(17:00) > 16:00 —— 钟楼案形，账面 450 预算
+    大点帽 16:00(960)、普帽 16:30(990)（solver.generic_entry_cap 常量
+    镜像，R12-H23 拍板 16:00+30 弹性）。"""
+    # 空日 180+120+90：540→750→900，末件 90 开场 15:00 ≤16:30 可排
+    assert _entry_cap_feasible(540, 0, 0, [(180, 960), (120, 960), (90, 990)])
+    # +60 末件：90 后 t=1020(17:00) > 16:30 —— 钟楼案形，账面 450 预算
     # 过闸但物理排不下
     assert not _entry_cap_feasible(
-        540, 0, 0, [(180, 930), (120, 930), (90, 960), (60, 960)]
+        540, 0, 0, [(180, 960), (120, 960), (90, 990), (60, 990)]
     )
     # 已有族块 330min/3 卡前置：t=540+330+90=960(16:00)，大点 120 开场
-    # 16:00 > 15:30 帽 —— 捆绑通道同判
-    assert not _entry_cap_feasible(540, 330, 3, [(120, 930)])
-    # 同块小点（帽 16:00）压线可排
-    assert _entry_cap_feasible(540, 330, 3, [(60, 960)])
-    # 帽口径：>80min 普通景点=大点帽 930，≤80min=普帽 960
-    assert _cand_entry_cap(_c("大块景点", _A0, dur=120)) == 15 * 60 + 30
+    # 16:00 ≤ 16:00 帽（R12-H23）——捆绑通道同判，压线可排
+    assert _entry_cap_feasible(540, 330, 3, [(120, 960)])
+    # 同块小点（普帽 16:30）压线可排
+    assert _entry_cap_feasible(540, 330, 3, [(60, 990)])
+    # 帽口径：>80min 普通景点=大点帽 960，≤80min=普帽 990
+    assert _cand_entry_cap(_c("大块景点", _A0, dur=120)) == 16 * 60
     assert _cand_entry_cap(_c("小块景点", _A0, dur=60)) == 16 * 60 + 30
 
 
@@ -480,10 +480,9 @@ def test_umbrella_bundle_respects_entry_cap_on_keeper_day():
         },
     ]
     notes = _bundle_umbrella_spec_days(heavy, cands)
-    # keeper 日族块 330min/3 卡 + 120 大点 = 末件开场 16:00 > 15:30 帽：
-    # 不拉同日，博物馆留 day2，无捆绑披露
-    assert next(s for s in heavy if s["name"] == "成都古城博物馆")["day"] == 2
-    assert not any("古城博物馆" in n for n in notes)
+    # R12-H23：keeper 日末件开场 16:00 == 新大点帽，压线可排 →
+    # 捆绑照常拉回 keeper 日（day1）。
+    assert next(s for s in heavy if s["name"] == "成都古城博物馆")["day"] == 1
     # 对照：keeper 日轻载（仅 90min 景区）时 t=660，120 大点 11:00 开场
     # 压线下可排 → 捆绑照常
     light = [

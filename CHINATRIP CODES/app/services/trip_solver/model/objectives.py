@@ -37,6 +37,21 @@ PREFERENCE_CATEGORY_REWARD = 40
 # 对齐——午段（<15:00）落午餐卡、晚段（≥15:00）落晚餐卡。软奖励：
 # 流式时刻仍优先，槽标签跟时刻走（杀「09:00 的晚餐卡」倒挂）。
 MEAL_SLOT_BAND_SPLIT = 15 * 60
+# R12-H3（2026-11-20 用户拍板「同样的PRIORITY 并且天气允许，先安排
+# 远郊。远郊优先安排早晨 & 单天只有空闲才插入其它」）：远郊日序/
+# 开场软拉引——词法最末层=纯平手破除，不扰动覆盖/质量层；雨天硬
+# 闸限可行面，拉引只在可行面内生效；出程下限 08:30 在 C-08（
+# R12-H4）；「单天只有空闲才插其它」=F4b 日预算（远郊日同款）。
+REMOTE_DAY_WEIGHT = 60  # ×请求卡数=族级选天主张（R12-H6b）
+# R12-H8（2026-11-20 用户纠正「不是远郊受保护，而是高优先级的 MUST
+# VISIT 受保护；长城是优先级最高的」）：删点序=优先级=清单位序
+# （_coverage 列表位序权重），无远郊专项盾。
+REMOTE_EARLY_WEIGHT = 1
+# R12-H6（2026-11-20 用户拍板「按景点优先级和天气选天。如果景
+# 点间优先级一致，远郊优先好天」）：重要性加权天序拉引——优先级
+# 高的先挑天；同优先级下远郊额外面 +REMOTE_DAY_WEIGHT 胜出
+# （好天=雨天硬闸限可行面，拉引只在可行面内生效）。
+PRIORITY_DAY_WEIGHT = 30
 MEAL_SLOT_BAND_REWARD = 25
 # R12-D（2026-11-19 拍板「尽量不要同样的菜肴——两家烤鸭店同日
 # 不合适」）：同菜系餐馆同日分占午晚双槽=重罚；跨天重复=轻罚
@@ -82,8 +97,36 @@ class ObjectiveTier:
 
 def _coverage(bundle: "VarBundle", enriched: "EnrichedSnapshot") -> ObjectiveTier:
     request = enriched.snapshot.request
+    # R12-H10（2026-11-20 用户拍板「是你应该按照库里的数据来排。。
+    # 不是我给的」）：删点序=库内数据分（live 绑定落 quality：名录
+    # tags/来源+真值评分[名录缺评 4.8 地板]+时长档）；语料/旧快照
+    # quality 空=零漂移，importance 仍为乘子。
     weights = {r.rid: max(1, r.importance) for r in request.musts}
     weights.update({r.rid: 1 for r in request.wishes})
+    _q_by_rid: dict[str, int] = {}
+    for c in enriched.snapshot.candidates:
+        if c.rid and c.kind == "requested" and getattr(c, "quality", None):
+            try:
+                _q_by_rid[c.rid] = max(_q_by_rid.get(c.rid, 0), int(float(c.quality)))
+            except Exception:
+                pass
+    for rid, q in _q_by_rid.items():
+        if rid in weights:
+            weights[rid] *= max(1, q)
+    # R12-H10b：先排长城（用户算法第一步先排的远郊=锚）——锚不参与
+    # 删点序（权重抬到城内最高之上）；真排不下仍诚实弃排+披露。
+    _remote_rids = {
+        c.rid
+        for c in enriched.snapshot.candidates
+        if c.rid and (c.poi_id or c.cid) in enriched.access_by_poi
+    }
+    if _remote_rids:
+        _city_ws = [w for rid, w in weights.items() if rid not in _remote_rids]
+        if _city_ws:
+            _top = max(_city_ws)
+            for rid in _remote_rids:
+                if rid in weights:
+                    weights[rid] = max(weights[rid], _top + 1)
     expression = sum(
         bundle.unplaced[rid] * weights.get(rid, 1) for rid in bundle.unplaced
     )
@@ -514,6 +557,57 @@ def _makespan(bundle: "VarBundle", enriched: "EnrichedSnapshot") -> ObjectiveTie
     return ObjectiveTier("makespan_early_access", sum(terms), "min")
 
 
+def _remote_first(bundle: "VarBundle", enriched: "EnrichedSnapshot") -> ObjectiveTier:
+    """R12-H3/H6 选天与远郊优先（词法最末层=纯平手破除，不扰动覆
+    盖/质量层）：①按景点优先级选天=重要性加权天序拉引（优先级高
+    的先挑天；地理聚族同 rid 同拉=族整体选天）；②优先级一致时远郊
+    优先好天=远郊额外日拉引（雨天硬闸限可行面，拉引只在可行面内
+    生效）；③远郊优先早晨=开场软拉引（出程下限 08:30 在 C-08）；
+    ④单天只有空闲才插其它=F4b 日预算 + C-06 返程后至多一卡。
+    远郊游览卡与必去同优先级=覆盖权重/晚开分段罚已通用（记档）。
+    """
+    request = enriched.snapshot.request
+    imp = {
+        r.rid: max(1, int(getattr(r, "importance", 3) or 3))
+        for r in list(getattr(request, "musts", ()) or ())
+    }
+    remote = {
+        c.cid
+        for c in enriched.snapshot.candidates
+        if (c.poi_id or c.cid) in enriched.access_by_poi
+    }
+    model = bundle.model
+    terms: list = []
+    for c in enriched.snapshot.candidates:
+        if not c.rid:
+            continue  # 拉引只对请求卡（fills 无选天权，F4b 管入场）
+        for day in bundle.days:
+            present = bundle.presence[(c.cid, day)]
+            w = PRIORITY_DAY_WEIGHT * imp.get(c.rid, 3)
+            if c.cid in remote:
+                # R12-H6b：远郊的选天主张是族级——按请求卡总数缩放，
+                # 压过任意数量同优先级城内卡的合计拉引（2026-11-20
+                # 用户拍板「优先级一致，远郊优先好天」；词法最末层，
+                # 只在覆盖/质量/行程等前层平手时生效）。
+                w += REMOTE_DAY_WEIGHT * max(1, len(imp))
+            terms.append(w * day * present)
+            if c.cid in remote:
+                a = model.NewIntVar(0, 1440, "rf_%s_%d" % (c.cid, day))
+                model.Add(a == bundle.start[(c.cid, day)]).OnlyEnforceIf(present)
+                model.Add(a == 0).OnlyEnforceIf(present.Not())
+                terms.append(REMOTE_EARLY_WEIGHT * a)
+                # R12-H15（2026-11-20 用户拍板「慕田峪 13:28 结束应该搭
+                # 乘 14:30 的 SHUTTLE BUS」）：返程同样拉最早可行班——早
+                # 回城才有当天余量（远郊日的「时间有多余就插一个」由此
+                # 活化；absent 时 active_ret=0 无贡献）。
+                _ret = bundle.active_ret_vars.get((c.cid, day))
+                if _ret is not None:
+                    terms.append(REMOTE_EARLY_WEIGHT * _ret)
+    if not terms:
+        return ObjectiveTier("remote_first", 0, "min")
+    return ObjectiveTier("remote_first", sum(terms), "min")
+
+
 def build_objectives(
     bundle: "VarBundle",
     enriched: "EnrichedSnapshot",
@@ -524,4 +618,5 @@ def build_objectives(
         _preference(bundle, enriched, slack),
         _travel(bundle, enriched),
         _makespan(bundle, enriched),
+        _remote_first(bundle, enriched),
     ]

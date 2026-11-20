@@ -185,13 +185,20 @@ def test_g01_all_five_musts_place_within_windows_and_caps():
     assert sol.status in ("OPTIMAL", "FEASIBLE"), sol.status
     placed = {it.cid: it for it in sol.items}
     must_cids = {c.cid for c in snapshot.candidates if c.kind == "requested"}
-    assert must_cids <= set(placed), sol.unplaced  # all five musts placed
+    # R12-H24/H18 后语料全排：远郊日=长城+老舍茶馆（≤120 小点回插
+    # 余量位），城内日=升旗+故宫+颐和园+天坛+梵高（盖饭/晚带压缩
+    # 就位）——五必去零弃排。
+    assert must_cids <= set(placed), sol.unplaced
     assert sol.unplaced == []
     # every placement respects its window, cap and pairwise travel
+    _bvt = {c.cid: (c.best_visit_time or "") for c in snapshot.candidates}
     for cid, it in placed.items():
         window = enriched.windows[cid]
         if window is not None:
-            assert it.start_min >= max(510, window[0]), cid
+            # R12-H11：升旗卡=晨锁带（锚=升旗真值/静态 06:30），
+            # 不受 08:30 日始锚强制。
+            _floor = 390 if _bvt.get(cid) == "sunrise" else 510
+            assert it.start_min >= max(_floor, window[0]), cid
             assert it.end_min <= min(1260, window[1]), cid
         cap = enriched.caps[cid][0]
         if cap is not None:

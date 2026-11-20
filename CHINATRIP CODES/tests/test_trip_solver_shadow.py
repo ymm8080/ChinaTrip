@@ -499,7 +499,8 @@ def test_no_entry_cap_breach_breach_and_skip():
     snapshot = _mini_snapshot()
     enriched = enrich(snapshot)
     cap, reason = enriched.caps["c2"]
-    assert cap == 930 and reason == "big-site"  # tower capped at 15:30
+    # R12-H23：大点入场闸 16:00
+    assert cap == 960 and reason == "big-site"
 
     breacher = CardView(
         name="上海中心大厦上海之巅观光厅",

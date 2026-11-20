@@ -307,7 +307,7 @@ _GENERIC_ENTRY_CAP_MINUTES = 16 * 60 + 30
 # ③ 大点先排：同日「大点开场晚于轻点」的逆序对计罚（大点先、
 #    轻点后）——插入/打磨双向对称，与插入次序无关。
 BIG_SITE_MIN_MINUTES = 80
-BIG_SITE_ENTRY_CAP_MINUTES = 15 * 60 + 30
+BIG_SITE_ENTRY_CAP_MINUTES = 16 * 60  # R12-H23 大点入场闸 16:00
 AFTERNOON_START_MINUTES = 13 * 60
 # 近距同日圈（2026-11-07 用户拍板 5km 口径，plan 兜底层 _NEAR_SAMEDAY_KM
 # 同源——本常量是唯一真值，agent.plan 引用它）：圈内=同片区连游，大点
@@ -705,6 +705,10 @@ def generic_entry_cap(item: VisitItem, window: PoiHours | None) -> int | None:
         return None
     if _hours_evening_only(window):
         return None
+    if (item.best_visit_time or "") == "sunrise":
+        # R12-H11 镜像（与引擎 hours_caps 同口径）：升旗卡=晨锁带
+        # ≤08:30 开场（锚=升旗真值，_apply_flag_schedule 落时刻）
+        return 8 * 60 + 30
     if _is_theme_block(item):
         # 主题街区整类开晚场（2026-11-08 拍板「所有街区都可以作为夜场，
         # 也可以白天」）：不吃白天开场闸/大点 15:30 带——主题街区 240min
