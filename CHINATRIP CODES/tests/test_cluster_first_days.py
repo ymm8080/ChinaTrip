@@ -479,7 +479,7 @@ def test_umbrella_bundle_respects_entry_cap_on_keeper_day():
             "city": "成都",
         },
     ]
-    notes = _bundle_umbrella_spec_days(heavy, cands)
+    _bundle_umbrella_spec_days(heavy, cands)
     # R12-H23：keeper 日末件开场 16:00 == 新大点帽，压线可排 →
     # 捆绑照常拉回 keeper 日（day1）。
     assert next(s for s in heavy if s["name"] == "成都古城博物馆")["day"] == 1
