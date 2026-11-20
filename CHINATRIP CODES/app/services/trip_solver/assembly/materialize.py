@@ -254,8 +254,33 @@ def materialize_plan(
                 )
                 if profile is not None:  # F-30 fare/service attach
                     card.access_fare_text = profile.fare_text
-                    card.access_service_name = profile.operator
-                card.access_mode = "access"
+                    card.access_service_name = profile.service_name or profile.operator
+                    # R13m：真实 mode + 班次窗口盖卡（legacy
+                    # poi_access.attach_access 同口径）——access_mode 此前
+                    # 恒为字面量 "access"，rules._access_profile 的
+                    # SCHEDULED_ACCESS_MODES 门不认 → access_breakdown 恒
+                    # None → 引擎计划班次块/回城三段/班次 chips 全不渲染、
+                    # 点选返程 422 no_return_leg。display 链从卡上字段点亮。
+                    card.access_mode = profile.mode or "shuttle"
+                    card.access_operator = profile.operator
+                    card.access_boarding_stop = profile.gateway
+                    card.access_ride_minutes = int(profile.ride_minutes)
+                    card.access_last_mile_minutes = int(profile.last_mile_minutes or 0)
+                    card.access_wait_minutes = int(profile.wait_minutes or 0)
+                    card.access_depart_times = list(profile.departures)
+                    card.access_return_times = list(profile.returns)
+                    card.access_ticket_url = profile.ticket_url
+                    card.access_official_url = profile.official_url
+                    if (
+                        profile.boarding_lon is not None
+                        and profile.boarding_lat is not None
+                    ):
+                        card.access_boarding = GeoPoint(
+                            lon=float(profile.boarding_lon),
+                            lat=float(profile.boarding_lat),
+                        )
+                else:
+                    card.access_mode = "access"
                 card.access_service_minutes = leg.get("arrive_poi_min", 0) - leg.get(
                     "depart_min", 0
                 )

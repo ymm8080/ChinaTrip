@@ -126,7 +126,9 @@ def test_g01_remote_day_card_equals_leg():
     else:
         assert start_min == arrive
         assert meal["start_min"] >= site.end_time.hour * 60 + site.end_time.minute
-    assert site.access_mode == "access"
+    # R13m：引擎卡盖真实 mode（档案行 mode，缺省 shuttle）——不再用
+    # 字面量 "access"（毒死 rules._access_profile 的 SCHEDULED 门）。
+    assert site.access_mode == "shuttle"
     # independent return card exists and is synthetic
     rets = [
         i
@@ -462,6 +464,11 @@ def _outbound_fixture():
                 last_mile_minutes=10,
                 departures=("08:00",),
                 returns=("15:00",),
+                # R13m 显示链字段（mode/乘车点坐标/线路名）
+                mode="shuttle",
+                service_name="东直门专线",
+                boarding_lon=116.4340,
+                boarding_lat=39.9410,
             ),
         ),
         source="synthetic",
@@ -500,8 +507,17 @@ def test_outbound_card_rendered_before_remote_visit():
     assert out.duration_minutes == 120
     assert out.address == "东直门"
     assert "东直门" in out.name and "约120分" in out.name
-    # card ≡ leg：访问卡仍带同一腿字段，不被去程卡挤动
-    assert site.access_mode == "access"
+    # card ≡ leg：访问卡仍带同一腿字段，不被去程卡挤动（R13m：真实
+    # mode + 完整班次窗口盖卡——显示链/点选端点读卡上字段点亮）
+    assert site.access_mode == "shuttle"
+    assert site.access_depart_times == ["08:00"]
+    assert site.access_return_times == ["15:00"]
+    assert site.access_ride_minutes == 80
+    assert site.access_last_mile_minutes == 10
+    assert site.access_boarding_stop == "东直门"
+    assert site.access_service_name == "东直门专线"
+    assert site.access_boarding is not None
+    assert site.access_boarding.lon == 116.4340
     assert site.start_time == time(10, 10)
     assert site.access_service_minutes == 120
 
@@ -528,3 +544,48 @@ def test_outbound_card_without_return_leg():
     assert [str(i.item_id).startswith("access-") for i in items] == [True, False]
     out, site = items
     assert out.item_id == "access-out-" + site.item_id
+
+
+# ------------------------------------------------------- R13m shuttle display
+
+
+def test_engine_outbound_card_carries_shuttle_chips_detail():
+    """R13m（用户令「之前做的默认 SHUTTLE BUS 时刻显示、并且可以选择，
+    现在没了」）：引擎去程卡经 annotate_legs 挂班次显示链——打车/专线/
+    购票行 + 去程/返程班次 chips 数据（当前班=去程卡排期时刻）。幂等。
+    """
+    from app.services.itinerary.legs import annotate_legs
+
+    snapshot, solution = _outbound_fixture()
+    plan = assemble(solution, snapshot)
+    out = next(
+        i
+        for d in plan.days
+        for i in d.items
+        if str(i.item_id).startswith("access-out-")
+    )
+    # 访问卡 id 从去程卡 id 反解（materialize 绑定同一卡 id）
+    site_id = out.item_id[len("access-out-") :]
+    site = next(
+        i
+        for d in plan.days
+        for i in d.items
+        if isinstance(i, VisitItem) and i.item_id == site_id
+    )
+    annotate_legs(plan)
+    detail = out.next_leg_detail or {}
+    assert out.next_leg_mode == "access"
+    assert detail["mode"] == "access"
+    assert detail["service_name"] == "东直门专线"
+    assert detail["gateway"] == "东直门"
+    assert detail["departures"] == ["08:00"]
+    assert detail["returns"] == ["15:00"]
+    assert detail["depart_time"] == "08:00"  # 引擎选定班=卡排期时刻
+    assert detail["arrive_time"] == "09:30"  # 08:00 + 80 车 + 10 步行
+    assert detail["owner_item_id"] == out.item_id  # 点选去程按去程卡重排
+    assert detail["next_item_id"] == site.item_id  # 返程行按景区卡回推
+    # 幂等：二次 annotate 同形
+    first = {k: v for k, v in (out.next_leg_detail or {}).items() if k != "options"}
+    annotate_legs(plan)
+    second = {k: v for k, v in (out.next_leg_detail or {}).items() if k != "options"}
+    assert first == second

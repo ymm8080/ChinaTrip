@@ -136,6 +136,17 @@ def _access_profiles_for(
             if ride <= 0 or not departures:
                 continue
             fare = row.get("fare_cny")
+
+            def _lonlat(key):
+                raw = row.get(key)
+                try:
+                    return float(raw) if raw not in (None, "") else None
+                except (TypeError, ValueError):
+                    return None
+
+            # R13m：显示链字段随档案进快照——mode/乘车点坐标/线路名/
+            # 购票官网（此前 live 只给求解器吃区间数学，materialize 无从
+            # 给卡盖真实 mode，引擎计划班次显示全盲）。
             out.append(
                 AccessProfile(
                     gateway=str(row.get("boarding_stop") or "乘车点"),
@@ -151,6 +162,12 @@ def _access_profiles_for(
                         else row.get("fare_note")
                     ),
                     operator=row.get("operator"),
+                    mode=str(row.get("mode") or "shuttle"),
+                    service_name=str(row.get("service_name") or "") or None,
+                    boarding_lon=_lonlat("boarding_lon"),
+                    boarding_lat=_lonlat("boarding_lat"),
+                    ticket_url=row.get("ticket_url") or None,
+                    official_url=row.get("official_url") or None,
                 )
             )
         except (TypeError, ValueError):

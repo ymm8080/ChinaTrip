@@ -1112,3 +1112,156 @@ def test_taxi_leg_shows_on_anchored_lunch_card():
     # 景区卡不再背这条腿
     assert zjj.distance_to_next_km is None
     assert zjj.next_leg_minutes is None
+
+
+# ------------------------------------------- R13m 引擎去程卡班次显示链
+
+
+def _engine_remote_day_items():
+    from datetime import time as dtime
+
+    mt = _v(
+        "v1",
+        "慕田峪长城",
+        116.5598,
+        40.4267,
+        start_time=dtime(10, 8),
+        end_time=dtime(13, 28),
+        duration_minutes=200,
+        access_mode="shuttle",
+        access_boarding=GeoPoint(lon=116.3982, lat=39.8988),
+        access_service_minutes=98,  # 引擎盖卡口径：ride+last_mile
+        access_ride_minutes=90,
+        access_last_mile_minutes=8,
+        access_boarding_stop="前门大街北口",
+        access_service_name="前门旅游专线",
+        access_depart_times=["07:30", "08:30", "09:30", "10:30"],
+        access_return_times=["14:30", "15:30", "16:30"],
+    )
+    out = VisitItem(
+        item_id="access-out-v1",
+        name="🚌 去程 · 前门大街北口 → 班车约98分",
+        category="transfer",
+        city="北京",
+        day=1,
+        start_time=dtime(8, 30),
+        end_time=dtime(10, 8),
+        duration_minutes=98,
+        synthetic=True,
+        access_mode="access",
+        address="前门大街北口",
+    )
+    lunch = VisitItem(
+        item_id="meal-lunch-1",
+        name="午餐",
+        category="food",
+        city="北京",
+        day=1,
+        start_time=dtime(13, 28),
+        end_time=dtime(14, 28),
+        duration_minutes=60,
+        anchor_location=GeoPoint(lon=116.5598, lat=40.4267),
+    )
+    ret = VisitItem(
+        item_id="access-return-v1",
+        name="回城",
+        category="transfer",
+        city="北京",
+        day=1,
+        start_time=dtime(14, 30),
+        end_time=dtime(16, 8),
+        duration_minutes=98,
+        synthetic=True,
+    )
+    # 锚在景区的占位晚餐（真实引擎日形状：回城卡在场 + 晚餐同址——
+    # 没有城内下一站，_attach_tail_return 按同址档位挂返程链）。
+    dinner = VisitItem(
+        item_id="meal-dinner-1",
+        name="晚饭",
+        category="food",
+        city="北京",
+        day=1,
+        start_time=dtime(17, 0),
+        end_time=dtime(18, 30),
+        duration_minutes=90,
+        anchor_from_prev=True,
+    )
+    return [out, mt, lunch, ret, dinner], out, mt, lunch
+
+
+def test_engine_outbound_card_gets_chips_and_no_bogus_taxi_tail():
+    """R13m：引擎远郊日——去程卡挂班次 chips 数据；景区卡挂班车回城链；
+    同址午餐卡不再被误挂「打车回城」假块（回城卡在场时尾部打车闸关闭）。
+    """
+    items, out, mt, lunch = _engine_remote_day_items()
+    plan = ItineraryPlan(
+        itinerary_id="x",
+        cities=["北京"],
+        days=[DayPlan(day=1, base_city="北京", items=items)],
+        assumptions=[],
+    )
+    annotate_legs(plan)
+    # 去程卡：班次显示链（chips 数据）
+    d = out.next_leg_detail or {}
+    assert out.next_leg_mode == "access"
+    assert d["service_name"] == "前门旅游专线"
+    assert d["departures"] == ["07:30", "08:30", "09:30", "10:30"]
+    assert d["returns"] == ["14:30", "15:30", "16:30"]
+    assert d["depart_time"] == "08:30"
+    assert d["owner_item_id"] == "access-out-v1"
+    assert d["next_item_id"] == "v1"
+    # 景区卡：班车回城链（_attach_tail_return 逐档取「仍有返程班的
+    # 最后一档」= 午餐散场 13:28 + 走回 8 → 首班 14:30）
+    m = mt.next_leg_detail or {}
+    assert m["direction"] == "return"
+    assert m["service_name"] == "前门旅游专线"
+    assert m["departures"] == ["14:30", "15:30", "16:30"]
+    # 逐档取「仍有返程班的最后一档」：午餐散场 14:28 + 走回 8 = 14:36
+    # → 下一班 15:30（不是按景区散场 13:36 的 14:30）。
+    assert m["depart_time"] == "15:30"
+    # 同址午餐卡：无打车回城假块（R13m 尾部打车闸被回城卡挡住）
+    assert lunch.next_leg_detail is None
+    assert lunch.next_leg_mode is None
+
+
+def test_engine_placeholder_dinner_anchors_to_city_stop():
+    """R13m：引擎占位晚餐 id（meal-dinner-<day>）也走「散场后跟下一站吃」
+    锚定——此前 food-dinner-ph* 字面前缀认不出引擎 id，晚饭错锚远郊点。
+    """
+    from app.services.itinerary.legs import resolve_meal_anchors
+
+    items, _out, mt, _lunch = _engine_remote_day_items()
+    night = VisitItem(
+        item_id="hotel-night-d1",
+        name="🏨 回酒店·夜间休息",
+        category="hotel",
+        city="北京",
+        day=1,
+        start_time=time(21, 0),
+        end_time=time(22, 0),
+        duration_minutes=60,
+        soft_pin=True,
+        location=GeoPoint(lon=116.4074, lat=39.9042),
+    )
+    dinner = VisitItem(
+        item_id="meal-dinner-1",
+        name="晚饭",
+        category="food",
+        city="北京",
+        day=1,
+        start_time=time(17, 30),
+        end_time=time(18, 30),
+        duration_minutes=60,
+        anchor_from_prev=True,
+    )
+    plan = ItineraryPlan(
+        itinerary_id="x",
+        cities=["北京"],
+        days=[DayPlan(day=1, base_city="北京", items=[mt, dinner, night])],
+        assumptions=[],
+    )
+    resolve_meal_anchors(plan)
+    d = next(i for i in plan.days[0].items if i.item_id == "meal-dinner-1")
+    assert d.anchor_location is not None
+    assert d.anchor_location.lon == 116.4074  # 跟下一站（酒店）吃
+    assert (d.access_mode or None) is None  # 不再继承远郊点档案
