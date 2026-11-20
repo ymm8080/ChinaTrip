@@ -34049,6 +34049,21 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
             if _ts_edit is not None:
                 _note = L("已按你的改动重排。", "Re-arranged with your change.")
                 return _ts_edit, None, [_note]
+            # R13h：引擎编辑失手但 seam 有披露型 outcome（未就绪/快照
+            # 失败/求解失手/退化计划）——legacy 修复管线接力时必须留痕
+            # （R12 救援契约第 4 缝；此前调用方从不读 outcome=静默回落）。
+            if (
+                _ts_outcome is not None
+                and getattr(_ts_outcome, "fallback", False)
+                and getattr(_ts_outcome, "disclosures", None)
+            ):
+                _fb = _ts_outcome.disclosures[0]
+                _fb_zh = _fb.get("zh", "") if isinstance(_fb, dict) else str(_fb)
+                if _fb_zh and _fb_zh not in (session.assumptions or []):
+                    session.assumptions = [
+                        *(session.assumptions or []),
+                        _fb_zh,
+                    ]
         except Exception:
             logger.warning(
                 "plan: ts edit seam failed; legacy repair serves", exc_info=True

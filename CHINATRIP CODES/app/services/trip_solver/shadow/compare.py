@@ -28,8 +28,10 @@ from .views import signature, view_from_recording, view_from_solution
 from .violations import scan_violations, violation_counts
 
 DEFAULT_BUDGET_S = 3.0
-# R13g：确定性对照预算（无墙压——tier det 决定搜索量，机器无关）
-DETERMINISM_BUDGET_S = 1e6
+# R13g：确定性对照预算（无墙压——tier det 决定搜索量，机器无关）。
+# R13h：120s 真·安全帽——det 帽常规负载下墙钟 <30s；若未来回归把
+# det 帽摘了，1e6（≈12 天）会让影子 CLI 挂死，120s 只多付一次对照。
+DETERMINISM_BUDGET_S = 120.0
 NO_SOLUTION_DISCLOSURE = "求解器未收敛"
 
 

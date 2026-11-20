@@ -266,6 +266,10 @@ def add_c09_meals(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
 
     # R12-D3：池内餐馆硬闸（同菜系同日≤1 + 槽位时段对齐；必去豁免）
     _r12d_hard_gates(bundle, enriched)
+    # R13h：同站孪生互斥（legacy _same_visit 通道族移植）——多源同行
+    # 跨天双卡防线（朱家角同地名行/同票家族/大小兄弟/演出桶/联票挂牌）；
+    # 博物馆×伞形组合对豁免连排（11-07 终裁）与全部地理闸见 inputs/twins。
+    _r13h_twin_exclusivity(bundle, enriched)
     # R12-F4b：填充日预算（因果版——必去满档计，压缩不产预算）
     _r12f_fill_yields_gate(bundle, enriched)
 
@@ -317,6 +321,51 @@ def _r12f_fill_yields_gate(bundle: VarBundle, enriched: "EnrichedSnapshot") -> N
         )
         # 预算：必去满档 + 骨架 + 填充 ≤ 日容（溢出日豁免）
         model.Add(must_mid + base + fill_mid <= capacity).OnlyEnforceIf(overflow.Not())
+
+
+def _r13h_twin_exclusivity(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
+    """R13h（2026-11-20 深挖）：同站孪生一次行程只看一次——孪生对
+    （inputs/twins.twin_gate_km 通道判定）在场总和 ≤1（跨天也并；大足
+    day5/day6 双卡即此类）。地理闸同 legacy：双方有坐标且越闸=名字撞衫
+    的不同场馆不并；缺坐标维持名字判定。必去×必去孪生（用户点名两个
+    名字同一站）也并——与「北山+宝顶也要并」拍板同语义。
+    """
+    from ..inputs.travel import haversine_km
+    from ..inputs.twins import combo_same_day, twin_gate_km
+
+    cands = enriched.snapshot.candidates
+    days = bundle.days
+    for i, a in enumerate(cands):
+        for b in cands[i + 1 :]:
+            gate = twin_gate_km(a, b)
+            if gate is not None and gate > 0:
+                if a.lon is not None and b.lon is not None:
+                    if haversine_km(a.lon, a.lat, b.lon, b.lat) > gate:
+                        gate = None  # 名字撞衫的不同场馆（泛名山岳保护闸）
+            if gate is not None:
+                pair_lits = [
+                    bundle.presence[(a.cid, d)] + bundle.presence[(b.cid, d)]
+                    for d in days
+                ]
+                if pair_lits:
+                    bundle.model.Add(sum(pair_lits) <= 1)
+                continue
+            # 11-07 终裁组合对：两卡并存但**双在场⇒同日**（连排成组）。
+            if not combo_same_day(a, b):
+                continue
+            if (
+                a.lon is not None
+                and b.lon is not None
+                and haversine_km(a.lon, a.lat, b.lon, b.lat) > 2.5
+            ):
+                continue
+            for d in days:
+                for e in days:
+                    if d == e:
+                        continue
+                    bundle.model.Add(
+                        bundle.presence[(a.cid, d)] + bundle.presence[(b.cid, e)] <= 1
+                    )
 
 
 def _r12d_hard_gates(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:

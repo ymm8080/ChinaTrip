@@ -174,6 +174,50 @@ def test_access_profiles_for_real_store_shapes():
     assert p.ride_minutes == 90
 
 
+def test_edit_session_not_ready_returns_disclosed_fallback(monkeypatch):
+    """R13h：编辑缝与 generate/replan 同口径——cpsat 旗下未就绪返回
+    披露型 fallback outcome，绝不裸 (None, None) 静默落 legacy 修复
+    （R12 救援契约第 4 缝；调用方 agent/plan.py 已读 outcome 补留痕）。"""
+    from app.services.agent.plan import PlanSession
+    from app.services.trip_solver import entry as entry_mod
+    from app.services.trip_solver.live import edit_session_via_trip_solver
+
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    # 编辑缝是函数内 from .entry import serving_ready——patch 源头
+    monkeypatch.setattr(entry_mod, "serving_ready", lambda: (False, "not-ready-test"))
+    session = PlanSession(
+        session_id="sess-fb",
+        device_id="dfb",
+        cities=["上海"],
+        days=1,
+        start_date="2026-11-25",
+        must_visits=["外滩"],
+    )
+    plan, outcome = edit_session_via_trip_solver(
+        session, store=_store(), ops=[{"kind": "move", "name": "外滩", "day": 1}]
+    )
+    assert plan is None
+    assert outcome is not None and outcome.fallback is True
+    assert outcome.disclosures
+
+
+def test_same_poi_musts_bind_single_candidate(monkeypatch):
+    """R13h：同 POI 双必去（裂词/别名同点异名）只绑一张 requested 候选
+    ——此前两张候选同点双卡可行（C-03 零车程不禁双在场）。"""
+    from app.services.trip_solver.live import snapshot_from_request
+
+    snap = snapshot_from_request(
+        cities=["上海"],
+        days=1,
+        start_date="2026-11-25",
+        musts=["豫园", "豫园"],
+        store=_store(),
+    )
+    yuyuan = [c for c in snap.candidates if c.name == "豫园"]
+    assert len(yuyuan) == 1
+    assert yuyuan[0].kind == "requested"
+
+
 def test_weather_bilingualised():
     assert bilingual_weather("小雨") == "小雨 (rain)"
     assert bilingual_weather("大雨") == "大雨 (heavy rain)"

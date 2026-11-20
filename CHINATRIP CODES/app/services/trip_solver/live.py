@@ -207,6 +207,11 @@ def snapshot_from_request(
     candidates: list[CandidateItem] = []
     must_names_bound: set[str] = set()
     must_rows: list[dict] = []
+    # R13h：同 POI 必去去重——裂词/别名会让同一地点以两个名字进
+    # musts（重启缝按「和」裂词、R13f 短语收 + LLM 抽名各异），绑定
+    # 到同一行即两张 requested 候选（C-03 只给零车程不禁双在场→
+    # 同点双卡）。后到名字并进先到 rid（用户语义=同一地点）。
+    bound_poi_keys: set[str] = set()
 
     for i, name in enumerate(musts, start=1):
         rid = "r%d" % i
@@ -223,6 +228,14 @@ def snapshot_from_request(
                     row = hits[0]
                     break
         if row is not None:
+            _poi_key = str(
+                row.get("id") or row.get("source_poi_id") or row.get("name") or ""
+            )
+            if _poi_key and _poi_key in bound_poi_keys:
+                # 同点异名：并进先到 rid，不再造第二张候选
+                continue
+            if _poi_key:
+                bound_poi_keys.add(_poi_key)
             request_musts.append(
                 RequestedItem(
                     rid=rid,
@@ -808,8 +821,14 @@ def edit_session_via_trip_solver(
     from .entry import ENGINE_CPSAT, engine_flag, serving_ready
 
     flag = engine_flag()
-    if flag != ENGINE_CPSAT or not serving_ready()[0]:
-        return None, None
+    # R13h（2026-11-20 深挖）：与 generate/replan 同口径——cpsat 旗下
+    # 引擎不可服务（未就绪/快照载入失败/求解失手/退化计划）返回披露型
+    # fallback outcome，绝不裸 (None, None) 静默落 legacy 修复管线
+    # （编辑缝是 R12 救援契约四缝之一，调用方原从不读 outcome）。
+    if flag != ENGINE_CPSAT:
+        return None, None  # legacy 模式：卡片修复是正常路径
+    if not serving_ready()[0]:
+        return None, _disclosed_fallback()
     # R13-#2：add 类 op（{kind:"add", name, poi_id}）不走 DiffOp——名字
     # 注入快照 musts（引擎绑定链精确名→文本匹配→骨架兜底自然处理，
     # 覆盖层保证放置或留痕不吞点）；move/delete 照旧走引擎 DiffOp。
@@ -827,7 +846,7 @@ def edit_session_via_trip_solver(
         add_names.append(_name)
     snapshot = _session_snapshot(session, store, extra_musts=add_names or None)
     if snapshot is None:
-        return None, None
+        return None, _disclosed_fallback()
     engine_ops = _dict_ops_to_diffops(snapshot, edit_ops) if edit_ops else []
     if engine_ops is None:
         return None, None
@@ -893,15 +912,15 @@ def edit_session_via_trip_solver(
             snapshot, None, [*engine_ops, *keep_ops], budget_s=budget_s
         )
     except Exception:
-        return None, None
+        return None, _disclosed_fallback()
     solution = getattr(outcome, "solution", None)
     if solution is None or not getattr(outcome, "ops_applied", None):
-        return None, None
+        return None, _disclosed_fallback()
     from .assembly.materialize import materialize_plan
 
     plan = materialize_plan(solution, snapshot)
     if _degenerate_plan(plan):
-        return None, None
+        return None, _disclosed_fallback()
     if extra_assumptions:
         plan.assumptions = list(getattr(plan, "assumptions", []) or []) + list(
             extra_assumptions
