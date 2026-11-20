@@ -52,7 +52,7 @@ BIG_MUST_MIN_DURATION = 80
 # R12-F2：晚开分段罚（CP-SAT 线性表达式只吃整系数——0.25/min 浮点直
 # 接炸 40 测）。镜像打分器 late_entries 口径：≥12:30 罚 40、≥14:00 再
 # 罚 80——必去大点让出下午/傍晚给填充，天安门后故宫先于天坛。
-BIG_MUST_LATE_BANDS = ((12 * 60 + 30, 40), (14 * 60, 80))
+BIG_MUST_LATE_BANDS = ((12 * 60 + 30, 40), (14 * 60, 80), (15 * 60, 120))
 MORNING_MINUTE = 12 * 60
 ENTERTAINMENT_PRESENT_REWARD = 40
 CATEGORY_DIVERSITY_REWARD = 20

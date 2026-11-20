@@ -792,3 +792,80 @@ def test_innocent_fill_survives_window_caused_shrink():
     assert p.end_min - p.start_min < 120  # 窄窗自缩
     # 无辜景山照常在场（同日）——压缩是窗造成的，不是它
     assert "jingshan" in placed and placed["jingshan"].day == p.day
+
+
+# ---------- R12-G: 升旗锚重叠推平（2026-11-20 polish） ----------
+
+
+def test_flag_anchor_pushes_overlapping_successors():
+    """live 实锤形态：天安门锚 07:09-08:39（升旗重定位）、天坛 08:30
+    ——9 分钟重叠。推平后：天坛 ≥08:49（+10 分钟地板），级联再推下一张。"""
+    from app.services.agent.plan import _push_flag_successors
+
+    anchor = _card(
+        "v1",
+        "天安门广场",
+        "attraction",
+        7 * 60 + 9,
+        8 * 60 + 39,
+        poi_id="p-1",
+        pinned=True,
+    )
+    tiantan = _card("v2", "天坛", "temple", 8 * 60 + 30, 10 * 60 + 53, poi_id="p-2")
+    # 13:00 起的后继（不与推平后的天坛 08:49-11:12 重叠）——应保持不动
+    next_card = _card("v3", "故宫博物院", "museum", 13 * 60, 15 * 60, poi_id="p-3")
+    plan = _plan(anchor, tiantan, next_card)
+    _push_flag_successors(plan.days[0], anchor)
+    st = tiantan.start_time.hour * 60 + tiantan.start_time.minute
+    assert st == 8 * 60 + 49  # 08:39 + 10 地板
+    # 无重叠的后继不动
+    nst = next_card.start_time.hour * 60 + next_card.start_time.minute
+    assert nst == 13 * 60
+
+
+def test_flag_anchor_push_cascade_and_pin_respected():
+    """级联：天坛被推到 08:49-11:12 后压住 10:30 的下一卡 → 连锁右推；
+    用户钉住卡（铁律 19）绝不动。"""
+    from app.services.agent.plan import _push_flag_successors
+
+    anchor = _card(
+        "v1",
+        "天安门广场",
+        "attraction",
+        7 * 60 + 9,
+        8 * 60 + 39,
+        poi_id="p-1",
+        pinned=True,
+    )
+    tiantan = _card("v2", "天坛", "temple", 8 * 60 + 30, 10 * 60 + 53, poi_id="p-2")
+    chained = _card("v3", "钟鼓楼", "historic", 10 * 60 + 30, 12 * 60, poi_id="p-3")
+    pinned = _card(
+        "v4", "用户钉住点", "museum", 9 * 60, 10 * 60, poi_id="p-4", pinned=True
+    )
+    plan = _plan(anchor, tiantan, chained, pinned)
+    _push_flag_successors(plan.days[0], anchor)
+    t_end = tiantan.end_time.hour * 60 + tiantan.end_time.minute
+    assert t_end == 8 * 60 + 49 + 143  # 11:12
+    cst = chained.start_time.hour * 60 + chained.start_time.minute
+    assert cst == 11 * 60 + 22  # 11:12 + 10 地板
+    # 钉住卡原时刻不动
+    pst = pinned.start_time.hour * 60 + pinned.start_time.minute
+    assert pst == 9 * 60
+
+
+def test_flag_anchor_push_no_overlap_noop():
+    from app.services.agent.plan import _push_flag_successors
+
+    anchor = _card(
+        "v1",
+        "天安门广场",
+        "attraction",
+        7 * 60 + 9,
+        8 * 60 + 39,
+        poi_id="p-1",
+        pinned=True,
+    )
+    far = _card("v2", "天坛", "temple", 9 * 60, 11 * 60, poi_id="p-2")
+    plan = _plan(anchor, far)
+    _push_flag_successors(plan.days[0], anchor)
+    assert far.start_time.hour * 60 + far.start_time.minute == 9 * 60

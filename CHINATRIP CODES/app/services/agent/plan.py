@@ -6623,6 +6623,40 @@ def _flag_pin_reachable(day: DayPlan, item: VisitItem, rise: time) -> bool:
     return True
 
 
+def _push_flag_successors(day: DayPlan, anchor: VisitItem) -> None:
+    """R12-G（2026-11-20 polish，live 实锤升旗锚后 9 分钟重叠：天安门
+    07:09-08:39 / 天坛 08:30）：锚重定位到升旗时刻后，把因之重叠的
+    后继非钉卡顺次右推（+10 分钟换乘地板、保时长保次序；用户钉住
+    铁律 19 不动）。单趟按开始时刻有序处理（每卡只推一次，无循环）；
+    幂等：无重叠即无动作；只处理锚引发的连锁重叠。"""
+    if anchor.end_time is None:
+        return
+    floor = 10
+    chain_end = anchor.end_time.hour * 60 + anchor.end_time.minute + floor
+    successors = sorted(
+        (
+            it
+            for it in day.items
+            if isinstance(it, VisitItem)
+            and it is not anchor
+            and it.start_time is not None
+            and not it.pinned
+        ),
+        key=lambda it: (
+            it.start_time.hour * 60 + it.start_time.minute,
+            str(it.item_id or ""),
+        ),
+    )
+    for it in successors:
+        s = it.start_time.hour * 60 + it.start_time.minute
+        if s >= chain_end:
+            continue
+        dur = int(it.duration_minutes or DEFAULT_VISIT_MINUTES)
+        it.start_time = time(chain_end // 60 % 24, chain_end % 60)
+        it.end_time = time((chain_end + dur) // 60 % 24, (chain_end + dur) % 60)
+        chain_end = chain_end + dur + floor
+
+
 def _apply_flag_schedule(plan: ItineraryPlan) -> None:
     """天安门升旗时刻打标（flag_schedule 设计 2026-11-14，三段式第③步）。
 
@@ -6660,6 +6694,8 @@ def _apply_flag_schedule(plan: ItineraryPlan) -> None:
                     item.end_time = time(
                         (flag_min + dur) // 60 % 24, (flag_min + dur) % 60
                     )
+                # R12-G：锚重定位后推平重叠后继（无重叠=no-op）
+                _push_flag_successors(day, item)
                 continue
             name = str(item.name or "")
             if "天安门" not in name and "tiananmen" not in name.lower():
@@ -6719,6 +6755,8 @@ def _apply_flag_schedule(plan: ItineraryPlan) -> None:
                     (rise.hour * 60 + rise.minute + dur) // 60 % 24,
                     (rise.minute + dur) % 60,
                 )
+            # R12-G：锚重定位后推平重叠后继（含未重定位时的存量自愈）
+            _push_flag_successors(day, item)
 
 
 #: 北京城市别名（item.city 口径不一：北京/北京市/Beijing/Beijing, China）。
