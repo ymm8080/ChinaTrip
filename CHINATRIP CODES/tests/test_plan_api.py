@@ -3923,12 +3923,10 @@ def test_restart_seam_no_stale_intake_carry(monkeypatch):
     语义——旧行程的行前信息（班次/时刻）不带入新局（此前引擎缝多传
     session.arrival_*/departure_*：换城市重启带着旧航班号=与 legacy
     分歧）。"""
-    import asyncio
 
     from fastapi.testclient import TestClient
 
     from app.main import app
-    from app.services.agent.plan import PlanSession
 
     calls: list = []
 
