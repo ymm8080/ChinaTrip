@@ -571,6 +571,7 @@ def replan_session_via_trip_solver(
     store,
     extra_assumptions=None,
     budget_s: float = 3.0,
+    weather_lookup=None,
 ):
     """F-35 二期会话级重解（2026-11-18 拍板「偏好重排也要换 CP-SAT」）。
 
@@ -596,7 +597,7 @@ def replan_session_via_trip_solver(
     if not serving_ready()[0]:
         return _disclosed_fallback()
 
-    snapshot = _session_snapshot(session, store)
+    snapshot = _session_snapshot(session, store, weather_lookup=weather_lookup)
     if snapshot is None:
         return _disclosed_fallback()
 
@@ -738,7 +739,7 @@ def _intake_day_no(date_iso, start_date, days: int, default_day: int) -> Optiona
     return _role_endpoint(day)
 
 
-def _session_snapshot(session, store, extra_musts=None):
+def _session_snapshot(session, store, extra_musts=None, weather_lookup=None):
     """R10：会话 → 快照重建（replan/edit 共用）——musts=必去+钉卡+自造点，
     班次/分城/中途日/偏好/首日出发全参数随缝；None=引擎不可载。
     R13-#2：extra_musts=编辑 add 注入的新必去名（尾插去重——重复名会
@@ -774,6 +775,7 @@ def _session_snapshot(session, store, extra_musts=None):
         start_date=getattr(session, "start_date", None),
         musts=musts,
         store=store,
+        weather_lookup=weather_lookup,
         arrival_time=getattr(session, "arrival_time", None),
         departure_time=getattr(session, "departure_time", None),
         arrival_no=getattr(session, "arrival_no", None),
@@ -808,6 +810,7 @@ def edit_session_via_trip_solver(
     ops,
     extra_assumptions=None,
     budget_s: float = 3.0,
+    weather_lookup=None,
 ):
     """R10（2026-11-19 拍板「anywhere legacy exists, switch to cp-sat」）：
     消息 diff 道的引擎编辑重解——F-50 edit_resolve；ops=agent 侧 dict op
@@ -844,7 +847,12 @@ def edit_session_via_trip_solver(
         if not _name:
             return None, None
         add_names.append(_name)
-    snapshot = _session_snapshot(session, store, extra_musts=add_names or None)
+    snapshot = _session_snapshot(
+        session,
+        store,
+        extra_musts=add_names or None,
+        weather_lookup=weather_lookup,
+    )
     if snapshot is None:
         return None, _disclosed_fallback()
     engine_ops = _dict_ops_to_diffops(snapshot, edit_ops) if edit_ops else []

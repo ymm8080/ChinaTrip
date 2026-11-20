@@ -231,6 +231,16 @@ def twin_gate_km(a, b) -> float | None:
     # 酒店卡是独立停留点：绝不互并
     if cat_a == "hotel" or cat_b == "hotel":
         return None
+    # R13i：C-09 同址嵌套对（餐锚钉在宿主上）不是重复站——镜像 c03
+    # 「同址嵌套不做旅行析取」。主题餐厅名含宿主全名时（「宽窄巷子火锅」
+    # ⊂containment 通道）孪生互斥会把餐锚强制清零（pg≤ph ∧ pg+ph≤1
+    # ⇒ pg=0，命名餐卡退化回占位）——嵌套关系优先于名字孪生。
+    a_host = getattr(a, "same_venue", None)
+    b_host = getattr(b, "same_venue", None)
+    if (a_host and a_host in (b.cid, b.poi_id)) or (
+        b_host and b_host in (a.cid, a.poi_id)
+    ):
+        return None
     # 街区体验 vs 宴/演：两个体验不并
     if _street_cand(a) != _street_cand(b) and (
         {"food", "entertainment"} & {cat_a, cat_b}

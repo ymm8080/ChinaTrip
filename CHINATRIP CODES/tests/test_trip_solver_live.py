@@ -218,6 +218,34 @@ def test_same_poi_musts_bind_single_candidate(monkeypatch):
     assert yuyuan[0].kind == "requested"
 
 
+def test_session_snapshot_weather_passthrough(monkeypatch):
+    """R13j：重解/编辑缝的快照重建透传 weather_lookup——此前三缝
+    （start/restart/_session_snapshot）全不传，live 引擎雨天约束恒空转
+    （legacy 有天气/corpus 有 baked 天气、唯独 live 引擎瞎排雨天）。"""
+    from app.services.agent.plan import PlanSession
+    from app.services.trip_solver.live import _session_snapshot
+
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    session = PlanSession(
+        session_id="sess-wx",
+        device_id="dwx",
+        cities=["上海"],
+        days=1,
+        start_date="2026-11-25",
+        must_visits=["外滩"],
+    )
+    calls = []
+
+    def fake_weather(city, iso):
+        calls.append((city, iso))
+        return "小雨"
+
+    snap = _session_snapshot(session, _store(), weather_lookup=fake_weather)
+    assert snap is not None
+    assert calls, "weather_lookup must be invoked during snapshot rebuild"
+    assert snap.weather, "snapshot must carry weather rows for the engine"
+
+
 def test_weather_bilingualised():
     assert bilingual_weather("小雨") == "小雨 (rain)"
     assert bilingual_weather("大雨") == "大雨 (heavy rain)"

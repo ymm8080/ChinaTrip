@@ -21136,6 +21136,8 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
                 session,
                 store=get_poi_detail_store(),
                 extra_assumptions=extra_assumptions,
+                # R13j：重解缝同接天气（同 legacy _weather_lookup 口径）
+                weather_lookup=self._weather_lookup,
             )
             if (
                 outcome is not None
@@ -34039,6 +34041,7 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
                         session,
                         store=get_poi_detail_store(),
                         ops=_ops,
+                        weather_lookup=self._weather_lookup,
                         extra_assumptions=[
                             L(
                                 "已按新求解引擎重排本次改动。",

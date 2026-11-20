@@ -3945,7 +3945,9 @@ def test_generate_v0_routes_replan_through_engine(monkeypatch):
         "app.services.poi_details.get_poi_detail_store", _seam_fake_store
     )
 
-    def _fake_replan(sess, *, store, extra_assumptions=None, budget_s=3.0):
+    def _fake_replan(
+        sess, *, store, extra_assumptions=None, budget_s=3.0, weather_lookup=None
+    ):
         calls["sid"] = sess.session_id
         plan = ItineraryPlan(
             itinerary_id="it-r8",
@@ -4289,7 +4291,9 @@ def test_apply_intake_times_skipped_when_engine_served(monkeypatch):
 
     monkeypatch.setattr(agent, "_apply_intake_times", _intake_sentinel)
 
-    def _fake_replan(sess, *, store, extra_assumptions=None, budget_s=3.0):
+    def _fake_replan(
+        sess, *, store, extra_assumptions=None, budget_s=3.0, weather_lookup=None
+    ):
         plan = ItineraryPlan(
             itinerary_id="it-r11b",
             cities=list(sess.cities),

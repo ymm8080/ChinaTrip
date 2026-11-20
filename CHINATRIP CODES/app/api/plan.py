@@ -852,6 +852,11 @@ async def start_plan(
                     start_date=request.start_date,
                     musts=[],
                     store=get_poi_detail_store(),
+                    # R13j：live 引擎雨天约束接线（此前两缝均不传
+                    # weather_lookup——legacy 有天气/corpus 有 baked 天气、
+                    # 唯独 live 引擎瞎排雨天）。同 legacy 注入口径
+                    # （agent._weather_lookup=api:255 同款 partial）。
+                    weather_lookup=partial(daily_weather_text, get_session_factory()),
                     preferences=request.preferences or "",
                     arrival_time=request.arrival_time,
                     departure_time=request.departure_time,
@@ -1037,6 +1042,9 @@ async def message_plan(
                         start_date=session.start_date,
                         musts=list(restart_named_musts),
                         store=get_poi_detail_store(),
+                        weather_lookup=partial(
+                            daily_weather_text, get_session_factory()
+                        ),
                         preferences=request.text,
                         arrival_time=session.arrival_time,
                         departure_time=session.departure_time,

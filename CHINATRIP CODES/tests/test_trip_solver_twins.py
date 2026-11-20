@@ -7,7 +7,7 @@ from app.services.trip_solver.inputs.twins import combo_same_day, twin_gate_km
 from app.services.trip_solver.types import CandidateItem
 
 
-def _cand(name, *, category="sight", poi_id=None, lon=None, lat=None):
+def _cand(name, *, category="sight", poi_id=None, lon=None, lat=None, same_venue=None):
     return CandidateItem(
         cid="c-%s" % name,
         name=name,
@@ -16,6 +16,7 @@ def _cand(name, *, category="sight", poi_id=None, lon=None, lat=None):
         category=category,
         lon=lon,
         lat=lat,
+        same_venue=same_venue,
     )
 
 
@@ -56,6 +57,14 @@ def test_hotel_and_street_guards():
     street = _cand("锦里古街", category="citywalk")
     feast = _cand("锦里宴", category="entertainment")
     assert twin_gate_km(street, feast) is None
+
+
+def test_same_venue_nesting_pair_exempt():
+    """R13i：C-09 同址嵌套对（餐锚钉宿主）不是孪生——主题餐厅名含
+    宿主全名时 containment 通道不得把餐锚互斥清零。"""
+    host = _cand("宽窄巷子", poi_id="p-kzz")
+    meal = _cand("宽窄巷子火锅", category="food", same_venue="p-kzz")
+    assert twin_gate_km(meal, host) is None
 
 
 def test_engine_twin_pair_single_presence(monkeypatch):
