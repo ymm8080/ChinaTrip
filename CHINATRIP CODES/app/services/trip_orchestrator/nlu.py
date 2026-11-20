@@ -318,6 +318,31 @@ def _restart_named_musts(text: str, store=None, cities=None) -> list[str]:
             return False
         return False
 
+    def _clean_phrase(p: str) -> str:
+        """R13l：动词尾巴剥除 + 纯吃意图不出硬必去——e2e 实锤
+        「必去吃烤鸭」→骨架幽灵卡「吃烤鸭」定时观光卡；「故宫看看」
+        必去名带动词尾巴靠模糊绑定侥幸。吃/喝/尝意图留偏好软通道
+        （R8 荐餐链承担「想吃烤鸭」→烤鸭店推荐）；剥动词后恰是
+        真身则用真身（品尝楼外楼→楼外楼）。
+        """
+        while True:
+            _stripped_one = False
+            for _tail in ("看看", "玩玩", "逛逛", "转转", "一下"):
+                if p.endswith(_tail) and len(p) - len(_tail) >= 2:
+                    p = p[: -len(_tail)]
+                    _stripped_one = True
+            if not _stripped_one:
+                break
+        for _lead in ("品尝", "吃", "喝", "尝", "品"):
+            if p.startswith(_lead) and len(p) - len(_lead) >= 2:
+                _food_core = p[len(_lead) :]
+                if _known(_food_core):
+                    p = _food_core
+                else:
+                    p = ""  # 纯吃意图：不进硬必去，留偏好软通道
+                break
+        return p
+
     marker_re = _re.compile(r"一定要去|必须去|务必去|必到|必去|要去|打卡")
     junk_re = _re.compile(
         r"然后|接着|之后|另外|要少|别太|太多|较少|安排|规划|节奏|时间"
@@ -336,7 +361,17 @@ def _restart_named_musts(text: str, store=None, cities=None) -> list[str]:
             if ch in "。！？；;，,.!?" or ch.isspace():
                 cut = i
                 break
-        whole = seg[:cut].strip(" ：:、，,；;。.！!？?\"'「」【】（）()·\t")
+        whole = _clean_phrase(
+            seg[:cut].strip(" ：:、，,；;。.！!？?\"'「」【】（）()·\t")
+        )
+        # R13l（2026-11-20 深挖续）：动词尾巴剥除 + 纯吃意图不出硬必去。
+        # e2e 实锤：「必去吃烤鸭」→骨架幽灵卡「吃烤鸭」定时观光卡
+        # （16:13-17:43，与正确推荐的烤鸭店晚餐卡并列）；「一定要去
+        # 故宫看看」→必去名带「看看」靠模糊绑定侥幸。吃/喝/尝意图留
+        # 偏好软通道（R8 荐餐链承担「想吃烤鸭」→烤鸭店推荐）；剥动词
+        # 后恰是真身则用真身（品尝楼外楼→楼外楼）。
+        if not whole:
+            continue
         if _known(whole):
             if len(whole) <= 16 and not junk_re.search(whole):
                 if whole not in seen:
@@ -346,7 +381,7 @@ def _restart_named_musts(text: str, store=None, cities=None) -> list[str]:
                         return out
             continue
         for part in _re.split(r"还有|以及|[和与跟及、]", seg[:cut]):
-            p = part.strip(" ：:、，,；;。.！!？?\"'「」【】（）()·\t")
+            p = _clean_phrase(part.strip(" ：:、，,；;。.！!？?\"'「」【】（）()·\t"))
             if len(p) < 2 or p in seen:
                 # R8-S4：单字碎片不是地名（福/慧案）——丢弃，宁空
                 # 返 legacy 读点确认轮，不出垃圾卡

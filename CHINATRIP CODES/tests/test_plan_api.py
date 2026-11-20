@@ -3910,6 +3910,59 @@ def test_restart_named_musts_extraction():
     assert f("想去灵隐寺") == []
     assert f("必去然后回酒店休息") == []
     assert f("行程别太赶") == []
+    # R13l：动词尾巴剥除 + 纯吃意图不出硬必去（e2e 实锤「必去吃烤鸭」
+    # 产出骨架幽灵卡「吃烤鸭」定时观光卡——吃意图留偏好软通道，
+    # R8 荐餐链继续承担「想吃烤鸭」→烤鸭店推荐）。
+    assert f("必去吃烤鸭") == []
+    assert f("一定要去故宫看看") == ["故宫"]
+    assert f("必去喝咖啡") == []
+
+
+def test_restart_seam_no_stale_intake_carry(monkeypatch):
+    """R13k：引擎换局缝镜像 legacy restart_with_brief 的 fresh-start
+    语义——旧行程的行前信息（班次/时刻）不带入新局（此前引擎缝多传
+    session.arrival_*/departure_*：换城市重启带着旧航班号=与 legacy
+    分歧）。"""
+    import asyncio
+
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+    from app.services.agent.plan import PlanSession
+
+    calls: list = []
+
+    def _fake_generate(**kwargs):
+        calls.append(dict(kwargs))
+        return None, None  # 未就绪形态：缝回落，参数已捕获
+
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    from app.services.trip_solver import live as _live
+
+    monkeypatch.setattr(_live, "generate_session_via_trip_solver", _fake_generate)
+
+    client = TestClient(app)
+    r0 = client.post(
+        "/api/v1/plan/start",
+        json={"cities": ["北京"], "days": 2, "start_date": "2026-11-26"},
+        headers={"X-Device-ID": "d-r13k"},
+    )
+    sid = r0.json()["session_id"]
+    calls.clear()  # 只看 message 流（start 请求本身会打一次缝）
+    # 换城市才触发换局（new_trip_brief 要求城市变化——同城市=改良不换局）
+    client.post(
+        "/api/v1/plan/%s/message" % sid,
+        json={"text": "重新规划，去西安玩4天，必去兵马俑"},
+        headers={"X-Device-ID": "d-r13k"},
+    )
+    # 缝必须真的跑过（防空洞断言——首版探针教训：dict.update 合并
+    # 污染+同城市不换局=空洞双杀）
+    assert calls, "engine restart seam must run for a city-changing restart"
+    kw = calls[-1]
+    assert kw.get("cities") == ["西安"], kw
+    assert "兵马俑" in (kw.get("musts") or []), kw
+    for stale in ("arrival_no", "departure_no", "arrival_time", "departure_time"):
+        assert stale not in kw, (stale, kw)
 
 
 # --- R8：_generate_v0 偏好重排换引擎（钩子） -------------------------------

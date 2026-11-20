@@ -1035,6 +1035,12 @@ async def message_plan(
                 set_seam_attempted()
 
                 def _ts_restart():
+                    # R13k：镜像 legacy restart_with_brief 的 fresh-start
+                    # 语义——旧行程的行前信息（班次/时刻）不带入新局
+                    # （此前引擎缝多传 session.arrival_*/departure_*：
+                    # 换城市重启带着旧航班号=与 legacy 分歧；且传了
+                    # no/time 却不传 arrival_day（_intake_day_no 只在
+                    # start 缝算）——参数集自相矛盾）。
                     return generate_session_via_trip_solver(
                         device_id=session.device_id,
                         cities=list(restart_cities or []),
@@ -1046,10 +1052,6 @@ async def message_plan(
                             daily_weather_text, get_session_factory()
                         ),
                         preferences=request.text,
-                        arrival_time=session.arrival_time,
-                        departure_time=session.departure_time,
-                        arrival_no=session.arrival_no,
-                        departure_no=session.departure_no,
                         lang=session.lang,
                     )
 
