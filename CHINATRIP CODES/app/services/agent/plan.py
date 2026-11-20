@@ -32361,11 +32361,24 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
         )
         dep_min = depart.hour * 60 + depart.minute
         br = access_breakdown(item, nxt) if nxt is not None else None
+        # R13m（2026-11-20 用户令「之前做的默认 SHUTTLE BUS 时刻显示、
+        # 并且可以选择，现在没了，FIX」）：引擎去程接驳卡
+        # （access-out-*，R13-#3）——卡即班次段本身：点选班次 = 重定发车
+        # 时刻（到点即发车、无候车），当天后继按 retime 游标链级联重排。
+        # legacy 晨卡分支（离店 = 班次 − 打车回算）各归各卡，语义并存。
+        from app.services.trip_solver.assembly.materialize import (
+            OUTBOUND_CARD_PREFIX,
+        )
+
+        engine_outbound = (item.item_id or "").startswith(OUTBOUND_CARD_PREFIX)
         if direction == "out":
-            if not (item.item_id or "").startswith("hotel-morning"):
+            if engine_outbound:
+                start_min = dep_min
+            elif not (item.item_id or "").startswith("hotel-morning"):
                 raise ValueError("not_morning_card")
-            head = int((br or {}).get("taxi_minutes") or 0)
-            start_min = max(0, dep_min - head)
+            else:
+                head = int((br or {}).get("taxi_minutes") or 0)
+                start_min = max(0, dep_min - head)
             chosen_field = "access_chosen_depart"
             label = L(
                 f"第{day_plan.day}天 按 {_fmt_hm(depart)} 班次出发",
@@ -32403,6 +32416,25 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
         )
         if target is not None:
             setattr(target, chosen_field, _fmt_hm(depart))
+        if (
+            direction == "out"
+            and target is not None
+            and (target.item_id or "").startswith(OUTBOUND_CARD_PREFIX)
+        ):
+            # R13m：点选值同步盖到景区卡（poi 身份锚——引擎重解/装配按
+            # 景区卡读点选值；去程卡是 synthetic 派生件，景区卡才持久）。
+            site = next(
+                (
+                    i
+                    for d in session.plan.days
+                    for i in d.items
+                    if isinstance(i, VisitItem)
+                    and i.item_id == (target.item_id or "")[len(OUTBOUND_CARD_PREFIX) :]
+                ),
+                None,
+            )
+            if site is not None:
+                site.access_chosen_depart = _fmt_hm(depart)
         if direction == "out" and target is not None:
             # 级联不认锚定链（travel_gap_needed 对锚点卡不下放）：按点选班次
             # 重放晨卡窗口，并把首站推到「班次 + 车上 + 落客」。

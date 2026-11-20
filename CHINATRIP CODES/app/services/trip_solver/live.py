@@ -119,7 +119,24 @@ def _row_to_candidate(
         city=row.get("city"),
         # R12-D 菜系键（同菜系不重样罚项的信号；识别不出=None）
         cuisine=(cuisine_key(row) if (row.get("category") or "") == "food" else None),
+        # R13o④：预约/购票显示链字段随候选（legacy _reservation_hint 同源，
+        # poi 行 reservation_required/advance + 名单/09 表守卫匹配）。
+        booking_url=(str(row["booking_url"]) if row.get("booking_url") else None),
+        website=(str(row["website"]) if row.get("website") else None),
+        reservation_hint=_reservation_hint_for_row(row),
     )
+
+
+def _reservation_hint_for_row(row: dict[str, Any]) -> Optional[str]:
+    """R13o④：poi 行 → 预约提示串（legacy agent._reservation_hint 同源：
+    行列优先，名单 v0 兜底，再退 09 号表守卫匹配）。餐/住类按 legacy
+    口径返回 None（订座走餐位道）。懒 import：agent.plan 是重模块。"""
+    try:
+        from app.services.agent.plan import _reservation_hint
+
+        return _reservation_hint(str(row.get("name") or ""), row)
+    except Exception:  # noqa: BLE001 - 提示是显示糖：链路任何失败退 None
+        return None
 
 
 def _name_hits(name: str, other: str) -> bool:
@@ -166,6 +183,17 @@ def _access_profiles_for(
             if ride <= 0 or not departures:
                 continue
             fare = row.get("fare_cny")
+
+            def _lonlat(key):
+                raw = row.get(key)
+                try:
+                    return float(raw) if raw not in (None, "") else None
+                except (TypeError, ValueError):
+                    return None
+
+            # R13m：显示链字段随档案进快照——mode/乘车点坐标/线路名/
+            # 购票官网（此前 live 只给求解器吃区间数学，materialize 无从
+            # 给卡盖真实 mode，引擎计划班次显示全盲）。
             out.append(
                 AccessProfile(
                     gateway=str(row.get("boarding_stop") or "乘车点"),
@@ -181,6 +209,12 @@ def _access_profiles_for(
                         else row.get("fare_note")
                     ),
                     operator=row.get("operator"),
+                    mode=str(row.get("mode") or "shuttle"),
+                    service_name=str(row.get("service_name") or "") or None,
+                    boarding_lon=_lonlat("boarding_lon"),
+                    boarding_lat=_lonlat("boarding_lat"),
+                    ticket_url=row.get("ticket_url") or None,
+                    official_url=row.get("official_url") or None,
                 )
             )
         except (TypeError, ValueError):
@@ -270,7 +304,19 @@ def snapshot_from_request(
                 RequestedItem(
                     rid=rid,
                     name=str(row.get("name") or name),
-                    poi_id=str(row["id"]) if row.get("id") else None,
+                    # R13o⑦a：双键口径（同 R13-#4/_row_to_candidate）
+                    # ——真库行键=source_poi_id；此前只认 id，别名兜底命中
+                    # 的必去 poi 恒空（长安十二时辰主题街区案：卡有名无
+                    # poi，pin/换点/详情全断）。
+                    poi_id=(
+                        str(row["id"])
+                        if row.get("id")
+                        else (
+                            str(row["source_poi_id"])
+                            if row.get("source_poi_id")
+                            else None
+                        )
+                    ),
                     kind="must",
                     importance=3,
                 )

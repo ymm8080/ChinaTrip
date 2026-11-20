@@ -55,6 +55,12 @@ class CandidateItem:
     # R12-D 菜系键（同菜系不重样罚项用；None=识别不出/非餐馆）
     cuisine: Optional[str] = None
     same_venue: Optional[str] = None  # C-09 nested host cid or poi_id
+    # R13o④（R13n 审计「切换后失效了」）：预约/购票显示字段随候选——
+    # live 缝盖（poi 行 + legacy _reservation_hint 同源），materialize
+    # 落卡。白名单不进 snapshot_hash=零哈希漂移。
+    booking_url: Optional[str] = None
+    website: Optional[str] = None
+    reservation_hint: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -71,6 +77,20 @@ class AccessProfile:
     taxi_minutes: int = 0
     fare_text: Optional[str] = None
     operator: Optional[str] = None
+    # R13m（2026-11-20 用户令「之前做的默认 SHUTTLE BUS 时刻显示、并且
+    # 可以选择，现在没了，FIX」）：显示链字段——真实 mode / 乘车点坐标 /
+    # 线路名 / 购票官网。live 缝传真库行（AccessServiceStore），materialize
+    # 盖到访问卡的 access_* 窗口字段（与 legacy poi_access.attach_access 同
+    # 口径）。此前引擎卡 access_mode 恒为字面量 "access"，毒死
+    # rules._access_profile 的 SCHEDULED_ACCESS_MODES 门 → 班次块 / 班次
+    # chips / 回城三段对引擎计划全盲（live 实锤：慕田峪卡无班次行、回城
+    # 退化为纯打车卡）。
+    mode: str = "shuttle"
+    service_name: Optional[str] = None
+    boarding_lon: Optional[float] = None
+    boarding_lat: Optional[float] = None
+    ticket_url: Optional[str] = None
+    official_url: Optional[str] = None
 
 
 @dataclass(frozen=True)

@@ -194,6 +194,9 @@ class VisitItem(BaseModel):
     # G1（§14.3）：预约制门票提示（展示层，solver 不约束——预约是用户
     # 侧动作；「现在就订·提前 N 天·放票 08:00」在卡片亮出）
     reservation_hint: str | None = None
+    # R13o④：库行 website 随卡（_access_detail 的 official_url 回落此前
+    # 恒 None——引擎卡没带过这个字段）。
+    website: str | None = None
     # 8.1.4 天气感知（§14）：库候选的露天/室内属性透传（yes=雨宜/no=露天），
     # H5 与 forecast 对照生成「雨天对调」横幅；None=无信号不提示
     rain_ok: str | None = None

@@ -137,7 +137,9 @@ def test_g01_remote_day_card_equals_leg():
     else:
         assert start_min == arrive
         assert meal["start_min"] >= site.end_time.hour * 60 + site.end_time.minute
-    assert site.access_mode == "access"
+    # R13m：引擎卡盖真实 mode（档案行 mode，缺省 shuttle）——不再用
+    # 字面量 "access"（毒死 rules._access_profile 的 SCHEDULED 门）。
+    assert site.access_mode == "shuttle"
     # independent return card exists and is synthetic
     rets = [
         i
@@ -488,6 +490,11 @@ def _outbound_fixture():
                 last_mile_minutes=10,
                 departures=("08:00",),
                 returns=("15:00",),
+                # R13m 显示链字段（mode/乘车点坐标/线路名）
+                mode="shuttle",
+                service_name="东直门专线",
+                boarding_lon=116.4340,
+                boarding_lat=39.9410,
             ),
         ),
         source="synthetic",
@@ -526,8 +533,17 @@ def test_outbound_card_rendered_before_remote_visit():
     assert out.duration_minutes == 120
     assert out.address == "东直门"
     assert "东直门" in out.name and "约120分" in out.name
-    # card ≡ leg：访问卡仍带同一腿字段，不被去程卡挤动
-    assert site.access_mode == "access"
+    # card ≡ leg：访问卡仍带同一腿字段，不被去程卡挤动（R13m：真实
+    # mode + 完整班次窗口盖卡——显示链/点选端点读卡上字段点亮）
+    assert site.access_mode == "shuttle"
+    assert site.access_depart_times == ["08:00"]
+    assert site.access_return_times == ["15:00"]
+    assert site.access_ride_minutes == 80
+    assert site.access_last_mile_minutes == 10
+    assert site.access_boarding_stop == "东直门"
+    assert site.access_service_name == "东直门专线"
+    assert site.access_boarding is not None
+    assert site.access_boarding.lon == 116.4340
     assert site.start_time == time(10, 10)
     assert site.access_service_minutes == 120
 
@@ -554,3 +570,193 @@ def test_outbound_card_without_return_leg():
     assert [str(i.item_id).startswith("access-") for i in items] == [True, False]
     out, site = items
     assert out.item_id == "access-out-" + site.item_id
+
+
+# ------------------------------------------------------- R13m shuttle display
+
+
+def test_engine_outbound_card_carries_shuttle_chips_detail():
+    """R13m（用户令「之前做的默认 SHUTTLE BUS 时刻显示、并且可以选择，
+    现在没了」）：引擎去程卡经 annotate_legs 挂班次显示链——打车/专线/
+    购票行 + 去程/返程班次 chips 数据（当前班=去程卡排期时刻）。幂等。
+    """
+    from app.services.itinerary.legs import annotate_legs
+
+    snapshot, solution = _outbound_fixture()
+    plan = assemble(solution, snapshot)
+    out = next(
+        i
+        for d in plan.days
+        for i in d.items
+        if str(i.item_id).startswith("access-out-")
+    )
+    # 访问卡 id 从去程卡 id 反解（materialize 绑定同一卡 id）
+    site_id = out.item_id[len("access-out-") :]
+    site = next(
+        i
+        for d in plan.days
+        for i in d.items
+        if isinstance(i, VisitItem) and i.item_id == site_id
+    )
+    annotate_legs(plan)
+    detail = out.next_leg_detail or {}
+    assert out.next_leg_mode == "access"
+    assert detail["mode"] == "access"
+    assert detail["service_name"] == "东直门专线"
+    assert detail["gateway"] == "东直门"
+    assert detail["departures"] == ["08:00"]
+    assert detail["returns"] == ["15:00"]
+    assert detail["depart_time"] == "08:00"  # 引擎选定班=卡排期时刻
+    assert detail["arrive_time"] == "09:30"  # 08:00 + 80 车 + 10 步行
+    assert detail["owner_item_id"] == out.item_id  # 点选去程按去程卡重排
+    assert detail["next_item_id"] == site.item_id  # 返程行按景区卡回推
+    # 幂等：二次 annotate 同形
+    first = {k: v for k, v in (out.next_leg_detail or {}).items() if k != "options"}
+    annotate_legs(plan)
+    second = {k: v for k, v in (out.next_leg_detail or {}).items() if k != "options"}
+    assert first == second
+
+
+# ------------------------------------------- R13o hotel/intercity/labels
+
+
+def test_hotel_anchor_cards_materialize():
+    """R13o⑤⑥：C-13 酒店锚物化——solution.hotel_anchors 出晨卡/夜卡。"""
+    snapshot, solution = _outbound_fixture()
+    solution = Solution(
+        status="FEASIBLE",
+        items=list(solution.items),
+        access_legs=list(solution.access_legs),
+        hotel_anchors=[
+            {"slot": "morning", "day": 1, "start_min": 480, "end_min": 510},
+            {"slot": "night", "day": 1, "start_min": 1290, "end_min": 1350},
+        ],
+    )
+    plan = materialize_plan(solution, snapshot)
+    ids = [str(i.item_id) for i in plan.days[0].items]
+    assert "hotel-morning-d1" in ids
+    assert "hotel-night-d1" in ids
+    m = next(i for i in plan.days[0].items if str(i.item_id) == "hotel-morning-d1")
+    assert m.category == "hotel" and m.synthetic and m.soft_pin
+    assert m.start_time == time(8, 0) and m.end_time == time(8, 30)
+    n = next(i for i in plan.days[0].items if str(i.item_id) == "hotel-night-d1")
+    # 夜卡收口 DAY_END 21:30（C-13 的 22:30 尾被钳；起随之回拉 30 分）
+    assert n.start_time == time(21, 0) and n.end_time == time(21, 30)
+
+
+def test_no_hotel_anchors_no_cards():
+    """手搭 Solution（无 hotel_anchors）零晨/夜卡——旧断言形状不变。"""
+    snapshot, solution = _outbound_fixture()
+    plan = materialize_plan(solution, snapshot)
+    ids = [str(i.item_id) for i in plan.days[0].items]
+    assert not any(i.startswith("hotel-morning") for i in ids)
+    assert not any(i.startswith("hotel-night") for i in ids)
+
+
+def test_intercity_card_between_city_blocks():
+    """R13o①：城市序转场日出城际腿卡（结构卡+距离闸方式+右推级联）
+    + R13o② 天标签按内容取真。"""
+    cand_a = CandidateItem(
+        cid="ca",
+        name="故宫博物院",
+        poi_id="pa",
+        kind="requested",
+        rid="r1",
+        category="museum",
+        opening_hours="08:30-17:00",
+        suggested_duration_min=120,
+        lon=116.41,
+        lat=39.92,
+        remote=False,
+        city="北京",
+    )
+    cand_b = CandidateItem(
+        cid="cb",
+        name="兵马俑",
+        poi_id="pb",
+        kind="requested",
+        rid="r2",
+        category="historic",
+        opening_hours="08:30-17:30",
+        suggested_duration_min=120,
+        lon=109.28,
+        lat=34.39,
+        remote=False,
+        city="西安",
+    )
+    snap = FactSnapshot(
+        schema_version=2,
+        request=TripRequest(
+            days=2,
+            cities=("北京", "西安"),
+            musts=(
+                RequestedItem(rid="r1", name="故宫博物院", poi_id="pa"),
+                RequestedItem(rid="r2", name="兵马俑", poi_id="pb"),
+            ),
+        ),
+        candidates=(cand_a, cand_b),
+        source="synthetic",
+    )
+    solution = Solution(
+        status="FEASIBLE",
+        items=[
+            SolutionItem(cid="ca", day=1, start_min=510, end_min=630),
+            SolutionItem(cid="cb", day=2, start_min=510, end_min=630),
+        ],
+    )
+    plan = assemble(solution, snap)
+    day2 = plan.days[1]
+    xfers = [i for i in day2.items if getattr(i, "from_city", None)]
+    assert len(xfers) == 1
+    xf = xfers[0]
+    assert xf.from_city == "北京" and xf.to_city == "西安"
+    # 北京→西安 ~910km > 600 → 航班 2.5h（拍板口径）
+    assert xf.mode == "flight" and xf.duration_minutes == 150
+    assert str(xf.start_time) == "08:30:00"
+    # 右推级联：当天第一张游卡不早于腿到（08:30+150=11:00）
+    visits = [
+        i
+        for i in day2.items
+        if isinstance(i, VisitItem) and not getattr(i, "synthetic", False)
+    ]
+    first = min(str(i.start_time) for i in visits)
+    assert first >= "11:00:00", first
+    # 天标签按内容取真
+    assert plan.days[0].base_city == "北京"
+    assert plan.days[1].base_city == "西安"
+
+
+def test_candidate_booking_fields_stamp_onto_card():
+    """R13o④：候选带 booking/预约字段 → 卡落字段。"""
+    from dataclasses import replace as _dc_replace
+
+    snapshot, solution = _outbound_fixture()
+    snapshot2 = type(snapshot)(
+        schema_version=snapshot.schema_version,
+        request=snapshot.request,
+        candidates=tuple(
+            _dc_replace(
+                c,
+                booking_url="https://b.example/x",
+                website="https://w.example/x",
+                reservation_hint="需提前 7 天预约",
+            )
+            if c.cid == "cr"
+            else c
+            for c in snapshot.candidates
+        ),
+        access_profiles=snapshot.access_profiles,
+        source=snapshot.source,
+    )
+    plan = materialize_plan(solution, snapshot2)
+    cards = [
+        i
+        for d in plan.days
+        for i in d.items
+        if isinstance(i, VisitItem) and i.name == "慕田峪长城"
+    ]
+    assert cards
+    c = cards[0]
+    assert c.booking_url == "https://b.example/x"
+    assert c.website == "https://w.example/x"
+    assert c.reservation_hint == "需提前 7 天预约"

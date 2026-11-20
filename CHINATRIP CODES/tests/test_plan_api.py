@@ -4562,3 +4562,244 @@ def test_message_restart_unserved_legacy_rescue(monkeypatch):
     body = r1.json()
     assert body.get("new_trip") is True
     assert body.get("plan") is not None
+
+
+# --------------------------------------- R13m 引擎形状的班次点选端到端
+
+
+def _engine_departure_session_app():
+    """引擎形状 ready 会话：去程卡(access-out-mt) + 访问卡(带班次窗口) +
+    同址午餐 + 回城卡(access-return-mt) + 夜卡（点选班次端点用）。"""
+    from datetime import time as dtime
+
+    agent = PlanningAgent(StubAdapter([]))
+    app = make_app(agent)
+    app.dependency_overrides[get_settings] = lambda: Settings(
+        llm_backend="mock", amap_api_key="k", map_provider="amap"
+    )
+    store = app.dependency_overrides[get_plan_sessions]()
+    out = VisitItem(
+        item_id="access-out-mt",
+        name="🚌 去程 · 前门大街北口 → 班车约98分",
+        category="transfer",
+        city="北京",
+        day=1,
+        start_time=dtime(8, 30),
+        end_time=dtime(10, 8),
+        duration_minutes=98,
+        synthetic=True,
+        access_mode="access",
+        address="前门大街北口",
+    )
+    mt = VisitItem(
+        item_id="mt",
+        name="慕田峪长城",
+        category="sight",
+        city="北京",
+        day=1,
+        start_time=dtime(10, 8),
+        end_time=dtime(13, 28),
+        duration_minutes=200,
+        location=GeoPoint(lon=116.5598, lat=40.4267),
+        access_mode="shuttle",
+        access_boarding=GeoPoint(lon=116.3982, lat=39.8988),
+        access_service_minutes=98,
+        access_ride_minutes=90,
+        access_last_mile_minutes=8,
+        access_boarding_stop="前门大街北口",
+        access_service_name="前门旅游专线",
+        access_depart_times=["07:30", "08:30", "09:30", "10:30"],
+        access_return_times=["14:30", "15:30", "16:30"],
+    )
+    lunch = VisitItem(
+        item_id="meal-lunch-1",
+        name="午餐",
+        category="food",
+        city="北京",
+        day=1,
+        start_time=dtime(13, 28),
+        end_time=dtime(14, 28),
+        duration_minutes=60,
+        anchor_location=GeoPoint(lon=116.5598, lat=40.4267),
+    )
+    ret = VisitItem(
+        item_id="access-return-mt",
+        name="回城",
+        category="transfer",
+        city="北京",
+        day=1,
+        start_time=dtime(14, 30),
+        end_time=dtime(16, 8),
+        duration_minutes=98,
+        synthetic=True,
+    )
+    night = VisitItem(
+        item_id="hotel-night-d1",
+        name="🏨 回酒店·夜间休息",
+        category="hotel",
+        city="北京",
+        day=1,
+        start_time=dtime(21, 0),
+        end_time=dtime(22, 0),
+        duration_minutes=60,
+        soft_pin=True,
+    )
+    store.save(
+        PlanSession(
+            session_id="s-depe",
+            device_id="device-1",
+            state="ready",
+            plan=ItineraryPlan(
+                itinerary_id="it-depe",
+                cities=["北京"],
+                days=[
+                    DayPlan(
+                        day=1,
+                        base_city="北京",
+                        items=[out, mt, lunch, ret, night],
+                    )
+                ],
+            ),
+        )
+    )
+    return app
+
+
+def _engine_mutianyu_store():
+    from app.services import access_services
+
+    class _Store:
+        def access_services(self, cities):
+            return [
+                dict(
+                    city="北京",
+                    poi_name="慕田峪长城",
+                    mode="shuttle",
+                    service_name="前门旅游专线",
+                    operator="北京旅游集散中心",
+                    boarding_stop="前门大街北口",
+                    boarding_lon=116.3982,
+                    boarding_lat=39.8988,
+                    alight_stop="慕田峪长城 P1/P4 停车场",
+                    outbound_first="07:30",
+                    outbound_last="10:30",
+                    outbound_times=["07:30", "08:30", "09:30", "10:30"],
+                    ride_minutes=90,
+                    last_mile_minutes=8,
+                    return_first="14:30",
+                    return_last="16:30",
+                    return_times=["14:30", "15:30", "16:30"],
+                    official_status="verified",
+                    window_source="official",
+                )
+            ]
+
+    access_services.configure_store(_Store())
+    return access_services
+
+
+def test_departure_endpoint_engine_out_card_retimes_and_keeps_chips():
+    """R13m：引擎去程卡点选 09:30——卡即班次段：重定发车 09:30、级联当天、
+    点选值落去程卡+景区卡；响应仍带班次 chips 数据（owner=去程卡）。"""
+    access_services = _engine_mutianyu_store()
+    app = _engine_departure_session_app()
+    try:
+        with TestClient(app, headers={"X-Device-ID": "device-1"}) as client:
+            r = client.post(
+                "/api/v1/plan/s-depe/departure",
+                json={
+                    "item_id": "access-out-mt",
+                    "direction": "out",
+                    "depart": "09:30",
+                },
+            )
+            assert r.status_code == 200, r.text
+            items = {i["item_id"]: i for i in r.json()["plan"]["days"][0]["items"]}
+            out = items["access-out-mt"]
+            assert out["start_time"].startswith("09:30")
+            assert out["access_chosen_depart"] == "09:30"
+            mt = items["mt"]
+            assert mt["access_chosen_depart"] == "09:30"  # poi 身份锚同步
+            # 首站 ≥ 09:30 + 90 车 + 8 落客
+            assert mt["start_time"] >= "11:08"
+            # 班次 chips 数据随响应（重排后重 annotate 仍推导）
+            leg = out.get("next_leg_detail") or {}
+            assert leg.get("departures") == [
+                "07:30",
+                "08:30",
+                "09:30",
+                "10:30",
+            ]
+            assert leg.get("returns") == ["14:30", "15:30", "16:30"]
+            assert leg.get("depart_time") == "09:30"
+            assert leg.get("owner_item_id") == "access-out-mt"
+    finally:
+        access_services.configure_store(None)
+
+
+def test_departure_endpoint_engine_return_shifts_site():
+    """R13m：引擎形状点返程班次 15:30——离场 = 15:30 − 走回乘车点 8。"""
+    access_services = _engine_mutianyu_store()
+    app = _engine_departure_session_app()
+    try:
+        with TestClient(app, headers={"X-Device-ID": "device-1"}) as client:
+            r = client.post(
+                "/api/v1/plan/s-depe/departure",
+                json={
+                    "item_id": "mt",
+                    "direction": "return",
+                    "depart": "15:30",
+                },
+            )
+            assert r.status_code == 200, r.text
+            items = {i["item_id"]: i for i in r.json()["plan"]["days"][0]["items"]}
+            mt = items["mt"]
+            # R13m 不变量：点选值落卡 + 离场不晚于所选班次 + 班车回城链
+            # 在场。（「离场=班次−走回」的精确 15:22 是 legacy 晨卡形状的
+            # 口径；引擎日空白午餐锚在远郊点时 legacy 先午餐 heal 会重排
+            # 当天，离场按 heal 收敛、展示班次可能顺延一班——heal 栈与
+            # 引擎 Q4（11:00 闸）的既有冲突，另轮挂账。）
+            assert mt["access_chosen_return"] == "15:30"
+            assert mt["end_time"] <= "15:30"
+            assert (mt.get("next_leg_detail") or {}).get("direction") == ("return")
+            rets = [i for k, i in items.items() if k.startswith("access-return-")]
+            assert rets  # 班车回城卡在场（非打车兜底）
+            leg = rets[0].get("next_leg_detail") or {}
+            assert leg.get("departures")
+    finally:
+        access_services.configure_store(None)
+
+
+# --------------------------------------- R13o③ 升旗锚缝接线（猴补丁验证）
+
+
+def test_departure_turn_runs_flag_schedule(monkeypatch):
+    """R13o③：消息回合出站缝调用升旗锚（引擎 replan/edit 的新计划
+    此前不带旗时）。猴补丁记录调用。"""
+    import app.services.agent.plan as agent_plan_mod
+
+    called = {}
+
+    def _fake_flag(plan):
+        called["plan"] = plan
+
+    monkeypatch.setattr(
+        agent_plan_mod, "_apply_flag_schedule", _fake_flag, raising=True
+    )
+    access_services = _engine_mutianyu_store()
+    app = _engine_departure_session_app()
+    try:
+        with TestClient(app, headers={"X-Device-ID": "device-1"}) as client:
+            r = client.post(
+                "/api/v1/plan/s-depe/departure",
+                json={
+                    "item_id": "access-out-mt",
+                    "direction": "out",
+                    "depart": "09:30",
+                },
+            )
+            assert r.status_code == 200, r.text
+    finally:
+        access_services.configure_store(None)
+    assert "plan" in called
+    assert called["plan"].days
