@@ -6647,14 +6647,51 @@ def _push_flag_successors(day: DayPlan, anchor: VisitItem) -> None:
             str(it.item_id or ""),
         ),
     )
+    anchor_start = -1
+    if anchor.start_time is not None:
+        anchor_start = anchor.start_time.hour * 60 + anchor.start_time.minute
     for it in successors:
         s = it.start_time.hour * 60 + it.start_time.minute
-        if s >= chain_end:
-            continue
         dur = int(it.duration_minutes or DEFAULT_VISIT_MINUTES)
+        # R13p①（2026-11-21 用户实锤 DAY2 酒店卡出现在天安门后）：只推真
+        # 正压住锚区间的卡（s < 锚end 且 s+dur > 锚start）——此前凡
+        # s < chain_end 一律推，把合法排在锚**之前**的晨卡（C-13 保证
+        # 晨卡结束 ≤ 当天首卡开始）也推到了锚后。
+        if not (s < chain_end and s + dur > anchor_start):
+            continue
+        # R13p②（用户拍板「酒店卡如果出现应该是第一位的」）：酒店卡（晨/
+        # 夜）绝不推；晨卡若与锚重叠由 _apply_flag_schedule 的晨卡回拉兜住。
+        if (it.category or "") == "hotel":
+            continue
         it.start_time = time(chain_end // 60 % 24, chain_end % 60)
         it.end_time = time((chain_end + dur) // 60 % 24, (chain_end + dur) % 60)
         chain_end = chain_end + dur + floor
+
+
+def _pull_hotel_morning_before_anchor(day: DayPlan, anchor: VisitItem) -> None:
+    """R13p（2026-11-21 用户拍板「酒店卡不应该出现在天安门后；酒店卡如果
+    出现应该是第一位的」）：锚重定位到升旗时刻后，把被压在锚**之后**的
+    晨卡拉回锚前——结束顶到 锚start−30（C-13 HOTEL_MORNING_MINUTES 打包
+    窗同口径），开始=结束−原时长（2026-11-16 拍板「早晨卡只有出发时间」）。
+    幂等：晨卡已在锚前（结束 ≤ 锚start）零动作；夜卡在日尾不受影响。"""
+    if anchor.start_time is None:
+        return
+    a_min = anchor.start_time.hour * 60 + anchor.start_time.minute
+    for it in day.items:
+        if not isinstance(it, VisitItem):
+            continue
+        if not (it.item_id or "").startswith("hotel-morning"):
+            continue
+        if it.start_time is None or it.end_time is None:
+            continue
+        end = it.end_time.hour * 60 + it.end_time.minute
+        if end <= a_min:
+            continue
+        dur = int(it.duration_minutes or 30)
+        new_end = max(0, a_min - 30)
+        new_start = max(0, new_end - dur)
+        it.start_time = time(new_start // 60 % 24, new_start % 60)
+        it.end_time = time(new_end // 60 % 24, new_end % 60)
 
 
 def _apply_flag_schedule(plan: ItineraryPlan) -> None:
@@ -6694,6 +6731,8 @@ def _apply_flag_schedule(plan: ItineraryPlan) -> None:
                     item.end_time = time(
                         (flag_min + dur) // 60 % 24, (flag_min + dur) % 60
                     )
+                # R13p：锚重定位后先把被压到锚后的晨卡拉回锚前（幂等）
+                _pull_hotel_morning_before_anchor(day, item)
                 # R12-G：锚重定位后推平重叠后继（无重叠=no-op）
                 _push_flag_successors(day, item)
                 continue
@@ -6755,6 +6794,8 @@ def _apply_flag_schedule(plan: ItineraryPlan) -> None:
                     (rise.hour * 60 + rise.minute + dur) // 60 % 24,
                     (rise.minute + dur) % 60,
                 )
+            # R13p：锚重定位后先把被压到锚后的晨卡拉回锚前（幂等）
+            _pull_hotel_morning_before_anchor(day, item)
             # R12-G：锚重定位后推平重叠后继（含未重定位时的存量自愈）
             _push_flag_successors(day, item)
 

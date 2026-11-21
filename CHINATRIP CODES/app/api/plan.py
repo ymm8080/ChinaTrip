@@ -1282,7 +1282,9 @@ def _plan_for_response(plan):
     「早晨卡只有出发时间，没有 DURATION」），最后挂同级备选 chip。所有
     返回完整行程的端点（start / from-itinerary / _plan_turn_body 一族）
     统一走本入口，禁止旁路。"""
-    plan = _plan_with_alternatives(_morning_point_cards(_strip_untimed_items(plan)))
+    plan = _plan_with_alternatives(
+        _morning_point_cards(_hotel_cards_front_back(_strip_untimed_items(plan)))
+    )
     try:
         plan = attach_return_cards(plan)
     except Exception:  # 展示糖：绝不能把行程卡拉挂
@@ -1300,6 +1302,53 @@ def _plan_for_response(plan):
     except Exception:  # 展示糖：绝不能把行程卡拉挂
         logger.warning("plan gap bridges attach failed", exc_info=True)
         return plan
+
+
+def _hotel_cards_front_back(plan):
+    """R13p（2026-11-21 用户拍板「酒店卡不应该出现在天安门后；酒店卡如果
+    出现应该是第一位的」）：出站副本终态归位——晨卡（hotel-morning-）恒排
+    当天最前、夜卡（hotel-night-）恒排最后，其余卡按开始时刻稳定重排。
+    修两形状：①升旗锚缝尾 realign 只改时刻不动位次（天安门 07:10 曾显示
+    在 day 中部、前面还是 09:30 的八达岭）；②旧快照里被误推到锚后的晨卡
+    在此钳回首个非酒店卡之前（start = 首卡 start − 30，C-13 打包窗口径）。
+    非变异：会话本体与持久快照不动（同 _morning_point_cards 契约）。"""
+    if plan is None:
+        return plan
+    out = plan.model_copy(deep=True)
+    for d in out.days:
+        if not d.items:
+            continue
+        mornings = [
+            i
+            for i in d.items
+            if isinstance(i, VisitItem)
+            and (i.item_id or "").startswith("hotel-morning")
+        ]
+        nights = [
+            i
+            for i in d.items
+            if isinstance(i, VisitItem) and (i.item_id or "").startswith("hotel-night")
+        ]
+        ids_m = {id(i) for i in mornings}
+        ids_n = {id(i) for i in nights}
+        others = [i for i in d.items if id(i) not in ids_m and id(i) not in ids_n]
+        others.sort(key=lambda i: (i.start_time is None, i.start_time or time(0, 0)))
+        if mornings:
+            first = next((i for i in others if i.start_time is not None), None)
+            m = mornings[0]
+            if (
+                first is not None
+                and m.start_time is not None
+                and (m.start_time.hour * 60 + m.start_time.minute)
+                > (first.start_time.hour * 60 + first.start_time.minute)
+            ):
+                f_min = first.start_time.hour * 60 + first.start_time.minute
+                new_start = max(0, f_min - 30)
+                dur = int(m.duration_minutes or 30)
+                m.start_time = time(new_start // 60 % 24, new_start % 60)
+                m.end_time = time((new_start + dur) // 60 % 24, (new_start + dur) % 60)
+        d.items = mornings + others + nights
+    return out
 
 
 def _morning_point_cards(plan):
