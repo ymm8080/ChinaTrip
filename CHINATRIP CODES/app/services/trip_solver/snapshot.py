@@ -55,6 +55,11 @@ def _cand(raw: dict[str, Any]) -> CandidateItem:
         suggested_duration_min=raw.get("suggested_duration_min"),
         remote=bool(raw.get("remote", False)),
         city=raw.get("city"),
+        diversity_group=raw.get("diversity_group"),
+        family_id=raw.get("family_id"),
+        meal_slot=raw.get("meal_slot"),
+        same_venue=raw.get("same_venue"),
+        cuisine=raw.get("cuisine"),
     )
 
 
@@ -94,8 +99,14 @@ def snapshot_from_dict(raw: dict[str, Any]) -> FactSnapshot:
         avoid=tuple(req_raw.get("avoid", ())),
         arrival_time=req_raw.get("arrival_time"),
         departure_time=req_raw.get("departure_time"),
+        arrival_mode=req_raw.get("arrival_mode"),
+        departure_mode=req_raw.get("departure_mode"),
         day1_start=req_raw.get("day1_start"),
         lang=req_raw.get("lang", "zh"),
+        preferences=str(req_raw.get("preferences", "") or ""),
+        city_days=tuple(
+            (str(k), int(v)) for k, v in dict(req_raw.get("city_days") or {}).items()
+        ),
         pins=tuple(
             FixedPin(
                 rid=str(p["rid"]),
@@ -105,6 +116,10 @@ def snapshot_from_dict(raw: dict[str, Any]) -> FactSnapshot:
             )
             for p in req_raw.get("pins", ())
         ),
+        hotel_anchors=bool(req_raw.get("hotel_anchors", True)),
+        day_load_budget_min=int(req_raw.get("day_load_budget_min", 570)),
+        sight_cap_per_day=int(req_raw.get("sight_cap_per_day", 4)),
+        fill_cap_per_day=int(req_raw.get("fill_cap_per_day", 6)),
     )
     return FactSnapshot(
         schema_version=int(raw.get("schema_version", SNAPSHOT_SCHEMA_VERSION)),
@@ -134,20 +149,43 @@ def load_snapshot(path: str) -> FactSnapshot:
 
 def snapshot_hash(snapshot: FactSnapshot) -> str:
     """Stable content hash — telemetry + determinism guard key."""
+
+    def _request_items(items):
+        return [
+            (
+                r.rid,
+                r.name,
+                r.poi_id,
+                r.kind,
+                r.importance,
+                r.duration_tier,
+                r.day_hint,
+            )
+            for r in items
+        ]
+
     payload = {
         "schema_version": snapshot.schema_version,
         "request": {
             "days": snapshot.request.days,
             "cities": list(snapshot.request.cities),
             "start_date": snapshot.request.start_date,
-            "musts": [
-                (r.rid, r.name, r.poi_id, r.importance) for r in snapshot.request.musts
-            ],
-            "wishes": [(r.rid, r.name, r.poi_id) for r in snapshot.request.wishes],
+            "musts": _request_items(snapshot.request.musts),
+            "wishes": _request_items(snapshot.request.wishes),
             "avoid": list(snapshot.request.avoid),
             "arrival_time": snapshot.request.arrival_time,
             "departure_time": snapshot.request.departure_time,
             "day1_start": snapshot.request.day1_start,
+            "lang": snapshot.request.lang,
+            "preferences": snapshot.request.preferences,
+            "arrival_day": snapshot.request.arrival_day,
+            "departure_day": snapshot.request.departure_day,
+            "pins": [(p.rid, p.day, p.start_min, p.cid) for p in snapshot.request.pins],
+            "city_days": [list(pair) for pair in snapshot.request.city_days],
+            "hotel_anchors": snapshot.request.hotel_anchors,
+            "day_load_budget_min": snapshot.request.day_load_budget_min,
+            "sight_cap_per_day": snapshot.request.sight_cap_per_day,
+            "fill_cap_per_day": snapshot.request.fill_cap_per_day,
         },
         "candidates": [
             (
@@ -157,11 +195,21 @@ def snapshot_hash(snapshot: FactSnapshot) -> str:
                 c.kind,
                 c.rid,
                 c.category,
+                c.tier,
+                c.quality,
                 c.lon,
                 c.lat,
                 c.opening_hours,
+                c.best_visit_time,
+                c.indoor,
+                c.rain_ok,
                 c.suggested_duration_min,
                 c.remote,
+                c.city,
+                c.diversity_group,
+                c.family_id,
+                c.meal_slot,
+                c.same_venue,
             )
             for c in snapshot.candidates
         ],
@@ -175,6 +223,8 @@ def snapshot_hash(snapshot: FactSnapshot) -> str:
                 list(a.departures),
                 list(a.returns),
                 a.taxi_minutes,
+                a.fare_text,
+                a.operator,
             )
             for a in snapshot.access_profiles
         ],

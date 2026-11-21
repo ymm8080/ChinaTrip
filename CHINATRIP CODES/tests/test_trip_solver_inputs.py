@@ -66,6 +66,7 @@ def test_entry_cap_g01_values():
     def cap(**kw):
         return entry_cap_minutes(**kw)
 
+    # R12-H11/H23：sunrise 卡走晨锁带（≤08:30 开场，锚=升旗真值）
     assert cap(
         name="天安门广场",
         category="attraction",
@@ -73,7 +74,7 @@ def test_entry_cap_g01_values():
         opening_hours_text="03:30-20:30",
         duration_min=90,
         tier=1,
-    ) == (930, "big-site")
+    ) == (510, "sunrise-band")
     assert cap(
         name="故宫博物院",
         category="museum",
@@ -81,7 +82,7 @@ def test_entry_cap_g01_values():
         opening_hours_text="…08:30-17:00(16:00停止检票)…",
         duration_min=120,
         tier=1,
-    ) == (930, "big-site")
+    ) == (960, "big-site")  # R12-H23 入场闸 16:00
     assert cap(
         name="慕田峪长城",
         category="historic",
@@ -89,7 +90,7 @@ def test_entry_cap_g01_values():
         opening_hours_text="今天07:30-18:30开放",
         duration_min=180,
         tier=1,
-    ) == (930, "big-site")
+    ) == (960, "big-site")  # R12-H23
     assert cap(
         name="颐和园",
         category="park",
@@ -97,7 +98,7 @@ def test_entry_cap_g01_values():
         opening_hours_text="今天06:30-19:00开放",
         duration_min=300,
         tier=1,
-    ) == (930, "big-site")
+    ) == (960, "big-site")  # R12-H23
     assert cap(
         name="老舍茶馆",
         category="tea_experience",
@@ -105,7 +106,10 @@ def test_entry_cap_g01_values():
         opening_hours_text=None,
         duration_min=60,
         tier=None,
-    ) == (None, "open-form")
+    ) == (
+        990,
+        "generic",
+    )  # P2-B3: no-hours non-street rows take the 晚闸 (2026-11-17 拍板)
     assert cap(
         name="梵高星空艺术馆（王府井旗舰店）",
         category="entertainment",
@@ -272,8 +276,12 @@ def test_enrich_g01_caps_and_tiers():
     snapshot, _, _ = load_golden(G01)
     enriched = enrich(snapshot)
     by_name = {c.name: c.cid for c in snapshot.candidates}
-    assert enriched.caps[by_name["天安门广场"]] == (930, "big-site")
-    assert enriched.caps[by_name["老舍茶馆"]] == (None, "open-form")
+    # R12-H11：语料天安门 bvt=sunrise → 晨锁带
+    assert enriched.caps[by_name["天安门广场"]] == (510, "sunrise-band")
+    assert enriched.caps[by_name["老舍茶馆"]] == (
+        990,
+        "generic",
+    )  # P2-B3: hours-gap rows keep the cap unless street-like
     assert enriched.caps[by_name["梵高星空艺术馆（王府井旗舰店）"]] == (
         None,
         "evening-cat",

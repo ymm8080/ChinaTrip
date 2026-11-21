@@ -200,8 +200,8 @@ def test_cp_first_visit_floor_without_card():
     solved = solve_plan(_plan([day]), poi_hours=[], scheduler="cp")
     assert solved is not None
     v = next(i for i in solved.days[0].items if i.item_id == "w1")
-    # 落地 11:30 + 飞机 3 小时缓冲（2026-11-14）→ 14:30
-    assert v.start_time == time(14, 30)
+    # 落地 11:30 + 飞机 2.5 小时缓冲（2026-11-18 拍板「2/2.5h」）→ 14:00
+    assert v.start_time == time(14, 0)
 
 
 def test_food_keeps_90_buffer_after_landing():
@@ -228,9 +228,9 @@ def test_fallback_floor_with_and_without_card():
     _fallback_sequence_times(plan)
     v1 = next(i for i in with_card.items if i.item_id == "w1")
     v2 = next(i for i in without.items if i.item_id == "w2")
-    # 落地 11:30 + 飞机 3 小时（2026-11-14）→ 14:30
-    assert v1.start_time == time(14, 30)
-    assert v2.start_time == time(14, 30)
+    # 落地 11:30 + 飞机 2.5 小时（2026-11-18 拍板「2/2.5h」）→ 14:00
+    assert v1.start_time == time(14, 0)
+    assert v2.start_time == time(14, 0)
 
 
 # ------------------------------------------------------------- 午餐槽避让
@@ -574,8 +574,8 @@ def test_morning_window():
     assert _morning_window(11 * 60 + 45) == (510, 540)
     assert _morning_window(15 * 60) == (510, 540)
     # 首件是跨城交通：按交通方式留值机/进站缓冲（飞机 3h / 火车 2h）
-    # 18:00 航班：15:00 前离店（卡占最后一档 14:30-15:00）
-    assert _morning_window(1080, transfer=True, transfer_mode="flight") == (870, 900)
+    # 18:00 航班：15:30 前离店（2026-11-18 拍板 2.5h；与火车同窗）
+    assert _morning_window(1080, transfer=True, transfer_mode="flight") == (900, 930)
     # 18:00 火车：16:00 前离店（卡占 15:30-16:00）
     assert _morning_window(1080, transfer=True, transfer_mode="train") == (930, 960)
 
@@ -594,9 +594,9 @@ def test_attach_mornings_after_each_hotel_night():
     assert d2.city == "西安" and d2.soft_pin and not d2.pinned
     assert days[1].items[0] is d2  # 当天第一张卡
     # 回家日（d3 无夜卡）仍从前一晚酒店退房出发：18:00 航班按 3 小时
-    # 值机缓冲 → 卡收在 15:00（2026-11-14）
+    # 值机缓冲 → 卡收在 15:30（2026-11-18 拍板 2.5h）
     d3 = next(i for i in days[2].items if is_hotel_morning(i))
-    assert (d3.start_time, d3.end_time) == (time(14, 30), time(15, 0))
+    assert (d3.start_time, d3.end_time) == (time(15, 0), time(15, 30))
 
 
 def test_attach_morning_empty_day_before_day_start():

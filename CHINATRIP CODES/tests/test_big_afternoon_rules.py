@@ -149,13 +149,14 @@ def test_scorer_big_occupying_after_1630_is_hard_violation():
 
     # 11-05 终裁=结束闸：16:00 开场的大点占用到 20:00，越闸计迟
     # （旧口径断言「16:00 开场>15:30 开场带」同形态，结束闸下语义不变）。
+    # R12-H23：大点帽 16:00+30 弹性=16:30 后开场才违规
     dm = _visit(
         "dm",
         "大明宫遗址公园",
         dur=240,
         tier=2,
-        start_time=_t(16, 0),
-        end_time=_t(20, 0),
+        start_time=_t(16, 45),
+        end_time=_t(20, 45),
     )
     sc = plan_score(_plan([dm]))
     assert sc.counts["late_entries"] == 1
@@ -189,13 +190,14 @@ def test_scorer_street_and_small_sights_not_big():
     assert sc.counts["afternoon_crowd"] == 0
     assert sc.counts["late_big"] == 0
     assert sc.ok
+    # R12-H23：>16:30（普帽 16:30+30 弹性）才计晚入场
     hj_late = _visit(
         "hj2",
         "回民街",
         dur=120,
         tier=8,
-        start_time=_t(16, 45),
-        end_time=_t(18, 45),
+        start_time=_t(17, 15),
+        end_time=_t(19, 15),
     )
     sc2 = plan_score(_plan([dm, hj_late]))
     assert sc2.counts["late_entries"] == 1

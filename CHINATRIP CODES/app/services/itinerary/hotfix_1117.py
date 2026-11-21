@@ -63,6 +63,9 @@ def _is_filler(item) -> bool:
     pinned / must / soft_pin / created / curated; food & hotel are skeleton."""
     return (
         isinstance(item, VisitItem)
+        # R12 交通桥卡（leg-bridge-*）是渲染件不是填充活动——绝不当
+        # filler 撤（远郊日清场/必去让位两 pass 都不动它）。
+        and not str(getattr(item, "item_id", "") or "").startswith("leg-bridge-")
         and (item.category or "") not in ("food", "hotel")
         and not item.pinned
         and not getattr(item, "must", False)
@@ -115,6 +118,16 @@ def evict_fillers_when_must_unseated(
     for v in _untimed_musts(plan):
         unseated_days.add(v.day)
     names = {str(n or "").strip() for n in (must_names or [])}
+    # R12-E：引擎卡不带 must 标记——无时刻卡名字命中必去名册同判
+    # （入场闸剥掉的必去也要让填充让位，live 实锤天坛/景山案）。
+    for day in plan.days:
+        for v in day.items:
+            if (
+                isinstance(v, VisitItem)
+                and v.start_time is None
+                and str(v.name or "").strip() in names
+            ):
+                unseated_days.add(day.day)
     for u in plan.unplaced or []:
         if names and str(u.name or "").strip() in names and u.day_hint:
             unseated_days.add(u.day_hint)
@@ -125,6 +138,12 @@ def evict_fillers_when_must_unseated(
             continue
         for item in list(day.items):
             if not _is_filler(item):
+                continue
+            # R12-F 补刀（test_audit_gate_sets_unarranged_musts 实证）：引擎
+            # 卡不带 must 标，触发面靠名册命中补——同一批卡在让位循环里也
+            # 会被 _is_filler 误判成填充，必去本体自己把自己撤了。点名必去
+            # 永远不是 filler：让位是未请求填充的义务。
+            if str(item.name or "").strip() in names:
                 continue
             day.items.remove(item)
             notes.append(
@@ -297,4 +316,188 @@ def retime_remote_day_from_access(
                         f"{_hm(target + visit_dur)}",
                     )
                 )
+    return notes
+
+
+# ---------- R12-C: restaurant visit cards fold into meal cards ----------
+
+
+def _is_restaurant_visit(item) -> bool:
+    """真餐馆以「观光卡」形态出现（R12-M 之前的存量/回退形态，live 实锤
+    2026-11-19 会话 6259415f：四季民福 [v4] 11:02 观光卡与午餐占位并列）：
+    food 品类、有时刻、既非占位餐卡（engine meal-* 无 poi / legacy
+    food-*-ph*）也非引擎命名餐卡（meal-lunch/dinner-* 带 poi）。"""
+    from app.services.restaurants import is_dinner_placeholder, is_lunch_placeholder
+
+    if not isinstance(item, VisitItem) or (item.category or "") != "food":
+        return False
+    iid = str(getattr(item, "item_id", "") or "")
+    if iid.startswith(("meal-lunch", "meal-dinner")):
+        return False  # 引擎餐卡（占位或命名顶卡）——不是孤儿观光卡
+    if is_lunch_placeholder(item) or is_dinner_placeholder(item):
+        return False
+    return item.start_time is not None
+
+
+def fold_restaurant_visit_cards(plan, *, lang: str = "zh") -> list[str]:
+    """R12-C（2026-11-19 用户拍板「烤鸭店这类餐厅可以进行程、非常推荐进
+    行程，但放在午餐/晚餐卡上」）：读闸自愈——把以观光卡形态出现的真餐馆
+    折进当日对应时段的占位餐卡：占位卡顶替成命名餐卡（名字/坐标/POI/营业
+    时间/时刻全取餐馆卡——R8-S2b 同形态），观光卡撤除。午段（<15:00）折
+    午餐、晚段（≥15:00）折晚餐；对应槽无占位时不折（不发明新槽）。幂等。
+    """
+    from app.services.restaurants import is_dinner_placeholder, is_lunch_placeholder
+
+    notes: list[str] = []
+    for day in plan.days:
+        orphans = [v for v in day.items if _is_restaurant_visit(v)]
+        if not orphans:
+            continue
+        items = list(day.items)
+        changed = False
+        for orphan in orphans:
+            start = _mins(orphan.start_time)
+            if start is None:
+                continue
+            slot = "lunch" if start < 15 * 60 else "dinner"
+            is_ph = is_lunch_placeholder if slot == "lunch" else is_dinner_placeholder
+            target = next((v for v in items if v is not orphan and is_ph(v)), None)
+            if target is None:
+                continue
+            # 占位卡顶替成命名餐卡：本体=餐馆卡，槽位 id 保留（餐卡身份）
+            target.name = orphan.name
+            target.name_en = getattr(orphan, "name_en", None)
+            target.poi_id = orphan.poi_id
+            if orphan.location is not None:
+                target.location = orphan.location
+            if getattr(orphan, "address", None):
+                target.address = orphan.address
+            target.opening_hours = orphan.opening_hours
+            target.start_time = orphan.start_time
+            target.end_time = orphan.end_time
+            target.duration_minutes = orphan.duration_minutes
+            target.anchor_from_prev = False
+            if orphan.location is not None:
+                target.anchor_location = orphan.location
+            items.remove(orphan)
+            changed = True
+            notes.append(
+                _n(
+                    lang,
+                    f"第{day.day}天「{orphan.name}」已折进{slot}餐卡"
+                    "（餐厅进餐卡，不再与占位餐卡并列）",
+                    f"Day {day.day}: '{orphan.name}' folded into the {slot} meal card",
+                )
+            )
+        if changed:
+            day.items = items
+            day.items.sort(
+                key=lambda i: (
+                    (_mins(i.start_time) if i.start_time is not None else 24 * 60),
+                    str(getattr(i, "item_id", "") or ""),
+                )
+            )
+    return notes
+
+
+# ---------- R12-E: entry-gated must rescue ----------
+
+
+def rescue_entry_gated_musts(
+    plan, *, must_names: list[str] | None = None, lang: str = "zh"
+) -> list[str]:
+    """R12-E（2026-11-19 用户令「指定的天坛为什么漏了，而没指定的景山插进
+    去了」）：入场闸/读闸 heal 把**已排上的必去**推过入场闸剥成无时刻后，
+    当天未请求的填充卡必须让位——必去顶进让出的窗口（入场时刻 ≤ 闸 +
+    不与邻卡重叠）。营救不了的（无填充可让/窗放不下）保持无时刻，由
+    evict_fillers_when_must_unseated 清场兜底。幂等：有时刻的必去不再触发。
+    """
+    from app.services.itinerary.solver import generic_entry_cap
+
+    names = {str(n or "").strip() for n in (must_names or [])}
+    notes: list[str] = []
+    for day in plan.days:
+        stripped = [
+            v
+            for v in day.items
+            if isinstance(v, VisitItem)
+            and v.start_time is None
+            and str(v.name or "").strip() in names
+        ]
+        if not stripped:
+            continue
+        timed = sorted(
+            (
+                v
+                for v in day.items
+                if isinstance(v, VisitItem) and v.start_time is not None
+            ),
+            key=lambda v: (
+                v.start_time.hour * 60 + v.start_time.minute,
+                str(v.item_id or ""),
+            ),
+        )
+        fills = [v for v in timed if _is_filler(v)]
+        for must in stripped:
+            dur = int(must.duration_minutes or 120)
+            cap = generic_entry_cap(must, None)
+            placed = False
+            for fill in fills:
+                if fill in day.items and not _is_filler(fill):
+                    continue
+                fs = fill.start_time.hour * 60 + fill.start_time.minute
+                if cap is not None and fs > cap:
+                    continue
+                # 前一卡收尾 + 走行地板 = 最早可入
+                prev_end = 0
+                for v in timed:
+                    if v is fill:
+                        continue
+                    ve = (v.end_time.hour * 60 + v.end_time.minute) if v.end_time else 0
+                    if ve <= fs and ve > prev_end:
+                        prev_end = ve
+                start = max(fs, prev_end + 30)
+                if cap is not None and start > cap:
+                    continue
+                # 后一卡开场 = 最晚须收
+                next_start = 24 * 60
+                for v in timed:
+                    if v is fill:
+                        continue
+                    vs = v.start_time.hour * 60 + v.start_time.minute
+                    if vs >= fs and vs < next_start:
+                        next_start = vs
+                if start + dur + 30 > next_start:
+                    continue
+                day.items.remove(fill)
+                must.start_time = _time(start // 60 % 24, start % 60)
+                end = start + dur
+                must.end_time = _time(end // 60 % 24, end % 60)
+                placed = True
+                fills.remove(fill)
+                notes.append(
+                    _n(
+                        lang,
+                        f"必去优先：第{day.day}天「{must.name}」入场闸内改排 "
+                        f"{_hm(start)}-{_hm(end)}，未请求的「{fill.name}」让位",
+                        f"Day {day.day}: must-visit '{must.name}' rescheduled to "
+                        f"{_hm(start)}-{_hm(end)} inside its entry gate; "
+                        f"unrequested '{fill.name}' gave way",
+                    )
+                )
+                break
+            if not placed:
+                # 营救不了：让给 evict pass 清场（该必去仍无时刻）
+                continue
+        if notes and day.items:
+            day.items.sort(
+                key=lambda i: (
+                    (
+                        (i.start_time.hour * 60 + i.start_time.minute)
+                        if getattr(i, "start_time", None) is not None
+                        else 24 * 60
+                    ),
+                    str(getattr(i, "item_id", "") or ""),
+                )
+            )
     return notes

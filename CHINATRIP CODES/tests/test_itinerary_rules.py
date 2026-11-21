@@ -494,3 +494,23 @@ def test_rule19_pinned_intact_clean():
     rep = validate_pinned(old, new)
     assert rep.ok
     assert rep.violations == []
+
+
+def test_rule6_riding_legs_do_not_count_as_walk():
+    """R6b（2026-11-18 八城普查）：taxi/access 乘车腿不计步行——
+    远郊日（昭陵→市区 41.8km 打车）不再误报「步行 41.8km」。"""
+    a = visit("a", 1, time(9), time(10), loc=pt(31.20))
+    b = visit("b", 1, time(11, 30), time(12, 30), loc=pt(31.40))  # ~22 km
+    a.next_leg_mode = "taxi"
+    d = DayPlan(day=1, base_city="上海", items=[a, b])
+    rep = validate_plan(plan([d]), poi_hours=[])
+    assert all("步行距离" not in v.message for v in rule_hits(rep, 6))
+
+
+def test_rule6_access_legs_do_not_count_as_walk():
+    a = visit("a", 1, time(9), time(10), loc=pt(31.20))
+    b = visit("b", 1, time(11, 30), time(12, 30), loc=pt(31.40))
+    a.next_leg_mode = "access"
+    d = DayPlan(day=1, base_city="上海", items=[a, b])
+    rep = validate_plan(plan([d]), poi_hours=[])
+    assert all("步行距离" not in v.message for v in rule_hits(rep, 6))

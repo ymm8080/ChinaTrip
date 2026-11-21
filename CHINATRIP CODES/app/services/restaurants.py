@@ -71,6 +71,12 @@ LUNCH_PLACEHOLDER_ID_PREFIX = "food-lunch-ph"
 # 晚餐占位件 id 前缀（2026-11-07 用户指令「we need to hv dinner slot as
 # well」：晚餐窗搜不到餐厅时同样占位保槽）。识别同走 item_id 前缀。
 DINNER_PLACEHOLDER_ID_PREFIX = "food-dinner-ph"
+# 引擎占位餐卡 id 前缀（R12-M，2026-11-19 用户拍板「烤鸭店进餐卡」重修）：
+# trip_solver/assembly/meals.py 的 meal-lunch-<day>/meal-dinner-<day>。
+# 占位卡无 poi_id；同 id 形态的命名卡（真餐厅 any-槽顶卡）带 poi_id——
+# 识别必须带 poi_id 空判，否则命名餐卡被当占位误撤（绝不可只认前缀）。
+ENGINE_LUNCH_PLACEHOLDER_ID_PREFIX = "meal-lunch-"
+ENGINE_DINNER_PLACEHOLDER_ID_PREFIX = "meal-dinner-"
 
 # 荐点餐厅晚餐优先公里当量（2026-11-07 用户指令「those with special
 # tags preferred to be set as dinner part」）：dinner 槽位排序时荐点标
@@ -132,14 +138,39 @@ _VIRAL_SIGNAL_KEYWORDS = (
 )
 
 
+def _engine_meal_placeholder(item: VisitItem, prefix: str, names: tuple) -> bool:
+    """引擎占位餐卡（R12-M）：id 前缀 meal-lunch-/meal-dinner-<day> 且
+    无 poi_id 且名字=通用占位名（meals.py 恒写 午餐/晚饭）。三重判据——
+    仅 poi_id 空判会把无 poi_id 的命名餐卡误杀（2026-11-19 d286d44 实证
+    「命名餐卡常无 poi_id」；误判=被 legacy 吸收/去重闸吃掉）。"""
+    return (
+        item.item_id.startswith(prefix)
+        and not item.poi_id
+        and (item.name or "").strip() in names
+    )
+
+
 def is_lunch_placeholder(item: VisitItem) -> bool:
     """True for the auto-inserted lunch placeholder (never a real POI)."""
-    return item.item_id.startswith(LUNCH_PLACEHOLDER_ID_PREFIX)
+    if item.item_id.startswith(LUNCH_PLACEHOLDER_ID_PREFIX):
+        return True
+    # R12-M：引擎占位餐卡（meal-lunch-<day>）同认（判据见三重保险）。
+    return _engine_meal_placeholder(
+        item,
+        ENGINE_LUNCH_PLACEHOLDER_ID_PREFIX,
+        ("午餐", "Lunch", "午饭（自由安排）"),
+    )
 
 
 def is_dinner_placeholder(item: VisitItem) -> bool:
     """True for the auto-inserted dinner placeholder (never a real POI)."""
-    return item.item_id.startswith(DINNER_PLACEHOLDER_ID_PREFIX)
+    if item.item_id.startswith(DINNER_PLACEHOLDER_ID_PREFIX):
+        return True
+    return _engine_meal_placeholder(
+        item,
+        ENGINE_DINNER_PLACEHOLDER_ID_PREFIX,
+        ("晚饭", "Dinner", "晚饭（自由安排）"),
+    )
 
 
 def _norm_name(s: object) -> str:

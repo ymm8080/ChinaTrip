@@ -1,0 +1,121 @@
+{
+ "schema_version": 2,
+ "source": "golden-fixture",
+ "library_version": "poi-snapshot-2026-11-17",
+ "request": {
+  "days": 1,
+  "cities": [
+   "重庆"
+  ],
+  "start_date": "2026-11-25",
+  "musts": [
+   {
+    "rid": "r1",
+    "name": "大足石刻",
+    "importance": 5,
+    "duration_tier": null,
+    "poi_id": "5a_243"
+   }
+  ],
+  "wishes": [],
+  "avoid": [],
+  "arrival_time": null,
+  "departure_time": null,
+  "day1_start": null,
+  "lang": "zh"
+ },
+ "candidates": [
+  {
+   "cid": "c1",
+   "name": "大足石刻",
+   "poi_id": "5a_243",
+   "kind": "requested",
+   "category": "sight",
+   "tier": 2,
+   "lon": 105.7181,
+   "lat": 29.7065,
+   "opening_hours": "08:30-18:00",
+   "best_visit_time": "any",
+   "suggested_duration_min": 210,
+   "remote": false,
+   "city": "重庆",
+   "rid": "r1"
+  },
+  {
+   "cid": "c2",
+   "name": "大足石刻博物馆",
+   "poi_id": "poi_c2",
+   "kind": "fill",
+   "category": "museum",
+   "tier": 3,
+   "lon": 105.72210000000001,
+   "lat": 29.7095,
+   "opening_hours": "09:00-16:30",
+   "best_visit_time": "any",
+   "suggested_duration_min": 90,
+   "remote": false,
+   "city": "重庆"
+  },
+  {
+   "cid": "c3",
+   "name": "大足石刻数字影院",
+   "poi_id": "poi_c3",
+   "kind": "fill",
+   "category": "entertainment",
+   "tier": 6,
+   "lon": 105.7231,
+   "lat": 29.708499999999997,
+   "opening_hours": "10:00-17:00",
+   "best_visit_time": "any",
+   "suggested_duration_min": 60,
+   "remote": false,
+   "city": "重庆"
+  }
+ ],
+ "access_profiles": [],
+ "travel": [
+  {
+   "from_key": "5a_243",
+   "to_key": "poi_c2",
+   "minutes": 8
+  },
+  {
+   "from_key": "5a_243",
+   "to_key": "poi_c3",
+   "minutes": 10
+  },
+  {
+   "from_key": "poi_c2",
+   "to_key": "poi_c3",
+   "minutes": 6
+  }
+ ],
+ "weather": [],
+ "expect": [
+  {
+   "type": "requested_coverage",
+   "args": {}
+  },
+  {
+   "type": "no_entry_cap_breach",
+   "args": {
+    "caps": {
+     "generic": "16:30",
+     "big": "15:30"
+    }
+   }
+  },
+  {
+   "type": "deterministic",
+   "args": {
+    "runs": 2
+   }
+  }
+ ],
+ "provenance": {
+  "incident": "content-twin family (大足 2026-10-31 博物馆+影院)",
+  "built_at": "2026-11-18",
+  "builder": "tests/golden/build_corpus_v2.py",
+  "note": "no twin constraint exists pre-P1-D — the model may place both twins; the diff report surfaces the gap and the twin rule (C-16 diversity caps / F-23) burns it down. Scenario committed before the fix, per the P2-B rule."
+ }
+}

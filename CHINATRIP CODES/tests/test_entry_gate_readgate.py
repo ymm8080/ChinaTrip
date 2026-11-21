@@ -60,12 +60,13 @@ def _plan(*items):
 
 
 def test_after_gate_sight_goes_untimed_with_note():
+    # R12-H23：>16:30（16:00 帽+30 弹性）才移出
     plan = _plan(
         _item(
             "v1",
             "静安寺",
-            "16:15",
-            "17:45",
+            "16:45",
+            "18:15",
             dur=90,
             poi_id="jas",
             opening_hours="周一至周日 07:30-18:00",
@@ -78,13 +79,13 @@ def test_after_gate_sight_goes_untimed_with_note():
 
 
 def test_big_site_15_30_band():
-    # 120 分钟大点 16:00 开场 → 越 15:30 大点开场带
+    # 120 分钟大点 16:35 开场 → 越 15:30 大点开场带 65 分钟（>30 容忍）
     plan = _plan(
         _item(
             "v1",
             "上海中心大厦",
-            "16:00",
-            "18:00",
+            "16:35",
+            "18:35",
             dur=120,
             category="viewpoint",
             poi_id="tower",
@@ -94,6 +95,44 @@ def test_big_site_15_30_band():
     notes = enforce_entry_gate(plan)
     assert plan.days[0].items[0].start_time is None
     assert notes
+
+
+def test_entry_gate_tolerance_within_30():
+    # R12-E2（2026-11-16 拍板「≤30 分钟容忍」同口径）：微越线不清时刻
+    # ——大点 16:00（越 15:30 恰 30）、15:50（越 20）；普通点 16:31
+    # （越 16:30 恰 1）都保留。
+    plan = _plan(
+        _item(
+            "t1",
+            "天坛",
+            "15:38",
+            "18:08",
+            dur=150,
+            category="temple",
+            poi_id="tt",
+            opening_hours="今天06:30-22:00开放（21:00停止入园）",
+        ),
+        _item(
+            "t2",
+            "上海中心大厦",
+            "16:00",
+            "18:00",
+            dur=120,
+            category="viewpoint",
+            poi_id="tower",
+            opening_hours="周一至周日 08:30-22:00 最晚进入21:30",
+        ),
+        _item(
+            "t3",
+            "小点",
+            "16:31",
+            "17:31",
+            dur=60,
+            category="park",
+        ),
+    )
+    assert enforce_entry_gate(plan) == []
+    assert all(i.start_time is not None for i in plan.days[0].items)
 
 
 def test_within_gate_kept():
@@ -152,8 +191,8 @@ def test_idempotent():
         _item(
             "v1",
             "静安寺",
-            "16:15",
-            "17:45",
+            "16:45",
+            "18:15",
             dur=90,
             poi_id="jas",
             opening_hours="周一至周日 07:30-18:00",

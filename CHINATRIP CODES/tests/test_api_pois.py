@@ -323,6 +323,7 @@ def test_reservation_db_columns_win_over_seeds():
             [
                 make_row(
                     name_zh="恭王府博物馆",
+                    city="北京市",
                     reservation_required=True,
                     reservation_advance_days=12,
                     booking_url="https://pgm.org.cn",
@@ -343,8 +344,9 @@ def test_reservation_db_columns_win_over_seeds():
 
 
 def test_reservation_seed_name_containment_match():
-    """互含容错：库存「敦煌莫高窟景区」⊂ 名单键「敦煌莫高窟」（_same_site 同款）。"""
-    session = FakeSession([[make_row(name_zh="敦煌莫高窟景区")]])
+    """包含匹配（2026-11-19 守卫版）：库存「敦煌莫高窟景区」⊃ 名单键
+    「敦煌莫高窟」，城市对齐时照常命中。"""
+    session = FakeSession([[make_row(name_zh="敦煌莫高窟景区", city="敦煌市")]])
     resp = make_app(session).get(
         "/api/pois/detail", params={"city": "敦煌", "name": "敦煌莫高窟景区"}
     )

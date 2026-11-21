@@ -34,6 +34,24 @@ class VarBundle:
     cid_day_list: list[tuple[str, int]] = field(default_factory=list)
     dep_vars: dict = field(default_factory=dict)  # C-08 outbound departures
     ret_vars: dict = field(default_factory=dict)  # C-08 return departures
+    arrival_vars: dict = field(default_factory=dict)  # C-08 access arrival
+    active_dep_vars: dict = field(default_factory=dict)  # F-23 early access
+    active_ret_vars: dict = field(default_factory=dict)
+    active_start: dict[tuple[str, int], "cp_model.IntVar"] = field(default_factory=dict)
+    active_dur: dict[tuple[str, int], "cp_model.IntVar"] = field(default_factory=dict)
+    active_end: dict[tuple[str, int], "cp_model.IntVar"] = field(default_factory=dict)
+    meal_vars: dict = field(default_factory=dict)  # C-09/F-22 intervals
+    # R12-H22：余量槽闸豁免布尔（C-02 建、C-06 约束——返程后那
+    # 一个设计位才许 lift 入场闸）
+    cap_escapes: dict = field(default_factory=dict)
+    hotel_vars: dict = field(default_factory=dict)  # C-13 intervals
+    day_active: dict[int, "cp_model.IntVar"] = field(default_factory=dict)
+    day_end_vars: dict[int, "cp_model.IntVar"] = field(default_factory=dict)
+    travel_terms: list = field(default_factory=list)  # F-23 tier ③
+    fill_gates: dict[str, "cp_model.IntVar"] = field(
+        default_factory=dict
+    )  # tier-① fill-free assumption gates
+    meal_bound: dict = field(default_factory=dict)  # R8-S2b 真餐厅 any-槽选择
 
 
 def define_variables(enriched: "EnrichedSnapshot") -> VarBundle:
@@ -46,6 +64,10 @@ def define_variables(enriched: "EnrichedSnapshot") -> VarBundle:
     dur: dict[str, object] = {}
     rid_cids: dict[str, list[str]] = {}
     cid_day_list: list[tuple[str, int]] = []
+    active_start: dict[tuple[str, int], object] = {}
+    active_dur: dict[tuple[str, int], object] = {}
+    active_end: dict[tuple[str, int], object] = {}
+    fill_gates: dict[str, object] = {}
 
     for cand in snapshot.candidates:
         if cand.rid:
@@ -65,6 +87,21 @@ def define_variables(enriched: "EnrichedSnapshot") -> VarBundle:
             start[(cand.cid, day)] = st
             cid_day_list.append((cand.cid, day))
 
+            ast = model.NewIntVar(0, MINUTES_PER_DAY, "as_%s_%d" % (cand.cid, day))
+            adu = model.NewIntVar(0, tier[2], "ad_%s_%d" % (cand.cid, day))
+            aen = model.NewIntVar(
+                0, MINUTES_PER_DAY + tier[2], "ae_%s_%d" % (cand.cid, day)
+            )
+            model.Add(ast == st).OnlyEnforceIf(lit)
+            model.Add(ast == 0).OnlyEnforceIf(lit.Not())
+            model.Add(adu == dur[cand.cid]).OnlyEnforceIf(lit)
+            model.Add(adu == 0).OnlyEnforceIf(lit.Not())
+            model.Add(aen == st + dur[cand.cid]).OnlyEnforceIf(lit)
+            model.Add(aen == 0).OnlyEnforceIf(lit.Not())
+            active_start[(cand.cid, day)] = ast
+            active_dur[(cand.cid, day)] = adu
+            active_end[(cand.cid, day)] = aen
+
     unplaced: dict[str, object] = {}
     for req in list(snapshot.request.musts) + list(snapshot.request.wishes):
         cids = rid_cids.get(req.rid) or []
@@ -75,14 +112,19 @@ def define_variables(enriched: "EnrichedSnapshot") -> VarBundle:
             # requested ∧ ¬presence → unplaced_var : sum + unplaced == 1
             model.Add(placed + lit == 1)
         else:
-            # wishes are droppable without the unplaced obligation
-            model.Add(placed + lit <= 1)
+            # Wishes are lower-weight in F-23 tier ①, not silently droppable:
+            # an unscheduled wish must surface through its unplaced variable.
+            model.Add(placed + lit == 1)
 
     for cand in snapshot.candidates:
         if cand.rid:
             continue  # governed by the requested link above
         total = sum(presence[(cand.cid, d)] for d in days)
         model.Add(total <= 1)  # fill candidates: at most one day
+        gate = model.NewBoolVar("fill_gate_%s" % cand.cid)
+        for day in days:
+            model.Add(presence[(cand.cid, day)] <= gate)
+        fill_gates[cand.cid] = gate
 
     return VarBundle(
         model=model,
@@ -93,4 +135,8 @@ def define_variables(enriched: "EnrichedSnapshot") -> VarBundle:
         unplaced=unplaced,
         rid_cids=rid_cids,
         cid_day_list=cid_day_list,
+        active_start=active_start,
+        active_dur=active_dur,
+        active_end=active_end,
+        fill_gates=fill_gates,
     )

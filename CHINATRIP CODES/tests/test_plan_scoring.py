@@ -169,7 +169,7 @@ def test_entry_cap_exempt_show_only():
         day=1,
         base_city="西安",
         items=[
-            _v("late", dur=60, start=time(17, 0), end=time(18, 0)),
+            _v("late", dur=45, start=time(17, 15), end=time(18, 0)),
             _v(
                 "show",
                 dur=60,

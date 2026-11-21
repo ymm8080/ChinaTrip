@@ -1,0 +1,155 @@
+{
+ "schema_version": 1,
+ "engine": "legacy",
+ "kind": "in-process-replay",
+ "provenance": {
+  "source": "g04_endpoint_transit.json",
+  "plan_score": -91,
+  "replayed_at": "2026-11-18T10:50:27",
+  "auto_restaurants": false,
+  "llm": "boom-sentinel",
+  "note": "in-process cascade replay (P2-B): store/weather/llm stubbed from the snapshot; meal cards, access legs and user pins are not captured this iteration — pin-shaped assertions fail honestly on this side rather than faking a pass",
+  "runs": 2,
+  "determinism": true
+ },
+ "days": [
+  {
+   "day": 1,
+   "items": [
+    {
+     "name": "🏨 从酒店出发（今日起点）",
+     "start": "08:30",
+     "end": "09:00",
+     "kind": "hotel",
+     "requested": null,
+     "remote": false,
+     "city": "北京",
+     "poi_id": null
+    },
+    {
+     "name": "天坛",
+     "start": "09:00",
+     "end": "11:30",
+     "kind": "visit",
+     "requested": true,
+     "remote": false,
+     "city": "北京",
+     "poi_id": null
+    },
+    {
+     "name": "故宫博物院",
+     "start": "13:00",
+     "end": "15:00",
+     "kind": "visit",
+     "requested": true,
+     "remote": false,
+     "city": "北京",
+     "poi_id": null
+    },
+    {
+     "name": "🏨 回酒店·夜间休息",
+     "start": "15:30",
+     "end": "16:30",
+     "kind": "hotel",
+     "requested": null,
+     "remote": false,
+     "city": "北京",
+     "poi_id": null
+    },
+    {
+     "name": "老舍茶馆",
+     "start": "16:30",
+     "end": "17:30",
+     "kind": "visit",
+     "requested": false,
+     "remote": false,
+     "city": "北京",
+     "poi_id": "c2"
+    }
+   ]
+  },
+  {
+   "day": 2,
+   "items": [
+    {
+     "name": "🏨 从酒店出发（今日起点）",
+     "start": "06:11",
+     "end": "06:41",
+     "kind": "hotel",
+     "requested": null,
+     "remote": false,
+     "city": "北京",
+     "poi_id": null
+    },
+    {
+     "name": "天安门广场",
+     "start": "07:11",
+     "end": "08:41",
+     "kind": "visit",
+     "requested": true,
+     "remote": false,
+     "city": "北京",
+     "poi_id": null
+    },
+    {
+     "name": "慕田峪长城",
+     "start": "10:01",
+     "end": "13:01",
+     "kind": "visit",
+     "requested": true,
+     "remote": true,
+     "city": "北京",
+     "poi_id": null
+    },
+    {
+     "name": "颐和园",
+     "start": "14:15",
+     "end": "19:15",
+     "kind": "visit",
+     "requested": true,
+     "remote": false,
+     "city": "北京",
+     "poi_id": null
+    },
+    {
+     "name": "梵高星空艺术馆（王府井旗舰店）",
+     "start": "19:47",
+     "end": "21:17",
+     "kind": "visit",
+     "requested": false,
+     "remote": false,
+     "city": "北京",
+     "poi_id": null
+    },
+    {
+     "name": "🏨 回酒店·夜间休息",
+     "start": "21:47",
+     "end": "22:47",
+     "kind": "hotel",
+     "requested": null,
+     "remote": false,
+     "city": "北京",
+     "poi_id": null
+    }
+   ]
+  }
+ ],
+ "unplaced": [],
+ "disclosures": [
+  "假设中等节奏、不早起",
+  "选点按候选库顺序与分日规则生成（特定算法，未用通用 LLM）",
+  "第2天返程日上午保底排「故宫博物院」（离城上午闸只收轻量点）；「慕田峪长城」 离城心太远、当天装不成一次出行，本次未排入（要加回请说）",
+  "预约提醒：「天坛」无需预约（「天坛」公众号/畅游公园（购票即可入园；祈年殿等景点票另购））；「颐和园」无需预约（「颐和园」公众号/畅游公园（购票即可入园））；「故宫博物院」需提前 7 天预约（微信小程序「故宫博物院」每日 20:00 放 7 天后门票，护照可约）——外国手机号/护照在小程序常失败——Trip.com/Klook 代抢是标准解法（故宫官网/三星堆境外通道/熊猫基地携程频道/上博英文预约系统=护照可自助；陕历博小程序仅限二代身份证、官网可护照预约；布达拉宫外籍须随团由旅行社代订）；「天安门广场」需提前 1 天预约（「天安门广场预约参观」小程序提前 1-7 天，每日 12:00 放第 7 天票）——外国手机号/护照在小程序常失败——Trip.com/Klook 代抢是标准解法（故宫官网/三星堆境外通道/熊猫基地携程频道/上博英文预约系统=护照可自助；陕历博小程序仅限二代身份证、官网可护照预约；布达拉宫外籍须随团由旅行社代订）",
+  "按同片区整族并到第1天：故宫博物院、天安门广场",
+  "按同片区整族并到第2天：颐和园",
+  "远郊那天只留「慕田峪长城」：必去「颐和园」改到第1天",
+  "部分卡未排进理想时段，已按游览顺序留位",
+  "必去景点（来自链接）已锁定时间，后续修改不会移动它们",
+  "必去「天安门广场」第1天排不下，已救生改排第2天",
+  "必去「颐和园」第1天排不下，已救生改排第2天",
+  "第2天「慕田峪长城」按接驳行程改到 10:01 起",
+  "每天末尾默认加「回酒店·夜间休息」卡（末件结束约半小时后到店）；可拖动/改时/删除，点 ✏️ 可验证并填入真实酒店名，点 🏨 订酒店 走携程/美团/飞猪渠道卡",
+  "到达后每天从酒店出发：第1、2天开头默认加「🏨 从酒店出发」卡（前一晚住店→次日以酒店为起点，出发前预留约30分钟到首站；可拖动/改时/删除，点 ✏️ 可验证酒店名）",
+  "第1天还有空档，按类型多样性补了「老舍茶馆」（16:30）"
+ ]
+}

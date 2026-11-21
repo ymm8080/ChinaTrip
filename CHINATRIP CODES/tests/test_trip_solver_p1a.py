@@ -22,10 +22,12 @@ G01 = default_golden_path()
 
 def test_g01_fixture_exists_and_loads():
     snapshot, expect, provenance = load_golden(G01)
-    assert snapshot.schema_version == 1
+    assert snapshot.schema_version == 2
     assert snapshot.request.days == 2
     assert snapshot.request.cities == ("北京",)
-    assert len(expect) >= 9
+    # R3: day-specific E-1 shape assertions moved to g03's pinned canon;
+    # g01 pins shape-agnostic invariants (coverage/caps/same_venue/det)
+    assert len(expect) >= 4
     assert provenance.get("builder") == "tests/golden/build_g01.py"
 
 

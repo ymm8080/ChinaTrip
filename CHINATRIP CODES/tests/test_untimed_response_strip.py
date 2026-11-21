@@ -208,6 +208,8 @@ def test_plan_turn_body_exit_strips(monkeypatch):
         for d in body["plan"].days
         for v in d.items
         if (v.category or "") not in ("food", "hotel")
+        # R12：交通桥卡（leg-bridge-*）是渲染件不是参观点
+        and not str(v.item_id or "").startswith("leg-bridge-")
     ]
     assert names == ["已排点", "钉住灰卡"]
     unplaced_names = [c.name for c in body["plan"].unplaced]

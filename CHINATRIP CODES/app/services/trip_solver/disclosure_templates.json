@@ -1,0 +1,54 @@
+{
+  "certificate_reasons": {
+    "window_duration_conflict": {
+      "zh": "{name}的最短游览时长放不进任何开放时段",
+      "en": "{name}: minimum visit duration does not fit any open window"
+    },
+    "entry_cap_conflict": {
+      "zh": "{name}受当日停止入场时刻限制，无法排入",
+      "en": "{name}: blocked by the same-day entry cutoff"
+    },
+    "pin_conflict": {
+      "zh": "{name}与另一处固定时刻冲突",
+      "en": "{name}: conflicts with another fixed (pinned) time"
+    },
+    "remote_exclusive_conflict": {
+      "zh": "远郊专属日不足：{name}无法独占一个远郊日",
+      "en": "not enough exclusive remote days: {name} cannot hold one"
+    },
+    "family_day_conflict": {
+      "zh": "同日家族约束放不下{name}所在家族",
+      "en": "same-day family constraint cannot fit {name}'s family"
+    },
+    "day_capacity_conflict": {
+      "zh": "当日容量不足，{name}排不下",
+      "en": "day capacity exhausted: {name} does not fit"
+    },
+    "no_seatable_day": {
+      "zh": "{name}在现有约束下没有可排的日期",
+      "en": "{name} has no seatable day under current constraints"
+    }
+  },
+  "slack_reasons": {
+    "drop_fill": {
+      "zh": "已放松：本次暂不安排推荐补点，优先保必去",
+      "en": "relaxed: fill suggestions skipped to protect must-sees"
+    },
+    "relax_diversity": {
+      "zh": "已放松：同类多样性上限",
+      "en": "relaxed: per-category diversity caps"
+    },
+    "relax_time_of_day": {
+      "zh": "已放松：时段偏好（如早场偏好）",
+      "en": "relaxed: soft time-of-day preferences (e.g. early sessions)"
+    },
+    "relax_weather": {
+      "zh": "已放松：天气偏好惩罚",
+      "en": "relaxed: weather-conditioned penalties"
+    },
+    "relax_remote_exclusive": {
+      "zh": "已放松：远郊日专属限制，当日可能混排城市点（已披露）",
+      "en": "relaxed: remote-day exclusivity; city stops may share the day (disclosed)"
+    }
+  }
+}

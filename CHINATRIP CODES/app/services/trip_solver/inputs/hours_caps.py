@@ -17,12 +17,21 @@ import re
 from typing import Optional
 
 GENERIC_ENTRY_CAP_MINUTES = 16 * 60 + 30  # 990, c93a712
-BIG_SITE_ENTRY_CAP_MINUTES = 15 * 60 + 30  # 930
+# R12-H23（2026-11-20 用户拍板「入场闸 改成 16:00，然后又有入场闸
+# 的弹性调整，最后就能插进了」）：大点 15:30 → 16:00；模型 C-02 挂
+# ENTRY_FLEX_MINUTES=30 弹性（=读闸 enforce_entry_gate 同口径），
+# 有效最晚开场 16:30；普通 16:30 晚闸口径不动。
+BIG_SITE_ENTRY_CAP_MINUTES = 16 * 60  # 960
+ENTRY_FLEX_MINUTES = 30  # 入场闸弹性（2026-11-16 拍板口径进模型层）
 EVENING_ONLY_OPEN_MINUTES = 17 * 60  # 1020
 OPEN_FORM_ALLDAY_OPEN_MAX = 6 * 60  # 360
 OPEN_FORM_ALLDAY_CLOSE_MIN = 22 * 60  # 1320
 BIG_SITE_MIN_MINUTES = 80  # scoring.BIG_SITE_MIN_MINUTES
 EVENING_OK_CATEGORIES = frozenset({"food", "entertainment", "hotel", "transport"})
+# 无窗行的开放形态豁免面（P2-B3）：solver 商业街口径 + 2026-11-08
+# 「所有街区都可以作为夜场」拍板——只有街区语义的行保留无窗豁免；
+# 其余无窗行（hours 数据缺口）按 2026-11-17 晚闸拍板吃 16:30/15:30 闸。
+OPEN_FORM_CATEGORIES = frozenset({"citywalk", "street"})
 EVENING_OK_BEST = frozenset({"evening", "sunset", "show"})
 
 _WINDOW_RE = re.compile(r"(\d{1,2}:\d{2})\s*[-–~至到]\s*(\d{1,2}:\d{2})")
@@ -124,6 +133,10 @@ def entry_cap_minutes(
     window = parse_first_window(opening_hours_text)
     if pinned_with_time:
         return None, "iron-rule-19"
+    if (best_visit_time or "") == "sunrise":
+        # R12-H11 晨锁带：sunrise 卡 06:30-08:30 开场（用户拍板
+        # 「天安门早上 7 点左右，不可能排到其它时间」）
+        return 8 * 60 + 30, "sunrise-band"
     if (best_visit_time or "") in EVENING_OK_BEST:
         return None, "evening-attr"
     if (category or "") in EVENING_OK_CATEGORIES:
@@ -138,7 +151,11 @@ def entry_cap_minutes(
     ):
         return None, "theme-block"
     if is_open_form(window):
-        return None, "open-form"
+        # 真开放形态（全天窗）或街区语义行豁免；hours 缺失（window
+        # None）的非街区行落回普通/大点闸（晚闸拍板 2026-11-17）
+        street_like = (category or "") in OPEN_FORM_CATEGORIES or "街" in (name or "")
+        if window is not None or street_like:
+            return None, "open-form"
     if is_big_site(
         duration_min=duration_min,
         category=category,

@@ -853,7 +853,14 @@ def attach_plan_alternatives(plan: ItineraryPlan, store: object) -> ItineraryPla
             if not isinstance(it, VisitItem):
                 continue
             cat = (it.category or "").strip()
-            if cat in ("food", "hotel") or (it.soft_pin and cat == "food"):
+            # R12：系统换程/交通桥卡（transfer/transport，含
+            # leg-bridge-*）不是备选主卡——绝不让酒店/演出备选挂到
+            # 「前往下一站」这种渲染件上。
+            if cat in ("food", "hotel", "transfer", "transport") or (
+                it.soft_pin and cat == "food"
+            ):
+                continue
+            if str(it.item_id or "").startswith("leg-bridge-"):
                 continue
             visits.append(it)
     if not visits:

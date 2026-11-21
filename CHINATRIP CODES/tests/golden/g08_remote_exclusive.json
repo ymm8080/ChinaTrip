@@ -1,0 +1,173 @@
+{
+ "schema_version": 2,
+ "source": "golden-fixture",
+ "library_version": "poi-snapshot-2026-11-17",
+ "request": {
+  "days": 2,
+  "cities": [
+   "北京"
+  ],
+  "start_date": "2026-11-25",
+  "musts": [
+   {
+    "rid": "r1",
+    "name": "慕田峪长城",
+    "importance": 5,
+    "duration_tier": null,
+    "poi_id": "ct_北京_8"
+   },
+   {
+    "rid": "r2",
+    "name": "故宫博物院",
+    "importance": 4,
+    "duration_tier": null,
+    "poi_id": "m1_885978e4c8a2"
+   }
+  ],
+  "wishes": [],
+  "avoid": [],
+  "arrival_time": null,
+  "departure_time": null,
+  "day1_start": null,
+  "lang": "zh"
+ },
+ "candidates": [
+  {
+   "cid": "c1",
+   "name": "慕田峪长城",
+   "poi_id": "ct_北京_8",
+   "kind": "requested",
+   "category": "historic",
+   "tier": 1,
+   "lon": 116.5598,
+   "lat": 40.4267,
+   "opening_hours": "08:00-17:30",
+   "best_visit_time": "any",
+   "suggested_duration_min": 180,
+   "remote": true,
+   "city": "北京",
+   "rid": "r1"
+  },
+  {
+   "cid": "c2",
+   "name": "故宫博物院",
+   "poi_id": "m1_885978e4c8a2",
+   "kind": "requested",
+   "category": "museum",
+   "tier": 1,
+   "lon": 116.4097,
+   "lat": 39.9255,
+   "opening_hours": "08:30-17:00",
+   "best_visit_time": "any",
+   "suggested_duration_min": 180,
+   "remote": false,
+   "city": "北京",
+   "rid": "r2"
+  },
+  {
+   "cid": "c3",
+   "name": "王府井大街",
+   "poi_id": "poi_c3",
+   "kind": "fill",
+   "category": "citywalk",
+   "tier": 6,
+   "lon": 116.418,
+   "lat": 39.9097,
+   "opening_hours": "08:00-22:00",
+   "best_visit_time": "any",
+   "suggested_duration_min": 90,
+   "remote": false,
+   "city": "北京"
+  },
+  {
+   "cid": "c4",
+   "name": "景山公园",
+   "poi_id": "poi_c4",
+   "kind": "fill",
+   "category": "park",
+   "tier": 8,
+   "lon": 116.3971,
+   "lat": 39.9254,
+   "opening_hours": "06:00-21:00",
+   "best_visit_time": "any",
+   "suggested_duration_min": 60,
+   "remote": false,
+   "city": "北京"
+  }
+ ],
+ "access_profiles": [
+  {
+   "gateway": "前门大街北口（北京旅游集散中心发车点）",
+   "to_poi": "ct_北京_8",
+   "ride_minutes": 90,
+   "wait_minutes": 10,
+   "last_mile_minutes": 8,
+   "departures": [
+    "07:30",
+    "08:30",
+    "09:30",
+    "10:30"
+   ],
+   "returns": [
+    "14:30",
+    "15:30",
+    "16:30"
+   ],
+   "taxi_minutes": 0,
+   "fare_text": "官网未公布专线车费；运营方咨询 010-83531111",
+   "operator": "北京旅游集散中心"
+  }
+ ],
+ "travel": [
+  {
+   "from_key": "m1_885978e4c8a2",
+   "to_key": "poi_c3",
+   "minutes": 10
+  },
+  {
+   "from_key": "m1_885978e4c8a2",
+   "to_key": "poi_c4",
+   "minutes": 8
+  },
+  {
+   "from_key": "poi_c3",
+   "to_key": "poi_c4",
+   "minutes": 15
+  }
+ ],
+ "weather": [],
+ "expect": [
+  {
+   "type": "requested_coverage",
+   "args": {}
+  },
+  {
+   "type": "remote_day_purity",
+   "args": {
+    "name": "慕田峪长城",
+    "note": "C-06/C-15: no unrequested fill on the remote day"
+   }
+  },
+  {
+   "type": "no_entry_cap_breach",
+   "args": {
+    "caps": {
+     "generic": "16:30",
+     "big": "15:30"
+    }
+   }
+  },
+  {
+   "type": "deterministic",
+   "args": {
+    "runs": 2
+   }
+  }
+ ],
+ "provenance": {
+  "incident": "remote-day exclusivity family (C-06/C-15 standalone)",
+  "built_at": "2026-11-18",
+  "builder": "tests/golden/build_corpus_v2.py",
+  "note": "model side is green by construction (C-06 forbids fill on the remote day); fill placement is unrewarded pre-P1-D so the assertion may hold vacuously — the legacy replay side is where a B-03a/B-08 shape would surface."
+ }
+}

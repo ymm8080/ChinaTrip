@@ -259,7 +259,7 @@ def build(payload_path: str) -> dict:
         )
 
     fixture = {
-        "schema_version": 1,
+        "schema_version": 2,
         "source": "golden-fixture",
         "library_version": "poi-snapshot-2026-11-17",
         "request": request,

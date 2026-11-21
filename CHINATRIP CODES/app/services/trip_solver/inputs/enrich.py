@@ -26,13 +26,19 @@ class EnrichedSnapshot:
     weather: dict[tuple[str, str], dict]
     access_by_poi: dict[str, object]
     readiness: dict
+    # R12-H25（2026-11-20 用户令「天安门取真实的升旗时间 FIX」）：
+    # day → 升旗分钟（flag_schedule 批次库，live 侧查好传入；空=回
+    # 落静态 06:30 晨锁带）。
+    flag_times: dict = None
 
     def cap(self, cid: str) -> int | None:
         return self.caps.get(cid, (None, "unknown"))[0]
 
 
 def enrich(
-    snapshot, weather_days: tuple[tuple[str, str, str], ...] = ()
+    snapshot,
+    weather_days: tuple[tuple[str, str, str], ...] = (),
+    flag_times: dict | None = None,
 ) -> EnrichedSnapshot:
     from .access import total_one_way_minutes as _tw  # noqa: F401 (re-exported)
 
@@ -113,6 +119,7 @@ def enrich(
         weather=weather,
         access_by_poi=access_by_poi,
         readiness=readiness,
+        flag_times=dict(flag_times or {}),
     )
 
 

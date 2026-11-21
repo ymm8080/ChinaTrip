@@ -1,0 +1,104 @@
+{
+ "schema_version": 2,
+ "source": "golden-fixture",
+ "library_version": "poi-snapshot-2026-11-17",
+ "request": {
+  "days": 1,
+  "cities": [
+   "北京"
+  ],
+  "start_date": "2026-11-25",
+  "musts": [
+   {
+    "rid": "r1",
+    "name": "颐和园",
+    "importance": 5,
+    "duration_tier": null,
+    "poi_id": "unesco_Q4132"
+   }
+  ],
+  "wishes": [],
+  "avoid": [],
+  "arrival_time": null,
+  "departure_time": null,
+  "day1_start": null,
+  "lang": "zh"
+ },
+ "candidates": [
+  {
+   "cid": "c1",
+   "name": "颐和园",
+   "poi_id": "unesco_Q4132",
+   "kind": "requested",
+   "category": "park",
+   "tier": 2,
+   "lon": 116.2749,
+   "lat": 39.9987,
+   "opening_hours": "06:30-19:00",
+   "best_visit_time": "any",
+   "suggested_duration_min": 300,
+   "remote": false,
+   "city": "北京",
+   "rid": "r1"
+  },
+  {
+   "cid": "c2",
+   "name": "景山公园",
+   "poi_id": "poi_c2",
+   "kind": "fill",
+   "category": "park",
+   "tier": 8,
+   "lon": 116.3971,
+   "lat": 39.9254,
+   "opening_hours": "06:00-21:00",
+   "best_visit_time": "any",
+   "suggested_duration_min": 60,
+   "remote": false,
+   "city": "北京"
+  }
+ ],
+ "access_profiles": [],
+ "travel": [
+  {
+   "from_key": "unesco_Q4132",
+   "to_key": "poi_c2",
+   "minutes": 25
+  }
+ ],
+ "weather": [],
+ "expect": [
+  {
+   "type": "requested_coverage",
+   "args": {}
+  },
+  {
+   "type": "span_cap",
+   "args": {
+    "name": "颐和园",
+    "max_minutes": 240,
+    "note": "Q1: typ = min(library 300, 240) for park-type big sites"
+   }
+  },
+  {
+   "type": "no_entry_cap_breach",
+   "args": {
+    "caps": {
+     "generic": "16:30",
+     "big": "15:30"
+    }
+   }
+  },
+  {
+   "type": "deterministic",
+   "args": {
+    "runs": 2
+   }
+  }
+ ],
+ "provenance": {
+  "incident": "duration family (B-19/Q1): 颐和园 300-min library row",
+  "built_at": "2026-11-18",
+  "builder": "tests/golden/build_corpus_v2.py",
+  "note": "duration flexes in [low=120, library=300] (F-20) with no duration-lean objective until P1-D (F-23) — the deterministic solve currently sits at the tier minimum, so this passes today as a regression guard; if P1-D ever rewards longer stays the cap must still hold. Clamp disclosure (F-33) pends P1-F."
+ }
+}

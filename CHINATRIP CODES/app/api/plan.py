@@ -92,6 +92,8 @@ from app.services.itinerary import DiffOp, GeoPoint, VisitItem, mutate
 from app.services.itinerary.hotfix_1117 import (
     evict_fillers_when_must_unseated,
     evict_pre_remote_fillers,
+    fold_restaurant_visit_cards,
+    rescue_entry_gated_musts,
     retime_remote_day_from_access,
 )
 from app.services.itinerary.legs import annotate_legs, attach_return_cards
@@ -128,6 +130,10 @@ from app.services.state_persist import (
 from app.services.task_queue import TaskStore, get_task_store
 from app.services.trains import get_train_service
 from app.services.translate import TranslationService
+from app.services.trip_orchestrator.nlu import (
+    _restart_named_musts,
+    _restart_route_only,
+)
 from app.services.weather import daily_weather_text
 from app.services.web_reader import find_urls
 
@@ -781,41 +787,158 @@ async def start_plan(
         start_days = request.days or 0
         start_brief = request.brief
         start_city_days = request.city_days
+    # R8（2026-11-18 拍板「全量切引擎」）：确认卡 override=用户已选边，
+    # 折算后透传给引擎——与 legacy agent.start 的 session 落位同口径
+    # （days_override 同时作废分城天数）。
+    ts_days = (
+        max(1, int(request.days_override)) if request.days_override else start_days
+    )
+    ts_city_days = {} if request.days_override else start_city_days
+    ts_arrival_no = (
+        str(request.arrival_no_override).strip().upper()
+        if request.arrival_no_override
+        else request.arrival_no
+    )
+    ts_departure_no = (
+        str(request.departure_no_override).strip().upper()
+        if request.departure_no_override
+        else request.departure_no
+    )
+    # P3 seam (F-35/F-42, default legacy = zero behavior change): when
+    # TRIP_SOLVER=cpsat and the serving stack is ready, generate through
+    # the model engine in a worker thread; any failure falls back to the
+    # legacy cascade with a disclosure (M8 rollback shape).
+    trip_session = None
+    trip_outcome = None
     try:
-        session = await agent.start(
-            device_id=x_device_id,
-            cities=start_cities,
-            days=start_days,
-            preferences=request.preferences or "",
-            city_days=start_city_days,
-            start_date=request.start_date,
-            intercity_mode=request.intercity_mode,
-            lang=request.lang,
-            brief=start_brief,
-            arrival_no=request.arrival_no,
-            arrival_time=request.arrival_time,
-            departure_no=request.departure_no,
-            departure_time=request.departure_time,
-            arrival_date=request.arrival_date,
-            departure_date=request.departure_date,
-            intake=request.intake,
-            days_override=request.days_override,
-            arrival_no_override=request.arrival_no_override,
-            departure_no_override=request.departure_no_override,
-            images=_decode_image_payloads(request.images),
+        from app.services.trip_solver.entry import (
+            ENGINE_CPSAT,
+            engine_flag,
+            seam_plain_shape,
+            serving_ready,
+            set_seam_attempted,
         )
-    except PoiStoreUnavailableError:
-        # 库降级（DB 锁存+空内存）不出占位假行程——干净 503 让前端
-        # 提示稍后重试（2026-10-25 占位事故门禁）。
-        logger.warning("plan/start poi_store_unavailable")
-        raise HTTPException(status_code=503, detail="poi_store_unavailable")
-    except LLMError as exc:
-        # LLMError messages are sanitized (never contain the API key).
-        logger.exception("plan/start llm_error: %s", exc)
-        raise HTTPException(status_code=502, detail="llm_error") from exc
+        from app.services.trip_solver.live import (
+            _intake_day_no,
+            generate_session_via_trip_solver,
+        )
+
+        if (
+            engine_flag() == ENGINE_CPSAT
+            and serving_ready()[0]
+            # R8 形状闸收窄（2026-11-18「全量切引擎」）：映射类字段
+            # （城际方式/班次 override/行前卡标志）透传直连；仍留 legacy
+            # 的唯 brief/带图（读点确认轮）、分城天数（建模挂账）、
+            # 非默认端点行前日期（中途转移日）。
+            and seam_plain_shape(
+                brief=start_brief,
+                images=request.images,
+                arrival_date=request.arrival_date,
+                departure_date=request.departure_date,
+                start_date=request.start_date,
+                days=ts_days,
+                cities=start_cities,
+            )
+        ):
+            # 二期：本请求已由 api 缝尝试引擎——_generate_v0 重解钩子
+            # 不再重试（防双跑/双披露）；失败回落由缝自带披露
+            set_seam_attempted()
+
+            def _ts_generate():
+                return generate_session_via_trip_solver(
+                    device_id=x_device_id,
+                    cities=list(start_cities or []),
+                    days=ts_days or 0,
+                    start_date=request.start_date,
+                    musts=[],
+                    store=get_poi_detail_store(),
+                    # R13j：live 引擎雨天约束接线（此前两缝均不传
+                    # weather_lookup——legacy 有天气/corpus 有 baked 天气、
+                    # 唯独 live 引擎瞎排雨天）。同 legacy 注入口径
+                    # （agent._weather_lookup=api:255 同款 partial）。
+                    weather_lookup=partial(daily_weather_text, get_session_factory()),
+                    preferences=request.preferences or "",
+                    arrival_time=request.arrival_time,
+                    departure_time=request.departure_time,
+                    arrival_no=ts_arrival_no,
+                    departure_no=ts_departure_no,
+                    intercity_mode=request.intercity_mode,
+                    city_days=dict(ts_city_days) if ts_city_days else None,
+                    lang=request.lang,
+                    # R9-2：中途转移日——行前日期折天序入快照（C-05 地板/
+                    # 顶盖挪到该日；端点日=None 保持旧形状）
+                    arrival_day=_intake_day_no(
+                        request.arrival_date,
+                        request.start_date,
+                        ts_days or 0,
+                        1,
+                    ),
+                    departure_day=_intake_day_no(
+                        request.departure_date,
+                        request.start_date,
+                        ts_days or 0,
+                        ts_days or 1,
+                    ),
+                )
+
+            trip_session, trip_outcome = await asyncio.to_thread(_ts_generate)
+    except Exception:
+        logger.exception("plan/start trip_solver seam failed; legacy serves")
+    if trip_session is not None:
+        session = trip_session
+    else:
+        # R12 质量营救（2026-11-19 用户拍板）：引擎失败 → agent.start
+        # （legacy）服务 + 缝披露随附（下方 append）——绝不静默。
+        try:
+            session = await agent.start(
+                device_id=x_device_id,
+                cities=start_cities,
+                days=start_days,
+                preferences=request.preferences or "",
+                city_days=start_city_days,
+                start_date=request.start_date,
+                intercity_mode=request.intercity_mode,
+                lang=request.lang,
+                brief=start_brief,
+                arrival_no=request.arrival_no,
+                arrival_time=request.arrival_time,
+                departure_no=request.departure_no,
+                departure_time=request.departure_time,
+                arrival_date=request.arrival_date,
+                departure_date=request.departure_date,
+                intake=request.intake,
+                days_override=request.days_override,
+                arrival_no_override=request.arrival_no_override,
+                departure_no_override=request.departure_no_override,
+                images=_decode_image_payloads(request.images),
+            )
+        except PoiStoreUnavailableError:
+            # 库降级（DB 锁存+空内存）不出占位假行程——干净 503 让前端
+            # 提示稍后重试（2026-10-25 占位事故门禁）。
+            logger.warning("plan/start poi_store_unavailable")
+            raise HTTPException(status_code=503, detail="poi_store_unavailable")
+        except LLMError as exc:
+            # LLMError messages are sanitized (never contain the API key).
+            logger.exception("plan/start llm_error: %s", exc)
+            raise HTTPException(status_code=502, detail="llm_error") from exc
+        if (
+            trip_outcome is not None
+            and getattr(trip_outcome, "fallback", False)
+            and trip_outcome.disclosures
+        ):
+            # R12：legacy 营救的披露随附（绝不静默换引擎）
+            session.assumptions.append(trip_outcome.disclosures[0].get("zh", ""))
     # 2026-11-14（用户拍板「心愿单/已排期按 USER ID 出内容」）：会话记住
     # 登录账号——会话里建的心愿行落 owner_account_id
     session.account_id = account or session.account_id
+    # R13o③（R13n 审计）：升旗锚接 start 缝尾——旗时最高优先（2026-11-14
+    # UAT 拍板）此前只接在 save/from-itinerary 开档缝，全新引擎会话首屏
+    # 不跑升旗链（北京新单天安门排 12:00 中午场）。幂等（R12-G 重叠推平
+    # 已内建）。
+    if session.plan is not None:
+        from app.services.agent.plan import _apply_flag_schedule
+
+        _apply_flag_schedule(session.plan)
     # 同款：save 前审计，生成首屏的披露/清脏直接落库（下方响应层的
     # _audit_must_coverage 保留为兜底，幂等无副作用）。
     # 白天入场闸读闸同位：生成首屏的越闸卡先清时刻再落库。
@@ -878,6 +1001,94 @@ async def message_plan(
     # 车道分类——否则慢车道会把「重新规划」当后台重排塞回旧行程。
     brief = agent.new_trip_brief(session, request.text)
     if brief is not None:
+        restart_cities, restart_days = brief
+        # 二期（消息轮换引擎，2026-11-18）：换局语句重开的新行程走模型
+        # 引擎——纯路线声明或点名长句 + auto 城际（会话班次/语言随缝透
+        # 传）。点名长句由 _restart_named_musts 离线读「必去」类短语进
+        # musts，绑定走快照绑定链（精确名→文本匹配→骨架兜底，缝不吞
+        # 点、B-01）；短语读不出/引擎失败仍落 legacy（读点确认轮管线）。
+        restart_named_musts: list[str] = []
+        try:
+            restart_named_musts = _restart_named_musts(
+                request.text,
+                store=get_poi_detail_store(),
+                cities=list(restart_cities or []),
+            )
+        except Exception:
+            logger.exception("plan/message restart named-must parse failed")
+        trip_session = None
+        trip_outcome = None
+        try:
+            from app.services.trip_solver.entry import (
+                ENGINE_CPSAT,
+                engine_flag,
+                serving_ready,
+                set_seam_attempted,
+            )
+            from app.services.trip_solver.live import (
+                generate_session_via_trip_solver,
+            )
+
+            if (
+                engine_flag() == ENGINE_CPSAT
+                and serving_ready()[0]
+                and (
+                    _restart_route_only(request.text, restart_cities)
+                    or restart_named_musts
+                )
+                and (session.intercity_mode or "auto") == "auto"
+            ):
+                # 二期：换局缝已尝试引擎——回落 restart_with_brief 内的
+                # _generate_v0 钩子不再重试
+                set_seam_attempted()
+
+                def _ts_restart():
+                    # R13k：镜像 legacy restart_with_brief 的 fresh-start
+                    # 语义——旧行程的行前信息（班次/时刻）不带入新局
+                    # （此前引擎缝多传 session.arrival_*/departure_*：
+                    # 换城市重启带着旧航班号=与 legacy 分歧；且传了
+                    # no/time 却不传 arrival_day（_intake_day_no 只在
+                    # start 缝算）——参数集自相矛盾）。
+                    return generate_session_via_trip_solver(
+                        device_id=session.device_id,
+                        cities=list(restart_cities or []),
+                        days=restart_days or session.days or 0,
+                        start_date=session.start_date,
+                        musts=list(restart_named_musts),
+                        store=get_poi_detail_store(),
+                        weather_lookup=partial(
+                            daily_weather_text, get_session_factory()
+                        ),
+                        preferences=request.text,
+                        lang=session.lang,
+                    )
+
+                trip_session, trip_outcome = await asyncio.to_thread(_ts_restart)
+        except Exception:
+            logger.exception("plan/message restart seam failed; legacy serves")
+        if trip_session is not None:
+            session = trip_session
+            session.account_id = account or session.account_id
+            reply = L(
+                "已按你刚说的新行程重开一局："
+                f"{'→'.join(session.cities) or '（城市待定）'}，"
+                f"{session.days or '?'} 天（上一趟行程没有被改动）。",
+                "Started a new trip from your latest message: "
+                f"{' → '.join(session.cities) or '(city TBC)'}, "
+                f"{session.days or '?'} days "
+                "(the previous itinerary was left untouched).",
+            )
+            store.save(session)
+            body = _plan_turn_body(session, reply, None)
+            body["new_trip"] = True
+            body["lane"] = {
+                "lane": "main",
+                "intent": "new_trip",
+                "engine": "cpsat",
+            }
+            return body
+        # R12（换局营救）：引擎失败 → restart_with_brief（legacy）服务
+        # + 披露随附（旧会话原样不动的语义不变——重开新会话）。
         try:
             session, reply = await agent.restart_with_brief(
                 session, request.text, brief
@@ -888,6 +1099,13 @@ async def message_plan(
         except LLMError as exc:
             logger.exception("plan/message llm_error: %s", exc)
             raise HTTPException(status_code=502, detail="llm_error") from exc
+        if (
+            trip_outcome is not None
+            and getattr(trip_outcome, "fallback", False)
+            and trip_outcome.disclosures
+        ):
+            # R12：legacy 营救的披露随附
+            session.assumptions.append(trip_outcome.disclosures[0].get("zh", ""))
         store.save(session)
         body = _plan_turn_body(session, reply, None)
         body["new_trip"] = True
@@ -1042,6 +1260,21 @@ def _strip_untimed_items(plan):
     return plan.model_copy(update={"days": days, "unplaced": unplaced})
 
 
+def _with_gap_bridges(plan):
+    """R12 响应件：>=45 分钟同日空档挂「前往下一站」交通桥卡（幂等、
+    非变异链路下游再挂一次也安全）。展示糖——挂挂失守绝不挂挂挂挂
+    坏行程。"""
+    from app.services.trip_solver.assembly.bridges import (
+        attach_gap_bridges,
+    )
+
+    try:
+        return attach_gap_bridges(plan)
+    except Exception:
+        logger.warning("plan gap bridges attach failed", exc_info=True)
+        return plan
+
+
 def _plan_for_response(plan):
     """行程下发出口装配（2026-11-13 拍板「未安排卡不显示」）：先剔无时刻
     非钉参访卡（剔除件转 plan.unplaced，亮成宿主卡「想去」chip——只有
@@ -1049,12 +1282,82 @@ def _plan_for_response(plan):
     「早晨卡只有出发时间，没有 DURATION」），最后挂同级备选 chip。所有
     返回完整行程的端点（start / from-itinerary / _plan_turn_body 一族）
     统一走本入口，禁止旁路。"""
-    plan = _plan_with_alternatives(_morning_point_cards(_strip_untimed_items(plan)))
+    plan = _plan_with_alternatives(
+        _morning_point_cards(_hotel_cards_front_back(_strip_untimed_items(plan)))
+    )
     try:
-        return attach_return_cards(plan)
+        plan = attach_return_cards(plan)
     except Exception:  # 展示糖：绝不能把行程卡拉挂
         logger.warning("plan return cards attach failed", exc_info=True)
+    # R14（2026-11-21 用户令「打车应该在酒店和去程之间」FIX）：引擎远郊日
+    # 去程卡里的打车段拆成独立 🚕 卡插在晨卡与去程卡之间——响应副本渲染件
+    # （幂等先清后挂；会话本体零打车卡），交通桥卡在最终形状上重挂。
+    from app.services.itinerary.legs import attach_outbound_taxi_cards
+
+    try:
+        plan = attach_outbound_taxi_cards(plan)
+    except Exception:  # 展示糖：绝不能把行程卡拉挂
+        logger.warning("plan outbound taxi cards attach failed", exc_info=True)
+    # R12（2026-11-19 拍板「天安门后应该在去下一个景点的路上，而不是
+    # 空着等到午餐卡」）：>=45 分钟的同日空档挂可见「前往下一站」交通
+    # 桥卡——与回城卡同契约（响应副本、幂等先清后挂），session 本体
+    # 与持久会话零桥卡。
+    from app.services.trip_solver.assembly.bridges import (
+        attach_gap_bridges,
+    )
+
+    try:
+        return attach_gap_bridges(plan)
+    except Exception:  # 展示糖：绝不能把行程卡拉挂
+        logger.warning("plan gap bridges attach failed", exc_info=True)
         return plan
+
+
+def _hotel_cards_front_back(plan):
+    """R13p（2026-11-21 用户拍板「酒店卡不应该出现在天安门后；酒店卡如果
+    出现应该是第一位的」）：出站副本终态归位——晨卡（hotel-morning-）恒排
+    当天最前、夜卡（hotel-night-）恒排最后，其余卡按开始时刻稳定重排。
+    修两形状：①升旗锚缝尾 realign 只改时刻不动位次（天安门 07:10 曾显示
+    在 day 中部、前面还是 09:30 的八达岭）；②旧快照里被误推到锚后的晨卡
+    在此钳回首个非酒店卡之前（start = 首卡 start − 30，C-13 打包窗口径）。
+    非变异：会话本体与持久快照不动（同 _morning_point_cards 契约）。"""
+    if plan is None:
+        return plan
+    out = plan.model_copy(deep=True)
+    for d in out.days:
+        if not d.items:
+            continue
+        mornings = [
+            i
+            for i in d.items
+            if isinstance(i, VisitItem)
+            and (i.item_id or "").startswith("hotel-morning")
+        ]
+        nights = [
+            i
+            for i in d.items
+            if isinstance(i, VisitItem) and (i.item_id or "").startswith("hotel-night")
+        ]
+        ids_m = {id(i) for i in mornings}
+        ids_n = {id(i) for i in nights}
+        others = [i for i in d.items if id(i) not in ids_m and id(i) not in ids_n]
+        others.sort(key=lambda i: (i.start_time is None, i.start_time or time(0, 0)))
+        if mornings:
+            first = next((i for i in others if i.start_time is not None), None)
+            m = mornings[0]
+            if (
+                first is not None
+                and m.start_time is not None
+                and (m.start_time.hour * 60 + m.start_time.minute)
+                > (first.start_time.hour * 60 + first.start_time.minute)
+            ):
+                f_min = first.start_time.hour * 60 + first.start_time.minute
+                new_start = max(0, f_min - 30)
+                dur = int(m.duration_minutes or 30)
+                m.start_time = time(new_start // 60 % 24, new_start % 60)
+                m.end_time = time((new_start + dur) // 60 % 24, (new_start + dur) % 60)
+        d.items = mornings + others + nights
+    return out
 
 
 def _morning_point_cards(plan):
@@ -1108,11 +1411,20 @@ def _audit_must_coverage(session: PlanSession) -> None:
     # 2026-11-17 事故热修（会话 24379abd）：必去优先三闸 + 灰卡降级。
     lang = getattr(session, "lang", "zh") or "zh"
     must_names = getattr(session, "must_visits", None) or []
+    # R12-E（2026-11-19 用户令「指定的天坛为什么漏了，没指定的景山
+    # 插进去了」）：先营救——被入场闸剥掉的必去顶进让出的填充窗口；
+    # 营救不了再走必让位清场。
     notes: list[str] = list(
-        evict_fillers_when_must_unseated(session.plan, must_names=must_names, lang=lang)
+        rescue_entry_gated_musts(session.plan, must_names=must_names, lang=lang)
+    )
+    notes += evict_fillers_when_must_unseated(
+        session.plan, must_names=must_names, lang=lang
     )
     notes += evict_pre_remote_fillers(session.plan, lang=lang)
     notes += retime_remote_day_from_access(session.plan, lang=lang)
+    # R12-C（2026-11-19 拍板「餐厅放午餐/晚餐卡上」）：存量/回退计划
+    # 里观光卡形态的餐馆折进餐卡——读闸自愈，刷新即正。
+    notes += fold_restaurant_visit_cards(session.plan, lang=lang)
     untimed = demote_untimed_musts(session.plan, lang=lang)
     if notes or untimed:
         # 热修动了盘面（撤补点/挪卡/降级灰卡）→ 腿字段按新布局重算：
@@ -1184,6 +1496,11 @@ def _plan_turn_body(session, reply: str, change, *, alternatives: bool = True) -
         # 餐卡重排（装配/编辑/救急）都可能在收口后抹平间隙，这里在真正
         # 交付的 plan 上补回；幂等——无间隙时不产生备注、不改时刻。
         session.plan.assumptions.extend(_open_meal_leg_gaps(session.plan))
+        # R13o③：升旗锚在消息回合出站前同样收口（引擎 replan/edit 的新
+        # 计划此前不带旗时）——幂等，先于入场闸跑。
+        from app.services.agent.plan import _apply_flag_schedule
+
+        _apply_flag_schedule(session.plan)
         # 白天入场闸读闸（2026-11-17 二拍）：顺延/贴锚/兜底把非钉普通观光
         # 卡推过 16:00/15:30 开场带的，出站前退回无时刻并披露（幂等）。
         session.plan.assumptions.extend(enforce_entry_gate(session.plan))
@@ -1194,7 +1511,7 @@ def _plan_turn_body(session, reply: str, change, *, alternatives: bool = True) -
         body["plan"] = (
             _plan_for_response(session.plan)
             if alternatives
-            else _strip_untimed_items(session.plan)
+            else _with_gap_bridges(_strip_untimed_items(session.plan))
         )
         body["violations"] = current_violations(session)
     if change is not None:

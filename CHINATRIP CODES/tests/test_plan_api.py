@@ -1396,6 +1396,8 @@ def _day_visits(body: dict, day_no: int) -> list[dict]:
         if (
             "mode" not in i
             and not i.get("item_id", "").startswith("food-lunch-ph")
+            # R12：交通桥卡（leg-bridge-*）是渲染件不是景点
+            and not i.get("item_id", "").startswith("leg-bridge-")
             # 晚饭占位件同理（2026-11-07 起每晚都有餐窗占位）
             and not i.get("item_id", "").startswith("food-dinner-ph")
             # 酒店入住卡/每晚酒店卡/次日晨卡无坐标/不回填（2026-11-01/11-07/11-13）
@@ -2165,6 +2167,7 @@ def test_refresh_legs_backfills_missing_locations():
         and not str(i.get("item_id", "")).startswith("hotel-checkin")
         and not str(i.get("item_id", "")).startswith("hotel-night")
         and not str(i.get("item_id", "")).startswith("hotel-morning")
+        and not str(i.get("item_id", "")).startswith("leg-bridge-")
     ]
     assert visits and all(v.get("location") for v in visits), (
         "backfill must fill coordinates for every missing item"
@@ -2210,6 +2213,7 @@ def test_get_plan_session_returns_refreshed_plan():
         and not str(i.get("item_id", "")).startswith("hotel-checkin")
         and not str(i.get("item_id", "")).startswith("hotel-night")
         and not str(i.get("item_id", "")).startswith("hotel-morning")
+        and not str(i.get("item_id", "")).startswith("leg-bridge-")
     ]
     assert visits and all(v.get("location") for v in visits), (
         "GET must backfill missing coordinates"
@@ -3271,7 +3275,15 @@ def test_number_override_lands_on_session():
 
 def test_text_with_date_skips_intake_card():
     """文字里读得出出发日期=信息足够：不弹行前卡，直接按文字日期生成
-    （2026-11-15 用户拍板「行前卡只在文字输入且信息不足时弹出」）。"""
+    （2026-11-15 用户拍板「行前卡只在文字输入且信息不足时弹出」）。
+    日期取**未来**某天（+40 天）——硬编码历日会在日历翻页后翻成过去日，
+    解析器按语义正确滚下一年（2026-11-21 后 11月20日→2027），测试
+    就红了（2026-11-21 CI 实锤）。"""
+    from datetime import date as _date
+    from datetime import timedelta as _td
+
+    _d = _date.today() + _td(days=40)
+    _text = f"{_d.month}月{_d.day}日去北京 2 天"
     agent = PlanningAgent(StubAdapter([V0_JSON]))
     client = client_for(agent)
     resp = start(
@@ -3279,8 +3291,8 @@ def test_text_with_date_skips_intake_card():
         {
             "cities": [],
             "days": 0,
-            "preferences": "11月20日去北京 2 天",
-            "brief": "11月20日去北京 2 天",
+            "preferences": _text,
+            "brief": _text,
         },
     )
     assert resp.status_code == 200
@@ -3289,7 +3301,7 @@ def test_text_with_date_skips_intake_card():
     plan = body["plan"]
     assert plan["cities"] == ["北京"]
     assert len(plan["days"]) == 2
-    assert plan["start_date"] == "2026-11-20"
+    assert plan["start_date"] == _d.isoformat()
 
 
 def test_text_without_date_asks_intake_card():
@@ -3660,3 +3672,1355 @@ def test_replace_hotel_candidate_type_mismatch_422():
     )
     assert resp.status_code == 422
     assert resp.json() == {"detail": "type_mismatch"}
+
+
+# --- 二期：消息轮换引擎 + start 缝形状闸（2026-11-18） ----------------------
+
+
+def _seam_fake_store():
+    from app.services.trip_solver.shadow.replay import SnapshotStore
+    from app.services.trip_solver.types import CandidateItem
+
+    def cand(cid, name, city, cat, tier, lon, lat, hours, pid):
+        return CandidateItem(
+            cid=cid,
+            name=name,
+            poi_id=pid,
+            city=city,
+            category=cat,
+            tier=tier,
+            lon=lon,
+            lat=lat,
+            opening_hours=hours,
+            suggested_duration_min=90,
+        )
+
+    return SnapshotStore(
+        [
+            cand(
+                "c1",
+                "外滩",
+                "上海",
+                "sight",
+                1,
+                121.4903,
+                31.2335,
+                "09:00-21:00",
+                "ct_上海_20",
+            ),
+            cand(
+                "c2",
+                "豫园",
+                "上海",
+                "sight",
+                2,
+                121.4921,
+                31.2273,
+                "09:00-18:00",
+                "ct_上海_21",
+            ),
+            cand(
+                "c3", "西湖", "杭州", "sight", 1, 120.1494, 30.2459, "全天", "ct_杭州_1"
+            ),
+            cand(
+                "c4",
+                "灵隐寺",
+                "杭州",
+                "sight",
+                2,
+                120.1000,
+                30.2400,
+                "07:00-18:00",
+                "ct_杭州_2",
+            ),
+        ]
+    )
+
+
+def test_start_seam_serves_plain_shape_when_cpsat(monkeypatch):
+    """纯表单开局（cpsat 旗 + 服务就绪）→ ts- 会话真出计划。"""
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    app = make_app(agent)
+    client = TestClient(app)
+    monkeypatch.setattr("app.api.plan.get_poi_detail_store", _seam_fake_store)
+    resp = start(
+        client,
+        {"cities": ["上海"], "days": 1, "start_date": "2026-11-25"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["session_id"].startswith("ts-")
+    assert body["plan"]["days"]
+
+
+def test_start_seam_direct_connects_city_days_and_modes(monkeypatch):
+    """R8 形状闸收窄：分城天数（C-17 拆窗镜像）/指定城际/确认卡 override
+    折算透传引擎；brief/带图开局仍留 legacy 读点确认轮。"""
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    from app.services.trip_solver import live as _live
+
+    calls = []
+
+    def _spy(**kw):
+        calls.append(kw)
+        return None, None
+
+    monkeypatch.setattr(_live, "generate_session_via_trip_solver", _spy)
+    agent = PlanningAgent(StubAdapter([V0_JSON, V0_JSON, V0_JSON]))
+    client = client_for(agent)
+    r1 = start(
+        client,
+        {"cities": ["上海", "杭州"], "days": 3, "city_days": {"杭州": 1}},
+    )
+    assert r1.status_code == 200
+    assert len(calls) == 1
+    assert calls[0]["city_days"] == {"杭州": 1}
+    r2 = start(
+        client,
+        {
+            "cities": ["上海", "杭州"],
+            "days": 3,
+            "intercity_mode": "train",
+            "arrival_no": "G7541",
+            "days_override": 2,
+            "intake": True,
+        },
+    )
+    assert r2.status_code == 200
+    assert len(calls) == 2
+    assert calls[1]["intercity_mode"] == "train"
+    assert calls[1]["days"] == 2
+    assert calls[1]["arrival_no"] == "G7541"
+    r3 = start(client, {"cities": ["上海"], "days": 2, "brief": "想去杭州玩两天"})
+    assert r3.status_code == 200
+    assert len(calls) == 2  # brief 开局仍留 legacy 读点确认轮
+
+
+def test_message_new_trip_restart_via_engine(monkeypatch):
+    """消息轮换引擎：换局纯路线声明 → 新行程走模型引擎（新 ts- 会话）。"""
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    app = make_app(agent)
+    client = TestClient(app)
+    monkeypatch.setattr("app.api.plan.get_poi_detail_store", _seam_fake_store)
+    r0 = start(client, {"cities": ["上海"], "days": 1, "start_date": "2026-11-25"})
+    sid = r0.json()["session_id"]
+    assert sid.startswith("ts-")
+    r1 = client.post(
+        "/api/v1/plan/%s/message" % sid,
+        json={"text": "重新规划，去杭州玩1天"},
+        headers=DEVICE_HEADERS,
+    )
+    assert r1.status_code == 200
+    body = r1.json()
+    assert body["new_trip"] is True
+    assert body["session_id"].startswith("ts-")
+    assert body["session_id"] != sid
+    assert body["lane"]["intent"] == "new_trip"
+
+
+def test_message_new_trip_with_sites_via_engine(monkeypatch):
+    """点名长句换局 → 引擎承接（2026-11-18 拍板「点名长句也换 CP-SAT」）：
+    必去短语进 musts、精确名绑定落卡；整句不再落 legacy。"""
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    app = make_app(agent)
+    client = TestClient(app)
+    monkeypatch.setattr("app.api.plan.get_poi_detail_store", _seam_fake_store)
+    r0 = start(client, {"cities": ["上海"], "days": 2, "start_date": "2026-11-25"})
+    sid = r0.json()["session_id"]
+    r1 = client.post(
+        "/api/v1/plan/%s/message" % sid,
+        json={"text": "重新规划，去杭州玩1天，必去灵隐寺"},
+        headers=DEVICE_HEADERS,
+    )
+    assert r1.status_code == 200
+    body = r1.json()
+    assert body["new_trip"] is True
+    assert body["session_id"].startswith("ts-")
+    assert body["session_id"] != sid
+    names = [item["name"] for day in body["plan"]["days"] for item in day["items"]]
+    assert "灵隐寺" in names
+
+
+def test_message_new_trip_named_phrase_binds_best_known(monkeypatch):
+    """库外点名（楼外楼不在底库）→ 短语仍进 musts；绑定链文本匹配合并
+    到短语内最近已知点（西湖）——卡上落真实可游点，不再整句蒸发。"""
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    app = make_app(agent)
+    client = TestClient(app)
+    monkeypatch.setattr("app.api.plan.get_poi_detail_store", _seam_fake_store)
+    r0 = start(client, {"cities": ["上海"], "days": 2, "start_date": "2026-11-25"})
+    sid = r0.json()["session_id"]
+    r1 = client.post(
+        "/api/v1/plan/%s/message" % sid,
+        json={"text": "重新规划，去杭州玩1天，必去西湖边上的楼外楼"},
+        headers=DEVICE_HEADERS,
+    )
+    assert r1.status_code == 200
+    body = r1.json()
+    assert body["new_trip"] is True
+    assert body["session_id"].startswith("ts-")
+    names = [item["name"] for day in body["plan"]["days"] for item in day["items"]]
+    assert "西湖" in names
+
+
+def test_message_new_trip_preferences_stay_legacy(monkeypatch):
+    """无点名标记的偏好残渣（行程别太赶）→ 仍落 legacy 管线：引擎
+    musts=硬覆盖，偏好语义不对等（R8 偏好重排走 _generate_v0 钩子）。
+    换局缝 spy 在 r0（start 缝自己会调引擎）之后安装，只看换局请求。"""
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    from app.services.trip_solver import live as _live
+
+    calls = []
+
+    def _spy(**kw):
+        calls.append(kw)
+        return None, None
+
+    agent = PlanningAgent(StubAdapter([V0_JSON, V0_JSON]))
+    app = make_app(agent)
+    client = TestClient(app)
+    r0 = start(client, {"cities": ["上海"], "days": 2, "start_date": "2026-11-25"})
+    sid = r0.json()["session_id"]
+    monkeypatch.setattr(_live, "generate_session_via_trip_solver", _spy)
+    r1 = client.post(
+        "/api/v1/plan/%s/message" % sid,
+        json={"text": "重新规划，去杭州玩1天，行程别太赶"},
+        headers=DEVICE_HEADERS,
+    )
+    assert r1.status_code == 200
+    body = r1.json()
+    assert body["new_trip"] is True
+    # 换局缝未被调用（残渣=偏好文本，无点名短语）→ legacy restart 管线
+    assert calls == []
+    assert not body["session_id"].startswith("ts-")
+
+
+def test_restart_named_musts_extraction():
+    """点名短语提取（离线纯函数）：强意图标记/连接词拆分/负向语境/
+    琐碎短语黑名单/想去不读。"""
+    from app.api.plan import _restart_named_musts as f
+
+    assert f("重新规划，去杭州玩1天") == []
+    assert f("重新规划，去杭州玩1天，必去灵隐寺") == ["灵隐寺"]
+    assert f("重新规划，必去灵隐寺和宋城") == ["灵隐寺", "宋城"]
+    assert f("重新规划，必去：西湖、灵隐寺") == ["西湖", "灵隐寺"]
+    assert f("重新规划，去杭州玩1天，必去灵隐寺，必去宋城") == [
+        "灵隐寺",
+        "宋城",
+    ]
+    assert f("不必去西湖") == []
+    assert f("别必去西湖") == []
+    assert f("必去西湖边上的楼外楼") == ["西湖边上的楼外楼"]
+    assert f("想去灵隐寺") == []
+    assert f("必去然后回酒店休息") == []
+    assert f("行程别太赶") == []
+    # R13l：动词尾巴剥除 + 纯吃意图不出硬必去（e2e 实锤「必去吃烤鸭」
+    # 产出骨架幽灵卡「吃烤鸭」定时观光卡——吃意图留偏好软通道，
+    # R8 荐餐链继续承担「想吃烤鸭」→烤鸭店推荐）。
+    assert f("必去吃烤鸭") == []
+    assert f("一定要去故宫看看") == ["故宫"]
+    assert f("必去喝咖啡") == []
+
+
+def test_restart_seam_no_stale_intake_carry(monkeypatch):
+    """R13k：引擎换局缝镜像 legacy restart_with_brief 的 fresh-start
+    语义——旧行程的行前信息（班次/时刻）不带入新局（此前引擎缝多传
+    session.arrival_*/departure_*：换城市重启带着旧航班号=与 legacy
+    分歧）。"""
+
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    calls: list = []
+
+    def _fake_generate(**kwargs):
+        calls.append(dict(kwargs))
+        return None, None  # 未就绪形态：缝回落，参数已捕获
+
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    from app.services.trip_solver import live as _live
+
+    monkeypatch.setattr(_live, "generate_session_via_trip_solver", _fake_generate)
+
+    client = TestClient(app)
+    r0 = client.post(
+        "/api/v1/plan/start",
+        json={"cities": ["北京"], "days": 2, "start_date": "2026-11-26"},
+        headers={"X-Device-ID": "d-r13k"},
+    )
+    sid = r0.json()["session_id"]
+    calls.clear()  # 只看 message 流（start 请求本身会打一次缝）
+    # 换城市才触发换局（new_trip_brief 要求城市变化——同城市=改良不换局）
+    client.post(
+        "/api/v1/plan/%s/message" % sid,
+        json={"text": "重新规划，去西安玩4天，必去兵马俑"},
+        headers={"X-Device-ID": "d-r13k"},
+    )
+    # 缝必须真的跑过（防空洞断言——首版探针教训：dict.update 合并
+    # 污染+同城市不换局=空洞双杀）
+    assert calls, "engine restart seam must run for a city-changing restart"
+    kw = calls[-1]
+    assert kw.get("cities") == ["西安"], kw
+    assert "兵马俑" in (kw.get("musts") or []), kw
+    for stale in ("arrival_no", "departure_no", "arrival_time", "departure_time"):
+        assert stale not in kw, (stale, kw)
+
+
+# --- R8：_generate_v0 偏好重排换引擎（钩子） -------------------------------
+
+
+def test_generate_v0_routes_replan_through_engine(monkeypatch):
+    """拍板「偏好重排也要换 CP-SAT」：形状 OK + 缝未先试 → 引擎重解
+    （_collect_candidates 哨兵证明 legacy 管线没跑）。"""
+    import asyncio
+
+    from app.services.agent.plan import PlanSession
+    from app.services.itinerary.models import DayPlan, ItineraryPlan
+    from app.services.trip_solver import live as _live
+
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    agent = PlanningAgent(StubAdapter([]))
+    session = PlanSession(
+        session_id="sess-r8",
+        device_id="d8",
+        cities=["上海"],
+        days=1,
+        start_date="2026-11-25",
+        must_visits=["外滩"],
+        preferences="喜欢博物馆人文",
+    )
+    calls = {}
+
+    async def _boom(*a, **k):
+        raise AssertionError("legacy pipeline must not run when engine serves")
+
+    monkeypatch.setattr(agent, "_collect_candidates", _boom)
+    monkeypatch.setattr(
+        "app.services.poi_details.get_poi_detail_store", _seam_fake_store
+    )
+
+    def _fake_replan(
+        sess, *, store, extra_assumptions=None, budget_s=3.0, weather_lookup=None
+    ):
+        calls["sid"] = sess.session_id
+        plan = ItineraryPlan(
+            itinerary_id="it-r8",
+            cities=list(sess.cities),
+            days=[DayPlan(day=1, base_city=sess.cities[0], items=[])],
+        )
+        plan.assumptions = ["引擎重排"]
+        sess.plan = plan
+        sess.assumptions = ["引擎重排"] + list(extra_assumptions or [])
+        sess.state = "ready"
+
+        class _O:
+            engine = "cpsat"
+            fallback = False
+            disclosures = []
+
+        return _O()
+
+    monkeypatch.setattr(_live, "replan_session_via_trip_solver", _fake_replan)
+    out = asyncio.run(agent._generate_v0(session, extra_assumptions=["偏好已兑现"]))
+    assert calls["sid"] == "sess-r8"
+    assert out.session_id == "sess-r8"
+    assert session.state == "ready"
+    assert session.history[-1].role == "assistant"
+    assert "偏好已兑现" in session.assumptions
+
+
+def test_generate_v0_falls_back_when_seam_attempted(monkeypatch):
+    """api 缝已尝试过（ContextVar）→ 钩子不重试，legacy 管线接管。"""
+    import asyncio
+
+    from app.services.agent.plan import PlanSession
+    from app.services.trip_solver.entry import (
+        reset_seam_attempted,
+        set_seam_attempted,
+    )
+
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    agent = PlanningAgent(StubAdapter([]))
+    session = PlanSession(
+        session_id="sess-r8b",
+        device_id="d8",
+        cities=["上海"],
+        days=1,
+        start_date="2026-11-25",
+        must_visits=[],
+    )
+
+    async def _sentinel(*a, **k):
+        raise RuntimeError("legacy-path")
+
+    monkeypatch.setattr(agent, "_collect_candidates", _sentinel)
+    token = set_seam_attempted()
+    try:
+        with pytest.raises(RuntimeError, match="legacy-path"):
+            asyncio.run(agent._generate_v0(session))
+    finally:
+        reset_seam_attempted(token)
+
+
+# --- R8b：裸偏好语句 → 全量引擎重排 ----------------------------------------
+
+
+def test_bare_preference_statement_detector():
+    from app.services.agent.plan import _bare_preference_statement
+
+    # 纯品类偏好 → 触发
+    assert _bare_preference_statement("我喜欢博物馆") is True
+    assert _bare_preference_statement("多排几家博物馆") is True
+    assert _bare_preference_statement("喜欢博物馆和美食") is True
+    assert _bare_preference_statement("想看演出") is True
+    # 点名/心愿/结构变更 → 各走原道
+    assert _bare_preference_statement("必去灵隐寺") is False
+    assert _bare_preference_statement("想去故宫") is False
+    assert _bare_preference_statement("加个景山") is False
+    assert _bare_preference_statement("把行程改成3天") is False
+    assert _bare_preference_statement("重新规划去杭州") is False
+    # 风格词（非品类）不触发；空句不触发
+    assert _bare_preference_statement("慢慢逛就行") is False
+    assert _bare_preference_statement("") is False
+
+
+def test_bare_preference_message_routes_to_full_replan(monkeypatch):
+    """「我喜欢博物馆」在 ready 会话上 → preferences 留存 + 全量重排
+    （_generate_v0 的 R8 钩子自动换引擎）。"""
+    import asyncio
+
+    from app.services.agent.plan import PlanSession
+    from app.services.itinerary.models import DayPlan, ItineraryPlan
+
+    agent = PlanningAgent(StubAdapter([]))
+    plan = ItineraryPlan(
+        itinerary_id="it-r8b",
+        cities=["上海"],
+        days=[DayPlan(day=1, base_city="上海", items=[])],
+    )
+    plan.assumptions = []
+    session = PlanSession(
+        session_id="sess-r8b",
+        device_id="d9",
+        cities=["上海"],
+        days=1,
+        start_date="2026-11-25",
+        must_visits=["外滩"],
+        plan=plan,
+    )
+    seen = {}
+
+    async def _fake_v0(sess, *, extra_assumptions=None):
+        seen["prefs"] = sess.preferences
+        seen["extra"] = list(extra_assumptions or [])
+        return sess
+
+    monkeypatch.setattr(agent, "_generate_v0", _fake_v0)
+    out_sess, reply, _change = asyncio.run(
+        agent._apply_conversation(session, "我喜欢博物馆")
+    )
+    assert "我喜欢博物馆" in (seen.get("prefs") or "")
+    assert any("已按你的偏好重排" in a for a in seen.get("extra", []))
+    assert out_sess.session_id == "sess-r8b"
+
+
+# ---------- R8-S4: restart named-musts whole-name priority ----------
+
+
+def test_restart_named_musts_whole_name_and_junk():
+    from app.api.plan import _restart_named_musts
+
+    class _S:
+        def candidate_by_name(self, city, name):
+            return {"name": name} if name == "福和慧" and city == "上海" else None
+
+    # 整名精确命中：不裂词
+    assert _restart_named_musts("必去福和慧", store=_S(), cities=["上海"]) == ["福和慧"]
+    # 无店（离线路径）：裂词后单字碎片全弃 → 空返（落 legacy 读点确认轮）
+    assert _restart_named_musts("必去福和慧") == []
+    # 库外多名仍按连接词裂开（现状保留）
+    assert _restart_named_musts("必去外滩和豫园") == ["外滩", "豫园"]
+
+
+def test_message_restart_food_must_whole_name(monkeypatch):
+    """R8-S4 live 形状：换局点名餐厅（名含「和」）整名进 musts → 落 any-槽
+    餐卡（S2b）；不再裂成『福』『慧』两张骨架卡。"""
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    from app.services.trip_solver.shadow.replay import SnapshotStore
+    from app.services.trip_solver.types import CandidateItem
+
+    rows = [
+        CandidateItem(
+            cid="c1",
+            name="西湖",
+            poi_id="ct_杭州_1",
+            city="杭州",
+            category="sight",
+            tier=1,
+            lon=120.1494,
+            lat=30.2459,
+            opening_hours="全天",
+            suggested_duration_min=90,
+        ),
+        CandidateItem(
+            cid="c2",
+            name="福和慧",
+            poi_id="ct_杭州_food_1",
+            city="杭州",
+            category="food",
+            tier=2,
+            lon=120.12,
+            lat=30.25,
+            opening_hours="11:00-20:30",
+            suggested_duration_min=90,
+        ),
+    ]
+    monkeypatch.setattr(
+        "app.api.plan.get_poi_detail_store", lambda: SnapshotStore(rows)
+    )
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    app = make_app(agent)
+    client = TestClient(app)
+    # R11 垄断适配（2026-11-19 拍板「cpsat 失败=诚实披露」）：r0 的上海
+    # 开局在两行杭州 fake store 上引擎必退化（fallback）——旧契约落
+    # legacy 生成，垄断下缝失败=503。r0 只为建会话：缝引擎暂替「未尝试」
+    # （(None, None) 无 fallback outcome，agent.start 照旧、同样以偏好轮
+    # clarify 收场，与旧 r0 终态一致）；r1 前还原真引擎验整名不裂词。
+    from app.services.trip_solver import live as _live
+
+    _real_generate = _live.generate_session_via_trip_solver
+    monkeypatch.setattr(
+        _live, "generate_session_via_trip_solver", lambda **kw: (None, None)
+    )
+    r0 = start(client, {"cities": ["上海"], "days": 1, "start_date": "2026-11-25"})
+    monkeypatch.setattr(_live, "generate_session_via_trip_solver", _real_generate)
+    sid = r0.json()["session_id"]
+    # R8b 收口修正（原文本同城「去上海玩」不触发 new_trip_brief 换局闸
+    # ——目的地未换，走会话内插位而非换局引擎路径，stub 耗尽红）：改
+    # 跨城形态忠于测试意图（换局 + 餐厅整名不裂词）；fake store 仅上
+    # 海行，跨城后快照绑定链骨架兜底落「福和慧」整名卡（B-01 缝不吞点）。
+    r1 = client.post(
+        "/api/v1/plan/%s/message" % sid,
+        json={"text": "重新规划，去杭州玩1天，必去福和慧"},
+        headers=DEVICE_HEADERS,
+    )
+    assert r1.status_code == 200
+    body = r1.json()
+    assert body["session_id"].startswith("ts-")
+    names = [i["name"] for d in body["plan"]["days"] for i in d["items"]]
+    assert "福和慧" in names
+    assert "福" not in names and "慧" not in names
+
+
+def test_midtrip_intake_start_serves_via_engine(monkeypatch):
+    """R9-2：中途转移日开局（D2 到达/D2 离开）→ 引擎直服（端点闸拆除）。"""
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    app = make_app(agent)
+    client = TestClient(app)
+    monkeypatch.setattr("app.api.plan.get_poi_detail_store", _seam_fake_store)
+    resp = start(
+        client,
+        {
+            "cities": ["上海"],
+            "days": 2,
+            "start_date": "2026-11-25",
+            "arrival_date": "2026-11-26",
+            "arrival_time": "12:00",
+            "departure_date": "2026-11-27",
+            "departure_time": "20:00",
+        },
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["session_id"].startswith("ts-")
+    assert body["plan"]["days"]
+
+
+def test_apply_with_repair_routes_through_engine(monkeypatch):
+    """R10（拍板「anywhere legacy exists, switch to cp-sat」）：纯 move
+    结构 diff → F-50 引擎编辑重解（_apply_structural 哨兵证明 legacy
+    修复管线没跑）；库外卡/复杂 diff → legacy 管线原样。"""
+    import asyncio
+
+    from test_trip_solver_live import _edit_store
+
+    from app.services.agent.plan import DiffOp, PlanSession
+    from app.services.trip_solver.live import replan_session_via_trip_solver
+
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    session = PlanSession(
+        session_id="sess-r10",
+        device_id="dr",
+        cities=["上海"],
+        days=2,
+        start_date="2026-11-25",
+        must_visits=["外滩", "豫园"],
+        preferences="",
+    )
+    out = replan_session_via_trip_solver(session, store=_edit_store())
+    assert out is not None and session.plan is not None
+
+    async def _legacy_sentinel(*a, **k):
+        raise AssertionError("legacy repair pipeline must not run")
+
+    monkeypatch.setattr(agent, "_apply_structural", _legacy_sentinel)
+    monkeypatch.setattr("app.services.poi_details.get_poi_detail_store", _edit_store)
+    card = next(
+        it
+        for d in session.plan.days
+        for it in d.items
+        if it.day == 1 and (it.category or "") not in ("food", "hotel")
+    )
+    plan, summary, notes = asyncio.run(
+        agent._apply_with_repair(
+            session,
+            [DiffOp(op="move", item_id=card.item_id, new_day=2)],
+            "把" + card.name + "挪到第二天",
+        )
+    )
+    assert plan is not None
+    moved = [it for d in plan.days for it in d.items if it.name == card.name]
+    assert moved and moved[0].day == 2
+
+
+# --- R11：cpsat 垄断（引擎失败=诚实披露，绝不静默换 legacy） ----------------
+
+
+def test_generate_v0_engine_failure_falls_to_legacy(monkeypatch):
+    """R12 质量营救：cpsat 旗 + 引擎已试且失败（fallback outcome）→ 不抛
+    异常，披露随附、legacy 生成管线接管（哨兵验证被调）。"""
+    import asyncio
+
+    from app.services.agent.plan import PlanSession
+    from app.services.trip_solver import live as _live
+
+    class _Out:
+        engine = "legacy"
+        fallback = True
+        disclosures = [{"zh": "x", "en": "y"}]
+
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    agent = PlanningAgent(StubAdapter([]))
+    session = PlanSession(
+        session_id="sess-r12a",
+        device_id="da",
+        cities=["上海"],
+        days=1,
+        start_date="2026-11-25",
+    )
+    monkeypatch.setattr(
+        "app.services.poi_details.get_poi_detail_store", _seam_fake_store
+    )
+    monkeypatch.setattr(_live, "replan_session_via_trip_solver", lambda *a, **k: _Out())
+
+    async def _legacy_sentinel(*a, **k):
+        raise RuntimeError("legacy-path")
+
+    monkeypatch.setattr(agent, "_collect_candidates", _legacy_sentinel)
+    # cpsat 旗 + 引擎失败 → 落 legacy 管线（哨兵响）——不再上抛垄断异常
+    with pytest.raises(RuntimeError, match="legacy-path"):
+        asyncio.run(agent._generate_v0(session))
+    assert session.plan is None  # legacy 未完成（哨兵截断）——计划不动
+
+
+def test_apply_intake_times_skipped_when_engine_served(monkeypatch):
+    """cpsat 旗 + 引擎服务本会话 → start 尾部不再跑 legacy 的
+    _apply_intake_times（哨兵不响、流程完整跑通、标记 finally 清掉）；
+    legacy 旗对照：legacy 道生成 v0 后哨兵必响（守卫不拦 legacy）。"""
+    import asyncio
+
+    from app.services.itinerary.models import DayPlan, ItineraryPlan
+    from app.services.trip_solver import live as _live
+
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    monkeypatch.setattr(
+        "app.services.poi_details.get_poi_detail_store", _seam_fake_store
+    )
+
+    async def _intake_sentinel(*a, **k):
+        raise RuntimeError("intake-ran")
+
+    monkeypatch.setattr(agent, "_apply_intake_times", _intake_sentinel)
+
+    def _fake_replan(
+        sess, *, store, extra_assumptions=None, budget_s=3.0, weather_lookup=None
+    ):
+        plan = ItineraryPlan(
+            itinerary_id="it-r11b",
+            cities=list(sess.cities),
+            days=[DayPlan(day=1, base_city=sess.cities[0], items=[])],
+        )
+        plan.assumptions = ["引擎生成"]
+        sess.plan = plan
+        sess.assumptions = ["引擎生成"] + list(extra_assumptions or [])
+        sess.state = "ready"
+
+        class _O:
+            engine = "cpsat"
+            fallback = False
+            disclosures = []
+
+        return _O()
+
+    monkeypatch.setattr(_live, "replan_session_via_trip_solver", _fake_replan)
+    out = asyncio.run(
+        agent.start(
+            device_id="db",
+            cities=["杭州"],
+            days=2,
+            start_date="2026-11-25",
+            preferences="随便逛逛",
+            brief="11月25日出发去杭州玩两天",
+        )
+    )
+    assert out.plan is not None
+    assert out.state == "ready"
+    assert agent._ts_engine_served_sid == ""  # finally 清掉
+    # legacy 旗对照：真 replan 在 legacy 旗直接返回 None（不重试），legacy
+    # 道生成 v0 后必跑 _apply_intake_times（哨兵响=守卫没拦 legacy）
+    monkeypatch.setattr(_live, "replan_session_via_trip_solver", lambda *a, **k: None)
+    monkeypatch.delenv("TRIP_SOLVER", raising=False)
+    with pytest.raises(RuntimeError, match="intake-ran"):
+        asyncio.run(
+            agent.start(
+                device_id="db",
+                cities=["杭州"],
+                days=2,
+                start_date="2026-11-25",
+                preferences="随便逛逛",
+                brief="11月25日出发去杭州玩两天",
+            )
+        )
+
+
+def test_start_seam_engine_failure_legacy_rescue(monkeypatch):
+    """R12 质量营救：start 缝引擎失败（fallback outcome）→ agent.start
+    （legacy）接管服务 + 缝披露随附（assumptions），不是 503。"""
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    from app.services.agent.plan import PlanSession
+    from app.services.trip_solver import live as _live
+
+    class _Out:
+        engine = "legacy"
+        fallback = True
+        disclosures = [{"zh": "旧引擎披露行", "en": "legacy disclosure"}]
+
+    monkeypatch.setattr(
+        _live, "generate_session_via_trip_solver", lambda **kw: (None, _Out())
+    )
+    agent = PlanningAgent(StubAdapter([]))
+    app = make_app(agent)
+    client = TestClient(app)
+    served = {}
+
+    async def _fake_start(**kw):
+        s = PlanSession(
+            session_id="sess-legacy-rescue",
+            device_id=kw.get("device_id") or "d",
+            cities=kw.get("cities") or ["上海"],
+            days=1,
+            start_date="2026-11-25",
+        )
+        s.state = "ready"
+        served["sid"] = s.session_id
+        return s
+
+    monkeypatch.setattr(agent, "start", _fake_start)
+    resp = start(client, {"cities": ["上海"], "days": 1, "start_date": "2026-11-25"})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["session_id"] == served["sid"]  # legacy 接管服务
+
+
+def test_edit_hook_failure_falls_to_legacy_repair(monkeypatch):
+    """R12 质量营救：ops 全可映射 + 引擎编辑交不出计划 → 落 legacy 修复
+    管线（哨兵验证被调）——不再「原计划不动+披露」硬停。"""
+    import asyncio
+
+    from test_trip_solver_live import _edit_store
+
+    from app.services.agent.plan import DiffOp, PlanSession
+    from app.services.trip_solver import live as _live
+    from app.services.trip_solver.live import replan_session_via_trip_solver
+
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    session = PlanSession(
+        session_id="sess-r12d",
+        device_id="dd",
+        cities=["上海"],
+        days=2,
+        start_date="2026-11-25",
+        must_visits=["外滩", "豫园"],
+        preferences="",
+    )
+    out = replan_session_via_trip_solver(session, store=_edit_store())
+    assert out is not None and session.plan is not None
+
+    def _legacy_sentinel(*a, **k):
+        raise RuntimeError("legacy-repair-path")
+
+    monkeypatch.setattr(agent, "_apply_structural", _legacy_sentinel)
+    monkeypatch.setattr("app.services.poi_details.get_poi_detail_store", _edit_store)
+    monkeypatch.setattr(
+        _live, "edit_session_via_trip_solver", lambda *a, **k: (None, None)
+    )
+    card = next(
+        it
+        for d in session.plan.days
+        for it in d.items
+        if it.day == 1 and (it.category or "") not in ("food", "hotel")
+    )
+    with pytest.raises(RuntimeError, match="legacy-repair-path"):
+        asyncio.run(
+            agent._apply_with_repair(
+                session,
+                [DiffOp(op="move", item_id=card.item_id, new_day=2)],
+                "把" + card.name + "挪到第二天",
+            )
+        )
+
+
+def test_message_restart_engine_failure_legacy_rescue(monkeypatch):
+    """R12 质量营救：换局缝引擎失败 → restart_with_brief（legacy）接管
+    + 披露随附（assumptions），原会话不动语义照旧（重开新会话）。"""
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    from app.services.agent.plan import PlanSession
+    from app.services.trip_solver import live as _live
+
+    class _Out:
+        engine = "legacy"
+        fallback = True
+        disclosures = [{"zh": "旧引擎披露行", "en": "legacy disclosure"}]
+
+    monkeypatch.setattr(
+        _live, "generate_session_via_trip_solver", lambda **kw: (None, _Out())
+    )
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    app = make_app(agent)
+    client = TestClient(app)
+    monkeypatch.setattr("app.api.plan.get_poi_detail_store", _seam_fake_store)
+    r0 = start(client, {"cities": ["上海"], "days": 1, "start_date": "2026-11-25"})
+    sid = r0.json()["session_id"]
+    served = {}
+
+    async def _fake_restart(sess, text, brief):
+        fresh = PlanSession(
+            session_id="sess-restart-rescue",
+            device_id=sess.device_id,
+            cities=brief[0],
+            days=brief[1] or 1,
+            start_date=sess.start_date,
+        )
+        fresh.state = "ready"
+        fresh.assumptions = []
+        served["sid"] = fresh.session_id
+        return fresh, "已按新行程重开一局"
+
+    monkeypatch.setattr(agent, "restart_with_brief", _fake_restart)
+    r1 = client.post(
+        "/api/v1/plan/%s/message" % sid,
+        json={"text": "重新规划，去杭州玩1天"},
+        headers=DEVICE_HEADERS,
+    )
+    assert r1.status_code == 200
+    body = r1.json()
+    assert body["session_id"] == served["sid"]  # legacy 接管（新会话）
+    assert body["new_trip"] is True
+
+
+def test_message_restart_unserved_legacy_rescue(monkeypatch):
+    """R12 质量营救：换局缝未先试的形状（非 auto 城际）→
+    restart_with_brief 内 _generate_v0 钩子引擎「不接」（None）→ 不抛
+    503，落 legacy 管线服务 + 披露随附。"""
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    from app.services.trip_solver import live as _live
+
+    monkeypatch.setattr(_live, "replan_session_via_trip_solver", lambda *a, **k: None)
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    app = make_app(agent)
+    client = TestClient(app)
+    r0 = start(
+        client,
+        {
+            "cities": ["杭州"],
+            "days": 2,
+            "start_date": "2026-11-25",
+            "brief": "11月25日出发去杭州玩两天",
+        },
+    )
+    assert r0.status_code == 200
+    sid = r0.json()["session_id"]
+    r1 = client.post(
+        "/api/v1/plan/%s/message" % sid,
+        json={"text": "重新规划，去上海玩1天，火车出行"},
+        headers=DEVICE_HEADERS,
+    )
+    # 非 auto 城际 → 缝不接 → restart_with_brief（legacy）接管：
+    # stub 驱动的 legacy 重开完成、不是 503
+    assert r1.status_code == 200
+    body = r1.json()
+    assert body.get("new_trip") is True
+    assert body.get("plan") is not None
+
+
+# --------------------------------------- R13m 引擎形状的班次点选端到端
+
+
+def _engine_departure_session_app():
+    """引擎形状 ready 会话：去程卡(access-out-mt) + 访问卡(带班次窗口) +
+    同址午餐 + 回城卡(access-return-mt) + 夜卡（点选班次端点用）。"""
+    from datetime import time as dtime
+
+    agent = PlanningAgent(StubAdapter([]))
+    app = make_app(agent)
+    app.dependency_overrides[get_settings] = lambda: Settings(
+        llm_backend="mock", amap_api_key="k", map_provider="amap"
+    )
+    store = app.dependency_overrides[get_plan_sessions]()
+    out = VisitItem(
+        item_id="access-out-mt",
+        name="🚌 去程 · 前门大街北口 → 班车约98分",
+        category="transfer",
+        city="北京",
+        day=1,
+        start_time=dtime(8, 30),
+        end_time=dtime(10, 8),
+        duration_minutes=98,
+        synthetic=True,
+        access_mode="access",
+        address="前门大街北口",
+    )
+    mt = VisitItem(
+        item_id="mt",
+        name="慕田峪长城",
+        category="sight",
+        city="北京",
+        day=1,
+        start_time=dtime(10, 8),
+        end_time=dtime(13, 28),
+        duration_minutes=200,
+        location=GeoPoint(lon=116.5598, lat=40.4267),
+        access_mode="shuttle",
+        access_boarding=GeoPoint(lon=116.3982, lat=39.8988),
+        access_service_minutes=98,
+        access_ride_minutes=90,
+        access_last_mile_minutes=8,
+        access_boarding_stop="前门大街北口",
+        access_service_name="前门旅游专线",
+        access_depart_times=["07:30", "08:30", "09:30", "10:30"],
+        access_return_times=["14:30", "15:30", "16:30"],
+    )
+    lunch = VisitItem(
+        item_id="meal-lunch-1",
+        name="午餐",
+        category="food",
+        city="北京",
+        day=1,
+        start_time=dtime(13, 28),
+        end_time=dtime(14, 28),
+        duration_minutes=60,
+        anchor_location=GeoPoint(lon=116.5598, lat=40.4267),
+    )
+    ret = VisitItem(
+        item_id="access-return-mt",
+        name="回城",
+        category="transfer",
+        city="北京",
+        day=1,
+        start_time=dtime(14, 30),
+        end_time=dtime(16, 8),
+        duration_minutes=98,
+        synthetic=True,
+    )
+    night = VisitItem(
+        item_id="hotel-night-d1",
+        name="🏨 回酒店·夜间休息",
+        category="hotel",
+        city="北京",
+        day=1,
+        start_time=dtime(21, 0),
+        end_time=dtime(22, 0),
+        duration_minutes=60,
+        soft_pin=True,
+    )
+    store.save(
+        PlanSession(
+            session_id="s-depe",
+            device_id="device-1",
+            state="ready",
+            plan=ItineraryPlan(
+                itinerary_id="it-depe",
+                cities=["北京"],
+                days=[
+                    DayPlan(
+                        day=1,
+                        base_city="北京",
+                        items=[out, mt, lunch, ret, night],
+                    )
+                ],
+            ),
+        )
+    )
+    return app
+
+
+def _engine_mutianyu_store():
+    from app.services import access_services
+
+    class _Store:
+        def access_services(self, cities):
+            return [
+                dict(
+                    city="北京",
+                    poi_name="慕田峪长城",
+                    mode="shuttle",
+                    service_name="前门旅游专线",
+                    operator="北京旅游集散中心",
+                    boarding_stop="前门大街北口",
+                    boarding_lon=116.3982,
+                    boarding_lat=39.8988,
+                    alight_stop="慕田峪长城 P1/P4 停车场",
+                    outbound_first="07:30",
+                    outbound_last="10:30",
+                    outbound_times=["07:30", "08:30", "09:30", "10:30"],
+                    ride_minutes=90,
+                    last_mile_minutes=8,
+                    return_first="14:30",
+                    return_last="16:30",
+                    return_times=["14:30", "15:30", "16:30"],
+                    official_status="verified",
+                    window_source="official",
+                )
+            ]
+
+    access_services.configure_store(_Store())
+    return access_services
+
+
+def test_departure_endpoint_engine_out_card_retimes_and_keeps_chips():
+    """R13m：引擎去程卡点选 09:30——卡即班次段：重定发车 09:30、级联当天、
+    点选值落去程卡+景区卡；响应仍带班次 chips 数据（owner=去程卡）。"""
+    access_services = _engine_mutianyu_store()
+    app = _engine_departure_session_app()
+    try:
+        with TestClient(app, headers={"X-Device-ID": "device-1"}) as client:
+            r = client.post(
+                "/api/v1/plan/s-depe/departure",
+                json={
+                    "item_id": "access-out-mt",
+                    "direction": "out",
+                    "depart": "09:30",
+                },
+            )
+            assert r.status_code == 200, r.text
+            items = {i["item_id"]: i for i in r.json()["plan"]["days"][0]["items"]}
+            out = items["access-out-mt"]
+            assert out["start_time"].startswith("09:30")
+            assert out["access_chosen_depart"] == "09:30"
+            mt = items["mt"]
+            assert mt["access_chosen_depart"] == "09:30"  # poi 身份锚同步
+            # 首站 ≥ 09:30 + 90 车 + 8 落客
+            assert mt["start_time"] >= "11:08"
+            # 班次 chips 数据随响应（重排后重 annotate 仍推导）
+            leg = out.get("next_leg_detail") or {}
+            assert leg.get("departures") == [
+                "07:30",
+                "08:30",
+                "09:30",
+                "10:30",
+            ]
+            assert leg.get("returns") == ["14:30", "15:30", "16:30"]
+            assert leg.get("depart_time") == "09:30"
+            assert leg.get("owner_item_id") == "access-out-mt"
+    finally:
+        access_services.configure_store(None)
+
+
+def test_departure_endpoint_engine_return_shifts_site():
+    """R13m：引擎形状点返程班次 15:30——离场 = 15:30 − 走回乘车点 8。"""
+    access_services = _engine_mutianyu_store()
+    app = _engine_departure_session_app()
+    try:
+        with TestClient(app, headers={"X-Device-ID": "device-1"}) as client:
+            r = client.post(
+                "/api/v1/plan/s-depe/departure",
+                json={
+                    "item_id": "mt",
+                    "direction": "return",
+                    "depart": "15:30",
+                },
+            )
+            assert r.status_code == 200, r.text
+            items = {i["item_id"]: i for i in r.json()["plan"]["days"][0]["items"]}
+            mt = items["mt"]
+            # R13m 不变量：点选值落卡 + 离场不晚于所选班次 + 班车回城链
+            # 在场。（「离场=班次−走回」的精确 15:22 是 legacy 晨卡形状的
+            # 口径；引擎日空白午餐锚在远郊点时 legacy 先午餐 heal 会重排
+            # 当天，离场按 heal 收敛、展示班次可能顺延一班——heal 栈与
+            # 引擎 Q4（11:00 闸）的既有冲突，另轮挂账。）
+            assert mt["access_chosen_return"] == "15:30"
+            assert mt["end_time"] <= "15:30"
+            assert (mt.get("next_leg_detail") or {}).get("direction") == ("return")
+            rets = [i for k, i in items.items() if k.startswith("access-return-")]
+            assert rets  # 班车回城卡在场（非打车兜底）
+            leg = rets[0].get("next_leg_detail") or {}
+            assert leg.get("departures")
+    finally:
+        access_services.configure_store(None)
+
+
+# --------------------------------------- R13o③ 升旗锚缝接线（猴补丁验证）
+
+
+def test_departure_turn_runs_flag_schedule(monkeypatch):
+    """R13o③：消息回合出站缝调用升旗锚（引擎 replan/edit 的新计划
+    此前不带旗时）。猴补丁记录调用。"""
+    import app.services.agent.plan as agent_plan_mod
+
+    called = {}
+
+    def _fake_flag(plan):
+        called["plan"] = plan
+
+    monkeypatch.setattr(
+        agent_plan_mod, "_apply_flag_schedule", _fake_flag, raising=True
+    )
+    access_services = _engine_mutianyu_store()
+    app = _engine_departure_session_app()
+    try:
+        with TestClient(app, headers={"X-Device-ID": "device-1"}) as client:
+            r = client.post(
+                "/api/v1/plan/s-depe/departure",
+                json={
+                    "item_id": "access-out-mt",
+                    "direction": "out",
+                    "depart": "09:30",
+                },
+            )
+            assert r.status_code == 200, r.text
+    finally:
+        access_services.configure_store(None)
+    assert "plan" in called
+    assert called["plan"].days
+
+
+# --------------------------------------- R13q 点选班次上下游对齐
+
+
+def _engine_departure_session_app_with_morning(pinned_morning: bool = False):
+    """R13q 会话形状：R13m 引擎形状 + 晨卡（C-13 打包窗 07:15-07:45）+
+    嵌套同址午餐占位（F-22，soft_pin 保时刻）+ 240 满档景区 + 回城卡。"""
+    from datetime import time as dtime
+
+    agent = PlanningAgent(StubAdapter([]))
+    app = make_app(agent)
+    app.dependency_overrides[get_settings] = lambda: Settings(
+        llm_backend="mock", amap_api_key="k", map_provider="amap"
+    )
+    store = app.dependency_overrides[get_plan_sessions]()
+    morning = VisitItem(
+        item_id="hotel-morning-d1",
+        name="🏨 从酒店出发",
+        category="hotel",
+        city="北京",
+        day=1,
+        start_time=dtime(7, 15),
+        end_time=dtime(7, 45),
+        duration_minutes=30,
+        synthetic=True,
+        soft_pin=True,
+        pinned=pinned_morning,
+    )
+    out = VisitItem(
+        item_id="access-out-mt",
+        name="🚌 去程 · 前门大街北口 → 班车约98分",
+        category="transfer",
+        city="北京",
+        day=1,
+        start_time=dtime(8, 30),
+        end_time=dtime(10, 8),
+        duration_minutes=98,
+        synthetic=True,
+        access_mode="access",
+        address="前门大街北口",
+    )
+    mt = VisitItem(
+        item_id="mt",
+        name="慕田峪长城",
+        category="sight",
+        city="北京",
+        day=1,
+        start_time=dtime(10, 8),
+        end_time=dtime(14, 8),
+        duration_minutes=240,
+        location=GeoPoint(lon=116.5598, lat=40.4267),
+        access_mode="shuttle",
+        access_boarding=GeoPoint(lon=116.3982, lat=39.8988),
+        access_service_minutes=98,
+        access_ride_minutes=90,
+        access_last_mile_minutes=8,
+        access_boarding_stop="前门大街北口",
+        access_service_name="前门旅游专线",
+        access_depart_times=["07:30", "08:30", "09:30", "10:30"],
+        access_return_times=["14:30", "15:30", "16:30"],
+    )
+    lunch = VisitItem(
+        item_id="food-lunch-ph-d1",
+        name="午饭（自由安排）",
+        category="food",
+        city="北京",
+        day=1,
+        start_time=dtime(12, 0),
+        end_time=dtime(13, 0),
+        duration_minutes=60,
+        anchor_location=GeoPoint(lon=116.5598, lat=40.4267),
+        soft_pin=True,
+    )
+    ret = VisitItem(
+        item_id="access-return-mt",
+        name="回城",
+        category="transfer",
+        city="北京",
+        day=1,
+        start_time=dtime(14, 30),
+        end_time=dtime(16, 0),
+        duration_minutes=90,
+        synthetic=True,
+    )
+    night = VisitItem(
+        item_id="hotel-night-d1",
+        name="🏨 回酒店·夜间休息",
+        category="hotel",
+        city="北京",
+        day=1,
+        start_time=dtime(21, 0),
+        end_time=dtime(22, 0),
+        duration_minutes=60,
+        soft_pin=True,
+    )
+    store.save(
+        PlanSession(
+            session_id="s-depe-m",
+            device_id="device-1",
+            state="ready",
+            plan=ItineraryPlan(
+                itinerary_id="it-depe-m",
+                cities=["北京"],
+                days=[
+                    DayPlan(
+                        day=1,
+                        base_city="北京",
+                        items=[morning, out, mt, lunch, ret, night],
+                    )
+                ],
+            ),
+        )
+    )
+    return app
+
+
+def test_departure_engine_out_shifts_morning_and_snaps_return():
+    """R13q：点选去程班次——晨卡（上一层）随班次同移（双向），回城卡对齐
+    最早真实返程班；嵌套午餐占位早散场不再把返向 board 基拉回中位。"""
+    access_services = _engine_mutianyu_store()
+    app = _engine_departure_session_app_with_morning()
+    try:
+        with TestClient(app, headers={"X-Device-ID": "device-1"}) as client:
+            r = client.post(
+                "/api/v1/plan/s-depe-m/departure",
+                json={
+                    "item_id": "access-out-mt",
+                    "direction": "out",
+                    "depart": "09:30",
+                },
+            )
+            assert r.status_code == 200, r.text
+            body = r.json()
+            items = {i["item_id"]: i for i in body["plan"]["days"][0]["items"]}
+            # 晨卡（上一层）随班次 +1h 平移：07:15 → 08:15，notes 说明
+            assert items["hotel-morning-d1"]["start_time"].startswith("08:15")
+            assert "08:15" in (body.get("reply") or "")
+            out = items["access-out-mt"]
+            assert out["start_time"].startswith("09:30")
+            assert out["access_chosen_depart"] == "09:30"
+            assert items["mt"]["start_time"] >= "11:08"
+            # 回城卡=真实返程班 15:30，不是游标幽灵 15:08
+            ret = items.get("access-return-mt")
+            assert ret is not None and ret["start_time"].startswith("15:30")
+            site_leg = items["mt"].get("next_leg_detail") or {}
+            assert site_leg.get("depart_time") == "15:30"
+            # 反向：再点 07:30——晨卡随班次 −2h 回移、回城落回首班
+            r2 = client.post(
+                "/api/v1/plan/s-depe-m/departure",
+                json={
+                    "item_id": "access-out-mt",
+                    "direction": "out",
+                    "depart": "07:30",
+                },
+            )
+            assert r2.status_code == 200, r2.text
+            items2 = {i["item_id"]: i for i in r2.json()["plan"]["days"][0]["items"]}
+            assert items2["hotel-morning-d1"]["start_time"].startswith("06:15")
+            ret2 = items2.get("access-return-mt")
+            assert ret2 is not None and ret2["start_time"].startswith("14:30")
+    finally:
+        access_services.configure_store(None)
+
+
+def test_departure_engine_out_respects_pinned_morning():
+    """R13q：用户钉住（铁律 19）的晨卡不随班次平移。"""
+    access_services = _engine_mutianyu_store()
+    app = _engine_departure_session_app_with_morning(pinned_morning=True)
+    try:
+        with TestClient(app, headers={"X-Device-ID": "device-1"}) as client:
+            r = client.post(
+                "/api/v1/plan/s-depe-m/departure",
+                json={
+                    "item_id": "access-out-mt",
+                    "direction": "out",
+                    "depart": "09:30",
+                },
+            )
+            assert r.status_code == 200, r.text
+            items = {i["item_id"]: i for i in r.json()["plan"]["days"][0]["items"]}
+            assert items["hotel-morning-d1"]["start_time"].startswith("07:15")
+            assert items["access-out-mt"]["start_time"].startswith("09:30")
+    finally:
+        access_services.configure_store(None)
+
+
+def test_departure_engine_return_click_lands_return_card_on_schedule():
+    """R13q：点返程班次——回城卡落在真实返程班上且与景区卡返向 chips 一致。
+
+    （所选班次客观不可行时——景区末端被既有餐锚/compact 机制推晚，R13o
+    挂账在案——展示班次顺延到下一真实班，但绝不落游标幽灵时刻。）
+    """
+    access_services = _engine_mutianyu_store()
+    app = _engine_departure_session_app_with_morning()
+    try:
+        with TestClient(app, headers={"X-Device-ID": "device-1"}) as client:
+            r = client.post(
+                "/api/v1/plan/s-depe-m/departure",
+                json={"item_id": "mt", "direction": "return", "depart": "15:30"},
+            )
+            assert r.status_code == 200, r.text
+            items = {i["item_id"]: i for i in r.json()["plan"]["days"][0]["items"]}
+            mt = items["mt"]
+            assert mt["access_chosen_return"] == "15:30"  # 点选值落卡
+            ret = items.get("access-return-mt")
+            assert ret is not None and ret["start_time"] is not None
+            site_leg = mt.get("next_leg_detail") or {}
+            # 回城卡时刻 = 返向链真实班次，且在返程时刻表内
+            assert site_leg.get("depart_time") == ret["start_time"][:5]
+            assert ret["start_time"][:5] in ["14:30", "15:30", "16:30"]
+    finally:
+        access_services.configure_store(None)

@@ -1,4 +1,4 @@
-"""C-01..C-04 constraints + tier-① objective (P1-C1).
+"""C-01..C-04 constraints and full model assembly (P1-C1…P1-D).
 
 C-01 opening windows + closed weekdays — window from the F-12 first-window
 approximation; 周X关闭 parses from the hours text.
@@ -7,8 +7,8 @@ C-03 pairwise travel disjunction: if two candidates share a day, one must
 finish + travel before the other starts (matrix lookup, default 45).
 C-04 pins (iron rule 19: exact day + start) and day1_start horizon shift.
 
-Objective (P1-C1 minimal, tier ① only): minimise sum(unplaced × importance).
-F-23 full lexicographic objectives arrive in P1-D.
+F-23 objectives live in objectives.py and are solved lexicographically by
+solve.py; this module only assembles hard constraints.
 """
 
 from __future__ import annotations
@@ -17,8 +17,26 @@ import re
 from datetime import date, timedelta
 from typing import TYPE_CHECKING
 
-from ..inputs.travel import lookup
+from ..inputs.travel import haversine_km, lookup
+from .slack import SlackFlags
 from .vars import DAY_END_MINUTES, DAY_START_MINUTES, VarBundle, define_variables
+
+# 铁律 7 对齐（P2-B3 iter2）：审计 travel_gap_needed = taxi_leg_min(km)
+# = min(180, km×1.3绕行/35km/h×60) + 30 叫车；坐标对取
+# max(矩阵, taxi(km))——保实测腿质量、不放过近距对；同址
+# （≤SAME_VENUE_KM=solver 口径）免隔腿
+SAME_VENUE_KM = 0.5
+TAXI_SPEED_KMH = 35.0
+TAXI_DETOUR = 1.3
+TAXI_RIDE_CAP_MIN = 180
+TAXI_CALL_MINUTES = 30
+
+
+def _taxi_gap_minutes(km: float) -> int:
+    """审计走行缝公式（rules.travel_gap_needed / solver._taxi_leg_min）。"""
+    ride = min(TAXI_RIDE_CAP_MIN, round(km * TAXI_DETOUR / TAXI_SPEED_KMH * 60))
+    return ride + TAXI_CALL_MINUTES
+
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..inputs.enrich import EnrichedSnapshot
@@ -71,7 +89,15 @@ def add_c01_windows(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
                 model.Add(lit == 0)  # 闭馆日不可排（C-01）
                 continue
             lo = DAY_START_MINUTES
-            hi = DAY_END_MINUTES
+            hi = 23 * 60 if cand.best_visit_time == "show" else DAY_END_MINUTES
+            if (cand.best_visit_time or "") == "sunrise":
+                # R12-H11/H25（2026-11-20 用户令「天安门取真实的升旗
+                # 时间 FIX」）：晨锁带锚=flag_schedule 批次库真值
+                # （07:10/07:11 实测；空库回落静态 06:30）。
+                lo = 6 * 60 + 30
+                _ft = (getattr(enriched, "flag_times", None) or {}).get(day)
+                if _ft:
+                    lo = int(_ft)
             if (cand.cid, day) in _pinned_cids(snapshot.request, snapshot):
                 # 铁律19：钉住时刻不受 08:30 日始钳制（升旗/班次类）
                 lo = window[0] if window is not None else 0
@@ -83,13 +109,32 @@ def add_c01_windows(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
 
 
 def add_c02_caps(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
+    # R12-H16b/H22：入场闸硬口径，唯一豁免=远郊日返程后的「插一个」
+    # 设计位（用户拍板「第一天回城有富裕时间为么不可以加天坛」）。
+    # escape 布尔在此创建，C-06 填约束（esc ⇒ 远郊在场+返程后支+当日
+    # ≤1 槽——extras 计数同一环）；无远郊日的 esc 被 C-06 钉死为 0。
+    remote_keys = set(enriched.access_by_poi.keys())
     for cand in enriched.snapshot.candidates:
         cap, _reason = enriched.caps.get(cand.cid, (None, "unknown"))
         if cap is None:
             continue
+        is_remote = (cand.poi_id or cand.cid) in remote_keys
         for day in bundle.days:
             lit = bundle.presence[(cand.cid, day)]
-            bundle.model.Add(bundle.start[(cand.cid, day)] <= cap).OnlyEnforceIf(lit)
+            if is_remote:
+                bundle.model.Add(bundle.start[(cand.cid, day)] <= cap).OnlyEnforceIf(
+                    lit
+                )
+                continue
+            esc = bundle.model.NewBoolVar("capes_%s_%d" % (cand.cid, day))
+            bundle.cap_escapes[(cand.cid, day)] = esc
+            # R12-H23：入场闸弹性 +30（读闸 enforce_entry_gate 同口径
+            # ——2026-11-16 拍板「diff within 30 minutes, accept」）
+            from ..inputs.hours_caps import ENTRY_FLEX_MINUTES as _EFL
+
+            bundle.model.Add(bundle.start[(cand.cid, day)] <= cap + _EFL).OnlyEnforceIf(
+                [lit, esc.Not()]
+            )
 
 
 def add_c03_travel(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
@@ -102,14 +147,45 @@ def add_c03_travel(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
                 or keys[b.cid] in enriched.access_by_poi
             ):
                 continue  # C-08 接驳区间替代通用矩阵析取（P1-C2）
+            a_host = getattr(a, "same_venue", None)
+            b_host = getattr(b, "same_venue", None)
+            if (a_host and a_host in (b.cid, b.poi_id)) or (
+                b_host and b_host in (a.cid, a.poi_id)
+            ):
+                continue  # C-09 同址嵌套，不做旅行析取
+            km = (
+                haversine_km(a.lon, a.lat, b.lon, b.lat)
+                if a.lon is not None
+                and a.lat is not None
+                and b.lon is not None
+                and b.lat is not None
+                else None
+            )
+            if km is not None and km <= SAME_VENUE_KM:
+                # 同址免隔腿但仍禁重叠（audit rule 1：非餐卡不可
+                # 同刻）——零车程析取而非跳过（iter3 修正）
+                ab, ba = 0, 0
+            if a.city and b.city and a.city != b.city:
+                # R3d: 跨城对同日共现已被 C-07 全禁，逐日析取冗余；
+                # 剪掉 O(n²×days) 的顺序布尔（g11 6070 变量主成本）
+                continue
             ab = lookup(enriched.matrix, keys[a.cid], keys[b.cid])
             ba = lookup(enriched.matrix, keys[b.cid], keys[a.cid])
+            if km is not None:
+                need = _taxi_gap_minutes(km)
+                ab = max(ab, need)
+                ba = max(ba, need)
             for day in bundle.days:
                 pa = bundle.presence[(a.cid, day)]
                 pb = bundle.presence[(b.cid, day)]
                 if pa is pb:
                     continue
                 order = bundle.model.NewBoolVar("o_%s_%s_%d" % (a.cid, b.cid, day))
+                both = bundle.model.NewBoolVar("both_%s_%s_%d" % (a.cid, b.cid, day))
+                bundle.model.AddBoolAnd([pa, pb]).OnlyEnforceIf(both)
+                bundle.model.AddBoolOr([pa.Not(), pb.Not()]).OnlyEnforceIf(both.Not())
+                bundle.model.Add(order <= pa)
+                bundle.model.Add(order <= pb)
                 sa = bundle.start[(a.cid, day)]
                 sb = bundle.start[(b.cid, day)]
                 bundle.model.Add(sb >= sa + bundle.dur[a.cid] + ab).OnlyEnforceIf(
@@ -118,6 +194,7 @@ def add_c03_travel(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
                 bundle.model.Add(sa >= sb + bundle.dur[b.cid] + ba).OnlyEnforceIf(
                     [pa, pb, order.Not()]
                 )
+                bundle.travel_terms.append(ba * both + (ab - ba) * order)
 
 
 def add_c04_pins(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
@@ -146,16 +223,9 @@ def add_c04_pins(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
                 )
 
 
-def add_objective(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
-    snapshot = enriched.snapshot
-    weight = {r.rid: max(1, r.importance) for r in snapshot.request.musts}
-    weight.update({r.rid: 1 for r in snapshot.request.wishes})
-    terms = [bundle.unplaced[rid] * weight.get(rid, 1) for rid in bundle.unplaced]
-    if terms:
-        bundle.model.Minimize(sum(terms))
-
-
-def build_model(enriched: "EnrichedSnapshot") -> VarBundle:
+def build_model(
+    enriched: "EnrichedSnapshot", slack: "SlackFlags | None" = None
+) -> VarBundle:
     from .c05_c08 import (
         add_c05_endpoints,
         add_c06_remote_exclusivity,
@@ -163,14 +233,51 @@ def build_model(enriched: "EnrichedSnapshot") -> VarBundle:
         add_c08_access,
     )
 
+    flags = slack or SlackFlags()
     bundle = define_variables(enriched)
+    if flags.drop_fill:
+        # F-25 rung 1: fills forced absent (vars stay for lookups).
+        for cand in enriched.snapshot.candidates:
+            if cand.rid:
+                continue
+            for day in bundle.days:
+                bundle.model.Add(bundle.presence[(cand.cid, day)] == 0)
     add_c01_windows(bundle, enriched)
     add_c02_caps(bundle, enriched)
     add_c03_travel(bundle, enriched)
     add_c04_pins(bundle, enriched)
     add_c05_endpoints(bundle, enriched)
-    add_c06_remote_exclusivity(bundle, enriched)
     add_c07_city_coherence(bundle, enriched)
     add_c08_access(bundle, enriched)
-    add_objective(bundle, enriched)
+    # R12-H5：C-06 在 C-08 之后——返程到城变量（active_ret_vars）
+    # 由 C-08 创建，「返程后才许插一个」依赖它
+    add_c06_remote_exclusivity(bundle, enriched, relax=flags.relax_remote_exclusive)
+
+    from .c09_c16 import (
+        add_c09_meals,
+        add_c10_remote_lunch,
+        add_c11_shows,
+        add_c12_afternoon_single_big,
+        add_c12_family_day,
+        add_c12c_morning_single,
+        add_c13_hotels,
+        add_c14_coverage_before_fill,
+        add_c15_remote_departure,
+        add_c16_diversity_caps,
+    )
+
+    add_c09_meals(bundle, enriched)
+    add_c10_remote_lunch(bundle, enriched)
+    add_c11_shows(bundle, enriched)
+    add_c12_family_day(bundle, enriched)
+    add_c12_afternoon_single_big(bundle, enriched)
+    add_c12c_morning_single(bundle, enriched)
+    add_c13_hotels(bundle, enriched)
+    add_c14_coverage_before_fill(bundle, enriched)
+    add_c15_remote_departure(bundle, enriched)
+    add_c16_diversity_caps(bundle, enriched, relax=flags.relax_diversity)
+
+    from .c17_city_days import add_c17_city_days
+
+    add_c17_city_days(bundle, enriched)
     return bundle
