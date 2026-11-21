@@ -75,7 +75,7 @@ def test_e1_shape_tiananmen_then_direct_mutianyu_departure():
     city_items = names_remote_day - {"慕田峪长城"}
     assert len(city_items) <= 2  # 晨锚至多一个 + 补点至多一个
     for it in remote_day_items:
-        nm = by_cid[i_cid].name if False else by_cid[it.cid].name
+        nm = by_cid[it.cid].name
         if nm not in ("慕田峪长城", "老舍茶馆"):
             assert it.start_min <= 630  # 晨锚 ≤10:30
         elif nm == "老舍茶馆":
