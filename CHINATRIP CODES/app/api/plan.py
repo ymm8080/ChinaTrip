@@ -937,6 +937,9 @@ async def start_plan(
                 arrival_no_override=request.arrival_no_override,
                 departure_no_override=request.departure_no_override,
                 images=_decode_image_payloads(request.images),
+                # 换设备登录心愿归属：会话创建即带账号，legacy
+                # _generate_v0 → _absorb_wishlist 能按 owner_account_id 读行
+                account_id=account,
             )
         except PoiStoreUnavailableError:
             # 库降级（DB 锁存+空内存）不出占位假行程——干净 503 让前端
@@ -1061,6 +1064,8 @@ async def message_plan(
             logger.exception("plan/message restart named-must parse failed")
         trip_session = None
         trip_outcome = None
+        restart_wish_musts: list[str] = []
+        restart_wish_notes: list[str] = []
         try:
             from app.services.trip_solver.entry import (
                 ENGINE_CPSAT,
@@ -1085,6 +1090,29 @@ async def message_plan(
                 # _generate_v0 钩子不再重试
                 set_seam_attempted()
 
+                # 2026-11-22（换局缝吞心愿案）：与 start 缝同口径——换局
+                # 重开同样吸收行程中心心愿单。此前 musts 只带点名短语，
+                # 引擎成功时心愿静默不进规划、失败回落 legacy 反而吸收
+                # （restart_with_brief → _generate_v0），行为分叉。复用
+                # 同一权威吸收函数（城市闸/exclusion/跨城披露）。
+                try:
+                    wish_probe = PlanSession(
+                        session_id="wish-absorb-probe-restart",
+                        device_id=session.device_id,
+                        cities=list(restart_cities or []),
+                        account_id=account or session.account_id,
+                    )
+                    (
+                        restart_wish_musts,
+                        restart_wish_notes,
+                    ) = await agent._absorb_wishlist(wish_probe)
+                except Exception:
+                    logger.warning(
+                        "plan/message restart seam wishlist absorb failed",
+                        exc_info=True,
+                    )
+                    restart_wish_musts, restart_wish_notes = [], []
+
                 def _ts_restart():
                     # R13k：镜像 legacy restart_with_brief 的 fresh-start
                     # 语义——旧行程的行前信息（班次/时刻）不带入新局
@@ -1097,7 +1125,10 @@ async def message_plan(
                         cities=list(restart_cities or []),
                         days=restart_days or session.days or 0,
                         start_date=session.start_date,
-                        musts=list(restart_named_musts),
+                        # 点名短语 + 心愿单（同一权威吸收，去重不双卡）
+                        musts=list(
+                            dict.fromkeys([*restart_named_musts, *restart_wish_musts])
+                        ),
                         store=get_poi_detail_store(),
                         weather_lookup=partial(
                             daily_weather_text, get_session_factory()
@@ -1112,6 +1143,24 @@ async def message_plan(
         if trip_session is not None:
             session = trip_session
             session.account_id = account or session.account_id
+            # 换局缝心愿披露（与 start 缝同款）：引擎只带 plan.assumptions，
+            # absorbed/skip 需 API 层补上卡；must_visits 已由 live.py 用
+            # 合并后的 musts 写好，这里只做去重兜底。
+            if restart_wish_musts or restart_wish_notes:
+                session.must_visits = list(
+                    dict.fromkeys([*(session.must_visits or []), *restart_wish_musts])
+                )
+                if restart_wish_musts:
+                    session.assumptions.append(
+                        L(
+                            "已从行程中心心愿单带入必去："
+                            + "、".join(restart_wish_musts),
+                            "Must-visits brought in from the trip-center "
+                            "wishlist: " + ", ".join(restart_wish_musts),
+                        )
+                    )
+                if restart_wish_notes:
+                    session.assumptions.extend(restart_wish_notes)
             reply = L(
                 "已按你刚说的新行程重开一局："
                 f"{'→'.join(session.cities) or '（城市待定）'}，"

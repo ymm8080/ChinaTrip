@@ -3986,6 +3986,48 @@ def test_message_new_trip_named_phrase_binds_best_known(monkeypatch):
     assert "西湖" in names
 
 
+def test_message_restart_seam_absorbs_wishlist(monkeypatch):
+    """2026-11-22 换局缝吞心愿案：换局重开走 cpsat 引擎缝时，此前 musts
+    只带点名短语、完全不读心愿单（引擎成功静默、失败回落 legacy 反而吸收）。
+    修复后：本行程城市心愿进 musts 落卡 + 带入披露，跨城心愿跳过并披露。"""
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    from app.services.trip_items import TripItemService
+
+    monkeypatch.setattr("app.api.plan.get_poi_detail_store", _seam_fake_store)
+    svc = TripItemService()
+    svc.create("西湖", source="chat", city="杭州", owner_device_id="device-1")
+    svc.create("外滩", source="chat", city="上海", owner_device_id="device-1")
+    agent = PlanningAgent(StubAdapter([V0_JSON, V0_JSON]), trip_items=svc)
+    client = client_for(agent)
+
+    r0 = start(client, {"cities": ["上海"], "days": 1, "start_date": "2026-11-25"})
+    assert r0.status_code == 200
+    sid = r0.json()["session_id"]
+    r1 = client.post(
+        "/api/v1/plan/%s/message" % sid,
+        json={"text": "重新规划，去杭州玩1天"},
+        headers=DEVICE_HEADERS,
+    )
+    assert r1.status_code == 200
+    body = r1.json()
+    assert body["new_trip"] is True
+    assert body["session_id"].startswith("ts-")
+    # message 的 HTTP body 不带 assumptions（_plan_turn_body 字段集），
+    # 披露与 must_visits 落在会话本体——读 store 断言
+    sess = _session(client, agent, body["session_id"])
+    a = sess.assumptions or []
+    # 同城心愿（西湖/杭州）带入；跨城心愿（外滩/上海）跳过披露
+    assert any("已从行程中心心愿单带入必去" in x and "西湖" in x for x in a), a
+    assert any("外滩" in x and "不在本次行程城市" in x for x in a), a
+    assert any("西湖" in (m or "") for m in (sess.must_visits or []))
+    names = [
+        it.get("name")
+        for day in (body["plan"].get("days") or [])
+        for it in (day.get("items") or [])
+    ]
+    assert any(n and "西湖" in n for n in names), names
+
+
 def test_message_new_trip_preferences_stay_legacy(monkeypatch):
     """无点名标记的偏好残渣（行程别太赶）→ 仍落 legacy 管线：引擎
     musts=硬覆盖，偏好语义不对等（R8 偏好重排走 _generate_v0 钩子）。

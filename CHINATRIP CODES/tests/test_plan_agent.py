@@ -4115,3 +4115,69 @@ def test_message_one_day_request_trims_empty_trailing_day():
     names = {i.name for i in session.plan.days[0].items if isinstance(i, VisitItem)}
     assert {"西湖", "灵隐寺"} <= names
     assert not hard_errors(session)
+
+
+def test_absorb_wishlist_reads_account_owned_rows():
+    """2026-11-22 换设备登录心愿漏排案：登录账号在别的设备建的心愿行
+    （owner_account_id=acc-1、owner_device_id=旧设备），此前 _absorb_wishlist
+    只读 device 会被 list_groups 过滤掉——看板看得到、规划却不排且无披露。
+    修复：与看板同口径，把 session.account_id 作为第三参传进 list_groups。"""
+    svc = TripItemService()
+    svc.create(
+        "成都环球中心",
+        source="chat",
+        city="成都",
+        owner_device_id="old-device",
+        owner_account_id="acc-1",
+    )
+    session = PlanSession(
+        session_id="s-acct",
+        device_id="new-device",
+        account_id="acc-1",
+        cities=["成都"],
+        days=2,
+    )
+    agent = PlanningAgent(ScriptedLLM([]), trip_items=svc)
+    absorbed, skip_notes = run(agent._absorb_wishlist(session))
+    assert "成都环球中心" in absorbed, (absorbed, skip_notes)
+
+
+def test_absorb_wishlist_account_ownership_is_scoped():
+    """反向锚：账号通道不是「放开全量」——别的账号、别的设备的心愿仍
+    不得被吸收（USER ID 隔离不被回归破坏）。"""
+    svc = TripItemService()
+    svc.create(
+        "成都环球中心",
+        source="chat",
+        city="成都",
+        owner_device_id="old-device",
+        owner_account_id="someone-else",
+    )
+    session = PlanSession(
+        session_id="s-acct2",
+        device_id="new-device",
+        account_id="acc-1",
+        cities=["成都"],
+        days=2,
+    )
+    agent = PlanningAgent(ScriptedLLM([]), trip_items=svc)
+    absorbed, _skip = run(agent._absorb_wishlist(session))
+    assert "成都环球中心" not in absorbed
+
+
+def test_start_lands_account_id_before_absorb(monkeypatch):
+    """账号在会话创建时落地（不是 API 层事后补）——legacy _generate_v0
+    的吸收跑在返回之前，若此时 account_id 还是 None 就读不到跨设备心愿。
+    account 归属读取本身由上面两个 _absorb_wishlist 单元测试锁定。"""
+    monkeypatch.setenv("TRIP_SOLVER", "legacy")
+    agent = PlanningAgent(ScriptedLLM([v0_reply(SH_HZ_ITEMS)]))
+    session = run(
+        agent.start(
+            device_id="new-device",
+            cities=["成都"],
+            days=2,
+            preferences="",
+            account_id="acc-1",
+        )
+    )
+    assert session.account_id == "acc-1"

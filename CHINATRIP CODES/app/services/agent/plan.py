@@ -20939,17 +20939,24 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
         cur_itin = session.plan.itinerary_id if session.plan else None
         # 行程城市统一去「市」尾比对（心愿行/H5 手填可能带「市」尾）
         trip_cities = [c.strip().removesuffix("市") for c in session.cities]
+        # 2026-11-22（换设备登录心愿漏排案）：与看板读口同口径——本设备
+        # + 本登录账号的行都算「我的」。此前只读 device，登录用户在别的
+        # 设备建的心愿行（owner_account_id 有值、owner_device_id 不同）被
+        # 过滤掉：看板看得到、规划却不排且无披露，与成都环球中心案同型。
+        wish_account = getattr(session, "account_id", None)
         rows = list(
-            self._trip_items.list_groups(None, session.device_id).get("wishlist", [])
+            self._trip_items.list_groups(None, session.device_id, wish_account).get(
+                "wishlist", []
+            )
         )
         # 2026-10-31（用户实报「新行程不抓心愿单」）：已排期但挂在别的行
         # 程上的心愿行，对新行程视同心愿单重新吸收；安排后 _sync_wish_rows
         # 会把行换绑到当前行程并刷新 note/天序。
         rows += [
             r
-            for r in self._trip_items.list_groups(None, session.device_id).get(
-                "scheduled", []
-            )
+            for r in self._trip_items.list_groups(
+                None, session.device_id, wish_account
+            ).get("scheduled", [])
             if r.get("itinerary_id") != cur_itin
         ]
         for it in rows:

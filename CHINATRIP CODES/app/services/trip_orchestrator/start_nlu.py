@@ -54,6 +54,7 @@ class StartNluMixin:
         arrival_no_override: str | None = None,
         departure_no_override: str | None = None,
         images: list[tuple[bytes, str]] | None = None,
+        account_id: str | None = None,
     ) -> PlanSession:
         # legacy 共享名：顶层反向 import agent.plan 会循环——运行时取同一对象
         from app.services.agent.plan import (
@@ -77,6 +78,11 @@ class StartNluMixin:
         session = PlanSession(
             session_id=uuid.uuid4().hex,
             device_id=device_id,
+            # 2026-11-22（换设备登录心愿漏排案）：账号在创建时落地，
+            # 让 _generate_v0 → _absorb_wishlist 读 list_groups 时能按
+            # owner_account_id 取到别的设备建的心愿行（此前 API 层在
+            # 会话生成后才补 account_id，吸收早已跑完）。
+            account_id=account_id,
             cities=[_normalize_city(c) for c in cities if c and c.strip()],
             days=days if days and days > 0 else 0,
             preferences=preferences or "",
@@ -311,6 +317,8 @@ class StartNluMixin:
             start_date=session.start_date,
             intercity_mode=session.intercity_mode,
             lang=session.lang,
+            # 换局重开沿用当前会话的账号归属，别把登录态弄丢
+            account_id=getattr(session, "account_id", None),
         )
         note = L(
             "已按你刚说的新行程重开一局："
