@@ -810,6 +810,15 @@ async def start_plan(
     # legacy cascade with a disclosure (M8 rollback shape).
     trip_session = None
     trip_outcome = None
+    # 2026-11-21 成都环球中心案（心愿单被引擎缝吞掉）：R8 全量切引擎后，
+    # 纯开局走 generate_session_via_trip_solver(musts=[]) 硬编码空必去，
+    # 绕开 legacy 的 _generate_v0 → _absorb_wishlist——行程中心心愿单里属于
+    # 本次城市的心愿（如「成都环球中心」city=成都）静默不进规划、也无披露。
+    # 走缝前复用同一权威吸收逻辑（城市闸/排除/meta/跨城披露），把结果并进
+    # musts 交给引擎；跨城跳过披露随会话带出。legacy 路径不受影响（它自己
+    # 在 _generate_v0 里吸收），这里只在引擎缝分支生效。
+    seam_wish_musts: list[str] = []
+    seam_wish_notes: list[str] = []
     try:
         from app.services.trip_solver.entry import (
             ENGINE_CPSAT,
@@ -844,13 +853,30 @@ async def start_plan(
             # 不再重试（防双跑/双披露）；失败回落由缝自带披露
             set_seam_attempted()
 
+            # 复用 agent 的心愿吸收（与 legacy _generate_v0 同一函数）：构造
+            # 轻会话只带设备/城市，读心愿单得到本行程城市心愿名 + 跨城披露。
+            # 取返回值即可，不污染引擎缝随后自建的真正规划会话。
+            try:
+                wish_probe = PlanSession(
+                    session_id="wish-absorb-probe",
+                    device_id=x_device_id,
+                    cities=list(start_cities or []),
+                    account_id=account,
+                )
+                seam_wish_musts, seam_wish_notes = await agent._absorb_wishlist(
+                    wish_probe
+                )
+            except Exception:
+                logger.warning("plan/start seam wishlist absorb failed", exc_info=True)
+                seam_wish_musts, seam_wish_notes = [], []
+
             def _ts_generate():
                 return generate_session_via_trip_solver(
                     device_id=x_device_id,
                     cities=list(start_cities or []),
                     days=ts_days or 0,
                     start_date=request.start_date,
-                    musts=[],
+                    musts=list(seam_wish_musts),
                     store=get_poi_detail_store(),
                     # R13j：live 引擎雨天约束接线（此前两缝均不传
                     # weather_lookup——legacy 有天气/corpus 有 baked 天气、
@@ -931,6 +957,23 @@ async def start_plan(
     # 2026-11-14（用户拍板「心愿单/已排期按 USER ID 出内容」）：会话记住
     # 登录账号——会话里建的心愿行落 owner_account_id
     session.account_id = account or session.account_id
+    # 2026-11-21 心愿吸收披露：引擎缝成功时把 absorbed/skip 带出（legacy
+    # 路径已在 _generate_v0 自报，不重复）。must_visits 也补记，供后续
+    # message/replan 的 _session_snapshot 继续认这些心愿为必去。
+    if trip_session is not None and (seam_wish_musts or seam_wish_notes):
+        session.must_visits = list(
+            dict.fromkeys([*(session.must_visits or []), *seam_wish_musts])
+        )
+        if seam_wish_musts:
+            session.assumptions.append(
+                L(
+                    "已从行程中心心愿单带入必去：" + "、".join(seam_wish_musts),
+                    "Must-visits brought in from the trip-center wishlist: "
+                    + "、".join(seam_wish_musts),
+                )
+            )
+        if seam_wish_notes:
+            session.assumptions.extend(seam_wish_notes)
     # R13o③（R13n 审计）：升旗锚接 start 缝尾——旗时最高优先（2026-11-14
     # UAT 拍板）此前只接在 save/from-itinerary 开档缝，全新引擎会话首屏
     # 不跑升旗链（北京新单天安门排 12:00 中午场）。幂等（R12-G 重叠推平

@@ -3754,6 +3754,91 @@ def test_start_seam_serves_plain_shape_when_cpsat(monkeypatch):
     assert body["plan"]["days"]
 
 
+def test_start_seam_absorbs_wishlist_into_musts(monkeypatch):
+    """2026-11-21 成都环球中心案：全量切引擎后纯开局走引擎缝，此前 musts=[]
+    硬编码把心愿单吞掉——成都行程规划结果里没有「成都环球中心」也无披露。
+    修复后：本行程城市的心愿进引擎 musts（可被求解钉住），跨城心愿跳过并披露。"""
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    from app.services.trip_items import TripItemService
+    from app.services.trip_solver import live as _live
+
+    calls = []
+
+    def _spy(**kw):
+        calls.append(kw)
+        # 返回一个合法的 ready 会话，让引擎缝成功路径把心愿吸收披露带出。
+        plan = ItineraryPlan(
+            itinerary_id="it-wish",
+            cities=["成都"],
+            days=[
+                DayPlan(
+                    day=1,
+                    base_city="成都",
+                    items=[
+                        VisitItem(
+                            item_id="v1",
+                            name="成都环球中心",
+                            city="成都",
+                            day=1,
+                            duration_minutes=90,
+                            category="attraction",
+                        )
+                    ],
+                )
+            ],
+        )
+        s = PlanSession(
+            session_id="ts-spy-wish",
+            device_id="device-1",
+            cities=["成都"],
+            days=2,
+        )
+        s.plan = plan
+        s.state = "ready"
+        s.assumptions = list(plan.assumptions)
+        return s, None
+
+    monkeypatch.setattr(_live, "generate_session_via_trip_solver", _spy)
+    svc = TripItemService()
+    svc.create("成都环球中心", source="chat", city="成都", owner_device_id="device-1")
+    svc.create("陕西历史博物馆", source="chat", city="西安", owner_device_id="device-1")
+    agent = PlanningAgent(StubAdapter([V0_JSON, V0_JSON]), trip_items=svc)
+    client = client_for(agent)
+
+    r = start(client, {"cities": ["成都"], "days": 2, "start_date": "2026-11-25"})
+    assert r.status_code == 200
+    assert len(calls) == 1
+    # 同城心愿进引擎必去；跨城心愿不进
+    assert "成都环球中心" in calls[0]["musts"]
+    assert "陕西历史博物馆" not in calls[0]["musts"]
+    # 同城心愿有带入披露；跨城跳过也有披露（日志铁律：不许静默蒸发）
+    assert any("已从行程中心心愿单带入必去" in a for a in r.json()["assumptions"])
+    assert any(
+        "陕西历史博物馆" in a and "不在本次行程城市" in a
+        for a in r.json()["assumptions"]
+    )
+
+
+def test_start_legacy_still_absorbs_wishlist(monkeypatch):
+    """反向锚：legacy 路径（TRIP_SOLVER=legacy）仍由 _generate_v0 自己吸收，
+    API 缝不得重复报披露或重复写 musts。"""
+    monkeypatch.setenv("TRIP_SOLVER", "legacy")
+    from app.services.trip_items import TripItemService
+
+    svc = TripItemService()
+    svc.create("成都环球中心", source="chat", city="成都", owner_device_id="device-1")
+    agent = PlanningAgent(StubAdapter([V0_JSON, V0_JSON]), trip_items=svc)
+    client = client_for(agent)
+    r = start(client, {"cities": ["成都"], "days": 2, "start_date": "2026-11-25"})
+    assert r.status_code == 200
+    # legacy 会话自己吸收一次；API 缝（seam_wish_* 为空）不叠加第二次披露
+    # （clarify/site_confirm 轮无 assumptions 字段时用空列表兜底）
+    assert (
+        sum("已从行程中心心愿单带入必去" in a for a in r.json().get("assumptions", []))
+        <= 1
+    )
+
+
 def test_start_seam_direct_connects_city_days_and_modes(monkeypatch):
     """R8 形状闸收窄：分城天数（C-17 拆窗镜像）/指定城际/确认卡 override
     折算透传引擎；brief/带图开局仍留 legacy 读点确认轮。"""
