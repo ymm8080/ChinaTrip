@@ -3275,7 +3275,15 @@ def test_number_override_lands_on_session():
 
 def test_text_with_date_skips_intake_card():
     """文字里读得出出发日期=信息足够：不弹行前卡，直接按文字日期生成
-    （2026-11-15 用户拍板「行前卡只在文字输入且信息不足时弹出」）。"""
+    （2026-11-15 用户拍板「行前卡只在文字输入且信息不足时弹出」）。
+    日期取**未来**某天（+40 天）——硬编码历日会在日历翻页后翻成过去日，
+    解析器按语义正确滚下一年（2026-11-21 后 11月20日→2027），测试
+    就红了（2026-11-21 CI 实锤）。"""
+    from datetime import date as _date
+    from datetime import timedelta as _td
+
+    _d = _date.today() + _td(days=40)
+    _text = f"{_d.month}月{_d.day}日去北京 2 天"
     agent = PlanningAgent(StubAdapter([V0_JSON]))
     client = client_for(agent)
     resp = start(
@@ -3283,8 +3291,8 @@ def test_text_with_date_skips_intake_card():
         {
             "cities": [],
             "days": 0,
-            "preferences": "11月20日去北京 2 天",
-            "brief": "11月20日去北京 2 天",
+            "preferences": _text,
+            "brief": _text,
         },
     )
     assert resp.status_code == 200
@@ -3293,7 +3301,7 @@ def test_text_with_date_skips_intake_card():
     plan = body["plan"]
     assert plan["cities"] == ["北京"]
     assert len(plan["days"]) == 2
-    assert plan["start_date"] == "2026-11-20"
+    assert plan["start_date"] == _d.isoformat()
 
 
 def test_text_without_date_asks_intake_card():
