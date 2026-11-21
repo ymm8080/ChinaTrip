@@ -1112,7 +1112,11 @@ def attach_outbound_taxi_cards(plan: ItineraryPlan) -> ItineraryPlan:
             if boarding is None:
                 continue
             km = haversine_km(anchor_pt, boarding)
-            taxi_min = taxi_leg_min(km) or 0
+            # R15：打车分钟优先档案值（与晨卡离店/C-06/C-08/C-13 约束同源），
+            # 无档案才按坐标几何估。
+            taxi_min = int(getattr(site, "access_taxi_minutes", 0) or 0) or (
+                taxi_leg_min(km) or 0
+            )
             if km <= 0.05 or taxi_min <= 0:
                 continue  # 乘车点就在脚下：无打车段（与前端打车行同闸）
             board = _clock_minutes(item.start_time)

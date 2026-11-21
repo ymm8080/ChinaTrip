@@ -121,6 +121,8 @@ class VisitItem(BaseModel):
     access_mode: str | None = None
     access_boarding: GeoPoint | None = None
     access_service_minutes: int | None = None
+    # R15：打车段分钟（档案值，缺省网关口径）——晨卡离店与去程打车卡同源。
+    access_taxi_minutes: int | None = None
     access_wait_minutes: int | None = None
     access_last_mile_minutes: int | None = None
     # 远郊专线时刻表（2026-11-16 用户拍板「班次服务窗建硬约束」）：数据来自

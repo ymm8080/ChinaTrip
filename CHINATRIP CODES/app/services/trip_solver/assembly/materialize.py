@@ -25,6 +25,7 @@ from ...itinerary.models import (
     UnplacedCandidate,
     VisitItem,
 )
+from ..model.c05_c08 import DEFAULT_GATEWAY_TAXI_MINUTES
 from ..snapshot import snapshot_hash
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -296,6 +297,7 @@ def materialize_plan(
     }
     for day_no in range(1, snapshot.request.days + 1):
         items: list[VisitItem] = []
+        day_outbounds: list[tuple[int, int]] = []
         day_items = [it for it in solution.items if it.day == day_no]
         day_items.sort(key=lambda it: (it.start_min, it.cid))
         for sol_item in day_items:
@@ -365,6 +367,12 @@ def materialize_plan(
                     card.access_return_times = list(profile.returns)
                     card.access_ticket_url = profile.ticket_url
                     card.access_official_url = profile.official_url
+                    # R15：打车段分钟随卡（档案值，缺省网关打车口径）——
+                    # 晨卡离店=班次−打车与去程打车卡共用同源分钟数。
+                    card.access_taxi_minutes = (
+                        int(getattr(profile, "taxi_minutes", 0) or 0)
+                        or DEFAULT_GATEWAY_TAXI_MINUTES
+                    )
                     if (
                         profile.boarding_lon is not None
                         and profile.boarding_lat is not None
@@ -412,6 +420,14 @@ def materialize_plan(
                         address=gateway or None,
                     )
                     items.append(out)
+                    # R15：记下当天去程班次与打车分钟（晨卡离店=班次−打车同源）
+                    day_outbounds.append(
+                        (
+                            int(depart),
+                            int(getattr(card, "access_taxi_minutes", 0) or 0)
+                            or DEFAULT_GATEWAY_TAXI_MINUTES,
+                        )
+                    )
             items.append(card)
             if leg is not None and leg.get("return_depart_min") is not None:
                 arrive_city = leg.get("arrive_city_min")
@@ -449,7 +465,18 @@ def materialize_plan(
             m = hotel_by_slot["morning"]
             m_start = int(m.get("start_min") or 0)
             m_end = int(m.get("end_min") or 0)
-            if m_end > m_start:
+            # R15（2026-11-21 用户令「去程 8:30、出租 16，为什么从酒
+            # 酒店出发时 7:15」FIX）：
+            # C-13 的晨窗起点是打包窗（ready−60 起），晨卡要显示的却是
+            # 「离店时刻」=班次−打车（C-13 ready 同语义）。带去程班次的日子
+            # 把晨卡收成离店点卡；打车分钟=档案值（缺省网关口径，与
+            # C-06/C-08/C-13 约束同源——去程打车卡同读此值）。
+            if day_outbounds:
+                _dep, _taxi = min(day_outbounds, key=lambda p: p[0])
+                _ready = int(_dep) - int(_taxi)
+                if _ready > 0:
+                    m_start = m_end = _ready
+            if m_end >= m_start and m_end > 0:
                 items.insert(
                     0,
                     VisitItem(

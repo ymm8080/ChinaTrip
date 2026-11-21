@@ -638,10 +638,28 @@ def test_hotel_anchor_cards_materialize():
     assert "hotel-night-d1" in ids
     m = next(i for i in plan.days[0].items if str(i.item_id) == "hotel-morning-d1")
     assert m.category == "hotel" and m.synthetic and m.soft_pin
-    assert m.start_time == time(8, 0) and m.end_time == time(8, 30)
+    # R15：带去程班次的日子，晨卡=离店点卡（班次−打车=08:00−15=07:45）
+    assert m.start_time == time(7, 45) and m.end_time == time(7, 45)
+    assert int(m.duration_minutes or 0) == 0
     n = next(i for i in plan.days[0].items if str(i.item_id) == "hotel-night-d1")
     # 夜卡收口 DAY_END 21:30（C-13 的 22:30 尾被钳；起随之回拉 30 分）
     assert n.start_time == time(21, 0) and n.end_time == time(21, 30)
+
+
+def test_hotel_morning_window_without_outbound_kept():
+    """R15：无去程班次的日子（城内日）晨窗保持 C-13 原值。"""
+    snapshot, solution = _outbound_fixture()
+    solution = Solution(
+        status="FEASIBLE",
+        items=list(solution.items),
+        access_legs=[],  # 无去程班次 → 无去程卡 → 晨窗不重写
+        hotel_anchors=[
+            {"slot": "morning", "day": 1, "start_min": 480, "end_min": 510},
+        ],
+    )
+    plan = materialize_plan(solution, snapshot)
+    m = next(i for i in plan.days[0].items if str(i.item_id) == "hotel-morning-d1")
+    assert m.start_time == time(8, 0) and m.end_time == time(8, 30)
 
 
 def test_no_hotel_anchors_no_cards():

@@ -35,6 +35,7 @@ def _remote_day():
         access_mode="shuttle",
         access_boarding=GeoPoint(lon=116.3982, lat=39.8988),
         access_service_minutes=98,
+        access_taxi_minutes=15,
         access_ride_minutes=90,
         access_last_mile_minutes=8,
         access_boarding_stop="前门大街北口",
@@ -148,6 +149,44 @@ def test_no_taxi_card_without_taxi_leg():
         if str(i.item_id or "").startswith(TAXI_BOARD_PREFIX)
     ]
     assert not left
+
+
+def test_taxi_minutes_profile_first_geo_fallback():
+    from app.services.itinerary.rules import haversine_km, taxi_leg_min
+
+    items, out, mt, ret = _remote_day()
+    plan = _plan(items)
+    annotate_legs(plan)
+    attach_outbound_taxi_cards(plan)
+    taxi = next(
+        i
+        for i in plan.days[0].items
+        if str(i.item_id or "").startswith(TAXI_BOARD_PREFIX)
+    )
+    assert taxi.duration_minutes == 15  # 档案值优先
+
+    items2, out2, mt2, ret2 = _remote_day()
+    mt2.access_taxi_minutes = None
+    plan2 = _plan(items2)
+    annotate_legs(plan2)
+    attach_outbound_taxi_cards(plan2)
+    taxi2 = next(
+        i
+        for i in plan2.days[0].items
+        if str(i.item_id or "").startswith(TAXI_BOARD_PREFIX)
+    )
+    morning_pt = next(
+        i
+        for i in plan2.days[0].items
+        if str(i.item_id or "").startswith("hotel-morning")
+    ).location
+    km = haversine_km(morning_pt, mt2.access_boarding)
+    assert taxi2.duration_minutes == taxi_leg_min(km)
+    assert taxi2.duration_minutes == (
+        taxi2.end_time.hour * 60
+        + taxi2.end_time.minute
+        - (taxi2.start_time.hour * 60 + taxi2.start_time.minute)
+    )
 
 
 def test_response_copy_only_session_untouched():
