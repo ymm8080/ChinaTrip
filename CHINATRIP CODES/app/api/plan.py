@@ -1289,6 +1289,15 @@ def _plan_for_response(plan):
         plan = attach_return_cards(plan)
     except Exception:  # 展示糖：绝不能把行程卡拉挂
         logger.warning("plan return cards attach failed", exc_info=True)
+    # R14（2026-11-21 用户令「打车应该在酒店和去程之间」FIX）：引擎远郊日
+    # 去程卡里的打车段拆成独立 🚕 卡插在晨卡与去程卡之间——响应副本渲染件
+    # （幂等先清后挂；会话本体零打车卡），交通桥卡在最终形状上重挂。
+    from app.services.itinerary.legs import attach_outbound_taxi_cards
+
+    try:
+        plan = attach_outbound_taxi_cards(plan)
+    except Exception:  # 展示糖：绝不能把行程卡拉挂
+        logger.warning("plan outbound taxi cards attach failed", exc_info=True)
     # R12（2026-11-19 拍板「天安门后应该在去下一个景点的路上，而不是
     # 空着等到午餐卡」）：>=45 分钟的同日空档挂可见「前往下一站」交通
     # 桥卡——与回城卡同契约（响应副本、幂等先清后挂），session 本体

@@ -818,6 +818,10 @@ RETURN_CARD_PREFIX = "access-return-"
 # 同 RETURN_CARD_PREFIX 的既定镜像模式——itinerary 层不 import 引擎装配层）。
 OUTBOUND_CARD_PREFIX = "access-out-"
 
+# R14：引擎去程打车段渲染卡前缀（响应副本渲染件，attach_outbound_taxi_cards
+# 幂等挂载；会话本体零打车卡——同 leg-bridge-/access-return- 渲染件家族）。
+TAXI_BOARD_PREFIX = "taxi-board-"
+
 
 def _clock_minutes(value) -> int | None:
     """time → 当天分钟数（None 透传）。"""
@@ -1043,6 +1047,98 @@ def _attach_engine_outbound_legs(plan: ItineraryPlan) -> None:
                 "含接驳票价估算", "includes an estimated shuttle fare"
             )
             item.next_leg_detail = detail
+
+
+def attach_outbound_taxi_cards(plan: ItineraryPlan) -> ItineraryPlan:
+    """R14（2026-11-21 用户令「打车应该在酒店和去程之间」FIX）：引擎远郊日
+        去程卡 detail 里的打车段（酒店/城心锚 → 市区乘车点）拆成独立 🚕 卡，
+        插在晨卡与去程卡之间——时间线上先「打车到乘车点」再「班车发车」，
+        打车不再顶在班车卡里。与回城卡/交通桥卡同契约：响应副本渲染件
+    （api._plan_for_response 幂等挂载），会话本体与持久快照零打车卡——
+        点选班次/编辑重排机器面零变化（session 侧 detail 保留 taxi 字段，
+        仅下发副本清零防双显）。legacy 零变化（打车行挂晨卡上）。
+    重推导从景区卡 canonical 字段读（不依赖副本上已剥的 detail）。
+    幂等：先清 taxi-board-* 再按当前形状重挂（点选班次后 board 跟随新时刻）。
+    """
+    for day in plan.days:
+        day.items = [
+            i
+            for i in day.items
+            if not str(getattr(i, "item_id", "") or "").startswith(TAXI_BOARD_PREFIX)
+        ]
+    for day in plan.days:
+        by_id = {
+            i.item_id: i for i in day.items if isinstance(i, VisitItem) and i.item_id
+        }
+        anchor_pt, _anchor_name = _day_city_anchor(day)
+        if anchor_pt is None:
+            continue
+        for item in list(day.items):
+            iid = str(item.item_id or "")
+            if not iid.startswith(OUTBOUND_CARD_PREFIX) or not isinstance(
+                item, VisitItem
+            ):
+                continue
+            if item.start_time is None:
+                continue
+            site = by_id.get(iid[len(OUTBOUND_CARD_PREFIX) :])
+            if site is None or site is item:
+                continue
+            if (getattr(site, "access_mode", None) or "") not in (
+                SCHEDULED_ACCESS_MODES
+            ):
+                # 非班次档案：普通腿链负责（同 _attach_engine_outbound_legs 闸）
+                continue
+            boarding = getattr(site, "access_boarding", None)
+            if boarding is None:
+                continue
+            km = haversine_km(anchor_pt, boarding)
+            taxi_min = taxi_leg_min(km) or 0
+            if km <= 0.05 or taxi_min <= 0:
+                continue  # 乘车点就在脚下：无打车段（与前端打车行同闸）
+            board = _clock_minutes(item.start_time)
+            if board is None or board <= 0:
+                continue
+            idx = day.items.index(item)
+            prev_end = None
+            for prev in day.items[:idx]:
+                if isinstance(prev, VisitItem) and prev.end_time is not None:
+                    m = _clock_minutes(prev.end_time)
+                    if m is not None:
+                        prev_end = m if prev_end is None else max(prev_end, m)
+            start_min = board - taxi_min
+            if prev_end is not None and prev_end > start_min:
+                if prev_end >= board:
+                    continue  # 前卡已顶到发车时刻：窗口不够，绝不硬塞
+                start_min = prev_end
+            span = board - start_min
+            if span <= 0:
+                continue
+            gateway = str(getattr(site, "access_boarding_stop", "") or "")
+            taxi = VisitItem(
+                item_id=TAXI_BOARD_PREFIX + iid[len(OUTBOUND_CARD_PREFIX) :],
+                name="🚕 打车前往%s · 约%d分钟" % (gateway or "乘车点", span),
+                name_en="🚕 Taxi to %s (~%d min)"
+                % (gateway or "the shuttle stop", span),
+                category="transfer",
+                city=item.city or site.city,
+                day=item.day or day.day,
+                start_time=_time_of(start_min),
+                end_time=_time_of(board),
+                duration_minutes=span,
+                synthetic=True,
+            )
+            day.items.insert(idx, taxi)
+            # 下发副本剥掉去程卡的打车行（打车信息由独立卡自明，防双显）；
+            # 车费行同步去掉打车份。session 侧 detail 不动（机器面零变化）。
+            detail = item.next_leg_detail or {}
+            stripped = dict(detail)
+            stripped["taxi_km"] = 0.0
+            stripped["taxi_minutes"] = 0
+            stripped["taxi_cost"] = 0
+            item.next_leg_detail = stripped
+            item.next_leg_cost_cny = access_fare_estimate(site.access_mode)
+    return plan
 
 
 def _gate_item_links(plan: ItineraryPlan) -> None:
