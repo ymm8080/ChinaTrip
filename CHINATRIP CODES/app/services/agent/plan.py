@@ -12287,6 +12287,108 @@ def _ripple_after_duration(
     return moved, dropped
 
 
+def _align_engine_shuttle_day(
+    day: DayPlan,
+    *,
+    edited_out_id: str | None = None,
+    prev_depart_min: int | None = None,
+    depart_min: int | None = None,
+) -> list[str]:
+    """引擎去程班次变化后的当天上/下游对齐（2026-11-21 用户拍板「任何时间
+    的改变，除了下一层的时间随之改变，上一层的时间也需要改变」）。
+
+    只处理引擎日（带 access-out- 去程卡；legacy 晨卡形状各归各卡不过此函）：
+    ① 晨卡（hotel-morning-）随所点班次同移——离店与班次的既有提前量（C-13
+       物化口径）原样平移，双向都动。通用 reanchor_hotel_mornings 的
+       「只回拨 + 09:00 帽」是泛编辑口径，对用户权威的班次硬铆钉会把更晚
+       班次的晨卡钉死在旧时刻（用户实测「上一层没有 UPDATE」）。仅当被改
+       的去程卡就是晨卡锚定的当天首个有时刻件、且晨卡未被用户钉住（铁律
+       19）时生效。
+    （回城卡/返向 chips 的对齐不在会话层做：annotate 期返向链 board 基
+    已取同址簇散场最晚（R13q legs.py），响应层 attach_return_cards 再按
+    该 detail 重投影回城卡——retime_item 游标中间态（景区 +30 贴排）尚
+    未定形，compact/实测腿回填还会再动，此处 snap 只会咬到中间基线。）
+
+    edited_out_id/prev/depart 三参齐给才做晨卡平移（点返程班次不牵动晨卡）。
+    返回 notes（用户可见的调整说明）。
+    """
+    notes: list[str] = []
+    from app.services.trip_solver.assembly.materialize import (
+        OUTBOUND_CARD_PREFIX,
+        RETURN_CARD_PREFIX,
+    )
+
+    out_cards = [
+        i
+        for i in day.items
+        if isinstance(i, VisitItem)
+        and (i.item_id or "").startswith(OUTBOUND_CARD_PREFIX)
+    ]
+    if not out_cards:
+        return notes
+
+    # ① 晨卡随班次同移（保既有提前量，双向）
+    if (
+        edited_out_id is not None
+        and prev_depart_min is not None
+        and depart_min is not None
+        and depart_min != prev_depart_min
+        and not edited_out_id.startswith(RETURN_CARD_PREFIX)
+    ):
+        timed_nonhotel = [
+            i
+            for i in day.items
+            if isinstance(i, VisitItem)
+            and not is_hotel_morning(i)
+            and not is_hotel_night(i)
+            and not (is_lunch_placeholder(i) or is_dinner_placeholder(i))
+            and i.start_time is not None
+        ]
+        first_out = (
+            min(timed_nonhotel, key=lambda i: _minutes_of(i.start_time) or 0)
+            if timed_nonhotel
+            else None
+        )
+        if (
+            first_out is not None
+            and (first_out.item_id or "") == edited_out_id
+            and (first_out.item_id or "").startswith(OUTBOUND_CARD_PREFIX)
+        ):
+            morning = next(
+                (
+                    i
+                    for i in day.items
+                    if isinstance(i, VisitItem) and is_hotel_morning(i)
+                ),
+                None,
+            )
+            if (
+                morning is not None
+                and not getattr(morning, "pinned", False)
+                and morning.start_time is not None
+            ):
+                m0 = _minutes_of(morning.start_time) or 0
+                e0 = (
+                    _minutes_of(morning.end_time)
+                    if morning.end_time is not None
+                    else None
+                )
+                dur = max(0, (e0 - m0) if e0 is not None else 0)
+                m1 = max(0, m0 + (depart_min - prev_depart_min))
+                morning.start_time = _time_of(m1)
+                morning.end_time = _time_of(m1 + dur) if dur else _time_of(m1)
+                morning.duration_minutes = dur
+                notes.append(
+                    L(
+                        "晨卡离店时间随所选班次调整为 %s" % _fmt_hm(_time_of(m1)),
+                        "Hotel departure adjusted to %s to match the "
+                        "selected shuttle" % _fmt_hm(_time_of(m1)),
+                    )
+                )
+
+    return notes
+
+
 def _fallback_sequence_times(
     plan: ItineraryPlan, *, keep_list_order: bool = False
 ) -> None:
@@ -32211,6 +32313,8 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
         )
         day_no = edited.day
         dur = edited.duration_minutes or DEFAULT_VISIT_MINUTES
+        # R13q：改前时刻（晨卡随班次平移的基线；改的是去程卡时=改前班次）
+        prev_start_min = _minutes_of(visit.start_time)
         start_min = start.hour * 60 + start.minute
         end_min = start_min + dur
         edited.start_time = start
@@ -32230,6 +32334,17 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
                 it.end_time = None
         notes = _reconcile_transfer_days(candidate, user_edit=True)
         _fallback_sequence_times(candidate, keep_list_order=True)
+        # R13q（2026-11-21 用户拍板「上一层的时间也需要改变」）：改的是
+        # 引擎接驳链上的卡时，晨卡先随班次平移（保既有提前量）——必须先于
+        # reanchor_hotel_cards 的「晨卡回拨 首件−30」，否则点更早班次会被
+        # 回拨叠加成双重平移（实测 07:30 班把 08:15 晨卡压到 04:30）。函数
+        # 自闸：非引擎日/晨卡钉住/非首班去程目标各段自动跳过。
+        notes = notes + _align_engine_shuttle_day(
+            day,
+            edited_out_id=item_id,
+            prev_depart_min=prev_start_min,
+            depart_min=start_min,
+        )
         # 2026-11-13 续：用户改时后酒店卡跟随当天首/末件（软锚不挡编辑）
         reanchor_hotel_cards(candidate.days, keep_ids={item_id})
         report = validate_plan(candidate, poi_hours=[])
@@ -32373,7 +32488,8 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
         """接驳班次点选重排（2026-11-16 用户拍板「班次可以点击选取重排」）。
 
         direction="out"：晨卡（hotel-morning）按所点去程班次回算离店时刻
-        （离店 = 班次 − 打车(含早高峰)），当天其余件按序重排；
+        （离店 = 班次 − 打车(含早高峰)；引擎去程卡形状=晨卡随班次平移保
+        既有提前量，_align_engine_shuttle_day），当天其余件按序重排；
         direction="return"：景区卡按所点返程班次回推离场时刻
         （离场 = 班次 − 走回乘车点分钟），当天其余件按序重排。
         点选值落卡（access_chosen_depart / access_chosen_return），后续
@@ -32478,8 +32594,25 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
                 site.access_chosen_depart = _fmt_hm(depart)
         if direction == "out" and target is not None:
             # 级联不认锚定链（travel_gap_needed 对锚点卡不下放）：按点选班次
-            # 重放晨卡窗口，并把首站推到「班次 + 车上 + 落客」。
-            reanchor_hotel_mornings(session.plan.days)
+            # 重放晨卡窗口，并把首站推到「班次 + 车上 + 落客」。引擎日晨卡
+            # 已随点选班次平移（R13q）——泛回拨的「只回拨 + 09:00 帽」
+            # 不得把它又钉回旧时刻，本回合跳过晨卡。
+            keep: set[str] = set()
+            if engine_outbound:
+                _morning = next(
+                    (
+                        i
+                        for d in session.plan.days
+                        for i in d.items
+                        if isinstance(i, VisitItem)
+                        and is_hotel_morning(i)
+                        and i.day == day_plan.day
+                    ),
+                    None,
+                )
+                if _morning is not None:
+                    keep.add(_morning.item_id)
+            reanchor_hotel_mornings(session.plan.days, keep_ids=keep or None)
         summary = ChangeSummary(change_summary=[label], affected_items_count=1)
         return report, summary, notes
 

@@ -696,7 +696,18 @@ def _attach_tail_return(day: DayPlan, timed: list[VisitItem]) -> None:
     # 班的最后一档」——晚饭 19 点在景区时不该拿 20:30 去赶 16:30 的末班。
     best: tuple[VisitItem, dict] | None = None
     fallback: tuple[VisitItem, dict] | None = None
-    for base in same_site:
+    # R13q：同址簇按「散场最晚」优先逐档试（嵌套午餐占位散场早于宿主
+    # 时，按列表序取基会把回城班拨回中位幽灵时刻）——散场最晚的基有
+    # 班即取，无班再向更早的基逐档回落（原「仍有返程班的最后一档」
+    # 语义不变，只换遍历序）。
+    for base in sorted(
+        same_site,
+        key=lambda it: (
+            _clock_minutes(it.end_time) is None,
+            _clock_minutes(it.end_time) or 0,
+        ),
+        reverse=True,
+    ):
         proxy = last.model_copy(
             update={"start_time": base.start_time, "end_time": base.end_time}
         )
@@ -708,6 +719,7 @@ def _attach_tail_return(day: DayPlan, timed: list[VisitItem]) -> None:
         if br.get("depart") is None:
             continue
         best = (proxy, br)
+        break
     if best is None:
         best = fallback
     if best is None:
@@ -768,7 +780,14 @@ def _lift_return_over_placeholders(plan: ItineraryPlan) -> ItineraryPlan:
                 if haversine_km(a_pt, nxt_pt) > SAME_VENUE_KM:
                     c = nxt
                     break
-                board_item = nxt  # 同址占位卡：回城从它的散场时刻起算
+                # R13q：同址簇取「散场最晚」为 board 基——嵌套同址占位
+                # （F-22 午餐嵌在游览窗内）按列表序会拿午餐散场当基，
+                # 宿主还在游时回城班次被拨回中位幽灵时刻（点选更晚去程
+                # 班后实锤 14:30 vs 真班 15:30）。
+                nxt_end = _clock_minutes(nxt.end_time)
+                base_end = _clock_minutes(board_item.end_time)
+                if nxt_end is not None and (base_end is None or nxt_end > base_end):
+                    board_item = nxt  # 同址占位卡：回城从它的散场时刻起算
             c_pt = _point(c) if c is not None else None
             if c is None or c_pt is None:
                 continue
