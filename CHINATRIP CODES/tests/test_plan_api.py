@@ -3819,6 +3819,40 @@ def test_start_seam_absorbs_wishlist_into_musts(monkeypatch):
     )
 
 
+def test_start_seam_wishlist_e2e_real_solver(monkeypatch):
+    """真实引擎 E2E（不 spy）：cpsat 纯开局 + 心愿单同城心愿 →
+    ts- 会话真出计划，心愿被绑定成必去、卡在场、披露上卡。这是
+    「成都环球中心漏排」案的结论性闭环——心愿从 API 缝进引擎并落到卡。"""
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    from app.services.trip_items import TripItemService
+
+    monkeypatch.setattr("app.api.plan.get_poi_detail_store", _seam_fake_store)
+    svc = TripItemService()
+    # 外滩在 _seam_fake_store 里有候选（city=上海），能被 must 真绑定钉入
+    svc.create("外滩", source="chat", city="上海", owner_device_id="device-1")
+    agent = PlanningAgent(StubAdapter([V0_JSON, V0_JSON]), trip_items=svc)
+    client = client_for(agent)
+
+    r = start(client, {"cities": ["上海"], "days": 1, "start_date": "2026-11-25"})
+    assert r.status_code == 200
+    body = r.json()
+    # 引擎缝真跑：ts- 会话
+    assert body["session_id"].startswith("ts-")
+    # 心愿带入披露上卡（日志铁律）
+    assert any("已从行程中心心愿单带入必去" in a for a in body["assumptions"])
+    assert any("外滩" in a for a in body["assumptions"])
+    # 心愿 POI 真落进行程卡（不是只在披露里出现）
+    names = [
+        it.get("name")
+        for day in (body["plan"].get("days") or [])
+        for it in (day.get("items") or [])
+    ]
+    assert any(n and "外滩" in n for n in names), names
+    # 会话 must_visits 反映吸收结果，供后续 replan 复用
+    sess = _session(client, agent, body["session_id"])
+    assert any("外滩" in (m or "") for m in (sess.must_visits or []))
+
+
 def test_start_legacy_still_absorbs_wishlist(monkeypatch):
     """反向锚：legacy 路径（TRIP_SOLVER=legacy）仍由 _generate_v0 自己吸收，
     API 缝不得重复报披露或重复写 musts。"""
