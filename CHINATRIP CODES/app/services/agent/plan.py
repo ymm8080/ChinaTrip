@@ -73,6 +73,10 @@ from app.services.itinerary import (
 )
 from app.services.itinerary.coverage import premium_coverage_gaps
 from app.services.itinerary.geo import area_labels, cluster_days
+from app.services.itinerary.hotfix_1117 import (
+    LANDMARK_SIGHT_CATS,
+    LANDMARK_SITE_RANK,
+)
 from app.services.itinerary.models import (
     INTERCITY_BUFFER_MINUTES,
     PoiHours,
@@ -1147,6 +1151,34 @@ def _site_rank(cand: dict) -> int:
     if src == "5a" or "5a" in tags:
         return 30
     return 40
+
+
+# 名录本体线（2026-11-22 用户令「兵马俑 PRIORITY 最高，再怎么删也不会删
+# 它」）：site_rank ≤ 10 = UNESCO 世界遗产本体（0：兵马俑/故宫/颐和园）与
+# curated/国际精选（10：陕历博/华清宫）的真实观光件。判据唯一定义点在
+# services/itinerary/hotfix_1117（让位通道与选点通道共用一套口径），本文件
+# 的秩/品类常量直接引用，不再复制一份。
+_LANDMARK_SITE_RANK = LANDMARK_SITE_RANK
+_LANDMARK_SIGHT_CATS = LANDMARK_SIGHT_CATS
+
+
+def _spec_site_rank(spec: dict) -> int:
+    """候选 spec 的名录秩（缺 site_rank 键时按 _site_rank 现算）。"""
+    rank = spec.get("site_rank")
+    if rank is None:
+        rank = _site_rank(spec)
+    try:
+        return int(rank)
+    except (TypeError, ValueError):
+        return 40
+
+
+def _is_landmark_spec(spec: dict) -> bool:
+    """名录本体档候选（UNESCO 本体 + curated/国际精选的真实观光件）。"""
+    cat = str(spec.get("category") or "").strip().lower()
+    if cat and cat not in _LANDMARK_SIGHT_CATS:
+        return False
+    return _spec_site_rank(spec) <= _LANDMARK_SITE_RANK
 
 
 def _cand_is_curated(cand: dict) -> bool:
@@ -27792,30 +27824,42 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
         20:10 收尾事件不占白天游览窗——已选演出不因满员日被裁掉，纯档
         位核算。
 
+        淘汰次序（2026-11-22 用户令「兵马俑 PRIORITY 最高，再怎么删也不会
+        删它」）：同一过载日里按名录秩淘汰（_spec_site_rank 大者先出局），
+        不再按候选到达顺序——兵马俑（UNESCO 本体，秩 0）只有在同日有 ≥4 个
+        同秩或更高秩的件时才可能被裁，实际不可达。保留次序仍按原 picked
+        序列，本条只决定「谁被裁」。
+
         Returns (kept, dropped)：dropped 为 (zh, en) 标签供假设区披露。
         """
-        per_day: dict[int, int] = {}
-        kept: list[dict] = []
-        dropped: list[tuple[str, str]] = []
+        by_day: dict[int, list[dict]] = {}
         for spec in picked:
             if spec.get("category") in ("food", "entertainment"):
-                kept.append(spec)
                 continue
-            bucket = per_day.setdefault(spec["day"], 0)
-            if spec.get("must"):
-                per_day[spec["day"]] = bucket + 1
-                kept.append(spec)
+            by_day.setdefault(spec["day"], []).append(spec)
+        drop_ids: set[int] = set()
+        dropped: list[tuple[str, str]] = []
+        for day, specs in by_day.items():
+            fixed = sum(1 for s in specs if s.get("must"))
+            optional = [s for s in specs if not s.get("must")]
+            slots = max(0, 4 - fixed)
+            if len(optional) <= slots:
                 continue
-            if bucket >= 4:
+            # 秩小者先留；同秩按原始到达顺序（sorted 稳定）
+            ranked = sorted(
+                range(len(optional)),
+                key=lambda i: (_spec_site_rank(optional[i]), i),
+            )
+            for i in ranked[slots:]:
+                spec = optional[i]
+                drop_ids.add(id(spec))
                 dropped.append(
                     (
-                        f"第{spec['day']}天 {spec['name']}",
-                        f"day {spec['day']} {spec['name']}",
+                        f"第{day}天 {spec['name']}",
+                        f"day {day} {spec['name']}",
                     )
                 )
-                continue
-            per_day[spec["day"]] = bucket + 1
-            kept.append(spec)
+        kept = [spec for spec in picked if id(spec) not in drop_ids]
         return kept, dropped
 
     @staticmethod
@@ -27827,6 +27871,11 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
         当天必去观光件已占满 5 小时（如颐和园 300 分钟）时，非必去的
         attraction/museum/park/temple/historic/nature 不再补进来——用户点名
         的「颐和园 + 恭王府」就是这种堆法；演出/体验/CityWalk/餐饮不受限。
+
+        名录本体豁免（2026-11-22 用户令「兵马俑 PRIORITY 最高，再怎么删也
+        不会删它」）：site_rank ≤ 10（UNESCO 本体/curated 精选）不是「同类
+        凑数件」，重日减负不拿它开刀——真装不下交给日程排程挪日/容量闸，
+        不在这里静默消失。
         """
         heavy_days: dict[int, int] = {}
         for spec in picked:
@@ -27855,6 +27904,7 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
             cat = str(spec.get("category") or "")
             if (
                 not spec.get("must")
+                and not _is_landmark_spec(spec)
                 and heavy_days.get(spec["day"], 0) >= 300
                 and cat in sight_cats
             ):

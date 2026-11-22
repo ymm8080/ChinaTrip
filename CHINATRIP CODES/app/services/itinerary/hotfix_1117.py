@@ -38,6 +38,45 @@ if TYPE_CHECKING:  # pragma: no cover
 DEFAULT_GATEWAY_TAXI_MINUTES = 15
 REMOTE_VISIT_END_LIMIT = 18 * 60 + 30  # don't retime into the evening band
 
+# 名录本体线（2026-11-22 用户令「兵马俑 PRIORITY 最高，再怎么删也不会删
+# 它」）：site_rank ≤ 10 = UNESCO 世界遗产本体（0：兵马俑/故宫/颐和园）
+# 与 curated/国际精选（10：陕历博/华清宫）。让位/清场通道一律不许把它们
+# 当凑数填充撤掉——撤掉「用户为什么来这座城」不是让位，是删行程。
+# 品类闸：只护真实观光件；茶馆/演出/街区这类体验件（老舍茶馆 tea_experience
+# 也是 curated、秩 10）仍按填充处理，否则远郊日清场会被它们卡住。
+LANDMARK_SITE_RANK = 10
+LANDMARK_SIGHT_CATS = frozenset(
+    {
+        "attraction",
+        "museum",
+        "historic",
+        "park",
+        "temple",
+        "nature",
+        "scenic",
+        "sight",
+        "garden",
+        "monument",
+        "landmark",
+    }
+)
+
+
+def _is_landmark(item) -> bool:
+    """名录本体档卡（UNESCO 本体/curated 精选的真实观光件）= 不可当填充让位。"""
+    if not isinstance(item, VisitItem):
+        return False
+    cat = str(item.category or "").strip().lower()
+    if cat in ("food", "hotel") or (cat and cat not in LANDMARK_SIGHT_CATS):
+        return False
+    rank = getattr(item, "site_rank", None)
+    if rank is None:
+        return False  # 无名录秩（占位/老数据/合成卡）不在此列
+    try:
+        return int(rank) <= LANDMARK_SITE_RANK
+    except (TypeError, ValueError):
+        return False
+
 
 def _n(lang: str, zh: str, en: str) -> str:
     return en if (lang or "zh") == "en" else zh
@@ -60,7 +99,11 @@ def _hhmm_to_min(text: str) -> int:
 
 def _is_filler(item) -> bool:
     """Unrequested fill only: engine-added, not user-owned. User items are
-    pinned / must / soft_pin / created / curated; food & hotel are skeleton."""
+    pinned / must / soft_pin / created / curated; food & hotel are skeleton.
+
+    名录本体（site_rank ≤ 10，兵马俑/故宫级）也不算填充（2026-11-22 用户令
+    「兵马俑 PRIORITY 最高，再怎么删也不会删它」）——让位是凑数件的义务，
+    不是本体的义务。"""
     return (
         isinstance(item, VisitItem)
         # R12 交通桥卡（leg-bridge-*）是渲染件不是填充活动——绝不当
@@ -72,6 +115,7 @@ def _is_filler(item) -> bool:
         and not getattr(item, "soft_pin", False)
         and not getattr(item, "created", False)
         and not getattr(item, "curated", False)
+        and not _is_landmark(item)
     )
 
 
@@ -110,9 +154,15 @@ def evict_fillers_when_must_unseated(
     *,
     must_names: list[str] | None = None,
     lang: str = "zh",
+    evicted: list[tuple[int, int, object]] | None = None,
 ) -> list[str]:
     """B-02: unrequested fillers yield on days where a requested must is
-    unseated (untimed card in days, or in unplaced with a day hint)."""
+    unseated (untimed card in days, or in unplaced with a day hint).
+
+    2026-11-22 上海→西安→北京案：让位必须能反悔——`evicted` 传入列表时把
+    (天号, 原序号, 卡) 记下来，调用方在「让位没换来必去落座」时用
+    restore_evicted_fillers 原样放回，不许撤完就空转（D2 只剩华清宫、
+    兵马俑/秦俑情被当凑数件撤掉、下午空 5 小时就是这条路）。"""
     notes: list[str] = []
     unseated_days: set[int] = set()
     for v in _untimed_musts(plan):
@@ -145,7 +195,10 @@ def evict_fillers_when_must_unseated(
             # 永远不是 filler：让位是未请求填充的义务。
             if str(item.name or "").strip() in names:
                 continue
+            idx = day.items.index(item)
             day.items.remove(item)
+            if evicted is not None:
+                evicted.append((day.day, idx, item))
             notes.append(
                 _n(
                     lang,
@@ -159,20 +212,71 @@ def evict_fillers_when_must_unseated(
     return notes
 
 
+def restore_evicted_fillers(
+    plan: "ItineraryPlan",
+    evicted: list[tuple[int, int, object]],
+    *,
+    lang: str = "zh",
+    restored_out: list | None = None,
+) -> list[str]:
+    """让位没换来必去落座 → 把撤掉的件按原位置放回（幂等）。
+
+    「先撤后补」只有在补上了才算让位；补不上还把用户的看点撤走，就是净损失
+    （2026-11-22 用户令：兵马俑 PRIORITY 最高，宁可必去落想去，也不许拿本
+    体/看点填坑）。已被别处放回（同 item_id 在场）的跳过；同时受远郊日清场
+    口径（_pre_remote_violation）约束——放回不等于破例。
+    """
+    notes: list[str] = []
+    for day_no, idx, item in evicted:
+        day = next((d for d in plan.days if d.day == day_no), None)
+        if day is None:
+            continue
+        if any(getattr(it, "item_id", None) == getattr(item, "item_id", None)
+               for it in day.items):
+            continue
+        if _pre_remote_violation(day, item):
+            continue
+        pos = max(0, min(int(idx), len(day.items)))
+        day.items.insert(pos, item)
+        if restored_out is not None:
+            restored_out.append(item)
+        notes.append(
+            _n(
+                lang,
+                f"第{day_no}天「{getattr(item, 'name', '')}」让位后必去仍未"
+                "排上，已放回原时段",
+                f"Day {day_no}: '{getattr(item, 'name', '')}' restored — the "
+                "must it yielded for could not be seated",
+            )
+        )
+    return notes
+
+
+def _pre_remote_violation(day: DayPlan, item) -> bool:
+    """填充件是否排在当天远郊点之前（远郊日「晨锚后直接出发」口径）。
+
+    唯一定义点：evict_pre_remote_fillers 撤件与 restore_evicted_fillers 放回
+    共用——放回不许把「远郊点之前的凑数件」再塞回来。
+    """
+    if not _is_filler(item):
+        return False
+    remote = [v for v in day.items if _is_remote(v) and v.start_time is not None]
+    if not remote:
+        return False
+    first_start = min(_mins(v.start_time) for v in remote)
+    item_end = _mins(item.end_time) or _mins(item.start_time) or 0
+    return item_end <= first_start
+
+
 def evict_pre_remote_fillers(plan: "ItineraryPlan", *, lang: str = "zh") -> list[str]:
     """B-03a: on a remote day, no unrequested item may precede the remote
-    visit (its outbound access leg). 天安门 → direct departure (E-1)."""
+    visit (its outbound access leg). 天安门 → direct departure (E-1).
+
+    判定与放回通道共用 _pre_remote_violation（唯一定义点）。"""
     notes: list[str] = []
     for day in plan.days:
-        remote = [v for v in day.items if _is_remote(v) and v.start_time is not None]
-        if not remote:
-            continue
-        first_start = min(_mins(v.start_time) for v in remote)
         for item in list(day.items):
-            if not _is_filler(item):
-                continue
-            item_end = _mins(item.end_time) or _mins(item.start_time) or 0
-            if item_end > first_start:
+            if not _pre_remote_violation(day, item):
                 continue
             day.items.remove(item)
             notes.append(

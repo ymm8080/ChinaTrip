@@ -18,6 +18,7 @@ anything the agent still raises.
 import asyncio
 import base64
 import logging
+import re
 import uuid
 from datetime import date, datetime, time, timezone
 from functools import partial
@@ -95,6 +96,7 @@ from app.services.itinerary.hotfix_1117 import (
     evict_pre_remote_fillers,
     fold_restaurant_visit_cards,
     rescue_entry_gated_musts,
+    restore_evicted_fillers,
     retime_remote_day_from_access,
 )
 from app.services.itinerary.legs import annotate_legs, attach_return_cards
@@ -1522,8 +1524,12 @@ def _audit_must_coverage(session: PlanSession) -> None:
     notes: list[str] = list(
         rescue_entry_gated_musts(session.plan, must_names=must_names, lang=lang)
     )
-    notes += evict_fillers_when_must_unseated(
-        session.plan, must_names=must_names, lang=lang
+    # 让位清单（2026-11-22 上海→西安→北京案，用户「兵马俑 PRIORITY 最高，
+    # 再怎么删也不会删它」）：让位不是撤完就算——撤不成就得放回，否则 D2
+    # 只剩华清宫、下午空 5 小时，兵马俑/秦俑情凭空消失。
+    evicted: list[tuple[int, int, object]] = []
+    yield_notes = evict_fillers_when_must_unseated(
+        session.plan, must_names=must_names, lang=lang, evicted=evicted
     )
     notes += evict_pre_remote_fillers(session.plan, lang=lang)
     notes += retime_remote_day_from_access(session.plan, lang=lang)
@@ -1531,6 +1537,24 @@ def _audit_must_coverage(session: PlanSession) -> None:
     # 里观光卡形态的餐馆折进餐卡——读闸自愈，刷新即正。
     notes += fold_restaurant_visit_cards(session.plan, lang=lang)
     untimed = demote_untimed_musts(session.plan, lang=lang)
+    if evicted:
+        # 读闸不做重解行程（2026-11-22 复核）：让位腾出的窗口只交给
+        # rescue_entry_gated_musts 那条带入场闸/邻卡约束的安全通道（它在
+        # 本闸最前面跑）；它没坐上的必去，任何「硬塞」都只会造出闭馆日
+        # 的故宫 16:00-20:00、到达日 14:30-19:30 的颐和园这种假排期。
+        # 所以这里只认「没坐上就把撤掉的放回」，宁可必去落想去。
+        back: list = []
+        notes += restore_evicted_fillers(
+            session.plan, evicted, lang=lang, restored_out=back
+        )
+        # 放回的件不再说「已让位移出」——两句互相打架的文案只留真相那句；
+        # 被别的口径（远郊日清场）挡住没放回的，移出文案照旧成立。
+        back_names = {f"「{getattr(i, 'name', '')}」" for i in back}
+        notes += [
+            line
+            for line in yield_notes
+            if not any(name in line for name in back_names)
+        ]
     if notes or untimed:
         # 热修动了盘面（撤补点/挪卡/降级灰卡）→ 腿字段按新布局重算：
         # annotate 只在生成期跑过，读闸改形后卡面还挂着撤掉的前补点腿、
@@ -1538,14 +1562,35 @@ def _audit_must_coverage(session: PlanSession) -> None:
         # 已被移出的老舍茶馆打车腿，09:30 专线无卡可挂）。幂等，重算
         # 只覆写展示腿字段。
         annotate_legs(session.plan)
-    session.plan.assumptions.extend(notes)
+    # 让位→回座→放回是一条会「来回试探」的链：同一个盘面每次过闸都会重算
+    # 一遍，文案必须按内容去重（2026-11-22），否则刷新几次假设区就刷出一串
+    # 重复的「已让位移出/已放回原时段」。幂等只指盘面，文案这里单独收口。
+    seen = set(session.plan.assumptions)
+    for line in notes:
+        if line in seen:
+            continue
+        seen.add(line)
+        session.plan.assumptions.append(line)
+    # 已按「闭馆」单独披露过的必去，不再补一条「当天排不下」（2026-11-22
+    # 故宫案：周一闭馆 × 暂未排上时刻 两句互相打架，用户看不出到底为什么）。
+    closed_mentioned: set[str] = set()
+    for line in session.plan.assumptions:
+        if "闭馆" in line:
+            match = re.search(r"「(.+?)」", line)
+            if match:
+                closed_mentioned.add(match.group(1))
     for line in untimed:
         logger.warning(
             "plan/session %s untimed must demoted: %s",
             session.session_id,
             line,
         )
-        session.plan.assumptions.append(line)
+        match = re.search(r"「(.+?)」", line)
+        if match and match.group(1) in closed_mentioned:
+            continue
+        if line not in seen:
+            seen.add(line)
+            session.plan.assumptions.append(line)
     for line in ensure_must_disclosure(
         session.plan,
         getattr(session, "must_visits", None) or [],
