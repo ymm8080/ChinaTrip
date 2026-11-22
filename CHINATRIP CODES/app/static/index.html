@@ -4864,7 +4864,7 @@ async function itinEdit(r, btn, opts) {
       // 让摘要行打开即显示真实路线。
       const itinPerCity = {};
       ((body.plan && body.plan.days) || []).forEach(d => { if (d.base_city) itinPerCity[d.base_city] = (itinPerCity[d.base_city] || 0) + 1; });
-      planFormPrefill({ cities: (body.plan && body.plan.cities) || r.cities || [], cityDays: itinPerCity, startDate: PLAN.startDate || "", prefs: null });
+      planFormPrefill({ cities: (body.plan && body.plan.cities) || r.cities || [], cityDays: itinPerCity, originDays: (body.plan && body.plan.origin_days) || 0, startDate: PLAN.startDate || "", prefs: null });
       // 无 origin：会话丢失提示重新修改，不做自动重建；itin_id/itin_cities 供规划页底部 重新规划/导出/分享 三键用
       planSetSession({ session_id: body.session_id, state: body.state, origin: null, itin_id: r.itinerary_id, itin_cities: r.cities || [] });
       switchTab("plan");
