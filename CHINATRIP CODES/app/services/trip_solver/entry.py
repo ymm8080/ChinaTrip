@@ -182,27 +182,21 @@ def _legacy_outcome(requested: str) -> SolveOutcome:
 
 def _flag_times_for(snapshot) -> dict:
     """R12-H25：升旗真值（flag_schedule 批次库）→ {day: minute}。
-    查不到/异常恒空 dict（模型侧回落静态 06:30）——纯 seam 侧 I/O。
+
+    R18（2026-11-22）：日期→升旗分钟的换算收进 flag_schedule
+    （flag_minutes_by_day），装配侧落 fixed_sessions 同读一份——两处各自
+    查表会让下半场口径漂移。查不到/异常恒空 dict（模型侧回落静态
+    06:30）——纯 seam 侧 I/O。
     """
-    out: dict[int, int] = {}
     try:
-        from datetime import date as _d
-        from datetime import timedelta as _td
+        from ..flag_schedule import flag_minutes_by_day
 
-        from ..flag_schedule import get_flag_time
-
-        start = getattr(snapshot.request, "start_date", None)
-        days = int(getattr(snapshot.request, "days", 0) or 0)
-        if not start or days <= 0:
-            return out
-        base = _d.fromisoformat(str(start))
-        for day in range(1, days + 1):
-            rise = get_flag_time((base + _td(days=day - 1)).isoformat(), "morning")
-            if rise is not None:
-                out[day] = rise.hour * 60 + rise.minute
+        return flag_minutes_by_day(
+            getattr(snapshot.request, "start_date", None),
+            getattr(snapshot.request, "days", 0),
+        )
     except Exception:
         return {}
-    return out
 
 
 def solve_trip(

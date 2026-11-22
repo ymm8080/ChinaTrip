@@ -2102,7 +2102,13 @@ function planCard(plan) {
         if (Array.isArray(it.stops) && it.stops.length) {
           blk.appendChild(el('<div style="margin:0 2px 6px ' + ind + '"><div class="muted">' + I18N.tf("card.family.pre","🚶 同街联游：") + "</div>" + it.stops.map(s => '<div class="muted">· ' + esc(I18N.pick(s, "name", "name_en")) + ((s.duration_minutes || 0) ? I18N.tf("card.family.dur","（{n} 分钟）").replace("{n}", s.duration_minutes) : "") + "</div>").join("") + "</div>"));
         }
-        const meta = [it.address ? "📍 " + I18N.pick(it, "address", "address_en") : "", it.opening_hours ? "🕐 " + I18N.pick(it, "opening_hours", "opening_hours_en") : ((it.category === "hotel" || isSynth) ? "" : I18N.t("card.hours_unknown"))].filter(Boolean).join("");
+        // R18（2026-11-22 用户令「不可能没有升旗时间」）：升旗时刻此前只在
+        // 卡的开始时刻里，用户看不出那是官方旗时——fixed_sessions 有值即
+        // 单独出「🚩 升旗 07:10」标（天安门广场）。
+        const flagTxt = (Array.isArray(it.fixed_sessions) && it.fixed_sessions.length)
+          ? I18N.t("card.flag_raising") + " " + String(it.fixed_sessions[0]).slice(0, 5)
+          : "";
+        const meta = [it.address ? "📍 " + I18N.pick(it, "address", "address_en") : "", flagTxt, it.opening_hours ? "🕐 " + I18N.pick(it, "opening_hours", "opening_hours_en") : ((it.category === "hotel" || isSynth) ? "" : I18N.t("card.hours_unknown"))].filter(Boolean).join("");
         if (meta) blk.appendChild(el('<div class="muted" style="margin:0 2px 6px ' + ind + '">' + esc(meta) + "</div>"));
         // 回城段独立成卡后，景区卡只留一行提示（2026-11-16 用户拍板「回程卡应该是独立卡」）
         if (it.return_hint) blk.appendChild(el('<div class="muted" style="margin:0 2px 6px ' + ind + '">' + esc(it.return_hint) + "</div>"));

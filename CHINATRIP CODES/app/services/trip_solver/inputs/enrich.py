@@ -42,6 +42,22 @@ def enrich(
 ) -> EnrichedSnapshot:
     from .access import total_one_way_minutes as _tw  # noqa: F401 (re-exported)
 
+    if flag_times is None:
+        # R18（2026-11-22 用户令「不可能没有升旗时间」）：未显式给值即取
+        # flag_schedule 真值。此前只有 entry 缝传（模型侧 C-01 升旗等式
+        # 依赖它），而 enrich(snapshot) 的直接调用方一律退化成静态 06:30
+        # 下界，装配期再补锚就会和已排好的后继卡打架。查表失败/无出发
+        # 日期返回空 → 行为与旧口径完全一致（回落静态晨锁带）。
+        try:
+            from ...flag_schedule import flag_minutes_by_day
+
+            flag_times = flag_minutes_by_day(
+                getattr(snapshot.request, "start_date", None),
+                getattr(snapshot.request, "days", 0),
+            )
+        except Exception:  # noqa: BLE001 - 纯查表增强，失败退兜底
+            flag_times = {}
+
     caps: dict[str, tuple[int | None, str]] = {}
     windows: dict[str, tuple[int, int] | None] = {}
     tiers: dict[str, tuple[int, int, int, bool]] = {}

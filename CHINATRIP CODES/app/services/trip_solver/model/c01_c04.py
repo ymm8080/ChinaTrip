@@ -31,6 +31,9 @@ TAXI_DETOUR = 1.3
 TAXI_RIDE_CAP_MIN = 180
 TAXI_CALL_MINUTES = 30
 
+#: 升旗锚兜底（flag_schedule 空库 / 出发日期未定时）：静态 06:30。
+FLAG_FALLBACK_MINUTES = 6 * 60 + 30
+
 
 def _taxi_gap_minutes(km: float) -> int:
     """审计走行缝公式（rules.travel_gap_needed / solver._taxi_leg_min）。"""
@@ -78,6 +81,9 @@ def _pinned_cids(request, snapshot) -> set[tuple[str, int]]:
 def add_c01_windows(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
     snapshot = enriched.snapshot
     model = bundle.model
+    # 候选池级只算一次（铁律19 钉位集合与候选无关，逐候选重算是 O(n²)）。
+    pinned_keys = _pinned_cids(snapshot.request, snapshot)
+    flag_times = getattr(enriched, "flag_times", None) or {}
     for cand in snapshot.candidates:
         window = enriched.windows.get(cand.cid)
         closed = closed_weekdays(cand.opening_hours)
@@ -90,21 +96,34 @@ def add_c01_windows(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
                 continue
             lo = DAY_START_MINUTES
             hi = 23 * 60 if cand.best_visit_time == "show" else DAY_END_MINUTES
+            flag_min: int | None = None
             if (cand.best_visit_time or "") == "sunrise":
-                # R12-H11/H25（2026-11-20 用户令「天安门取真实的升旗
-                # 时间 FIX」）：晨锁带锚=flag_schedule 批次库真值
-                # （07:10/07:11 实测；空库回落静态 06:30）。
-                lo = 6 * 60 + 30
-                _ft = (getattr(enriched, "flag_times", None) or {}).get(day)
+                # R12-H11/H25 / R18（2026-11-22 用户令「不可能没有升旗
+                # 时间」）：晨锁带锚=flag_schedule 批次库真值（07:10 实
+                # 测）。空库回落静态 06:30。
+                lo = FLAG_FALLBACK_MINUTES
+                _ft = flag_times.get(day)
                 if _ft:
                     lo = int(_ft)
-            if (cand.cid, day) in _pinned_cids(snapshot.request, snapshot):
-                # 铁律19：钉住时刻不受 08:30 日始钳制（升旗/班次类）
+                    flag_min = int(_ft)
+            if (cand.cid, day) in pinned_keys:
+                # 铁律19：钉住时刻不受 08:30 日始钳制（升旗/班次类）；
+                # 钉位自带钟点，旗时等式让位（两钟点不重合时不许互撞
+                # 成 infeasible）。
                 lo = window[0] if window is not None else 0
+                flag_min = None
             if window is not None:
                 lo = max(lo, window[0])
                 hi = min(hi, window[1])
-            model.Add(start >= lo).OnlyEnforceIf(lit)
+            if flag_min is not None and flag_min >= lo:
+                # R18：升旗=官方固定钟点，不是「≥ 下界」——下界语义下 C-04
+                # 落地地板（到达 08:15）把开场推到 09:30，卡上再没有升旗
+                # 时刻（2026-11-22 实录）。等式语义把「当天赶不上」变成
+                # presence=0，由覆盖约束换天（Day2 07:11），而不是排成一
+                # 张没有旗时的广场卡。
+                model.Add(start == flag_min).OnlyEnforceIf(lit)
+            else:
+                model.Add(start >= lo).OnlyEnforceIf(lit)
             model.Add(start + bundle.dur[cand.cid] <= hi).OnlyEnforceIf(lit)
 
 

@@ -600,6 +600,13 @@ async def get_plan_session(
     # 无时刻+披露（幂等；豁免面与 solver.generic_entry_cap 同源）。
     session.plan.assumptions.extend(enforce_entry_gate(session.plan))
     _audit_must_coverage(session)
+    # 升旗锚读闸（R18，2026-11-22 用户令「不可能没有升旗时间」）：GET 是
+    # 刷新/重开页面的唯一恢复口，此前独缺这一道——其它出站口（生成首屏 /
+    # 消息回合 / 开档 / 保存）都跑过旗时对齐，刷新一次就只剩行编辑后的
+    # 旧时刻，卡上再无升旗。幂等（有 fixed 即按真值纠正）。
+    from app.services.agent.plan import _apply_flag_schedule
+
+    _apply_flag_schedule(session.plan)
     store.save(session)
     return _plan_turn_body(session, None, None)
 

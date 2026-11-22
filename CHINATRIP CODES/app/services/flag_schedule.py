@@ -233,6 +233,42 @@ def get_flag_time(
 # ------------------------------------------------- 种子（库表空时灌入）
 
 
+def flag_minutes_by_day(
+    start_date: str | None,
+    days: int,
+    *,
+    category: str = "morning",
+    settings=None,
+) -> dict[int, int]:
+    """出发日期 + 天数 → {日序: 升旗时刻分钟数}（R18 唯一口径）。
+
+    升旗是官方固定钟点，规划侧只认这一个真值来源。此前模型侧（C-01
+    晨锁带下界）与装配侧（天安门卡 fixed_sessions）各查一次、口径分散，
+    2026-11-22 用户实录「不可能没有升旗时间」：引擎路天安门卡整场丢锚。
+    本函数把「日期→升旗分钟」收成一条映射，两处同读，避免漂移。
+
+    契约：无日期/天数非法/库缺/坏行一律返回空 dict（调用方按既有兜底
+    排，绝不编造钟点）。
+    """
+    out: dict[int, int] = {}
+    if not start_date:
+        return out
+    try:
+        base = _date.fromisoformat(str(start_date))
+        total = int(days or 0)
+    except (ValueError, TypeError):
+        return out
+    for day in range(1, max(0, total) + 1):
+        hit = get_flag_time(
+            _date.fromordinal(base.toordinal() + day - 1).isoformat(),
+            category,
+            settings=settings,
+        )
+        if hit is not None:
+            out[day] = hit.hour * 60 + hit.minute
+    return out
+
+
 def _seed_rows(settings=None) -> list[dict]:
     """读种子 CSV（2026 全年人工核对值）：候选路径依次回退。"""
     del settings  # 种子路径与库位解耦（DESIGN/ 随仓库分发）
