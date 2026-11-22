@@ -1551,9 +1551,7 @@ def _audit_must_coverage(session: PlanSession) -> None:
         # 被别的口径（远郊日清场）挡住没放回的，移出文案照旧成立。
         back_names = {f"「{getattr(i, 'name', '')}」" for i in back}
         notes += [
-            line
-            for line in yield_notes
-            if not any(name in line for name in back_names)
+            line for line in yield_notes if not any(name in line for name in back_names)
         ]
     if notes or untimed:
         # 热修动了盘面（撤补点/挪卡/降级灰卡）→ 腿字段按新布局重算：

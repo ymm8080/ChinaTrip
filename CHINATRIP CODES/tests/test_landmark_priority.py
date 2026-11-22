@@ -49,9 +49,7 @@ def _v(
 
 
 def _plan(*days: DayPlan) -> ItineraryPlan:
-    return ItineraryPlan(
-        itinerary_id="it-landmark", cities=["西安"], days=list(days)
-    )
+    return ItineraryPlan(itinerary_id="it-landmark", cities=["西安"], days=list(days))
 
 
 def test_landmark_is_not_a_filler():
@@ -82,8 +80,14 @@ def test_yield_takes_only_fillers_and_keeps_the_landmark():
         items=[
             _v("v-must", "《梦回大唐》", must=True, dur=120),  # 无时刻灰卡=触发让位
             _v("v-hq", "华清宫", start=time(9, 0), end=time(13, 0), dur=240, rank=10),
-            _v("v-bing", "秦始皇帝陵博物院", start=time(14, 0), end=time(18, 0),
-               dur=240, rank=0),
+            _v(
+                "v-bing",
+                "秦始皇帝陵博物院",
+                start=time(14, 0),
+                end=time(18, 0),
+                dur=240,
+                rank=0,
+            ),
             _v("v-junk", "某小公园", start=time(18, 30), end=time(19, 30), dur=60),
         ],
     )
@@ -107,8 +111,14 @@ def test_restore_puts_the_evicted_card_back_in_place():
             _v("v-must", "《梦回大唐》", must=True),
             _v("v-hq", "华清宫", start=time(9, 0), end=time(13, 0), dur=240, rank=10),
             _v("v-junk", "某小公园", start=time(18, 30), end=time(19, 30), dur=60),
-            _v("v-bing", "秦始皇帝陵博物院", start=time(14, 0), end=time(18, 0),
-               dur=240, rank=0),
+            _v(
+                "v-bing",
+                "秦始皇帝陵博物院",
+                start=time(14, 0),
+                end=time(18, 0),
+                dur=240,
+                rank=0,
+            ),
         ],
     )
     plan = _plan(day1)
@@ -139,16 +149,41 @@ def test_cap_drops_the_lowest_rank_first():
     from app.services.agent.plan import PlanningAgent
 
     picked = [
-        {"day": 1, "name": "秦始皇帝陵博物院", "category": "museum",
-         "duration_minutes": 240, "site_rank": 0},
-        {"day": 1, "name": "华清宫", "category": "attraction",
-         "duration_minutes": 240, "site_rank": 10},
-        {"day": 1, "name": "城墙·碑林历史文化景区", "category": "historic",
-         "duration_minutes": 180, "site_rank": 30},
-        {"day": 1, "name": "某小公园", "category": "park",
-         "duration_minutes": 60, "site_rank": 40},
-        {"day": 1, "name": "某寺", "category": "temple",
-         "duration_minutes": 60, "site_rank": 40},
+        {
+            "day": 1,
+            "name": "秦始皇帝陵博物院",
+            "category": "museum",
+            "duration_minutes": 240,
+            "site_rank": 0,
+        },
+        {
+            "day": 1,
+            "name": "华清宫",
+            "category": "attraction",
+            "duration_minutes": 240,
+            "site_rank": 10,
+        },
+        {
+            "day": 1,
+            "name": "城墙·碑林历史文化景区",
+            "category": "historic",
+            "duration_minutes": 180,
+            "site_rank": 30,
+        },
+        {
+            "day": 1,
+            "name": "某小公园",
+            "category": "park",
+            "duration_minutes": 60,
+            "site_rank": 40,
+        },
+        {
+            "day": 1,
+            "name": "某寺",
+            "category": "temple",
+            "duration_minutes": 60,
+            "site_rank": 40,
+        },
     ]
     kept, dropped = PlanningAgent._cap_sights_per_day(picked)
     assert [s["name"] for s in kept] == [
@@ -164,14 +199,30 @@ def test_cap_still_respects_must_and_food_exemptions():
     from app.services.agent.plan import PlanningAgent
 
     picked = [
-        {"day": 1, "name": f"杂点{i}", "category": "attraction",
-         "duration_minutes": 60, "site_rank": 40}
+        {
+            "day": 1,
+            "name": f"杂点{i}",
+            "category": "attraction",
+            "duration_minutes": 60,
+            "site_rank": 40,
+        }
         for i in range(5)
     ] + [
-        {"day": 1, "name": "颐和园", "category": "park",
-         "duration_minutes": 300, "site_rank": 0, "must": True},
-        {"day": 1, "name": "某餐厅", "category": "food",
-         "duration_minutes": 90, "site_rank": 40},
+        {
+            "day": 1,
+            "name": "颐和园",
+            "category": "park",
+            "duration_minutes": 300,
+            "site_rank": 0,
+            "must": True,
+        },
+        {
+            "day": 1,
+            "name": "某餐厅",
+            "category": "food",
+            "duration_minutes": 90,
+            "site_rank": 40,
+        },
     ]
     kept, dropped = PlanningAgent._cap_sights_per_day(picked)
     names = [s["name"] for s in kept]
@@ -187,12 +238,28 @@ def test_heavy_day_trim_spares_the_landmark():
     from app.services.agent.plan import PlanningAgent
 
     picked = [
-        {"day": 1, "name": "颐和园", "category": "park",
-         "duration_minutes": 300, "site_rank": 0, "must": True},
-        {"day": 1, "name": "秦始皇帝陵博物院", "category": "museum",
-         "duration_minutes": 240, "site_rank": 0},
-        {"day": 1, "name": "某寺", "category": "temple",
-         "duration_minutes": 60, "site_rank": 40},
+        {
+            "day": 1,
+            "name": "颐和园",
+            "category": "park",
+            "duration_minutes": 300,
+            "site_rank": 0,
+            "must": True,
+        },
+        {
+            "day": 1,
+            "name": "秦始皇帝陵博物院",
+            "category": "museum",
+            "duration_minutes": 240,
+            "site_rank": 0,
+        },
+        {
+            "day": 1,
+            "name": "某寺",
+            "category": "temple",
+            "duration_minutes": 60,
+            "site_rank": 40,
+        },
     ]
     kept, dropped = PlanningAgent._trim_optional_sights_on_heavy_days(picked)
     names = [s["name"] for s in kept]
@@ -226,9 +293,9 @@ def test_closure_disclosure_suppresses_the_generic_unseated_line():
     _audit_must_coverage(session)
 
     assert [u.name for u in session.plan.unplaced] == ["故宫博物院"]
-    assert not any(
-        "暂未排上时刻" in a for a in session.plan.assumptions
-    ), "闭馆原因已披露，不该再叠一条「当天排不下」"
+    assert not any("暂未排上时刻" in a for a in session.plan.assumptions), (
+        "闭馆原因已披露，不该再叠一条「当天排不下」"
+    )
     assert any("闭馆" in a for a in session.plan.assumptions)
 
 
@@ -244,8 +311,14 @@ def test_audit_gate_restores_fillers_when_the_must_cannot_be_seated():
             # 600 分钟的必去：任何窗口都放不下 → 回座必然失败
             _v("v-show", "《梦回大唐》", must=True, dur=600),
             _v("v-hq", "华清宫", start=time(9, 0), end=time(13, 0), dur=240, rank=10),
-            _v("v-bing", "秦始皇帝陵博物院", start=time(14, 0), end=time(18, 0),
-               dur=240, rank=0),
+            _v(
+                "v-bing",
+                "秦始皇帝陵博物院",
+                start=time(14, 0),
+                end=time(18, 0),
+                dur=240,
+                rank=0,
+            ),
             _v("v-junk", "某小公园", start=time(18, 30), end=time(19, 30), dur=60),
         ],
     )

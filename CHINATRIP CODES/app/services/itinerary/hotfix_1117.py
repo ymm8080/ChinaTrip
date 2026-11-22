@@ -231,8 +231,10 @@ def restore_evicted_fillers(
         day = next((d for d in plan.days if d.day == day_no), None)
         if day is None:
             continue
-        if any(getattr(it, "item_id", None) == getattr(item, "item_id", None)
-               for it in day.items):
+        if any(
+            getattr(it, "item_id", None) == getattr(item, "item_id", None)
+            for it in day.items
+        ):
             continue
         if _pre_remote_violation(day, item):
             continue
