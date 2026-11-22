@@ -522,6 +522,12 @@ def generate_session_via_trip_solver(
     lang: Optional[str] = None,
     arrival_day: Optional[int] = None,
     departure_day: Optional[int] = None,
+    # R13p（2026-11-22 审计修复）：原始行前日期串——首屏只需日序
+    # arrival_day/departure_day，但重排 _session_snapshot 是从会话的
+    # arrival_date/departure_date 用 _intake_day_no 重算日序；不落地原始串，
+    # 同会话重排时中途转移日静默丢失。
+    arrival_date: Optional[str] = None,
+    departure_date: Optional[str] = None,
     weather_lookup: Optional[Callable[[str, str], Any]] = None,
     budget_s: float = 3.0,
 ) -> tuple:
@@ -585,6 +591,20 @@ def generate_session_via_trip_solver(
     except Exception:
         pass  # 收取失败退回纯偏好语义（现状），绝不拦生成
 
+    # R13p（2026-11-22 审计修复）：首日出发时刻（"LEAVE HOTEL ON 11AM"）。
+    # legacy start_nlu.start 从 brief/preferences 正则解析 comment_day_start；
+    # 走引擎缝时 brief 非空已被形状闸（seam_plain_shape）退回 legacy，进到这里
+    # 的只有 preferences —— 此前不解析，引擎 C-04 地板读不到，静默失效。
+    # 复用同一 nlu 函数（零 LLM），与 legacy 口径一致。
+    day1_start: Optional[str] = None
+    try:
+        if (preferences or "").strip():
+            from app.services.trip_orchestrator.nlu import _parse_text_day_start
+
+            day1_start = _parse_text_day_start(preferences)
+    except Exception:
+        day1_start = None  # 解析失败退回无首日约束，绝不拦生成
+
     snapshot = snapshot_from_request(
         cities=cities,
         days=days,
@@ -601,6 +621,7 @@ def generate_session_via_trip_solver(
         weather_lookup=_weather,
         service_rows=service_rows,
         preferences=preferences or "",
+        day1_start=day1_start,
         arrival_day=arrival_day,
         departure_day=departure_day,
     )
@@ -632,6 +653,16 @@ def generate_session_via_trip_solver(
         must_visits=list(musts),
         arrival_time=arrival_time,
         departure_time=departure_time,
+        # R13p（2026-11-22 审计修复）：首屏约束落地——legacy start_nlu.start
+        # 全会存，引擎缝此前只存到达/离开时刻。不落地则同会话「重排」时
+        # _session_snapshot 读空，班次/分城/中途转移日/首日出发静默丢失。
+        arrival_no=arrival_no,
+        departure_no=departure_no,
+        arrival_date=arrival_date,
+        departure_date=departure_date,
+        intercity_mode=intercity_mode or "auto",
+        city_days=dict(city_days or {}),
+        comment_day_start=day1_start,
         preferences=preferences or "",
         lang=lang,
     )
@@ -856,6 +887,9 @@ def _session_snapshot(session, store, extra_musts=None, weather_lookup=None):
         departure_time=getattr(session, "departure_time", None),
         arrival_no=getattr(session, "arrival_no", None),
         departure_no=getattr(session, "departure_no", None),
+        # R13p（2026-11-22 审计修复）：会话的城际方式也要随缝——此前只传
+        # 班次号，intercity_mode 存了也读不到（无班次号的 train/flight 选择丢）
+        intercity_mode=getattr(session, "intercity_mode", None),
         avoid=list(getattr(session, "avoid_sites", None) or []),
         preferences=(getattr(session, "preferences", "") or ""),
         city_days=dict(getattr(session, "city_days", None) or {}),

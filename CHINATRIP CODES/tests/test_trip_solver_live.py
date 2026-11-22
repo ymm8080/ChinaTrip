@@ -1249,3 +1249,83 @@ def test_edit_session_add_unknown_name_skeleton(monkeypatch):
         sorted(card_names),
         sorted(unplaced_names),
     )
+
+
+def test_generator_lands_intake_constraints_on_session(monkeypatch):
+    """R13p：首屏引擎会话必须落地班次/分城/中途转移日——否则同会话发
+    「重排」时 _session_snapshot 从会话读这些字段全空，约束静默丢失
+    （legacy start_nlu.start 是全会存的；引擎缝此前只存到达/离开时刻）。"""
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    session, outcome = generate_session_via_trip_solver(
+        device_id="t-r13p-constraints",
+        cities=["上海"],
+        days=1,
+        start_date="2026-11-25",
+        musts=["外滩"],
+        store=_store(),
+        arrival_no="G123",
+        departure_no="G456",
+        intercity_mode="train",
+        city_days={"上海": 1},
+        arrival_date="2026-11-25",
+        departure_date="2026-11-25",
+    )
+    assert outcome is not None and outcome.engine == "cpsat"
+    assert session is not None
+    assert session.arrival_no == "G123"
+    assert session.departure_no == "G456"
+    assert session.intercity_mode == "train"
+    assert dict(session.city_days) == {"上海": 1}
+    assert session.arrival_date == "2026-11-25"
+    assert session.departure_date == "2026-11-25"
+
+
+def test_session_snapshot_reads_intake_constraints():
+    """R13p：重排快照必须从会话读回班次/分城/中途日/首日出发——
+    intercity_mode 此前连 _session_snapshot 都没传（会话存了也白存）。"""
+    from app.services.agent.plan import PlanSession
+    from app.services.trip_solver.live import _session_snapshot
+
+    session = PlanSession(
+        session_id="ts-r13p-snap",
+        device_id="t",
+        cities=["上海"],
+        days=3,
+        start_date="2026-11-25",
+        # 只给 intercity_mode、不给班次号：模式只能来自这个字段，
+        # 才能验 _session_snapshot 真的把它传进快照（班次号会掩盖）
+        intercity_mode="flight",
+        city_days={"上海": 3},
+        # 中途转移日：到达/离开都落在第 2 天（非端点，才会显式传日号）
+        arrival_date="2026-11-26",
+        departure_date="2026-11-26",
+        comment_day_start="11:00",
+    )
+    snap = _session_snapshot(session, _store())
+    assert snap is not None
+    req = snap.request
+    assert req.arrival_mode == "flight"
+    assert req.departure_mode == "flight"
+    assert req.day1_start == "11:00"
+    assert dict(req.city_days) == {"上海": 3}
+    assert req.arrival_day == 2
+    assert req.departure_day == 2  # 中途转移日（非末日，显式传）
+
+
+def test_generator_parses_day1_start_from_preferences(monkeypatch):
+    """R13p：H5 把自由输入折进 preferences（brief 为空时形状闸放行），
+    「leave hotel on 11am」必须被引擎读到并落地 comment_day_start——
+    否则引擎首屏不认首日出发时刻（legacy start_nlu 会正则解析）。"""
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    session, outcome = generate_session_via_trip_solver(
+        device_id="t-r13p-daystart",
+        cities=["上海"],
+        days=1,
+        start_date="2026-11-25",
+        musts=["外滩"],
+        store=_store(),
+        preferences="leave hotel on 11am",
+    )
+    assert outcome is not None and outcome.engine == "cpsat"
+    assert session is not None
+    assert session.comment_day_start == "11:00"

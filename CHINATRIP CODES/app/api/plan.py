@@ -891,6 +891,11 @@ async def start_plan(
                     intercity_mode=request.intercity_mode,
                     city_days=dict(ts_city_days) if ts_city_days else None,
                     lang=request.lang,
+                    # R13p（2026-11-22 审计修复）：原始行前日期也随缝落地——
+                    # 重排 _session_snapshot 从会话 arrival_date/departure_date
+                    # 用 _intake_day_no 重算中途转移日，只传 arrival_day 不够。
+                    arrival_date=request.arrival_date,
+                    departure_date=request.departure_date,
                     # R9-2：中途转移日——行前日期折天序入快照（C-05 地板/
                     # 顶盖挪到该日；端点日=None 保持旧形状）
                     arrival_day=_intake_day_no(

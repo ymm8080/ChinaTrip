@@ -3934,6 +3934,74 @@ def test_start_seam_absorbs_account_owned_wishlist_e2e(monkeypatch, tmp_path):
     assert any("已从行程中心心愿单带入必去" in a for a in r.json()["assumptions"])
 
 
+def test_start_seam_forwards_intake_constraints_to_engine(monkeypatch):
+    """R13p：API 缝必须把行前班次/分城/原始日期透传给引擎——此前只传
+    已折好的 arrival_day/departure_day，原始日期缺失，同会话重排
+    _session_snapshot 重算中途转移日时读空（约束静默丢失）。"""
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    from app.services.trip_solver import live as _live
+
+    calls: list[dict] = []
+
+    def _spy(**kw):
+        calls.append(kw)
+        plan = ItineraryPlan(
+            itinerary_id="it-r13p-api",
+            cities=["上海"],
+            days=[
+                DayPlan(
+                    day=1,
+                    base_city="上海",
+                    items=[
+                        VisitItem(
+                            item_id="v1",
+                            name="外滩",
+                            city="上海",
+                            day=1,
+                            duration_minutes=90,
+                            category="attraction",
+                        )
+                    ],
+                )
+            ],
+        )
+        s = PlanSession(
+            session_id="ts-r13p-api", device_id="device-1", cities=["上海"], days=1
+        )
+        s.plan = plan
+        s.state = "ready"
+        s.assumptions = list(plan.assumptions)
+        return s, None
+
+    monkeypatch.setattr(_live, "generate_session_via_trip_solver", _spy)
+    monkeypatch.setattr("app.api.plan.get_poi_detail_store", _seam_fake_store)
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    client = client_for(agent)
+    resp = start(
+        client,
+        {
+            "cities": ["上海"],
+            "days": 1,
+            "start_date": "2026-11-25",
+            "arrival_no": "G123",
+            "departure_no": "G456",
+            "arrival_date": "2026-11-25",
+            "departure_date": "2026-11-25",
+            "city_days": {"上海": 1},
+            "intercity_mode": "train",
+        },
+    )
+    assert resp.status_code == 200, resp.text
+    assert len(calls) == 1
+    kw = calls[0]
+    assert kw["arrival_no"] == "G123"
+    assert kw["departure_no"] == "G456"
+    assert kw["arrival_date"] == "2026-11-25"
+    assert kw["departure_date"] == "2026-11-25"
+    assert kw["city_days"] == {"上海": 1}
+    assert kw["intercity_mode"] == "train"
+
+
 def test_start_seam_wishlist_e2e_real_solver(monkeypatch):
     """真实引擎 E2E（不 spy）：cpsat 纯开局 + 心愿单同城心愿 →
     ts- 会话真出计划，心愿被绑定成必去、卡在场、披露上卡。这是
