@@ -172,9 +172,7 @@ def test_remote_must_never_moves_into_another_citys_day():
 
 def test_validate_plan_flags_city_day_mismatch():
     plan = _route_plan()
-    plan.days[1].items.append(
-        _visit("v-tam", "天安门广场", city="北京", day=2, xy=BJ)
-    )
+    plan.days[1].items.append(_visit("v-tam", "天安门广场", city="北京", day=2, xy=BJ))
     report = validate_plan(plan, poi_hours=[])
     assert any(
         v.rule_id == 3 and "天安门广场" in str(v.message) for v in report.violations

@@ -15398,9 +15398,7 @@ def _enforce_city_coherence(plan: ItineraryPlan) -> list[str]:
                     )
                 )
                 continue
-            dest = max(
-                base_hosts, key=lambda d: (_day_city_capacity(d, city), -d.day)
-            )
+            dest = max(base_hosts, key=lambda d: (_day_city_capacity(d, city), -d.day))
             day.items = [i for i in day.items if i is not item]
             item.day = dest.day
             item.start_time = None
