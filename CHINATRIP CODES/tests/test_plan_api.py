@@ -3501,6 +3501,35 @@ def test_numbers_pick_override_suppresses_resubmit_reask():
     assert body["state"] == "ready"
 
 
+def test_card_days_pick_form_side_resolved_diffs_suppress_reask():
+    """行前卡跨度 vs 表单天数（card_days 差异）：用户选「📋 用表单」后重发
+    不带 days_override（保留侧落点=请求原值、无覆写），靠 resolved_diffs
+    标记已答——不再二次弹卡，直接生成（2026-11-22 用户实报）。"""
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    client = client_for(agent)
+    payload = {
+        "cities": ["杭州"],
+        "days": 3,
+        "preferences": "喜欢走路",
+        "brief": "去杭州玩",
+        "start_date": "2026-11-20",
+        "arrival_date": "2026-11-20",
+        "departure_date": "2026-11-21",  # 卡跨度 2 天 ≠ 表单 3 天 → card_days
+    }
+    first = start(client, payload)
+    assert first.status_code == 200
+    body = first.json()
+    assert body["state"] == "confirm_route"
+    card = next(d for d in body["diffs"] if d["what"] == "card_days")
+    assert card["intake"] == 2
+    assert card["form"] == 3
+    # 选了「用表单」：无覆写，只声明这条差异已答
+    second = start(client, {**payload, "resolved_diffs": ["card_days"]})
+    assert second.status_code == 200
+    assert second.json()["state"] == "ready"
+    assert len(second.json()["plan"]["days"]) == 3
+
+
 def _departure_session_app():
     """造一个带「晨卡→慕田峪班次点」的 ready 会话 + 假班次库（点选班次端点用）。"""
     from datetime import time as dtime

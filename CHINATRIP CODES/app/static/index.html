@@ -3602,12 +3602,18 @@ let planLastStart = null; // 上一次开规划的完整参数（路线冲突确
 // 路线冲突确认卡选边（2026-11-14 用户拍板「figure out diff for user confirmation」）：
 // brief=按文字路线重开（表单参数作废）；form=按表单参数重开（文字只当偏好）。
 async function planStartConfirmedByPicks(diffs, picks) {
-  // 逐条选边 → route_source + 覆写字段（2026-11-14 用户三条口径）
+  // 逐条选边 → route_source + 覆写字段（2026-11-14 用户三条口径）。
+  // resolved=用户已答过的差异键（2026-11-22 用户实报「行前卡 vs 表单选了
+  // 表单、点确认后不继续生成反而再弹卡」）：后端以覆写字段非空当「已选边」
+  // 的防重弹标记，但选保留侧（📋 用表单 / 保留行前卡班次）落点=请求原值、
+  // 没有覆写可言——不显式声明已答，重发时同一条差异会被重新检出再弹卡。
   let routeSource = null;
   const overrides = {};
+  const resolved = [];
   (diffs || []).forEach((d) => {
     const pick = picks[d.what];
     if (!pick) return;
+    resolved.push(d.what);
     if (d.what === "route") {
       routeSource = pick === "left" ? "brief" : "form";
     } else if (d.what === "days") {
@@ -3616,11 +3622,14 @@ async function planStartConfirmedByPicks(diffs, picks) {
       if (pick === "left") {
         if (d.text && d.text[0]) overrides.arrival_no_override = d.text[0];
         if (d.text && d.text[1]) overrides.departure_no_override = d.text[1];
-      } // right=保留行前卡班次（请求里本来就有）
+      } // right=保留行前卡班次（请求里本来就有，resolved 已标记已答）
     } else if (d.what === "card_days") {
+      // left=改用行前卡跨度（落覆写，分城天数随之作废）；right=保留表单
+      // 天数/分城天数（无覆写，resolved 已标记已答）
       if (pick === "left") overrides.days_override = d.intake;
     }
   });
+  if (resolved.length) overrides.resolved = resolved;
   return planStartConfirmed(routeSource, overrides);
 }
 
@@ -3675,6 +3684,9 @@ async function planStartConfirmed(routeSource, overrides) {
     if (ov.days_override) payload.days_override = ov.days_override;
     if (ov.arrival_no_override) payload.arrival_no_override = ov.arrival_no_override;
     if (ov.departure_no_override) payload.departure_no_override = ov.departure_no_override;
+    // 已答差异键（2026-11-22「选表单还再弹卡」案）：选保留侧没有覆写值，
+    // 靠这个告诉后端这条差异用户已经裁过，别再弹。
+    if (ov.resolved && ov.resolved.length) payload.resolved_diffs = ov.resolved;
     const body = await api("/api/v1/plan/start", payload);
     planFormSyncFromPlan(body.plan);
     planSetSession({ session_id: body.session_id, state: body.state, origin: { cities: s.formCities, days: s.formDays, preferences: s.prefs, city_days: s.cityDays, origin_days: s.originDays || 0, start_date: iv.start_date || s.startDate || undefined, intercity_mode: planTransportMode(), arrival_no: iv.arrival_no || undefined, arrival_time: iv.arrival_time || undefined, departure_no: iv.departure_no || undefined, departure_time: iv.departure_time || undefined, arrival_date: iv.arrival_date || undefined, departure_date: iv.departure_date || undefined, intake: true } });

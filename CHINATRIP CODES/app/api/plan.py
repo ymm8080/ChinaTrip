@@ -213,6 +213,11 @@ class PlanStartRequest(BaseModel):
     days_override: int | None = None
     arrival_no_override: str | None = None
     departure_no_override: str | None = None
+    # 已答过的差异键（2026-11-22 用户实报「行前卡 vs 表单选了表单还再弹卡」）：
+    # 覆写字段只承载「落点值」，选保留侧（用表单/保留行前卡班次）落点=请求
+    # 原值、没有覆写可言——重发时同一处差异会被重新检出再弹卡，规划不自动
+    # 继续。客户端把用户答过的 what 键（days/numbers/card_days）显式带回来。
+    resolved_diffs: list[str] = Field(default_factory=list)
 
 
 class PlanMessageRequest(BaseModel):
@@ -754,6 +759,7 @@ async def start_plan(
         and card_span
         and stated_days != card_span
         and request.days_override is None
+        and "days" not in request.resolved_diffs
     ):
         # 文字天数 vs 行前卡日期跨度（用户拍板③：行前卡信息和文字不同也要摆）。
         # 文字侧用 stated_days：brief 只认正则明说的天数，客户端丢简报把它折
@@ -774,6 +780,7 @@ async def start_plan(
         and {n.upper() for n in text_nos} != set(card_nos)
         and request.arrival_no_override is None
         and request.departure_no_override is None
+        and "numbers" not in request.resolved_diffs
     ):
         # 班次差异；覆写=确认卡已选边（选文字班次的落点），不再二次弹卡
         diffs.append({"what": "numbers", "text": text_nos, "intake": card_nos})
@@ -782,6 +789,7 @@ async def start_plan(
         and request.days
         and card_span != request.days
         and request.days_override is None
+        and "card_days" not in request.resolved_diffs
     ):
         # 行前卡日期跨度 vs 表单天数（用户改过行前卡结束日期时如实呈现）；
         # days_override=确认卡已选边，不再二次弹卡
