@@ -39,7 +39,9 @@ def _plan(monkeypatch, table=FLAGS, **request_overrides):
     _patch_flag_table(monkeypatch, table)
     snapshot, _expect, _prov = load_golden(G01)
     if request_overrides:
-        snapshot = replace(snapshot, request=replace(snapshot.request, **request_overrides))
+        snapshot = replace(
+            snapshot, request=replace(snapshot.request, **request_overrides)
+        )
     solution = solve_snapshot(enrich(snapshot, flag_times=table))
     plan = assemble(solution, snapshot)
     return plan
