@@ -74,9 +74,7 @@ def _day_label(items, snapshot: "FactSnapshot", day: int) -> str:
     被误标成出发城（返程腿语义/夜卡城市全错）。末日剔除 hotel 卡再取
     多数（游玩卡说了算）；闭合尾城真实停留窗下多数仍是尾城，口径自洽。
     """
-    _closed_last = (
-        _is_closed_trip(snapshot) and day == int(snapshot.request.days or 0)
-    )
+    _closed_last = _is_closed_trip(snapshot) and day == int(snapshot.request.days or 0)
     counts: dict[str, int] = {}
     for it in items:
         if _closed_last and str(getattr(it, "category", "") or "") == "hotel":
@@ -659,9 +657,7 @@ def materialize_plan(
         _req_cities[-1]
     ):
         _last_day = days[-1]
-        _has_leg = any(
-            isinstance(i, TransferItem) for i in (_last_day.items or [])
-        )
+        _has_leg = any(isinstance(i, TransferItem) for i in (_last_day.items or []))
         _from_city = _last_day.base_city
         if (
             not _has_leg
