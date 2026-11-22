@@ -6727,6 +6727,19 @@ def _pull_hotel_morning_before_anchor(day: DayPlan, anchor: VisitItem) -> None:
         it.end_time = time(new_end // 60 % 24, new_end % 60)
 
 
+def _is_flag_square(item: VisitItem) -> bool:
+    """是不是天安门广场本体（唯一按升旗时刻锚定的卡）。
+
+    纪念堂/城楼不锚（国旗杆在广场内）；城市必须是北京别名口径。
+    """
+    name = str(item.name or "")
+    if "天安门" not in name and "tiananmen" not in name.lower():
+        return False
+    if "广场" not in name and "square" not in name.lower():
+        return False
+    return str(item.city or "") in _BEIJING_CITY_ALIASES
+
+
 def _apply_flag_schedule(plan: ItineraryPlan) -> None:
     """天安门升旗时刻打标（flag_schedule 设计 2026-11-14，三段式第③步）。
 
@@ -6755,6 +6768,18 @@ def _apply_flag_schedule(plan: ItineraryPlan) -> None:
                 # 时 start 被行编辑/默认值改回 8:30，fixed=07:08 在册却不
                 # 生效）——旗时最高优先级，凡本函数被调用即对齐，不需日期。
                 flag_min = min(t.hour * 60 + t.minute for t in item.fixed_sessions)
+                # R18 续（2026-11-22 实测）：出发日期一改，旗时得跟着改——
+                # 旧锚是按上一个日期算的，不重查就把 12-21 的 07:33 冻成
+                # 11-25 的 07:10。只对广场本体重查，其它 fixed（班次/场次）
+                # 原样保留。
+                if _is_flag_square(item):
+                    _date_iso = _leg_date_iso(plan.start_date, item.day)
+                    _rise = get_flag_time(_date_iso, "morning") if _date_iso else None
+                    if _rise is not None:
+                        _new_min = _rise.hour * 60 + _rise.minute
+                        if _new_min != flag_min:
+                            flag_min = _new_min
+                            item.fixed_sessions = [_rise]
                 if (
                     item.start_time is not None
                     and (item.start_time.hour * 60 + item.start_time.minute) != flag_min
@@ -6769,12 +6794,7 @@ def _apply_flag_schedule(plan: ItineraryPlan) -> None:
                 # R12-G：锚重定位后推平重叠后继（无重叠=no-op）
                 _push_flag_successors(day, item)
                 continue
-            name = str(item.name or "")
-            if "天安门" not in name and "tiananmen" not in name.lower():
-                continue
-            if "广场" not in name and "square" not in name.lower():
-                continue  # 只锚广场本体（国旗杆在广场内），纪念堂/城楼不锚
-            if str(item.city or "") not in _BEIJING_CITY_ALIASES:
+            if not _is_flag_square(item):
                 continue
             date_iso = _leg_date_iso(plan.start_date, item.day)
             if not date_iso:

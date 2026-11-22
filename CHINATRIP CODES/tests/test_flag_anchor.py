@@ -111,3 +111,22 @@ def test_flag_table_absent_when_no_start_date(monkeypatch, days):
 
     assert flag_minutes_by_day(None, days) == {}
     assert flag_minutes_by_day("2026-11-25", 0) == {}
+
+
+def test_changing_start_date_reanchors_the_flag(monkeypatch):
+    """R18 续：改出发日期 → 旗时跟着改，旧锚不得冻住（11-25 07:10 → 12-21 07:32）。"""
+    from app.services.agent.plan import _apply_flag_schedule
+
+    table = {"2026-11-25": time(7, 10), "2026-12-21": time(7, 32)}
+    monkeypatch.setattr(
+        "app.services.flag_schedule.get_flag_time",
+        lambda date_iso, category="morning", **k: table.get(str(date_iso)),
+    )
+    plan = _plan(monkeypatch)
+    card = _sunrise_cards(plan)[0][1]
+    assert card.fixed_sessions == [time(7, 10)], card.fixed_sessions
+
+    plan.start_date = "2026-12-21"
+    _apply_flag_schedule(plan)
+    assert card.fixed_sessions == [time(7, 32)], card.fixed_sessions
+    assert card.start_time == time(7, 32), card.start_time
