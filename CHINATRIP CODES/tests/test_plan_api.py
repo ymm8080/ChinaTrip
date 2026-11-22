@@ -4455,6 +4455,70 @@ def test_generate_v0_routes_replan_through_engine(monkeypatch):
     assert "偏好已兑现" in session.assumptions
 
 
+def test_generate_v0_routes_confirmed_brief_sites_through_engine(monkeypatch):
+    """2026-11-22「fix all」#3 验证锚：简报/图片首屏的读点确认轮留 legacy
+    （交互 NLU，引擎不会提问）——但用户确认落 must_visits 之后的
+    _generate_v0 收尾必须走引擎缝（自造点/确认点折 musts，B-01 缝不吞
+    点），绝不静默整段走 legacy。"""
+    import asyncio
+
+    from app.services.agent.plan import PlanSession
+    from app.services.itinerary.models import DayPlan, ItineraryPlan
+    from app.services.trip_solver import live as _live
+
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    agent = PlanningAgent(StubAdapter([]))
+    # confirm_sites 之后的会话形状：确认点已落 must_visits，plan 还没生成
+    session = PlanSession(
+        session_id="sess-confirm",
+        device_id="d9",
+        cities=["北京", "西安", "北京"],
+        days=7,
+        start_date="2026-11-25",
+        must_visits=["兵马俑"],
+        city_days={"西安": 3, "北京": 1},
+        origin_days=3,
+    )
+    calls = {}
+
+    async def _boom(*a, **k):
+        raise AssertionError("legacy pipeline must not run when engine serves")
+
+    monkeypatch.setattr(agent, "_collect_candidates", _boom)
+    monkeypatch.setattr(
+        "app.services.poi_details.get_poi_detail_store", _seam_fake_store
+    )
+
+    def _fake_replan(
+        sess, *, store, extra_assumptions=None, budget_s=3.0, weather_lookup=None
+    ):
+        calls["musts"] = list(sess.must_visits)
+        calls["origin_days"] = int(getattr(sess, "origin_days", 0) or 0)
+        plan = ItineraryPlan(
+            itinerary_id="it-confirm",
+            cities=list(sess.cities),
+            days=[DayPlan(day=i, base_city="西安", items=[]) for i in range(1, 8)],
+        )
+        plan.assumptions = ["引擎重排"]
+        sess.plan = plan
+        sess.assumptions = ["引擎重排"] + list(extra_assumptions or [])
+        sess.state = "ready"
+
+        class _O:
+            engine = "cpsat"
+            fallback = False
+            disclosures = []
+
+        return _O()
+
+    monkeypatch.setattr(_live, "replan_session_via_trip_solver", _fake_replan)
+    out = asyncio.run(agent._generate_v0(session))
+    assert calls["musts"] == ["兵马俑"]
+    assert calls["origin_days"] == 3
+    assert out.state == "ready"
+    assert out.plan is not None
+
+
 def test_generate_v0_falls_back_when_seam_attempted(monkeypatch):
     """api 缝已尝试过（ContextVar）→ 钩子不重试，legacy 管线接管。"""
     import asyncio
@@ -5445,3 +5509,4 @@ def test_departure_engine_return_click_lands_return_card_on_schedule():
             assert ret["start_time"][:5] in ["14:30", "15:30", "16:30"]
     finally:
         access_services.configure_store(None)
+

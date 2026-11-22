@@ -326,6 +326,11 @@ def test_replan_seam_shape_guards():
     )
     assert replan_seam_shape(SimpleNamespace(**{**base, "cities": []})) is False
     assert replan_seam_shape(SimpleNamespace(**{**base, "days": 0})) is False
+    # 2026-11-22 起始城停留拆闸：origin_days 语义已进引擎（C-17 shift 窗
+    # + 到达端点右移 k+1）→ 放行（此前此形状被闸死回落 legacy）
+    assert (
+        replan_seam_shape(SimpleNamespace(**{**base, "origin_days": 2})) is True
+    )
 
 
 def test_seam_attempted_contextvar_roundtrip():
