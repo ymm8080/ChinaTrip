@@ -485,6 +485,8 @@ def snapshot_from_request(
             musts=tuple(request_musts),
             arrival_time=arrival_time,
             departure_time=departure_time,
+            arrival_no=arrival_no,
+            departure_no=departure_no,
             arrival_mode=_mode_from_no(arrival_no) or _explicit_mode(intercity_mode),
             departure_mode=_mode_from_no(departure_no)
             or _explicit_mode(intercity_mode),

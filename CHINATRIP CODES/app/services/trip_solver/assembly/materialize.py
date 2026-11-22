@@ -758,6 +758,13 @@ def assemble(
 
     plan = materialize_plan(solution, snapshot, itinerary_id=itinerary_id)
     plan = attach_meal_cards(plan, solution, snapshot)
+    # 2026-11-22「fix all」#3：行前班次/时刻落腿（钉腿/合成接驳腿）——
+    # 此前引擎按 R11 跳过 legacy _apply_intake_times，班次号/时刻只进
+    # C-05 地板顶盖、从不落腿（bug_summary #3 实证）。必须在 compact/
+    # push 之前落：钉死的腿时刻=装配屏障（compact 不再拉进旧占位窗）。
+    from .intake_legs import apply_intake_legs
+
+    intake_notes = apply_intake_legs(plan, snapshot)
     plan = compact_days(plan, snapshot)
     # R13o①：城际腿屏障日右推（compact 只拉左；腿卡是装配期屏障）。
     plan = push_after_intercity(plan)
@@ -769,4 +776,6 @@ def assemble(
     # api._plan_for_response 在下发副本上幂等挂载，session/持久态
     # 零桥卡（编辑校验/挪位/LLM 卡单不受渲染件扰动）。
     plan.assumptions = render_disclosures(solution, snapshot, lang=lang)
+    if intake_notes:
+        plan.assumptions.extend(intake_notes)
     return plan

@@ -124,6 +124,12 @@ class TripRequest:
     avoid: tuple[str, ...] = ()
     arrival_time: Optional[str] = None
     departure_time: Optional[str] = None
+    # 2026-11-22「fix all」#3 根修：原始班次号随快照入装配——此前只在
+    # live 侧折成 arrival_mode/departure_mode，号码本身丢弃（腿卡
+    # train_no/flight_no 恒空，用户班次静默失效）。装配尾
+    # apply_intake_legs 消费（钉腿/合成接驳腿）。
+    arrival_no: Optional[str] = None
+    departure_no: Optional[str] = None
     # 交通模式（2026-11-18 跨管线对齐+拍板「火车 2h/飞机 2.5h」）：
     # 落地/离城缓冲按模式取 120/150，缺省 150
     arrival_mode: Optional[str] = None

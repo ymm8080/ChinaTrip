@@ -1529,3 +1529,111 @@ def test_generator_closed_trip_keeps_return_leg(monkeypatch):
                 getattr(i, "name", ""),
                 i.end_time,
             )
+
+
+# ------------------------------------------- 行前班次/时刻落腿（fix all #3）
+# （2026-11-22：引擎此前按 R11 跳过 _apply_intake_times——班次号不落腿、
+# 单城无合成接驳腿（bug_summary_engine_seam_omissions #3 实证）。
+
+
+def test_generator_closed_trip_pins_departure_number(monkeypatch):
+    """闭合行程 + 离开班次/时刻：返程腿钉上班次号（mode/no/时长）+ 用户
+    时刻=发车端（时长反推到达端）——不再恒空（bug #3 根修）。"""
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    session, outcome = generate_session_via_trip_solver(
+        device_id="t",
+        cities=["北京", "西安", "北京"],
+        days=7,
+        start_date="2026-11-25",
+        musts=[],
+        store=_multi_city_store(),
+        city_days={"西安": 3, "北京": 1},
+        origin_days=3,
+        departure_no="G456",
+        departure_time="20:00",
+    )
+    assert outcome is not None and outcome.engine == "cpsat"
+    plan = session.plan
+    last = plan.days[-1]
+    ret = next(
+        i
+        for i in last.items
+        if getattr(i, "from_city", None) == "西安"
+        and getattr(i, "to_city", None) == "北京"
+    )
+    assert ret.train_no == "G456" and ret.mode == "train"
+    from datetime import time as _t
+
+    assert ret.start_time == _t(20, 0)
+    assert ret.end_time == _t(22, 0)  # 火车 2h 反推
+    assert any("离开" in a and "G456" in a for a in plan.assumptions)
+
+
+def test_generator_departure_flight_number_sets_mode(monkeypatch):
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    session, _ = generate_session_via_trip_solver(
+        device_id="t",
+        cities=["北京", "西安", "北京"],
+        days=7,
+        start_date="2026-11-25",
+        musts=[],
+        store=_multi_city_store(),
+        city_days={"西安": 3, "北京": 1},
+        origin_days=3,
+        departure_no="CA1234",
+    )
+    ret = next(
+        i
+        for i in session.plan.days[-1].items
+        if getattr(i, "to_city", None) == "北京"
+    )
+    assert ret.mode == "flight" and ret.flight_no == "CA1234"
+    assert ret.duration_minutes == 150  # 拍板「飞机 2.5h」
+    assert ret.start_time.hour == 17  # 未给时刻保持引擎占位窗
+
+
+def test_generator_single_city_synthesizes_arrival_leg(monkeypatch):
+    """单城行程给到达时刻：合成接驳腿吸收（legacy _pin_intake_leg 同
+    语义）；合成晨卡与腿重叠撤下（到达日无晨卡形状）。"""
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    session, _ = generate_session_via_trip_solver(
+        device_id="t",
+        cities=["西安"],
+        days=2,
+        start_date="2026-11-25",
+        musts=[],
+        store=_multi_city_store(),
+        arrival_time="15:30",
+    )
+    d1 = session.plan.days[0]
+    legs = [
+        i
+        for i in d1.items
+        if getattr(i, "from_city", None) and getattr(i, "to_city", None)
+    ]
+    assert legs and legs[0].to_city == "西安"
+    from datetime import time as _t
+
+    assert legs[0].end_time == _t(15, 30)
+    assert any("到达" in a and "15:30" in a for a in session.plan.assumptions)
+    # 到达腿 13:30-15:30 与合成晨卡（8:30）重叠 → 晨卡撤下
+    assert not any(
+        str(getattr(i, "item_id", "") or "").startswith("hotel-morning")
+        for i in d1.items
+    )
+
+
+def test_generator_no_intake_info_zero_action(monkeypatch):
+    """班次/时刻都没填：零合成零披露（「不填=全天游玩」拍板不受影响）。"""
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    session, _ = generate_session_via_trip_solver(
+        device_id="t",
+        cities=["西安"],
+        days=2,
+        start_date="2026-11-25",
+        musts=[],
+        store=_multi_city_store(),
+    )
+    assert not any("接驳腿" in a or "落腿" in a for a in session.plan.assumptions)
+
+
