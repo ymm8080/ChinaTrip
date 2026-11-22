@@ -63,6 +63,7 @@ from app.services.agent.plan import (
     PlanSessionStore,
     PoiStoreUnavailableError,
     _count_text_dates,
+    _enforce_city_coherence,
     _extract_transport_numbers,
     _find_transfer_item,
     _leg_date_iso,
@@ -995,6 +996,13 @@ async def start_plan(
     # 白天入场闸读闸同位：生成首屏的越闸卡先清时刻再落库。
     if session.plan is not None:
         session.plan.assumptions.extend(enforce_entry_gate(session.plan))
+        # 城市日一致性出站闸（2026-11-22 上海→西安→北京案）：生成首屏
+        # 不许把北京景点排进西安天、上海外滩排进北京天——落库前最后收口。
+        for _note in _enforce_city_coherence(session.plan):
+            if _note not in session.plan.assumptions:
+                session.plan.assumptions.append(_note)
+            if _note not in session.assumptions:
+                session.assumptions.append(_note)
     _audit_must_coverage(session)
     store.save(session)
     body: dict = {"session_id": session.session_id, "state": session.state}

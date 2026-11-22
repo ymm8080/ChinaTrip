@@ -908,13 +908,48 @@ def _check_pace(
 # --- iron rule 3 (simplified): geography sanity ---------------------------
 
 
+def _day_city_scope(day: DayPlan) -> set[str]:
+    """当天骨架能容的城市（基准城 + 当天城际腿两端）。
+
+    2026-11-22 上海→西安→北京案：旧校验只问「景点城市在不在行程城市表
+    里」——外滩（上海）在表里、北京景点也在表里，于是「北京行程里排上海
+    外滩」一条告警都不报。城市必须和**当天的城**对齐。
+    """
+    scope = {_norm_city(day.base_city)} - {""}
+    for it in day.items:
+        if not isinstance(it, TransferItem):
+            continue
+        for c in (_norm_city(it.from_city), _norm_city(it.to_city)):
+            if c:
+                scope.add(c)
+    return scope
+
+
 def _check_visit_cities(
     plan: ItineraryPlan, day: DayPlan, visits: list[VisitItem]
 ) -> list[RuleViolation]:
     out = []
     plan_cities = {_norm_city(c) for c in plan.cities}
+    scope = _day_city_scope(day)
     for v in visits:
-        if _norm_city(v.city) not in plan_cities:
+        city = _norm_city(v.city)
+        if scope and city and city not in scope:
+            out.append(
+                RuleViolation(
+                    rule_id=3,
+                    severity=RuleSeverity.warning,
+                    message=L(
+                        f"第{day.day}天在{day.base_city or '未知城'}，却排了"
+                        f"{city}的{v.name}",
+                        f"Day {day.day} is in {day.base_city or 'an unknown city'} "
+                        f"but schedules {v.name} in {city}",
+                    ),
+                    item_ids=[v.item_id],
+                    day=day.day,
+                )
+            )
+            continue
+        if city not in plan_cities:
             out.append(
                 RuleViolation(
                     rule_id=3,

@@ -14940,6 +14940,60 @@ def _day_hosts_city(day: DayPlan, city: str) -> bool:
     return False
 
 
+def _day_city_skeleton(day: DayPlan) -> set[str]:
+    """当天骨架能容的城市集合（基准城 + 当天城际腿两端），不看景点卡自己。
+
+    2026-11-22 上海→西安→北京案：`_day_hosts_city` 把「已在册条目城市」
+    也算宿主，混日脏卡于是自我认证——北京景点躺在西安天，所有闸都查
+    不出来。审计/定天一律读本函数（只认盘面骨架）。
+
+    空骨架（基准城空且无城际腿）返回空集：无从判断，不当作违规。
+    """
+    scope: set[str] = set()
+    base = _norm_city_key(day.base_city)
+    if base:
+        scope.add(base)
+    for it in day.items:
+        if not isinstance(it, TransferItem) or _is_incity_transfer(it):
+            continue
+        for c in (getattr(it, "from_city", None), getattr(it, "to_city", None)):
+            key = _norm_city_key(c)
+            if key:
+                scope.add(key)
+    return scope
+
+
+def _day_hosts_city_skeleton(day: DayPlan, city: str) -> bool:
+    """骨架是否容得下这座城（空骨架 = 无从判断，按放行处理）。"""
+    key = _norm_city_key(city)
+    if not key:
+        return True
+    scope = _day_city_skeleton(day)
+    if not scope:
+        return True
+    if key in scope:
+        return True
+    # 区县级写法（「北京延庆」「西安临潼」）按前缀归一，别把郊区王牌判成
+    # 混城——只走前缀，不做模糊相似。
+    return any(key.startswith(s) or s.startswith(key) for s in scope)
+
+
+def _resolve_city_key(plan: ItineraryPlan, city: object) -> str:
+    """把 POI 的 city 对回行程城市名（区县写法 → 主城；对不上原样返回）。"""
+    key = _norm_city_key(city)
+    if not key:
+        return ""
+    known = {_norm_city_key(c) for c in (plan.cities or ())}
+    known |= {_norm_city_key(d.base_city) for d in plan.days}
+    known.discard("")
+    if key in known:
+        return key
+    for k in sorted(known, key=len, reverse=True):
+        if key.startswith(k) or k.startswith(key):
+            return k
+    return key
+
+
 def _site_fit_problem(
     day: DayPlan,
     item: VisitItem,
@@ -14964,6 +15018,12 @@ def _site_fit_problem(
     e = _item_end_minutes(item)
     e = s + dur if e is None else e
     city = _norm_city_key(item.city)
+    # 城市轴的第一性问题（2026-11-22 上海→西安→北京案）：先问「这天到底
+    # 在不在那座城」——骨架（基准城/城际腿）容不下就是混日，跟钟点无关。
+    # 旧口径只比转场前后的钟点：没有转场的天永远「合规」，北京景点因此
+    # 安稳躺在西安天。
+    if city and not _day_hosts_city_skeleton(day, city):
+        return "city_wrong_day"
     for t in day.items:
         if not isinstance(t, TransferItem) or t.start_time is None:
             continue
@@ -15049,6 +15109,7 @@ def _enforce_site_day_fit(
     reason_text = {
         "city_after_arrival": L("落地时间赶不上", "arrives after the slot"),
         "city_before_departure": L("离城发车赶不上", "departs before the slot ends"),
+        "city_wrong_day": L("当天不在那座城", "not in that city that day"),
         "closed_weekday": L("当天闭馆", "closed that weekday"),
         "outside_hours": L("超出营业时间", "outside opening hours"),
         "rain_outdoor": L("雨日露天", "outdoor on a rainy day"),
@@ -15083,8 +15144,15 @@ def _enforce_site_day_fit(
             item.fixed_sessions = None
             day.items = [i for i in day.items if i is not item]
             placed = False
-            for target in [day, *[d for d in plan.days if d is not day]]:
-                if target is not day and not _day_hosts_city(target, city):
+            # 混日件（city_wrong_day）当天骨架容不下这座城：同日"重排"必然是
+            # 同一个坑，只能换天（2026-11-22 上海外滩落北京天案）。
+            candidates = (
+                [d for d in plan.days if d is not day]
+                if problem == "city_wrong_day"
+                else [day, *[d for d in plan.days if d is not day]]
+            )
+            for target in candidates:
+                if target is not day and not _day_hosts_city_skeleton(target, city):
                     continue
                 if problem == "rain_outdoor" and target.day in rain_map.get(
                     city, set()
@@ -15152,6 +15220,33 @@ def _enforce_site_day_fit(
             item.start_time = None
             item.end_time = None
             item.pinned = False
+            if problem == "city_wrong_day":
+                # 混日件不能"留灰卡在原地"——灰卡仍挂在错的城那天，用户看到
+                # 的依旧是「北京行程里有上海外滩」。无宿主日就退回想去（可挪
+                # 不可删），披露城市与本次行程不符（2026-11-22 用户实录）。
+                plan.unplaced.append(
+                    UnplacedCandidate(
+                        name=item.name,
+                        name_en=getattr(item, "name_en", None),
+                        poi_id=item.poi_id,
+                        category=item.category,
+                        tier=getattr(item, "tier", None),
+                        duration_minutes=item.duration_minutes,
+                        location=getattr(item, "location", None),
+                        city=item.city,
+                        best_visit_time=getattr(item, "best_visit_time", None),
+                        reason="city_day",
+                    )
+                )
+                notes.append(
+                    L(
+                        f"「{item.name}」在{item.city}，本次行程第{day.day}天在"
+                        f"{day.base_city or '另一城'}，已移出并列入想去",
+                        f'"{item.name}" is in {item.city} but day {day.day} is in '
+                        f"{day.base_city or 'another city'} — moved to wishlist",
+                    )
+                )
+                continue
             day.items.append(item)
             day.items.sort(
                 key=lambda i: (i.start_time is None, i.start_time or time(0, 0))
@@ -15165,6 +15260,168 @@ def _enforce_site_day_fit(
                     "(name another day to add it back)",
                 )
             )
+    return notes
+
+
+def _day_city_capacity(day: DayPlan, city: str) -> int:
+    """当天真正留给这座城市的活动分钟数（不是「骨架含它」那么宽）。
+
+    骨架只说明「这天会路过那座城」；出发日 09:00 起飞的城市其实只剩
+    半小时（2026-11-22 外滩案：修一次错误的正解不是把它挪到「上海出发
+    日」，那天根本没有可玩时间）。口径：
+    - 基准城：有出城腿 → 发车前（扣 90 离城缓冲）；无出城腿 → 全天空档；
+    - 到达城：落地后（扣 150 落地缓冲）到日终。
+    两者取大。
+    """
+    key = _norm_city_key(city)
+    if not key:
+        return 0
+    day_start, day_end = 8 * 60 + 30, 21 * 60 + 30
+    cap = 0
+    out_dep: int | None = None
+    arrived: int | None = None
+    for it in day.items:
+        if not isinstance(it, TransferItem) or _is_incity_transfer(it):
+            continue
+        start = _minutes_of(it.start_time)
+        end = _item_end_minutes(it)
+        if start is None:
+            continue
+        end = start if end is None else end
+        if _norm_city_key(it.from_city) == key:
+            out_dep = start if out_dep is None else min(out_dep, start)
+        if _norm_city_key(it.to_city) == key:
+            arrived = end if arrived is None else min(arrived, end)
+    if _norm_city_key(day.base_city) == key:
+        if out_dep is not None:
+            cap = max(cap, max(0, out_dep - 90 - day_start))
+        else:
+            cap = max(cap, _day_free_minutes(day))
+    if arrived is not None:
+        cap = max(cap, max(0, day_end - (arrived + 150)))
+    return cap
+
+
+def _day_city_has_time(day: DayPlan, city: str) -> bool:
+    """粗判：这天有没有「留给这座城」的时间（补点池的准入闸）。
+
+    与 `_day_city_capacity` 的区别：基准城且无出城腿 → 恒真（有没有空档
+    由探针裁决——`_day_free_minutes` 扣了餐/酒店预留额，在这里当准入闸会
+    把"其实塞得进"的天误杀）。
+    """
+    key = _norm_city_key(city)
+    if not key:
+        return True
+    if not _day_hosts_city_skeleton(day, key):
+        return False
+    if _norm_city_key(day.base_city) == key:
+        out_dep: int | None = None
+        for it in day.items:
+            if not isinstance(it, TransferItem) or _is_incity_transfer(it):
+                continue
+            start = _minutes_of(it.start_time)
+            if start is None or _norm_city_key(it.from_city) != key:
+                continue
+            out_dep = start if out_dep is None else min(out_dep, start)
+        if out_dep is None:
+            return True
+        return out_dep - 90 > 8 * 60 + 30
+    return _day_city_capacity(day, key) > 0
+
+
+def _enforce_city_coherence(plan: ItineraryPlan) -> list[str]:
+    """城市日一致性总闸（2026-11-22 上海→西安→北京案）。
+
+    交付边界的不变量：**任何景点卡所在的那天，骨架必须容得下它的城**
+    （基准城 / 当天城际腿两端）。旧盘面没有任何一条闸管这件事——
+    `_enforce_site_day_fit` 的城市轴只比转场前后的钟点（没有转场的天恒
+    合规），`_purify_cluster_days` 的 `_countable` 直接按「城市 == 基准城」
+    过滤（异城卡根本进不了视野），于是北京慕田峪躺在西安第 2 天、上海
+    外滩躺在北京第 5 天，全线无人报错。
+
+    修法（挪不删）：异城卡移去它自己那座城**真正留得出时间**的宿主日
+    （`_day_city_capacity` ≥ 时长；优先基准城就是该城、空档最大的），清
+    时刻交给日末兜底重排；连"路过"都没有则退回想去 + 披露。
+    幂等：干净盘面零改动、零披露。餐/酒店/占位卡不归本闸（各有合成语义）。
+    """
+    notes: list[str] = []
+    moved_any = False
+    for day in plan.days:
+        if not _day_city_skeleton(day):
+            continue
+        for item in [i for i in day.items if isinstance(i, VisitItem)]:
+            if str(getattr(item, "category", "") or "") in ("food", "hotel"):
+                continue
+            city = _resolve_city_key(plan, item.city)
+            if not city or _day_hosts_city_skeleton(day, city):
+                continue
+            dur = int(item.duration_minutes or DEFAULT_VISIT_MINUTES)
+            hosts = [
+                d
+                for d in plan.days
+                if d is not day and _day_city_capacity(d, city) >= dur
+            ]
+            if not hosts:
+                # 留得出时间的宿主日没有：必去件退到「只是路过」的天（可挪
+                # 不可删），其余件退回想去（宁缺不混城）。
+                if getattr(item, "must", False):
+                    hosts = [
+                        d
+                        for d in plan.days
+                        if d is not day and _day_hosts_city_skeleton(d, city)
+                    ]
+            base_hosts = [
+                d for d in hosts if _norm_city_key(d.base_city) == city
+            ] or hosts
+            if not base_hosts:
+                day.items = [i for i in day.items if i is not item]
+                plan.unplaced.append(
+                    UnplacedCandidate(
+                        name=item.name,
+                        name_en=getattr(item, "name_en", None),
+                        poi_id=item.poi_id,
+                        category=item.category,
+                        tier=getattr(item, "tier", None),
+                        duration_minutes=item.duration_minutes,
+                        location=getattr(item, "location", None),
+                        city=item.city,
+                        best_visit_time=getattr(item, "best_visit_time", None),
+                        reason="city_day",
+                    )
+                )
+                notes.append(
+                    L(
+                        f"「{item.name}」在{city}，本行程没有{city}的停留日，"
+                        "已移出并列入想去",
+                        f'"{item.name}" is in {city}, which has no day on this '
+                        "trip — moved to the wishlist",
+                    )
+                )
+                continue
+            dest = max(
+                base_hosts, key=lambda d: (_day_city_capacity(d, city), -d.day)
+            )
+            day.items = [i for i in day.items if i is not item]
+            item.day = dest.day
+            item.start_time = None
+            item.end_time = None
+            item.pinned = False
+            dest.items.append(item)
+            moved_any = True
+            notes.append(
+                L(
+                    f"「{item.name}」在{city}，已从第{day.day}天改排第{dest.day}天",
+                    f'"{item.name}" is in {city}; moved from day {day.day} to '
+                    f"day {dest.day}",
+                )
+            )
+    if moved_any:
+        for d in plan.days:
+            d.items.sort(
+                key=lambda i: (i.start_time is None, i.start_time or time(0, 0))
+            )
+        # 挪日清时刻：交给日末兜底重排，别把"未排"交给用户
+        _fallback_sequence_times(plan)
     return notes
 
 
@@ -15394,7 +15651,12 @@ def _assign_must_family_days(
     placed_dur: dict[int, int] = {}
 
     def score(fam: list[VisitItem], day: DayPlan) -> int | None:
-        if any((v.city or "") and not _day_hosts_city(day, v.city) for v in fam):
+        # 骨架口径（2026-11-22 上海→西安→北京案）：`_day_hosts_city` 会把
+        # 「已在册条目城市」算成宿主——族里那张卡自己就在错的城，于是判
+        # 自己对、搬不动。定天只认基准城 + 城际腿两端。
+        if any(
+            (v.city or "") and not _day_hosts_city_skeleton(day, v.city) for v in fam
+        ):
             return None
         # 一天最多一个远郊族（2026-11-15 用户两裁）：远郊族不落已有远郊的天
         if _family_is_remote(fam, plan):
@@ -15440,7 +15702,10 @@ def _assign_must_family_days(
             if got is not None:
                 scores[day.day] = got
         if not scores:
-            return anchor_no(fam)
+            # 无宿主日（本行程没有它的城 / 全是远郊冲突）：**不回落 anchor**
+            # ——旧兜底会把北京必去留在西安天（2026-11-22 案）。返回 -1 表示
+            # 本族不动天，城市对账闸负责把它挪走或退回想去。
+            return -1
         best = min(scores.values())
         here = anchor_no(fam)
         if scores.get(here, 10**9) <= best + _MUST_STAY_SLACK_MIN:
@@ -15540,9 +15805,18 @@ def _separate_remote_must_days(
         if home is None:
             continue
         dur = int(r.duration_minutes or DEFAULT_VISIT_MINUTES)
-        hosts = [d for d in plan.days if _day_free_minutes(d) >= dur]
+        # 城市闸（2026-11-22 上海→西安→北京案）：远郊必去只能占**它自己那座
+        # 城**的天。旧口径只按「别的必去最少」挑宿主日，慕田峪（北京）于是
+        # 被搬进西安第 2 天——用户看到的正是「第二天排北京行程，完全错误」。
+        hosts = [
+            d
+            for d in plan.days
+            if _day_hosts_city_skeleton(d, r.city) and _day_free_minutes(d) >= dur
+        ]
         if not hosts:
-            hosts = list(plan.days)
+            hosts = [d for d in plan.days if _day_hosts_city_skeleton(d, r.city)]
+        if not hosts:
+            continue  # 本行程没有它的城：原样保留，交给城市对账闸处理
         tgt = min(
             hosts,
             key=lambda d: (
@@ -15574,6 +15848,9 @@ def _separate_remote_must_days(
                 d
                 for d in plan.days
                 if d is not tgt
+                # 城市闸：被让位的必去只能挪到它自己那座城的天（同上，
+                # 2026-11-22 上海→西安→北京案）
+                and _day_hosts_city_skeleton(d, v.city)
                 and not any(
                     isinstance(i, VisitItem)
                     and getattr(i, "must", False)
@@ -16362,6 +16639,20 @@ def _fill_leftover_with_diverse_sights(
                 u
                 for u in source
                 if (u.category or "") not in ("food", "hotel")
+                # 城市闸（2026-11-22 上海外滩进北京天案）：补点只能补**当天
+                # 真正留得出时间的那座城**。旧口径只靠「离当天簇 ≤5km」这条
+                # 几何闸，而转场日/无落点天的 day_pts 是空的——闸根本不生效，
+                # 外滩（上海）于是被补进西安→北京的第 5 天。
+                # 口径用 `_day_city_capacity`（不是「路过就算」）：出发城的
+                # 交通日根本不该被补点回头捞出来（用户 2026-11-22「很清晰的
+                # 离开城市、到达城市」）——排不上就留在想去，不设「无宿主日」。
+                # 这里只问「这天有没有留给这座城的时间」（>0），具体装不装
+                # 得下由下面的探针裁决（容量近似会把 15 分钟差额判成塞不进）。
+                # 无城市标注的候选不拦（无从判断，交给族亲和/几何闸）。
+                and (
+                    not _norm_city_key(getattr(u, "city", None))
+                    or _day_city_has_time(day, u.city)
+                )
                 # 边角料不补（2026-11-16）：30 分钟观景厅塞进 45 分钟空档
                 # 只是凑数，宁缺勿滥
                 and int(u.duration_minutes or DEFAULT_VISIT_MINUTES)
@@ -19034,10 +19325,16 @@ def _seat_unplaced_musts(plan: ItineraryPlan, alloc, must_names: set[str]):
         # 城的天卡（城市错位）——留在 unplaced+披露才是合法终态。
         if getattr(cand, "reason", None) == "origin_transport_only":
             continue
+        # 城市闸（2026-11-22 上海→西安→北京案）：回座只许落在它自己那座城
+        # 的天。旧口径按「想去的天→件数最少→日序」排，跨城时必然把北京
+        # 景点塞进西安天（城市错位不是兜底可选，而是这个排序的常态）。
+        cand_city = _norm_city_key(getattr(cand, "city", None))
         order = sorted(
-            plan.days,
+            [d for d in plan.days if _day_hosts_city_skeleton(d, cand_city)],
             key=lambda d: (d.day != cand.day_hint, len(d.items), d.day),
         )
+        if not order:
+            continue
         for day in order:
             trial = deepcopy(plan)
             tday = next(d for d in trial.days if d.day == day.day)
@@ -29659,6 +29956,9 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
         # 重排、再同城换天、都不行撤时刻留痕；跑在餐卡重排之前，餐位
         # 跟着修正后的时链走。
         plan.assumptions.extend(_enforce_site_day_fit(plan, rain_days=rain_days))
+        # 城市日一致性总闸（2026-11-22 上海→西安→北京案）：三轴校核只管
+        # 带时刻的卡，异城无时刻卡/骨架外卡由本闸统一挪城或退回想去。
+        plan.assumptions.extend(_enforce_city_coherence(plan))
 
         plan.assumptions.extend(_retime_real_food_cards(plan))
         # 卡=槽位、餐厅=数据：餐厅必须填进午/茶/晚卡，不许自带一套自由时刻
@@ -29699,6 +29999,13 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
             plan.assumptions.extend(morning_notes)
         # 定序收口后再对一次晨卡：出发卡恒 08:30-09:00（2026-11-14）
         reanchor_hotel_mornings(plan.days)
+        # 城市日一致性终局收口（2026-11-22 用户「第五天北京行程里还有上海
+        # 外滩/第二天排北京行程」）：上面三轴校核之后仍有 _bind_block_family
+        # 这类会挪卡的相位——交付前最后再说一次「这天的城容不容得下这张卡」。
+        late_city_notes = _enforce_city_coherence(plan)
+        if late_city_notes:
+            plan.assumptions.extend(late_city_notes)
+            reanchor_hotel_mornings(plan.days)
         report = validate_plan(plan, poi_hours=[])
         if not report.ok:
             # §6.4: hard violations do not block delivery — annotated half-product.
@@ -31500,6 +31807,13 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
                 session.plan.assumptions.append(note)
             if note not in session.assumptions:
                 session.assumptions.append(note)
+        # 城市日一致性（2026-11-22 上海→西安→北京案）：旧会话开档即治——
+        # 异城卡（上海外滩在西安→北京那天、北京慕田峪在西安天）挪回自己的城。
+        for note in _enforce_city_coherence(session.plan):
+            if note not in session.plan.assumptions:
+                session.plan.assumptions.append(note)
+            if note not in session.assumptions:
+                session.assumptions.append(note)
         # 历史脏卡清退（2026-11-17 慕田峪案）：旧「回城日不限距」豁免落进来的
         # 第三片区补点件开档即清——不必等重新生成；在已补短路之前跑，
         # 「补过」的旧会话也能被治好。
@@ -31580,6 +31894,14 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
             logger.info(
                 "plan: session %s 空档补点 %d 处", session.session_id, len(notes)
             )
+        # 补点后再过城市日一致性（2026-11-22 上海外滩案）：补点是纯加法、只
+        # 看空档，必须在交付前按「当天在不在那座城」收口；本闸披露挂在
+        # assumptions 上（不走上面的活动名过滤——挪走的卡名字仍要留痕）。
+        for note in _enforce_city_coherence(session.plan):
+            if note not in session.plan.assumptions:
+                session.plan.assumptions.append(note)
+            if note not in session.assumptions:
+                session.assumptions.append(note)
         return [*evicted, *notes]
 
     async def heal_must_coverage(self, session: PlanSession) -> list[str]:
@@ -31651,6 +31973,10 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
         # 交付前接驳链最后一道对账（2026-11-15）：任何一道都不得把两张卡
         # 贴成 0 分钟；引擎钉住的必去也在这里按链后移（用户手钉不动）。
         plan.assumptions.extend(_clamp_chain_gaps(plan))
+        # 城市日一致性（2026-11-22 上海→西安→北京案）：必去定天/远郊分天/
+        # 钉时/救生各相位都可能把异城件带走——fill_leftover_gaps 内部也会
+        # 再收口一次，这里先补一道保证「必去自愈」自己闭环。
+        plan.assumptions.extend(_enforce_city_coherence(plan))
         notes.extend(await self.fill_leftover_gaps(session))
         annotate_legs(plan)
         for note in notes:
@@ -31681,6 +32007,13 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
         for note in _apply_geo_invariants(session.plan):
             if note not in session.plan.assumptions:
                 session.plan.assumptions.append(note)
+        # 城市日一致性（2026-11-22 上海→西安→北京案）：开页/拖卡/换点/改时
+        # 之后盘面同样可能混城——交付前统一收口（幂等，干净盘面零改动）。
+        for note in _enforce_city_coherence(session.plan):
+            if note not in session.plan.assumptions:
+                session.plan.assumptions.append(note)
+            if note not in session.assumptions:
+                session.assumptions.append(note)
         if session.assumptions:
             for note in session.plan.assumptions:
                 if note not in session.assumptions:

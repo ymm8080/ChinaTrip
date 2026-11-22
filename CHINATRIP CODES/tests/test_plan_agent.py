@@ -276,6 +276,30 @@ SH_HZ_ITEMS = [
     },
 ]
 
+SH_CD_ITEMS = [
+    {
+        "name": "外滩",
+        "city": "上海",
+        "category": "sight",
+        "day": 1,
+        "duration_minutes": 90,
+    },
+    {
+        "name": "豫园",
+        "city": "上海",
+        "category": "sight",
+        "day": 1,
+        "duration_minutes": 60,
+    },
+    {
+        "name": "宽窄巷子",
+        "city": "成都",
+        "category": "sight",
+        "day": 2,
+        "duration_minutes": 120,
+    },
+]
+
 AMAP_POIS = [
     {
         "name": "外滩",
@@ -2547,9 +2571,16 @@ _TEA_PLAIN = {
 
 
 def _teahouse_session(amap, store, svc, wish, cities=("上海", "杭州")):
-    """Ready session（默认上海→杭州）；西湖带坐标充当搜索圆心，心愿单
-    里有 ``wish``，下一轮 edit 回复已就位。"""
-    llm = ScriptedLLM([v0_reply(SH_HZ_ITEMS)])
+    """Ready session（默认上海→杭州）；第二天那张卡带坐标充当搜索圆心，
+    心愿单里有 ``wish``，下一轮 edit 回复已就位。
+
+    ``SH_HZ_ITEMS`` 是沪杭线的剧本；跑到沪蓉线时换 ``SH_CD_ITEMS``——
+    2026-11-22 城市日一致性之后，沪蓉行程里的杭州卡会被判混城移出（旧
+    fixture 靠这张错城卡充当圆心，是同一个 bug 的测试侧倒影）。
+    """
+    items = SH_CD_ITEMS if "成都" in cities else SH_HZ_ITEMS
+    anchor_name = "宽窄巷子" if "成都" in cities else "西湖"
+    llm = ScriptedLLM([v0_reply(items)])
     # auto_restaurants=False：本组断言 amap 调用形状/餐窗落位，自动午餐
     # 搜索（餐厅）与占位件会污染口径（午餐保底 2026-10-31）
     agent = PlanningAgent(
@@ -2559,8 +2590,8 @@ def _teahouse_session(amap, store, svc, wish, cities=("上海", "杭州")):
     assert session.state == "clarify"
     session, _, _ = run(agent.message(session, "无特别要求"))
     assert session.state == "ready"
-    westlake = next(v for v in all_visits(session) if v.name == "西湖")
-    westlake.location = GeoPoint(lon=120.15, lat=30.25)
+    anchor = next(v for v in all_visits(session) if v.name == anchor_name)
+    anchor.location = GeoPoint(lon=120.15, lat=30.25)
     svc.create(wish, source="chat", itinerary_id=session.plan.itinerary_id)
     llm.replies.append(edit_reply("好的", []))
     return agent, session
