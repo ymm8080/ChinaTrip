@@ -131,6 +131,92 @@ def test_arrival_and_departure_times_land_on_the_right_legs() -> None:
     assert "离开" in joined and "16:00" in joined
 
 
+def test_closed_trip_keeps_return_leg_when_no_intake_info() -> None:
+    """2026-11-22 北京→西安→北京 闭合案（session 61443ea4）：闭合行程（首城
+    ==尾城）离开侧没填班次/时刻时，返程腿是路线本体——不撤（旧行为把第 7
+    天腿撤掉，行程永远回不了北京）。当天非钉景点清时刻按返程腿重排。"""
+    plan = ItineraryPlan(
+        itinerary_id="it-closed",
+        cities=["北京", "西安", "北京"],
+        days=[
+            DayPlan(day=1, base_city="北京"),
+            DayPlan(day=2, base_city="北京"),
+            DayPlan(day=3, base_city="北京"),
+            DayPlan(
+                day=4,
+                base_city="西安",
+                items=[
+                    TransferItem(
+                        item_id="t-out",
+                        day=4,
+                        seq=1,
+                        from_city="北京",
+                        to_city="西安",
+                        mode="train",
+                        start_time=time(9, 0),
+                        end_time=time(12, 0),
+                        duration_minutes=180,
+                    )
+                ],
+            ),
+            DayPlan(day=5, base_city="西安"),
+            DayPlan(day=6, base_city="西安"),
+            DayPlan(
+                day=7,
+                base_city="西安",
+                items=[
+                    TransferItem(
+                        item_id="t-ret",
+                        day=7,
+                        seq=1,
+                        from_city="西安",
+                        to_city="北京",
+                        mode="train",
+                        start_time=time(17, 0),
+                        end_time=time(21, 0),
+                        duration_minutes=240,
+                    )
+                ],
+            ),
+        ],
+    )
+    session = PlanSession(
+        session_id="s-closed",
+        device_id="device-1",
+        cities=["北京", "西安", "北京"],
+        days=7,
+        plan=plan,
+        intake_done=True,  # 行前卡提交但离开侧没填 → 旧行为撤掉返程腿
+    )
+    asyncio.run(PlanningAgent(_NoLLM())._apply_intake_times(session))
+
+    legs = [
+        i for d in session.plan.days for i in d.items if isinstance(i, TransferItem)
+    ]
+    assert [f"{t.from_city}→{t.to_city}" for t in legs] == [
+        "北京→西安",
+        "西安→北京",
+    ]
+    ret = legs[-1]
+    assert ret.day == 7
+    joined = " ".join(session.assumptions)
+    assert "保留返程腿" in joined and "西安→北京" in joined
+    # 全天撤腿口径不再误报在闭合行程上
+    assert not any("未画入行程" in a for a in session.assumptions)
+
+
+def test_open_trip_unfilled_departure_still_relaxes_leg() -> None:
+    """开式行程（结束城市≠出发城）没填离开信息：撤腿按全天规划（2026-11-14
+    拍板原样）——闭合保留口径不影响开式行程。"""
+    session = _session(intake_done=True)
+    asyncio.run(PlanningAgent(_NoLLM())._apply_intake_times(session))
+    assert not [
+        i for d in session.plan.days for i in d.items if isinstance(i, TransferItem)
+    ]
+    joined = " ".join(session.assumptions)
+    assert "第3天" in joined and "全天" in joined
+
+
 def test_no_intake_info_relaxes_to_full_days() -> None:
     """到达/离开的班次与时刻都没填：撤掉对应天的城际腿，按全天游玩规划
     （2026-11-14 拍板「不填默认全天都可以规划」）。"""
