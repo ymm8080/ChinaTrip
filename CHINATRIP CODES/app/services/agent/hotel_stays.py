@@ -717,8 +717,39 @@ def sync_stay_cities(day_plans: list[DayPlan]) -> int:
     都落定后统一收口：夜卡城=当天晚宿城，晨卡城=前一晚夜卡城。只改占位卡
     （无 poi/地址/坐标）；用户手输验证过的真实酒店一律不动。返回改写卡数，
     幂等（干净盘面 0）。
+
+    2026-11-22 二拍（用户「D5 晨卡时刻仍是 05:15（慕田峪远郊锚，reanchor 只
+    回拨不后移）」）：城一变，晨卡上的**时刻**就是旧城算出来的——05:15 =
+    「08:30 班车 − 西安酒店→前门打车 195 分」。换城后 reanchor 只回拨不后移，
+    这张早于日始的卡再也回不到 08:30，只能一直挂着 05:15。故拨正城市的晨卡
+    同步把时刻复位到日始窗口（08:30-09:00），当天再走一次 reanchor：需要更早
+    离店（班次锚）由它回拨，不需要就停在日始。
     """
-    return apply_stay_cities(day_plans)
+    before = {
+        m.item_id: m.city
+        for dp in day_plans
+        for m in dp.items
+        if is_hotel_morning(m) and _hotel_placeholder(m)
+    }
+    fixed = apply_stay_cities(day_plans)
+    if not fixed:
+        return fixed
+    for dp in day_plans:
+        card = _morning_card_of(dp)
+        if card is None or card.item_id not in before:
+            continue
+        if (card.city or "").strip() == (before[card.item_id] or "").strip():
+            continue
+        # 城变了=旧时刻作废：先复位日始窗口，再让当天 reanchor 按班次锚回拨。
+        card.start_time = time(
+            HOTEL_MORNING_EARLIEST_MINUTES // 60, HOTEL_MORNING_EARLIEST_MINUTES % 60
+        )
+        card.end_time = time(
+            HOTEL_MORNING_READY_MINUTES // 60, HOTEL_MORNING_READY_MINUTES % 60
+        )
+        card.duration_minutes = HOTEL_MORNING_MINUTES
+        reanchor_hotel_mornings([dp])
+    return fixed
 
 
 def _day_with(day_plans: list[DayPlan], day: int) -> DayPlan | None:
@@ -764,6 +795,38 @@ def sync_hotel_pair(
     return pair
 
 
+def _morning_window_exact(dp: DayPlan) -> bool:
+    """当天晨窗是否「唯一解」——离店时刻不由用户偏好决定（2026-11-22）。
+
+    首件是城际/班车转场件，或当天本来就是空天：离店要么贴着班次倒推
+    （铁律 4 的缓冲），要么就是日始 08:30，没有「我想更早」的余地。
+    """
+    first = _first_timed_item(dp, skip_placeholders=True)
+    return first is None or isinstance(first, TransferItem)
+
+
+def _stale_early_morning(card: VisitItem, dp: DayPlan, cur_end: int, end: int) -> bool:
+    """占位晨卡上「早于日始、又没有锚撑着」的时刻 = 旧锚残值，允许后移。
+
+    2026-11-22 用户实录「D5 晨卡时刻仍是 05:15（慕田峪远郊锚，reanchor 只
+    回拨不后移）」：05:15 = 「08:30 班车 − 西安酒店→前门打车 195 分」，是按
+    **错城**算出来的离店时刻。城被拨正的那天由 `sync_stay_cities` 复位时刻，
+    这里只兜「窗唯一」的天（首件是城际/班车转场件、或空天）：那种天离店没有
+    偏好的余地，早于日始的占位卡只能是旧锚残值。三条件同时成立才后移：
+      ① 系统占位卡（用户验证过的真实酒店一律不动）；
+      ② 现时刻早于日始 08:30，且重算窗口更晚；
+      ③ 当天晨窗唯一（`_morning_window_exact`）——景点/接驳日不算：那里
+         07:15 这类早卡是「点选班次」的产物（R13q 晨卡随班次同移），不许抬走。
+    """
+    if not _hotel_placeholder(card) or end <= cur_end:
+        return False
+    if card.start_time is None:
+        return False
+    if _minutes_of(card.start_time) >= HOTEL_MORNING_EARLIEST_MINUTES:
+        return False
+    return _morning_window_exact(dp)
+
+
 def reanchor_hotel_mornings(
     day_plans: list[DayPlan], *, keep_ids: set[str] | None = None
 ) -> None:
@@ -772,8 +835,10 @@ def reanchor_hotel_mornings(
     晨卡语义=「离店去当天首站」：首件开场或酒店坐标变化后，卡尾须
     回到「首件 − max(30, 实际打车腿)」（首件是跨城交通则按铁律 4 的
     90 分钟衔接缓冲），卡占前 30 分钟。只回拨不后移（用户手拖更早的
-    卡不动）；keep_ids 内的卡（本回合被用户拖/改的目标）完全不动；
-    不复活已删卡（同夜卡 reanchor 口径）。
+    卡不动）；例外=占位卡落在「窗唯一」的天（`_morning_window_exact`：
+    首件是转场件/空天），早于日始的旧锚允许后移（2026-11-22 用户
+    「D5 晨卡仍是 05:15」）；keep_ids 内的卡（本回合被用户拖/改的目标）
+    完全不动；不复活已删卡（同夜卡 reanchor 口径）。
     """
     keep = keep_ids or set()
     touched: set[int] = set()
@@ -854,7 +919,10 @@ def reanchor_hotel_mornings(
             continue
         cur_end = _minutes_of(card.end_time) if card.end_time is not None else None
         if cur_end is not None and cur_end <= end:
-            continue
+            # 只回拨不后移（保护手拖，2026-11-13）；占位卡的旧锚例外，见
+            # `_stale_early_morning`（2026-11-22 用户「D5 晨卡仍是 05:15」）。
+            if not _stale_early_morning(card, dp, cur_end, end):
+                continue
         card.start_time = time(start // 60, start % 60)
         card.end_time = time(end // 60, end % 60)
         card.duration_minutes = HOTEL_MORNING_MINUTES

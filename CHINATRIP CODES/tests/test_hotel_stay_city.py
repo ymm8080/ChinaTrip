@@ -259,6 +259,138 @@ def test_sync_stay_cities_fixes_engine_night_and_next_morning():
     assert _morning(days[2]).city == "北京"  # 第五天从北京酒店出发
 
 
+def test_sync_stay_cities_rebases_morning_time_when_city_flips():
+    """城拨正时，按错城算出的离店时刻要一起复位（2026-11-22 二拍）。
+
+    用户原话：「D5 晨卡时刻仍是 05:15（慕田峪远郊锚，reanchor 只回拨不后移）」。
+    05:15 = 「08:30 班车 − 西安酒店→前门打车 195 分」——城拨到北京后旧时刻
+    作废，回日始窗口，再由当天 reanchor 按班次锚回拨。
+    """
+    days = _engine_style_plan()
+    morning = _morning(days[2])
+    assert morning.start_time == time(5, 15)  # 修复前
+    sync_stay_cities(days)
+    assert morning.city == "北京"
+    assert morning.start_time == time(8, 30)
+    assert morning.end_time >= time(8, 30)
+    assert morning.duration_minutes == 30
+    assert sync_stay_cities(days) == 0  # 幂等
+
+
+def test_reanchor_pushes_back_stale_early_morning_on_transfer_day():
+    """转场/空天（晨窗唯一）里早于日始的占位晨卡=旧锚残值，允许后移。"""
+    from app.services.agent.hotel_stays import reanchor_hotel_mornings
+
+    card = VisitItem(
+        item_id="hotel-morning-d5",
+        name="🏨 从酒店出发（今日起点）",
+        category="hotel",
+        city="北京",
+        day=5,
+        start_time=time(5, 15),
+        end_time=time(5, 45),
+        duration_minutes=30,
+    )
+    day = DayPlan(
+        day=5,
+        base_city="北京",
+        items=[card, _xfer("t5", 5, "北京", "上海", start=(11, 0), end=(14, 0))],
+    )
+    reanchor_hotel_mornings([day])
+    # 11:00 火车 − 2h 进站缓冲 = 09:00 卡尾，卡占前 30 分钟
+    assert (card.start_time, card.end_time) == (time(8, 30), time(9, 0))
+    reanchor_hotel_mornings([day])
+    assert (card.start_time, card.end_time) == (time(8, 30), time(9, 0))
+
+
+def test_reanchor_keeps_early_morning_card_on_service_day():
+    """景点/接驳日的早卡是「点选班次」的产物（R13q 随班次同移），不许抬回日始。"""
+    from app.services.agent.hotel_stays import reanchor_hotel_mornings
+
+    card = VisitItem(
+        item_id="hotel-morning-d1",
+        name="🏨 从酒店出发（今日起点）",
+        category="hotel",
+        city="北京",
+        day=1,
+        start_time=time(7, 15),
+        end_time=time(7, 45),
+        duration_minutes=30,
+    )
+    out = VisitItem(
+        item_id="access-out-mt",
+        name="🚌 去程 · 前门大街北口 → 班车约98分",
+        category="transfer",
+        city="北京",
+        day=1,
+        start_time=time(8, 30),
+        end_time=time(10, 8),
+        duration_minutes=98,
+        access_mode="access",
+        address="前门大街北口",
+    )
+    day = DayPlan(day=1, base_city="北京", items=[card, out])
+    reanchor_hotel_mornings([day])
+    assert (card.start_time, card.end_time) == (time(7, 15), time(7, 45))
+
+
+def test_reanchor_keeps_early_morning_card_that_still_has_an_anchor():
+    """有锚的早卡是班次真值（慕田峪 07:59 赶 08:30 班车），不许被抬回日始。"""
+    from app.services.agent.hotel_stays import reanchor_hotel_mornings
+    from app.services.itinerary.models import GeoPoint
+
+    card = VisitItem(
+        item_id="hotel-morning-d5",
+        name="🏨 从酒店出发（今日起点）",
+        category="hotel",
+        city="北京",
+        day=5,
+        start_time=time(7, 59),
+        end_time=time(8, 29),
+        duration_minutes=30,
+        anchor_location=GeoPoint(lon=116.4, lat=39.9),
+    )
+    day = DayPlan(
+        day=5,
+        base_city="北京",
+        items=[
+            card,
+            _visit("v5", "颐和园", "北京", 5, start=time(11, 0), end=time(14, 0)),
+        ],
+    )
+    reanchor_hotel_mornings([day])
+    assert (card.start_time, card.end_time) == (time(7, 59), time(8, 29))
+
+
+def test_reanchor_never_moves_verified_hotel_morning_later():
+    """用户验证过的真实酒店（有坐标）早卡：仍守只回拨不后移。"""
+    from app.services.agent.hotel_stays import reanchor_hotel_mornings
+    from app.services.itinerary.models import GeoPoint
+
+    card = VisitItem(
+        item_id="hotel-morning-d1",
+        name="🏨 从酒店出发（某某酒店）",
+        category="hotel",
+        city="北京",
+        day=1,
+        start_time=time(6, 0),
+        end_time=time(6, 30),
+        duration_minutes=30,
+        address="北京市东城区某路 1 号",
+        location=GeoPoint(lon=116.41, lat=39.91),
+    )
+    day = DayPlan(
+        day=1,
+        base_city="北京",
+        items=[
+            card,
+            _visit("v1", "颐和园", "北京", 1, start=time(11, 0), end=time(14, 0)),
+        ],
+    )
+    reanchor_hotel_mornings([day])
+    assert (card.start_time, card.end_time) == (time(6, 0), time(6, 30))
+
+
 def test_sync_stay_cities_keeps_verified_hotel_and_is_idempotent():
     days = _engine_style_plan()
     night = _night(days[1])

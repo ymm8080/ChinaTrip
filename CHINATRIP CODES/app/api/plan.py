@@ -602,6 +602,10 @@ async def get_plan_session(
     # 白天入场闸读闸（2026-11-17 二拍）同位落库：越闸非钉普通观光卡退回
     # 无时刻+披露（幂等；豁免面与 solver.generic_entry_cap 同源）。
     session.plan.assumptions.extend(enforce_entry_gate(session.plan))
+    # 住宿卡收口（2026-11-22 二拍）：GET 也是恢复口——老快照的酒店卡城/
+    # 时刻可能是按错城算出来的（D5 晨卡 05:15 = 用西安酒店算北京班车）。
+    # 只动占位卡、幂等；城真被拨正的那天，晨卡时刻同步复位到日始窗口。
+    sync_stay_cities(session.plan.days)
     _audit_must_coverage(session)
     # 升旗锚读闸（R18，2026-11-22 用户令「不可能没有升旗时间」）：GET 是
     # 刷新/重开页面的唯一恢复口，此前独缺这一道——其它出站口（生成首屏 /
