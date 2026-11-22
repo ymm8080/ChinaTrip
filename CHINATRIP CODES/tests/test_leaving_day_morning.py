@@ -80,9 +80,18 @@ def test_leaving_morning_cap_matrix():
     # 2026-11-14 拍板：火车离城缓冲 2 小时（飞机 3 小时）
     assert _leaving_morning_cap("train", 13 * 60) == 11 * 60  # 发车−120
     assert _leaving_morning_cap("train", 17 * 60) == 12 * 60  # 正午收口
-    assert _leaving_morning_cap("flight", 20 * 60) == 12 * 60
     assert _leaving_morning_cap("bus", 15 * 60) == 12 * 60
     assert _leaving_morning_cap("train", 11 * 60 + 45) == 8 * 60 + 30  # 无安排（日始）
+
+
+def test_night_departure_frees_afternoon():
+    # 2026-11-22 拍板（北京 Day8 案）：≥18:00 发车不再一刀切正午收尾——
+    # 21:30 航班把整个下午锁死空排。收尾=发车−缓冲：21:30 航班 → 19:00。
+    assert _leaving_morning_cap("flight", 21 * 60 + 30) == 19 * 60
+    assert _leaving_morning_cap("flight", 20 * 60) == 17 * 60 + 30  # 缓冲 2.5h
+    assert _leaving_morning_cap("train", 18 * 60) == 16 * 60  # 缓冲 2h
+    # 18:00 整点前后分界：17:59 仍按正午收口
+    assert _leaving_morning_cap("flight", 17 * 60 + 59) == 12 * 60
 
 
 # ---------------- 求解器层（插入主路 + CP 兜底） ----------------

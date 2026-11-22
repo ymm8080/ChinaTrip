@@ -16585,12 +16585,75 @@ def _day_opening_hole(day: DayPlan) -> bool:
     return min(starts) - floor >= _OPENING_HOLE_MINUTES
 
 
+def _untimed_sight_items(day: DayPlan) -> list[VisitItem]:
+    """当天「排不进时刻」的观光灰卡（待降级）：非钉、非必去、非餐/酒店。
+
+    钉住/必去灰卡归 `heal_must_coverage` 的让位清算与跨日救生管（用户拍板
+    「心愿可挪不可删」），这里只收自动凑数件——它们降级后没有留住的理由。
+    """
+    return [
+        i
+        for i in day.items
+        if isinstance(i, VisitItem)
+        and i.start_time is None
+        and not i.pinned
+        and not getattr(i, "must", False)
+        and (i.category or "") not in ("food", "hotel")
+    ]
+
+
+def _demote_untimed_sights(plan: ItineraryPlan) -> tuple[list[int], list[str]]:
+    """降级灰卡撤下并留痕（2026-11-22 北京 Day8 案的前半步）。
+
+    事故：收尾补点往尾城日塞了慕田峪长城（离城心 60km），时刻链判它排不进
+    → 卡面 ``start_time=None``，出口层 `_strip_untimed_items` 再把它剔进
+    unplaced。剔在响应层意味着**会话本体永远不知道那天其实空着**：第 8 天
+    13:00–19:00 只剩「自由活动」，同城近点一个都没顶上。
+
+    口径：排不进时刻的自动观光件当场从当天撤下、转 `plan.unplaced`
+    （reason=``untimed_demoted``，带原天号做 chip 宿主提示）并披露——由
+    调用方随后按市区圈重开补点（`reopen_days`）。幂等：撤完即无灰卡。
+    """
+    days: list[int] = []
+    notes: list[str] = []
+    for day in plan.days:
+        dropped = _untimed_sight_items(day)
+        if not dropped:
+            continue
+        for item in dropped:
+            day.items.remove(item)
+            plan.unplaced.append(
+                UnplacedCandidate(
+                    name=item.name,
+                    name_en=item.name_en,
+                    poi_id=item.poi_id,
+                    category=item.category,
+                    tier=item.tier,
+                    duration_minutes=item.duration_minutes,
+                    location=item.location,
+                    city=item.city,
+                    day_hint=day.day,
+                    reason="untimed_demoted",
+                )
+            )
+            notes.append(
+                L(
+                    f"第{day.day}天「{item.name}」排不进时刻，已撤下改排近点",
+                    f'"{item.name}" could not be timed on day {day.day}; it was '
+                    "dropped so a nearby sight could take the slot",
+                )
+            )
+        days.append(day.day)
+    return days, notes
+
+
 def _fill_leftover_with_diverse_sights(
     plan: ItineraryPlan,
     *,
     avoid: set[str] | None = None,
     bench: list[UnplacedCandidate] | None = None,
     morning_only: bool = False,
+    reopen_days: set[int] | None = None,
 ) -> list[str]:
     """景点排完、餐卡排完之后，用空余时间补「类型多样」的下一个景点。
 
@@ -16603,8 +16666,14 @@ def _fill_leftover_with_diverse_sights(
     2026-11-16 上海案三修：①一天最多 4 张观光卡（与选点期同口径）；
     ②晨卡（从酒店出发）卡尾是当天起始下限；③真实餐卡按实际时刻当墙。
     重日只补 ≤90 分钟的短件（原来一刀切，3 小时空档也补不进）。
+
+    2026-11-22 尾城日降级回填：`reopen_days` 里的天是「灰卡刚被撤下」的天
+    ——越过「已补过」短路口重开一次，并且只认市区圈（≤`_CITY_FILL_KM`）
+    候选，远郊件不得再进尾城日（慕田峪 60km 案：补进去排不进、撤下后下午
+    就空着，近点颐和园/天坛一个也没顶上）。
     """
     notes: list[str] = []
+    reopen = set(reopen_days or ())
     # 披露标记只锁「已经补过的那几天」：开档把晨卡回拨日始后上午空出来的
     # 天（_day_opening_hole）仍然要补一次（2026-11-16 上海案）。
     filled = any(
@@ -16613,7 +16682,9 @@ def _fill_leftover_with_diverse_sights(
     day_end = 21 * 60 + 30
     hours_by_poi = {h.poi_id: h for h in _plan_poi_hours(plan)}
     for day in plan.days:
-        if (filled or morning_only) and not _day_opening_hole(day):
+        if (filled or morning_only) and not (
+            _day_opening_hole(day) or day.day in reopen
+        ):
             continue
         # 一天最多 4 张观光卡（2026-11-16 上海案）：补点是加法，不能再往
         # 满档日塞第 5 张——选点期 _cap_sights_per_day 同口径。
@@ -16725,6 +16796,12 @@ def _fill_leftover_with_diverse_sights(
                     not _norm_city_key(getattr(u, "city", None))
                     or _day_city_has_time(day, u.city)
                 )
+                # 降级重开日只认市区圈（2026-11-22 尾城日）：刚撤下的灰卡
+                # 就是「60km 远郊件补进来又排不进」——同一个坑不能再踩一遍。
+                and not (
+                    day.day in reopen
+                    and not _near_day_city_anchor(day, getattr(u, "location", None))
+                )
                 # 边角料不补（2026-11-16）：30 分钟观景厅塞进 45 分钟空档
                 # 只是凑数，宁缺勿滥
                 and int(u.duration_minutes or DEFAULT_VISIT_MINUTES)
@@ -16734,6 +16811,11 @@ def _fill_leftover_with_diverse_sights(
                 <= _LEFTOVER_FILL_MAX_MINUTES
                 # 用户设为 inactive / 避开的点不补（2026-11-15）
                 and _norm_site_name(u.name) not in avoid_set
+                # 降级件允许回流重试（2026-11-22 用户拍板「为什么不可以补
+                # 回去，可以啊」）：撤下≠判死——探针在别的天排得进就排回
+                # （排进后披露走正常补点口径）；排不进它自己会留在 unplaced。
+                # 唯一硬闸是重开日的市区圈（上面 reopen 项）：返程日不再
+                # 塞 60km 远郊。
                 # 无场次/无具体时段的演出不补（用户拍板「无场次演出不被提案」）
                 and not (
                     (u.category or "") in ("show", "performance", "entertainment")
@@ -31898,6 +31980,7 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
         *,
         avoid: set[str] | None = None,
         morning_only: bool = False,
+        reopen_days: set[int] | None = None,
     ) -> list[str]:
         """收尾第③步的候选池装配（2026-11-15 拍板，2026-11-16 接线）。
 
@@ -31921,7 +32004,11 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
                 _bench_candidates_from_library(rows, city=city, avoid=set(avoid or ()))
             )
         return _fill_leftover_with_diverse_sights(
-            plan, avoid=set(avoid or ()), bench=bench, morning_only=morning_only
+            plan,
+            avoid=set(avoid or ()),
+            bench=bench,
+            morning_only=morning_only,
+            reopen_days=reopen_days,
         )
 
     async def fill_leftover_gaps(
@@ -31991,8 +32078,21 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
                 if note not in session.assumptions:
                     session.assumptions.append(note)
             evicted.extend(gated)
+        # 降级灰卡撤下（2026-11-22 尾城日案）：排不进时刻的自动观光件不能
+        # 只靠下发层剔除——撤下、留痕、同天按市区圈重开补点。这不是「往
+        # 行程里加卡」而是「修被灰卡占掉的空档」，所以 `reopen_days` 会越过
+        # 下面两个短路口（含 GET 的 morning_only：修复语义，只修不增）。
+        demoted_days, demoted_notes = _demote_untimed_sights(session.plan)
+        if demoted_notes:
+            annotate_legs(session.plan)
+            for note in demoted_notes:
+                if note not in session.plan.assumptions:
+                    session.plan.assumptions.append(note)
+                if note not in session.assumptions:
+                    session.assumptions.append(note)
+            evicted.extend(demoted_notes)
         # already-filled short-circuit：开档是热路径，补过就别再查库拉 top 200
-        # ——但上午空出来的天（_day_opening_hole）仍要再补一次。
+        # ——但上午空出来的天（_day_opening_hole）与刚撤下灰卡的天仍要再补。
         _filled = any(
             mark in str(note)
             for note in session.plan.assumptions
@@ -32001,14 +32101,16 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
         _holes = any(_day_opening_hole(d) for d in session.plan.days)
         # 读闸口径（2026-11-16）：GET 刷新只治「上午空着」，不主动往行程里
         # 加新卡——页刷一次多一张卡是用户最怕的不稳定。
-        if morning_only and not _holes:
-            return evicted
-        if _filled and not _holes:
-            return evicted
+        if not demoted_days:
+            if morning_only and not _holes:
+                return evicted
+            if _filled and not _holes:
+                return evicted
         notes = await self._fill_leftover_time(
             session.plan,
             avoid=set(session.avoid_sites or ()),
             morning_only=morning_only,
+            reopen_days=set(demoted_days),
         )
         if notes:
             # 补点后必须再过地理不变式：紧簇归位 + 簇日纯度（2026-11-16）。

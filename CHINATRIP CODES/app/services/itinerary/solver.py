@@ -777,6 +777,8 @@ def _city_side(item: VisitItem, transfer: TransferItem) -> str | None:
 # 天然豁免——铁律 19。
 LEAVING_MORNING_END_MINUTES = 12 * 60
 _LEAVING_DAY_MODES = frozenset({"train", "bus", "flight"})
+#: 夜晚发车放开下午的门槛（2026-11-22 拍板）：≥18:00 发车收尾=发车−缓冲
+_LEAVING_NIGHT_FREEDOM_MINUTES = 18 * 60
 
 
 def _leaving_morning_cap(mode: str | None, dep_min: int) -> int | None:
@@ -785,6 +787,13 @@ def _leaving_morning_cap(mode: str | None, dep_min: int) -> int | None:
         return None
     if dep_min < LEAVING_MORNING_END_MINUTES:
         return DAY_START_MINUTES
+    # 夜晚发车放开下午（2026-11-22 拍板，北京 Day8 案）：≥18:00 发车不再
+    # 一刀切正午收尾——21:30 航班把整个下午锁死空排（慕田峪被降级后
+    # 13:00-19:00 谁也补不进）。改为「发车−缓冲」：21:30 航班 → 19:00
+    # 收尾，午后空档交补点层按市区圈填近点。12:00-18:00 发车维持旧口径
+    # min(12:00, 发车−缓冲)，午后留白赶车不变。
+    if dep_min >= _LEAVING_NIGHT_FREEDOM_MINUTES:
+        return dep_min - departure_buffer_minutes(mode)
     # 离城侧按交通方式留缓冲（飞机 2.5h / 火车 2h，2026-11-14）
     return min(LEAVING_MORNING_END_MINUTES, dep_min - departure_buffer_minutes(mode))
 
