@@ -350,6 +350,9 @@ async def save_plan(
     _apply_flag_schedule(plan)
     if request.start_date and request.start_date != plan.start_date:
         plan = plan.model_copy(update={"start_date": request.start_date})
+        # 换日期后必须再对齐一次（2026-11-22）：上面那次是按旧日期算的，
+        # 不重跑就把旧旗时冻进冻结快照（11-25 07:10 存成 12-21 的行程）。
+        _apply_flag_schedule(plan)
         session.plan = plan
         store.save(session)
         # 出发日期变更即预热票务（2026-10-28）：城市在计划里已齐，火车查询
