@@ -39,6 +39,11 @@ class PlanSession(BaseModel):
     days: int = 0
     # 城市名 → 停留天数（仅目的地）
     city_days: dict[str, int] = Field(default_factory=dict)
+    # 起始城市游玩天数（2026-11-22 用户拍板「起始城市也要能够选游玩日期数」）：
+    # ≥1 时出发城是真实首站（Day1..k 在出发城活动，k+1 早上转场去第一目的
+    # 地）；0=旧口径「出发日只排交通」。闭合行程出发城可同时是尾城——
+    # 起始天数走本字段、结束天数走 city_days[尾城]，两值独立。
+    origin_days: int = 0
     # 出发日期（ISO，可空）——落到 ItineraryPlan.start_date 随快照持久化
     start_date: str | None = None
     # 行前信息（2026-11-14 用户拍板「每次规划需求都先核对出发日期、行程日期是否

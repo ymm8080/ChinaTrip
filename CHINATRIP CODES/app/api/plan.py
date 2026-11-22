@@ -182,6 +182,9 @@ class PlanStartRequest(BaseModel):
     days: int | None = None
     preferences: str = ""
     city_days: dict[str, int] | None = None  # 目的地 → 停留天数（H5 每城天数）
+    # 起始城市游玩天数（2026-11-22 用户拍板「起始城市也要能够选游玩日期数」）：
+    # ≥1 = 出发城是真实首站（Day1..k 活动）；0/缺省 = 出发日只排交通（旧口径）
+    origin_days: int | None = None
     start_date: str | None = None  # 出发日期 ISO（可空）——随快照持久化
     # 城际交通方式（2026-11-07 拍板）：auto=距离闸（>600km 航班、≤600km 火车），
     # train/flight=H5 起始页用户指定；全程城际段统一口径
@@ -363,6 +366,7 @@ async def save_plan(
                 len(plan.days),
                 request.start_date,
                 getattr(session, "city_days", None),
+                getattr(session, "origin_days", 0) or 0,
             )
         )
         _BG_PREFETCH_TASKS.add(_warm)
@@ -797,21 +801,25 @@ async def start_plan(
     if request.route_source == "brief":
         # 按文字路线：表单参数作废，但出发城上下文仍传给 start——简报只报
         # 目的地时出发城沿用表单（2026-11-13「成都 3 天」口径）；分城天数
-        # 作废（city_days=None），文字天数才能生效。
+        # 作废（city_days=None），文字天数才能生效。起始城天数同作废
+        # （文字路线暂无「出发城玩几天」语法，2026-11-22）。
         start_cities = request.cities
         start_days = request.days or 0
         start_brief = request.brief
         start_city_days = None
+        start_origin_days = None
     elif request.route_source == "form":
         start_cities = request.cities
         start_days = request.days or 0
         start_brief = None
         start_city_days = request.city_days
+        start_origin_days = request.origin_days
     else:
         start_cities = request.cities or []
         start_days = request.days or 0
         start_brief = request.brief
         start_city_days = request.city_days
+        start_origin_days = request.origin_days
     # R8（2026-11-18 拍板「全量切引擎」）：确认卡 override=用户已选边，
     # 折算后透传给引擎——与 legacy agent.start 的 session 落位同口径
     # （days_override 同时作废分城天数）。
@@ -897,6 +905,10 @@ async def start_plan(
                 start_date=request.start_date,
                 days=ts_days,
                 cities=start_cities,
+                # 起始城停留（2026-11-22）引擎 C-17 尚无出发城窗口语义
+                # （c17 明确「出发城不占活动窗」）——先留 legacy，引擎
+                # 建模挂账后再拆闸。
+                origin_days=start_origin_days,
             )
         ):
             # 二期：本请求已由 api 缝尝试引擎——_generate_v0 重解钩子
@@ -977,6 +989,7 @@ async def start_plan(
                 days=start_days,
                 preferences=request.preferences or "",
                 city_days=start_city_days,
+                origin_days=start_origin_days,
                 start_date=request.start_date,
                 intercity_mode=request.intercity_mode,
                 lang=request.lang,

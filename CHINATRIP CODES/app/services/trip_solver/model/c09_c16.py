@@ -17,6 +17,10 @@ from typing import TYPE_CHECKING
 
 from ortools.sat.python import cp_model
 
+from app.services.itinerary.rules import (
+    SHUTTLE_BOARD_BUFFER_MINUTES,
+    TAXI_HAIL_MINUTES,
+)
 from app.services.itinerary.solver import (
     effective_show_sessions,
     is_sessionless_show,
@@ -786,7 +790,13 @@ def add_c13_hotels(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
             profile = enriched.access_by_poi.get(cand.poi_id or cand.cid)
             if profile is not None:
                 dep = bundle.dep_vars[(cand.cid, day)]
-                taxi = int(profile.taxi_minutes or DEFAULT_GATEWAY_TAXI_MINUTES)
+                # R16：离店最晚=班次−(车程+叫车 15+强约束缓冲 15)——
+                # 打车接硬班次的强约束口径（2026-11-21 用户拍板）。
+                taxi = (
+                    int(profile.taxi_minutes or DEFAULT_GATEWAY_TAXI_MINUTES)
+                    + TAXI_HAIL_MINUTES
+                    + SHUTTLE_BOARD_BUFFER_MINUTES
+                )
                 ready = model.NewIntVar(
                     0, MINUTES_PER_DAY, "hr_%s_%d" % (cand.cid, day)
                 )

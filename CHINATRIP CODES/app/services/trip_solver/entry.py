@@ -106,6 +106,7 @@ def seam_plain_shape(
     start_date=None,
     days=None,
     cities=None,
+    origin_days=None,
 ) -> bool:
     """F-35 形状闸（R8 2026-11-18 收窄）：出计划全量切引擎。
 
@@ -124,6 +125,10 @@ def seam_plain_shape(
     # （C-05 地板/顶盖挪日，天窗外全天窗=legacy 撤腿重排同语义）——端点
     # 闸拆除，唯余 brief/带图（读点确认轮 NLU）与缺天数/城市（追问轮）
     if not days or not cities:
+        return False
+    # 起始城停留天数（2026-11-22）：C-17 出发城不占活动窗，引擎还没有
+    # 出发城真实停留语义——此形状留 legacy（引擎建模挂账后拆闸）。
+    if origin_days and int(origin_days) >= 1:
         return False
     return True
 
@@ -157,6 +162,10 @@ def replan_seam_shape(session) -> bool:
     if not getattr(session, "cities", None):
         return False
     if not (getattr(session, "days", 0) or 0) > 0:
+        return False
+    # 起始城停留天数（2026-11-22）：C-17 出发城不占活动窗，引擎还没有
+    # 出发城真实停留语义——重解缝同样留 legacy（建模挂账后拆闸）。
+    if (getattr(session, "origin_days", 0) or 0) >= 1:
         return False
     return True
 

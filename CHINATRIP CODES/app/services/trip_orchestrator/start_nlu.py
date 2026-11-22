@@ -39,6 +39,7 @@ class StartNluMixin:
         days: int,
         preferences: str = "",
         city_days: dict[str, int] | None = None,
+        origin_days: int | None = None,
         start_date: str | None = None,
         intercity_mode: str = "auto",
         lang: str | None = None,
@@ -92,6 +93,7 @@ class StartNluMixin:
                 for k, v in (city_days or {}).items()
                 if isinstance(v, int) and v >= 1
             },
+            origin_days=max(0, int(origin_days or 0)),
             intercity_mode=(
                 intercity_mode if intercity_mode in ("train", "flight") else "auto"
             ),
@@ -162,6 +164,7 @@ class StartNluMixin:
                     session.days or 1,
                     session.start_date,
                     session.city_days,
+                    session.origin_days,
                 )
             )
         if not session.cities:

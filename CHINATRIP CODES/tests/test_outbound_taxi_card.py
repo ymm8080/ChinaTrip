@@ -107,11 +107,15 @@ def test_taxi_card_between_morning_and_outbound():
     ]
     taxi = day.items[1]
     assert taxi.category == "transfer" and taxi.synthetic
-    assert (taxi.end_time.hour, taxi.end_time.minute) == (8, 30)
+    assert (taxi.end_time.hour, taxi.end_time.minute) == (8, 15)
     assert taxi.start_time < taxi.end_time
-    board = taxi.end_time.hour * 60 + taxi.end_time.minute
+    board_arrive = taxi.end_time.hour * 60 + taxi.end_time.minute
     start = taxi.start_time.hour * 60 + taxi.start_time.minute
-    assert taxi.duration_minutes == board - start
+    # 叫车15+车程15
+    assert taxi.duration_minutes == board_arrive - start == 30
+    dep = out.start_time.hour * 60 + out.start_time.minute
+    # 强约束班车前 15 分到乘车点
+    assert dep - board_arrive == 15
     assert "打车前往" in taxi.name
     assert "前门大街北口" in taxi.name
     d2 = out.next_leg_detail or {}
@@ -163,7 +167,7 @@ def test_taxi_minutes_profile_first_geo_fallback():
         for i in plan.days[0].items
         if str(i.item_id or "").startswith(TAXI_BOARD_PREFIX)
     )
-    assert taxi.duration_minutes == 15  # 档案值优先
+    assert taxi.duration_minutes == 30  # 叫车15+车程15（档案车程优先）
 
     items2, out2, mt2, ret2 = _remote_day()
     mt2.access_taxi_minutes = None

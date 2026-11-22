@@ -103,6 +103,10 @@ def haversine_km(a: GeoPoint, b: GeoPoint) -> float:
 # 矩阵/兜底锚窗四家共用 taxi_leg_min，调用点不得另算口径。
 TRAVEL_LEG_CAP_MIN = 180
 TAXI_HAIL_MINUTES = 15
+# R16（2026-11-21 用户拍板「遇到强约束的 SHUTTLE BUS 再加 15 分钟强约束
+# 时间」）：打车接硬班次的到点缓冲——打车必须提前这么多到乘车点候车，
+# 晨卡离店（materialize R16）与去程打车卡同式；C-08 前序卡余量/C-13 晨锚同源。
+SHUTTLE_BOARD_BUFFER_MINUTES = 15
 TAXI_MIN_PER_KM = 1.3 / 70 * 60  # ≈1.11 分钟/公里（直线×绕行÷70km/h）
 TAXI_WALK_MAX_KM = 1.5  # 此距内步行更合理，不打车
 #: 步行估算分钟/公里（×1.3 绕行 / 80m/min）——近距腿与卡片展示共用。

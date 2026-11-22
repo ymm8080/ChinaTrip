@@ -453,7 +453,7 @@
         <label class="fld"><span data-i18n="plan.cityStart">起始城市</span>
           <span style="display:flex;gap:4px;align-items:center">
             <select id="planStartCity"></select>
-            <input type="number" id="planStartDays" min="0" max="30" value="0" style="width:3.2em" disabled title="出发城市只安排出发交通，此天数不参与计算" data-i18n-title="plan.startDays.title">
+            <input type="number" id="planStartDays" min="0" max="30" value="0" style="width:3.2em" title="起始城市游玩天数：0=出发日只排交通（不参与合计）；≥1=出发城先玩 k 天再转场" data-i18n-title="plan.startDays.title">
           </span>
         </label>
         <label class="fld"><span data-i18n="plan.via1">中间城市1</span>
@@ -3087,8 +3087,10 @@ document.querySelectorAll(".nav-item[data-tab]").forEach(btn => {
 const PLAN_CITIES = [["北京","Beijing"],["上海","Shanghai"],["杭州","Hangzhou"],["苏州","Suzhou"],["南京","Nanjing"],["西安","Xi'an"],["成都","Chengdu"],["重庆","Chongqing"],["广州","Guangzhou"],["深圳","Shenzhen"],["天津","Tianjin"],["武汉","Wuhan"],["长沙","Changsha"],["厦门","Xiamen"],["青岛","Qingdao"],["大连","Dalian"],["三亚","Sanya"],["丽江","Lijiang"],["桂林","Guilin"],["洛阳","Luoyang"],["敦煌","Dunhuang"],["兰州","Lanzhou"],["拉萨","Lhasa"],["昆明","Kunming"],["大理","Dali"],["张家界","Zhangjiajie"],["黄山","Huangshan"],["无锡","Wuxi"],["绍兴","Shaoxing"],["嘉兴","Jiaxing"],["舟山","Zhoushan"],["哈尔滨","Harbin"],["沈阳","Shenyang"],["长春","Changchun"],["郑州","Zhengzhou"],["济南","Jinan"],["福州","Fuzhou"],["泉州","Quanzhou"],["威海","Weihai"],["珠海","Zhuhai"]];
 const PLAN = { startDate: "", formPristine: null, formPrefilled: false, formUserTouched: false };
 
-// 路线 = 起始 → 中间1-2（选了的，去重，跳过与首尾相同）→ 结束；总天数 = 各目的地天数相加
-// （起始城市只排出发交通不排活动，其天数框禁用不参与计算）
+// 路线 = 起始 → 中间1-2（选了的，去重，跳过与首尾相同）→ 结束；总天数 = 起始天数 + 各目的地天数相加
+// 2026-11-22（用户拍板「起始城市也要能够选游玩日期数」）：起始城市天数框
+// 启用——0=出发日只排交通（旧口径，不参与合计）；≥1=出发城先玩 k 天再
+// 转场，k 计入合计并随 origin_days 出参。
 // 2026-11-13 修复（起始北京→上海 3 天→结束上海，实出 1 天案）：中间城市与
 // 结束城市同城=同一段停留，天数并入结束城市取较大者。旧版整行连天数一起
 // 丢弃，用户填的「上海 3 天」被结束城市默认 1 天顶掉，合计塌成 1 天。
@@ -3098,6 +3100,7 @@ function planRouteForm() {
   const num = id => { const n = parseInt(document.getElementById(id).value, 10); return isNaN(n) ? 0 : n; };
   const seen = new Set([start, end]);
   const mids = [];
+  const startDays = Math.max(0, num("planStartDays")); // 0=出发日只排交通
   let endDays = Math.max(1, num("planEndDays"));
   for (let i = 1; i <= 2; i++) {
     const c = document.getElementById("planVia" + i).value;
@@ -3124,7 +3127,8 @@ function planRouteForm() {
   return {
     cities: [start, ...mids.map(m => m.city), end].filter(c => !!c),
     cityDays,
-    total: mids.reduce((s, m) => s + m.days, 0) + (end ? endDays : 0),
+    startDays,
+    total: startDays + mids.reduce((s, m) => s + m.days, 0) + (end ? endDays : 0),
   };
 }
 // 交通方式（2026-11-07 拍板）：全程城际段去程/途经/返程统一口径——auto=后端距离闸
@@ -3284,7 +3288,10 @@ function planFormPrefill(o) {
     if (s.querySelector('option[value="' + v + '"]')) s.value = v;
   };
   setSel("planStartCity", cities[0]);
-  document.getElementById("planStartDays").value = 0; // 出发城市天数不参与计算，归位占位值
+  // 起始城天数回填（2026-11-22）：行程回显 origin_days；旧行程无此字段=0
+  //（出发日只排交通，旧口径）。
+  document.getElementById("planStartDays").value =
+    Math.max(0, parseInt((o && o.originDays) || 0, 10) || 0);
   const cd = (o && o.cityDays) || {};
   if (cities.length >= 2) {
     const end = cities[cities.length - 1];
@@ -3316,6 +3323,7 @@ function planFormSyncFromPlan(plan) {
   planFormPrefill({
     cities: plan.cities,
     cityDays: perCity,
+    originDays: plan.origin_days || 0,
     startDate: plan.start_date || PLAN.startDate || "",
     prefs: null,
   });
@@ -3645,6 +3653,7 @@ async function planStartConfirmed(routeSource, overrides) {
       days: s.formDays,
       preferences: s.prefs,
       city_days: s.cityDays,
+      origin_days: s.originDays > 0 ? s.originDays : undefined,
       start_date: iv.start_date || s.startDate || undefined,
       intercity_mode: planTransportMode(),
       lang: I18N.locale(),
@@ -3668,7 +3677,7 @@ async function planStartConfirmed(routeSource, overrides) {
     if (ov.departure_no_override) payload.departure_no_override = ov.departure_no_override;
     const body = await api("/api/v1/plan/start", payload);
     planFormSyncFromPlan(body.plan);
-    planSetSession({ session_id: body.session_id, state: body.state, origin: { cities: s.formCities, days: s.formDays, preferences: s.prefs, city_days: s.cityDays, start_date: iv.start_date || s.startDate || undefined, intercity_mode: planTransportMode(), arrival_no: iv.arrival_no || undefined, arrival_time: iv.arrival_time || undefined, departure_no: iv.departure_no || undefined, departure_time: iv.departure_time || undefined, arrival_date: iv.arrival_date || undefined, departure_date: iv.departure_date || undefined, intake: true } });
+    planSetSession({ session_id: body.session_id, state: body.state, origin: { cities: s.formCities, days: s.formDays, preferences: s.prefs, city_days: s.cityDays, origin_days: s.originDays || 0, start_date: iv.start_date || s.startDate || undefined, intercity_mode: planTransportMode(), arrival_no: iv.arrival_no || undefined, arrival_time: iv.arrival_time || undefined, departure_no: iv.departure_no || undefined, departure_time: iv.departure_time || undefined, arrival_date: iv.arrival_date || undefined, departure_date: iv.departure_date || undefined, intake: true } });
     holder.textContent = "";
     if (PLAN.startDate) document.getElementById("bookStartDate").value = PLAN.startDate;
     planRenderSafe(holder, body, { first: true });
@@ -3714,10 +3723,12 @@ async function planStartCore(extraPref, images) {
     // 否则「重新规划」把上次行程的参数回填后，新打的城市会被表单顶掉。
     planLastStart = { // 路线冲突确认卡选边重发要用的完整参数（2026-11-14）
       formCities: r.cities, formDays: r.total, prefs, cityDays: r.cityDays,
+      originDays: r.startDays || 0,
       brief: extraPref, images, intake, startDate: PLAN.startDate,
     };
     const body = await api("/api/v1/plan/start", {
       cities: r.cities, days: r.total, preferences: prefs, city_days: r.cityDays,
+      origin_days: r.startDays > 0 ? r.startDays : undefined,
       start_date: PLAN.startDate || undefined,
       intercity_mode: planTransportMode(), lang: I18N.locale(),
       brief: extraPref || undefined,
@@ -3738,7 +3749,7 @@ async function planStartCore(extraPref, images) {
       planRenderSafe(holder, body);
     } else {
     planFormSyncFromPlan(body.plan); // 后端按简报改了路线时，表单/摘要跟着新行程走
-    planSetSession({ session_id: body.session_id, state: body.state, origin: { cities: r.cities, days: r.total, preferences: prefs, city_days: r.cityDays, start_date: PLAN.startDate || undefined, intercity_mode: planTransportMode(), arrival_no: intake.arrival_no || undefined, arrival_time: intake.arrival_time || undefined, departure_no: intake.departure_no || undefined, departure_time: intake.departure_time || undefined, arrival_date: intake.arrival_date || undefined, departure_date: intake.departure_date || undefined, intake: undefined } }); // origin 供会话丢失后自动重建（intake 标志仅卡提交重发携带）
+    planSetSession({ session_id: body.session_id, state: body.state, origin: { cities: r.cities, days: r.total, preferences: prefs, city_days: r.cityDays, origin_days: r.startDays || 0, start_date: PLAN.startDate || undefined, intercity_mode: planTransportMode(), arrival_no: intake.arrival_no || undefined, arrival_time: intake.arrival_time || undefined, departure_no: intake.departure_no || undefined, departure_time: intake.departure_time || undefined, arrival_date: intake.arrival_date || undefined, departure_date: intake.departure_date || undefined, intake: undefined } }); // origin 供会话丢失后自动重建（intake 标志仅卡提交重发携带）
     holder.textContent = "";
     if (PLAN.startDate) document.getElementById("bookStartDate").value = PLAN.startDate; // 统一预订/酒店按天卡的日期基准
     planRenderSafe(holder, body, { first: true });

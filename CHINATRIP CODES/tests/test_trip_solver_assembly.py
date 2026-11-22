@@ -638,8 +638,8 @@ def test_hotel_anchor_cards_materialize():
     assert "hotel-night-d1" in ids
     m = next(i for i in plan.days[0].items if str(i.item_id) == "hotel-morning-d1")
     assert m.category == "hotel" and m.synthetic and m.soft_pin
-    # R15：带去程班次的日子，晨卡=离店点卡（班次−打车=08:00−15=07:45）
-    assert m.start_time == time(7, 45) and m.end_time == time(7, 45)
+    # R16：带去程班次的日子，晨卡=离店点卡（班次−车程15−叫车15−缓冲15=08:00−45=07:15）
+    assert m.start_time == time(7, 15) and m.end_time == time(7, 15)
     assert int(m.duration_minutes or 0) == 0
     n = next(i for i in plan.days[0].items if str(i.item_id) == "hotel-night-d1")
     # 夜卡收口 DAY_END 21:30（C-13 的 22:30 尾被钳；起随之回拉 30 分）

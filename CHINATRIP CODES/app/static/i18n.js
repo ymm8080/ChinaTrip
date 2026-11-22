@@ -233,7 +233,7 @@
       "plan.mode.cross": "Cross-city",
       "plan.noStart": "(no start date set)",
       "plan.noEnd": "(no end city set)",
-      "plan.startDays.title": "Departure city gets transport only — this day count is excluded",
+      "plan.startDays.title": "Days to stay & play in the departure city (0 = transport only, excluded from total)",
       "plan.summaryToggle.title": "Expand / collapse the parameter form",
       "plan.cityNone": "(not set)",
       "plan.cityStart": "From city", "plan.via1": "Via city 1", "plan.via2": "Via city 2", "plan.cityEnd": "To city",

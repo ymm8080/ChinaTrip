@@ -36,6 +36,7 @@ from typing import TYPE_CHECKING
 
 from ortools.sat.python import cp_model
 
+from ...itinerary.rules import SHUTTLE_BOARD_BUFFER_MINUTES, TAXI_HAIL_MINUTES
 from ..inputs.access import hhmm_to_min
 from .vars import MINUTES_PER_DAY, VarBundle
 
@@ -213,6 +214,8 @@ def add_c06_remote_exclusivity(
                         bundle.start[(other.cid, day)]
                         + bundle.dur[other.cid]
                         + int(getattr(profile, "taxi_minutes", 0) or 0)
+                        + TAXI_HAIL_MINUTES
+                        + SHUTTLE_BOARD_BUFFER_MINUTES
                         <= dep_var
                     ).OnlyEnforceIf([lit, lr, _aft.Not()])
                 else:
@@ -259,6 +262,9 @@ def add_c08_access(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
         last_mile = int(profile.last_mile_minutes or 0)
         taxi = int(getattr(profile, "taxi_minutes", 0) or 0)
         taxi = taxi or DEFAULT_GATEWAY_TAXI_MINUTES
+        # R16：打车接硬班次=车程+叫车 15+强约束缓冲 15（2026-11-21
+        # 用户拍板）——前序卡收尾到班车发车的硬余量同口径；旅程时间目标项仍计车程。
+        board_chain = taxi + TAXI_HAIL_MINUTES + SHUTTLE_BOARD_BUFFER_MINUTES
         for day in bundle.days:
             lit = bundle.presence[(cand.cid, day)]
             dep = bundle.model.NewIntVarFromDomain(
@@ -293,7 +299,9 @@ def add_c08_access(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
                     "aft_%s_%s_%d" % (cand.cid, other.cid, day)
                 )
                 bundle.model.Add(
-                    dep >= bundle.start[(other.cid, day)] + bundle.dur[other.cid] + taxi
+                    dep >= bundle.start[(other.cid, day)]
+                    + bundle.dur[other.cid]
+                    + board_chain
                 ).OnlyEnforceIf([lit, lo, after.Not()])
                 bundle.model.Add(
                     bundle.start[(other.cid, day)] >= min(rets) + ride + last_mile

@@ -337,6 +337,9 @@ class ItineraryPlan(BaseModel):
     # 出发日期（ISO "YYYY-MM-DD"）——每日日期 = start_date + (day-1)，随快照
     # 持久化；行程卡日期与天气都以此为基准。None = 未设出发日期。
     start_date: str | None = None
+    # 起始城市游玩天数（2026-11-22 用户拍板）：随计划回显给 H5 参数表单
+    # （重新规划/改参数回填同口径）；0=出发城只排交通（旧口径）。
+    origin_days: int = 0
 
 
 class PoiHours(BaseModel):

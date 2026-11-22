@@ -2666,9 +2666,14 @@ def _city_day_ranges(
     cities: list[str],
     days: int,
     city_days: dict[str, int] | None = None,
+    origin_days: int = 0,
 ) -> dict[str, tuple[int, int]]:
     """Per-city activity-day window. cities[0] is the origin: departure day
-    is travel-only, never gets activity days (product rule 2026-10-19).
+    is travel-only, never gets activity days (product rule 2026-10-19)——
+    2026-11-22 例外：origin_days ≥1 时出发城是真实首站，占 Day1..k 活动
+    窗（用户拍板「起始城市也要能够选游玩日期数」），第一目的城市窗从
+    k+1 起（去程腿落 k+1 早上）。实现走「虚拟天数」：先按 days-k 给
+    目的地切窗（闭合尾城/末位吃满口径原样生效），再整体右移 k 天。
     city_days (destination → stay days) drives the split when present;
     otherwise both closed and open trips split activity days evenly across
     the real destinations.
@@ -2698,6 +2703,17 @@ def _city_day_ranges(
         transfer_days 扣减，组装层保证不与返程腿重叠；与非闭合行程
         「最后一天有活动+傍晚返程」语义对齐，test_city_days 锚）。
     """
+    shift = min(int(origin_days or 0), max(0, days - 1)) if len(cities) > 1 else 0
+    if shift >= 1:
+        # 起始城真实首站（2026-11-22）：目的地窗按「虚拟总天数 days-k」
+        # 切（闭合尾城/末位吃满等口径原样生效），再整体右移 k 天。
+        # 选点窗给起始段 (1, k)——闭合行程出发城=尾城同名键只有一份，
+        # 尾段候选交 rebalance 按 day_city（尾段日=腿日表）回填补位；
+        # 转场腿/返程日一律读 _city_leg_start_days，不准读本表。
+        inner = _city_day_ranges(cities, days - shift, city_days)
+        ranges = {k: (s + shift, e + shift) for k, (s, e) in inner.items()}
+        ranges[_norm_city(cities[0])] = (1, shift)
+        return ranges
     dests = cities[1:] if len(cities) > 1 else cities
     if len(dests) <= 1:
         return {dests[0]: (1, days)} if dests else {}
@@ -2773,6 +2789,37 @@ def _city_day_ranges(
             end = days
         ranges[city] = (start, max(start, end))
     return ranges
+
+
+def _city_leg_start_days(
+    cities: list[str],
+    days: int,
+    city_days: dict[str, int] | None = None,
+    origin_days: int = 0,
+) -> list[int]:
+    """各目的城市（按 cities[1:] 序，含闭合尾城）的进城/返程腿日=窗口首日。
+
+    与 _city_day_ranges 的区别：起始城有真实停留（origin_days ≥1）时，
+    闭合出发城=尾城同名键在 ranges 里只留起始段 (1, k)——转场腿/返程日
+    若读它会错排到第 1 天。本函数走「并集前」口径：虚拟天数切窗后右移，
+    尾段窗口首日即返程腿日（2026-11-22 起始城停留案）。
+    """
+    dests = cities[1:] if len(cities) > 1 else cities
+    if not dests:
+        return []
+    shift = min(int(origin_days or 0), max(0, days - 1))
+    inner = _city_day_ranges(cities, days - shift, city_days) if shift else None
+    out: list[int] = []
+    for c, city in enumerate(dests):
+        if inner is not None:
+            lo, _hi = inner.get(city, (max(1, c + 1), days - shift))
+            out.append(min(lo + shift, days))
+        else:
+            lo, _hi = _city_day_ranges(cities, days, city_days).get(
+                city, (min(c + 1, days), days)
+            )
+            out.append(min(lo, days))
+    return out
 
 
 def _schedule_text(ranges: dict[str, tuple[int, int]]) -> str:
@@ -5379,7 +5426,11 @@ def _minutes_of(t: time | None) -> int | None:
 
 
 def _time_of(minutes: int) -> time:
-    return time(minutes // 60, minutes % 60)
+    # 钳到 23:59（2026-11-22 起始城停留案）：顺延链在满载日会把 cursor
+    # 推过 1440，time(hour) 直接 ValueError → 500；legs.py 同名函数
+    # 既有钳制，这里补齐同口径。
+    m = max(0, min(23 * 60 + 59, int(minutes)))
+    return time(m // 60, m % 60)
 
 
 def _meal_anchor(
@@ -20889,7 +20940,12 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
         """
         if not images:
             return session, L("没有收到图片", "No image received")
-        pool = list(session.cities[1:] if len(session.cities) > 1 else session.cities)
+        pool = list(
+            session.cities
+            if (session.origin_days and session.origin_days >= 1)
+            or len(session.cities) <= 1
+            else session.cities[1:]
+        )
         pool = [c for c in pool if c]
         rows, notes = await self._image_sites(images, pool or list(session.cities))
         if not rows:
@@ -20983,7 +21039,12 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
         short = len(text) < _MIN_BRIEF_TEXT
         if short and _brief_is_route_declaration(text, session.cities):
             return [], []
-        pool = list(session.cities[1:] if len(session.cities) > 1 else session.cities)
+        pool = list(
+            session.cities
+            if (session.origin_days and session.origin_days >= 1)
+            or len(session.cities) <= 1
+            else session.cities[1:]
+        )
         pool = [c for c in pool if c]
         if not pool:
             return [], []
@@ -21823,6 +21884,7 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
             kinds=session.site_kinds,
             site_cities=session.site_cities,
             created_sites=session.created_sites,
+            origin_days=session.origin_days,
         )
         if session.avoid_sites:
             # 「避开 X」= 选点池里同名候选直接出局（2026-11-14 北京小众案）
@@ -21844,7 +21906,9 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
         for _wn, _wb in self._wish_bindings.items():
             session.wish_bindings.setdefault(_wn, _wb)
         t1 = perf_counter()
-        ranges = _city_day_ranges(session.cities, session.days, session.city_days)
+        ranges = _city_day_ranges(
+            session.cities, session.days, session.city_days, session.origin_days
+        )
         # 雨天感知（2026-10-30 用户拍板：有雨自动排室内，不问用户；
         # 三轮拍板：白天/夜间双窗——夜间雨只影响游船观景等夜间露天
         # 活动）：出发日期落定才有绝对日历；无 start_date / 无
@@ -21882,27 +21946,31 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
         tail_return: set[int] = set()
         if len(session.cities) > 1:
             _dests = session.cities[1:]
-            for city in _dests:
-                clo, _chi = ranges.get(
-                    (city or "").removesuffix("市"), (1, session.days)
-                )
-                transfer_days.add(clo)
+            # 腿日表（并集前口径）：起始城有真实停留时 ranges 里的闭合
+            # 同名键是起始段 (1,k)，进城/返程腿日必须读腿日表——
+            # 去程腿=k+1、返程腿=尾段窗口首日（2026-11-22）。
+            _leg_days = _city_leg_start_days(
+                session.cities, session.days, session.city_days, session.origin_days
+            )
+            for _di, city in enumerate(_dests):
+                transfer_days.add(_leg_days[_di])
+            if session.origin_days >= 1:
+                # 起始城 Day1 也是到达日（2026-11-22 起始城停留拍板）：
+                # 到达轻量口径（11-05/11-08）同样适用首站第一日。
+                arrival_days.add(1)
             _closure = len(_dests) > 1 and _norm_city(_dests[-1]) == _norm_city(
                 session.cities[0]
             )
-            for city in _dests[:-1] if _closure else _dests:
-                clo, _chi = ranges.get(
-                    (city or "").removesuffix("市"), (1, session.days)
-                )
-                arrival_days.add(clo)
+            for _di, city in enumerate(_dests[:-1] if _closure else _dests):
+                arrival_days.add(_leg_days[_di])
             if _closure:
                 # 末日=返程日只在闭合行程成立（2026-11-13 北京→上海案）：
                 # 非闭合行程末日没有离城腿，再标转场日会扣 180' 预算并触发
                 # 返程日轻量/上午窗清算，把整天清空。
                 # 2026-11-22：闭合尾城填 ≥2 天=真实停留，尾城窗口首日才是
-                # 回城日（末日照常排活动），只标窗口首日为转场日/到达日。
-                _tail_city = (_dests[-1] or "").removesuffix("市")
-                _tail_lo = ranges.get(_tail_city, (session.days, session.days))[0]
+                # 回城日（末日照常排活动），只标窗口首日为转场日/到达日；
+                # 起始城停留时腿日表给出右移后的尾段首日。
+                _tail_lo = _leg_days[-1]
                 transfer_days.add(_tail_lo)
                 if _tail_lo < session.days:
                     arrival_days.add(_tail_lo)
@@ -22040,12 +22108,36 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
             transfer_days=transfer_days,
             arrival_days=arrival_days,
             rain_days=rain_map,
+            extra_day_city=(
+                # 起始城停留尾段日（2026-11-22）：闭合出发城=尾城的尾段
+                # （返程腿日..days）不在 ranges（同名键只有起始段），
+                # 补映射给回填认城。
+                {
+                    _d: session.cities[0]
+                    for _d in range(
+                        _city_leg_start_days(
+                            session.cities,
+                            session.days,
+                            session.city_days,
+                            session.origin_days,
+                        )[-1],
+                        session.days + 1,
+                    )
+                }
+                if (
+                    session.origin_days >= 1
+                    and len(session.cities) > 2
+                    and _norm_city(session.cities[-1]) == _norm_city(session.cities[0])
+                )
+                else None
+            ),
             origin_city=(
                 session.cities[0]
                 if (
                     len(session.cities) > 1
                     # 闭合尾城=出发城且有真实停留窗时，该城不是纯出发城，
-                    # 回填不得按出发城丢弃它的点（2026-11-22 北京案）
+                    # 回填不得按出发城丢弃它的点（2026-11-22 北京案）；
+                    # 起始城有真实停留（origin_days ≥1）同理豁免。
                     and not (
                         _norm_city(session.cities[-1]) == _norm_city(session.cities[0])
                         and ranges.get(
@@ -22053,6 +22145,7 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
                         )[0]
                         < session.days
                     )
+                    and not (session.origin_days and session.origin_days >= 1)
                 )
                 else None
             ),
@@ -22102,6 +22195,7 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
             candidates,
             assumptions,
             city_days=session.city_days,
+            origin_days=session.origin_days,
             start_date=session.start_date,
             intercity_mode=session.intercity_mode,
             rain_days=rain_map,
@@ -22225,6 +22319,7 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
         kinds: dict[str, str] | None = None,
         site_cities: dict[str, str] | None = None,
         created_sites: list[str] | None = None,
+        origin_days: int = 0,
     ) -> tuple[list[dict], list[str]]:
         """8.1.1 候选库优先（2026-10-24）：每城先查 POIS 底库 top 30（确定性
         排序），库存 ≥10 跳过高德（省配额）；<10 高德补量（_same_site 去重）；
@@ -22238,7 +22333,13 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
         # 含往返闭合尾部重复（甲城..甲城）：其候选必被 _assemble_plan 的
         # 出发城闸丢弃，收了白付一次全城扫描（2026-10-30）。
         origin_norm = _norm_city(cities[0]) if cities else ""
-        _pool_cities = cities[1:] if len(cities) > 1 else cities
+        # 起始城有真实停留窗（origin_days ≥1，2026-11-22）：它收候选，
+        # 不再按「出发日只排交通」跳过全城扫描。
+        _pool_cities = (
+            cities[1:]
+            if len(cities) > 1 and not (origin_days and int(origin_days) >= 1)
+            else cities
+        )
         # 同名跳过仅限真·闭合回程尾城（2026-11-10 修）：len==2 且同名时
         # 第二城是唯一目的地不是回程尾，旧判据一律 continue 会静默空池
         # （同城往返杭州/重庆/南京单日仅 1 visit 探针实证）；非尾同名仍
@@ -22250,6 +22351,7 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
             if (
                 len(cities) > 1
                 and _norm_city(city) == origin_norm
+                and not (origin_days and int(origin_days) >= 1)
                 and (pos < len(_pool_cities) - 1 or _tail_dup)
             ):
                 continue
@@ -28118,6 +28220,7 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
         rain_days: dict[str, set[int]] | None = None,
         origin_city: str | None = None,
         preferences: str = "",
+        extra_day_city: dict[int, str] | None = None,
     ) -> tuple[list[dict], list[tuple[str, str]]]:
         """全局跨天均衡（2026-10-30 用户拍板「做全局跨天优化」）。
 
@@ -28378,6 +28481,11 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
             return False
 
         day_city: dict[int, str] = {}
+        # 起始城停留尾段日（2026-11-22）：闭合出发城=尾城在 ranges 里只有
+        # 起始段 (1,k)——尾段日（返程腿日..days）由调用方经 extra_day_city
+        # 补映射，回填才认得出尾段空天是哪座城。
+        for _d, _c in (extra_day_city or {}).items():
+            day_city.setdefault(int(_d), (_c or "").removesuffix("市"))
         for city, (lo, hi) in ranges.items():
             for d in range(lo, hi + 1):
                 day_city.setdefault(d, (city or "").removesuffix("市"))
@@ -28849,26 +28957,29 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
         days: int,
         start_date: str | None,
         city_days: dict[str, int] | None = None,
+        origin_days: int = 0,
     ) -> None:
         """开始日期落定即预热火车票缓存（2026-10-28 用户拍板）。
 
-        与 _build_transfers 同一套转场腿公式（进城日=各目的城市窗口首日、
-        返程日=末日 / 闭合尾城有真实停留时=尾城窗口首日）；逐腿按绝对日期
-        查 CachedTrainService，TTL 内命中，生成期 _build_transfers 零 12306
+        与 _build_transfers 同一套转场腿公式（去程日=第一目的地窗首日——
+        起始城有真实停留时=k+1、进城日=各目的城市窗口首日、返程日=末日 /
+        闭合尾城有真实停留时=尾城窗口首日）；逐腿按绝对日期查
+        CachedTrainService，TTL 内命中，生成期 _build_transfers 零 12306
         往返。失败只记日志（生成期会再试）。
         """
         if not start_date or len(cities) < 2:
             return
         try:
-            ranges = _city_day_ranges(cities, days, city_days)
             origin = cities[0]
             dests = cities[1:]
-            starts = [ranges.get(c, (1, days))[0] for c in dests]
+            # 腿日表（并集前口径，同 _assemble_plan）：起始城有真实停留时
+            # 去程腿=k+1、闭合返程腿=尾段窗口首日（2026-11-22）。
+            starts = _city_leg_start_days(cities, days, city_days, origin_days)
             # 同 _build_transfers 往返闭合口径（2026-10-30）：尾部重复城
             # 不是目的地，不预热「甲城→甲城」幽灵腿。
             legs: list[tuple[str, str, int]] = []
             if _norm_city(dests[0]) != _norm_city(origin):
-                legs.append((origin, dests[0], 1))
+                legs.append((origin, dests[0], min(starts[0], days)))
             for k in range(1, len(dests)):
                 if _norm_city(dests[k - 1]) == _norm_city(dests[k]):
                     continue
@@ -28923,6 +29034,9 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
             # destinations on the first day of the next one, return from
             # the last destination on the final day (product rule
             # 2026-10-19: last day = activities + travel home).
+            # 2026-11-22：起始城有真实停留（origin_days ≥1）时 dest_starts[0]
+            # 已右移到 k+1——去程腿跟着落 k+1 早上（生产恒传 dest_starts，
+            # 缺省公式下 starts[0]=1 与旧口径一致）。
             starts = dest_starts or [min(k + 1, days) for k in range(len(dests))]
             # 往返闭合（cities 首尾同城，如 甲城..甲城，2026-10-30）：尾部
             # 重复不是第四个目的地，是返程标记——不再追加「甲城→甲城 0 公里
@@ -28935,7 +29049,7 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
                 # （2026-11-06：>600km 航班优先、≤600km 火车优先，见
                 # _build_transfers 主体）；腿别标签只用于 assumptions 措辞
                 # 与返程窗，距离未知时退回 11-04 旧口径（去程/返程航班优先）。
-                legs.append((origin, dests[0], 1, 9, None, "去程"))
+                legs.append((origin, dests[0], min(starts[0], days), 9, None, "去程"))
             for k in range(1, len(dests)):
                 if _norm_city(dests[k - 1]) == _norm_city(dests[k]):
                     continue  # 同城腿无班次可查，不占转场
@@ -29337,6 +29451,7 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
         assumptions: list[str],
         *,
         city_days: dict[str, int] | None = None,
+        origin_days: int = 0,
         start_date: str | None = None,
         intercity_mode: str = "auto",
         rain_days: dict[str, set[int]] | None = None,
@@ -29344,7 +29459,7 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
         cut_names: set[str] | None = None,
     ) -> ItineraryPlan:
         cand_by_name = {c["name"]: c for c in candidates}
-        ranges = _city_day_ranges(cities, days, city_days)
+        ranges = _city_day_ranges(cities, days, city_days, origin_days)
         # 出发城被裁的点名必去（2026-11-17 一日游案）：不得进罗列行
         # 静默消失——落 unplaced（想去 chip 池）+ 逐个专行披露。
         # 声明在分支外：单城行程不进 len(cities)>1 分支，30148 行的
@@ -29363,12 +29478,16 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
             if _norm_city(cities[-1]) == origin and len(cities) > 2:
                 _w = ranges.get(origin)
                 _tail_real = bool(_w and _w[0] < days)
+            # 起始城有真实停留窗（origin_days ≥1，2026-11-22 拍板）：它同时
+            # 是真实首站，不再按「出发日只排交通」裁它的点。
+            _origin_real = bool(origin_days and origin_days >= 1)
             kept: list[dict] = []
             dropped_names: list[str] = []
             for spec in picked:
                 if (
                     str(spec.get("city") or "").removesuffix("市") == origin
                     and not _tail_real
+                    and not _origin_real
                 ):
                     dropped_names.append(str(spec["name"]))
                     if spec.get("must"):
@@ -29405,12 +29524,36 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
                         )
                     )
         clamped = 0
+        # 起始城停留（2026-11-22）：闭合出发城=尾城同名键在 ranges 里只有
+        # 起始段 (1,k)——尾段日（返程腿日..days）也是该城允许日，钳制
+        # 双段就近，不许把尾段件钳进起始段。
+        _og_shift = min(int(origin_days or 0), max(0, days - 1))
+        _og_shared = (
+            _og_shift >= 1
+            and len(cities) > 2
+            and _norm_city(cities[-1]) == _norm_city(cities[0])
+        )
+        _og_tail_lo = (
+            _city_leg_start_days(cities, days, city_days, origin_days)[-1]
+            if _og_shared
+            else None
+        )
         for spec in picked:
             city = str(spec.get("city") or "")
             rng = ranges.get(city) or ranges.get(city.removesuffix("市"))
             if rng is None:
                 continue
             lo, hi = rng
+            if _og_shared and _norm_city(city) == _norm_city(cities[0]):
+                if not (
+                    lo <= spec["day"] <= hi or (_og_tail_lo <= spec["day"] <= days)
+                ):
+                    _cand_days = list(range(lo, hi + 1)) + list(
+                        range(_og_tail_lo, days + 1)
+                    )
+                    spec["day"] = min(_cand_days, key=lambda dd: abs(dd - spec["day"]))
+                    clamped += 1
+                continue
             if not lo <= spec["day"] <= hi:
                 spec["day"] = min(max(spec["day"], lo), hi)
                 clamped += 1
@@ -29564,7 +29707,9 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
             cities,
             days,
             anchors,
-            dest_starts=[ranges[c][0] for c in cities[1:]],
+            # 腿日走并集前口径（_city_leg_start_days）：起始城有真实停留时
+            # 去程腿=k+1、闭合尾段返程腿=尾段窗口首日（2026-11-22）。
+            dest_starts=_city_leg_start_days(cities, days, city_days, origin_days),
             start_date=start_date,
             intercity_mode=intercity_mode,
         )
@@ -29834,6 +29979,7 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
             days=day_plans,
             assumptions=assumptions + transfer_assumptions,
             start_date=start_date,
+            origin_days=max(0, int(origin_days or 0)),
         )
         # 出发城必去落 unplaced（2026-11-17 一日游案）：点名件被
         # 「出发日只安排交通」裁掉时进想去池，装配期亮 chip；覆盖审计的
