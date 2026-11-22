@@ -160,6 +160,13 @@ def client_for(agent: PlanningAgent) -> TestClient:
 
 
 def start(client: TestClient, body: dict, headers=None):
+    # R18（2026-11-22 拍板「date is mandatory field」）：出发日期必填后，
+    # 生成类用例统一带日期；纯偏好/文字闸用例（无 cities/days）不带，
+    # 保持原有 intake/clarify 形态。要测「无日期必弹卡」的用例请直发
+    # client.post（见 test_start_form_without_date_returns_intake）。
+    body = dict(body)
+    if (body.get("cities") or body.get("days")) and "start_date" not in body:
+        body["start_date"] = "2026-11-25"
     return client.post(
         "/api/v1/plan/start", json=body, headers=headers or DEVICE_HEADERS
     )
@@ -216,6 +223,7 @@ def test_start_intercity_mode_stored_and_invalid_rejected():
             "days": 3,
             "preferences": "喜欢走路",
             "intercity_mode": "train",
+            "start_date": "2026-11-25",
         },
         headers=DEVICE_HEADERS,
     )
@@ -253,12 +261,50 @@ def test_start_200_clarify_asks_preference_when_info_complete():
 
 
 def test_start_missing_device_id_returns_400():
-    agent = PlanningAgent(StubAdapter([]))
+    agent = PlanningAgent([])
     resp = client_for(agent).post(
         "/api/v1/plan/start", json={"cities": ["北京"], "days": 1}
     )
     assert resp.status_code == 400
     assert resp.json() == {"detail": "missing_device_id"}
+
+
+def test_start_form_without_date_returns_intake():
+    """R18（2026-11-22 拍板「date is mandatory field」）：纯表单提交（城市+
+    天数、日期空、无 brief/preferences 文字）不再直接生成——回行前卡收日
+    期，不开会话。此前这条缝绕过行前卡闸，行程没有出发日期（升旗回落
+    06:30 且无披露、天气/订票预热全失去锚）。"""
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    resp = client_for(agent).post(
+        "/api/v1/plan/start",
+        json={"cities": ["北京"], "days": 2},
+        headers=DEVICE_HEADERS,
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["state"] == "intake"
+    assert "session_id" not in body
+
+
+def test_start_card_arrival_date_fills_missing_start_date():
+    """行前卡重发只带到达/离开日期（start_date 空）：到达日折成出发日，
+    不再二次弹卡。"""
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    resp = client_for(agent).post(
+        "/api/v1/plan/start",
+        json={
+            "cities": ["北京"],
+            "days": 2,
+            "preferences": "喜欢走路",
+            "arrival_date": "2026-11-25",
+            "departure_date": "2026-11-26",
+        },
+        headers=DEVICE_HEADERS,
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["state"] == "ready"
+    assert body["plan"]["start_date"] == "2026-11-25"
 
 
 # --- POST /plan/{session_id}/message ---------------------------------------
@@ -3066,6 +3112,7 @@ def test_start_applies_intake_arrival_departure_times():
             "preferences": "喜欢走路",
             "arrival_time": "15:30",
             "departure_time": "16:00",
+            "start_date": "2026-11-25",
         },
         headers=DEVICE_HEADERS,
     )
@@ -3267,6 +3314,7 @@ def test_number_override_lands_on_session():
             "preferences": "喜欢走路",
             "arrival_no_override": "G1234",
             "departure_no_override": "CA888",
+            "start_date": "2026-11-25",
         },
         headers=DEVICE_HEADERS,
     )

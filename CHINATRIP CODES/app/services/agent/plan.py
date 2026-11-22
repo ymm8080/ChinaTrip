@@ -6761,6 +6761,42 @@ def _is_flag_square(item: VisitItem) -> bool:
     return str(item.city or "") in _BEIJING_CITY_ALIASES
 
 
+def _note_flag_missing(plan: ItineraryPlan, day_no: int, date_iso: str | None) -> None:
+    """升旗真值缺失披露（2026-11-22 用户拍板「we need msg」）。
+
+    此前契约「start_date 缺失/非法、查表落空一律跳过」是纯静默——卡片
+    落回 06:30 的常规晨间时段，用户看到的钟点像官方旗时却不是，全链路
+    无 assumption 无日志。现在：assumptions 明说一句（幂等，同文案只记
+    一次）+ WARNING 日志，绝不装作已按官方钟点锚定。
+    """
+    if not date_iso:  # 空串/None 同口径：视为「出发日期未定」
+        zh = (
+            f"第{day_no}天尚未确定出发日期，升旗时刻以出行当日官方公告为准，"
+            "天安门广场暂按常规晨间时段安排（未按升旗时刻锚定）"
+        )
+        en = (
+            f"Day {day_no}: departure date not set yet, so the flag-raising "
+            "time follows the official notice for the travel day; Tiananmen "
+            "Square is scheduled as a normal morning visit for now (not "
+            "anchored to the ceremony)"
+        )
+    else:
+        zh = (
+            f"第{day_no}天（{date_iso}）升旗时刻暂缺——官方年度公告未覆盖该日，"
+            "天安门广场暂按常规晨间时段安排（未按升旗时刻锚定）"
+        )
+        en = (
+            f"Day {day_no} ({date_iso}): flag-raising time unavailable (the "
+            "official yearly notice does not cover this date); Tiananmen "
+            "Square is scheduled as a normal morning visit for now (not "
+            "anchored to the ceremony)"
+        )
+    note = L(zh, en)
+    if note not in plan.assumptions:
+        plan.assumptions.append(note)
+        logger.warning("flag_schedule missing: day=%s date=%s", day_no, date_iso)
+
+
 def _apply_flag_schedule(plan: ItineraryPlan) -> None:
     """天安门升旗时刻打标（flag_schedule 设计 2026-11-14，三段式第③步）。
 
@@ -6801,6 +6837,10 @@ def _apply_flag_schedule(plan: ItineraryPlan) -> None:
                         if _new_min != flag_min:
                             flag_min = _new_min
                             item.fixed_sessions = [_rise]
+                    else:
+                        # 日期被换到公告未覆盖的年份/日期被清空：旧锚留卡
+                        # （有真值不回退），但必须披露「非官方钟点」。
+                        _note_flag_missing(plan, day.day, _date_iso)
                 if (
                     item.start_time is not None
                     and (item.start_time.hour * 60 + item.start_time.minute) != flag_min
@@ -6819,9 +6859,12 @@ def _apply_flag_schedule(plan: ItineraryPlan) -> None:
                 continue
             date_iso = _leg_date_iso(plan.start_date, item.day)
             if not date_iso:
+                # R18 续：无日期不再静默——披露+WARNING（2026-11-22 拍板）
+                _note_flag_missing(plan, day.day, None)
                 continue
             rise = get_flag_time(date_iso, "morning")
             if rise is None:
+                _note_flag_missing(plan, day.day, date_iso)
                 continue
             # 行前信息窗默认起止时刻（未填班次号的占位腿，默认 08:30 /
             # 21:30）让位旗时（2026-11-14 最高优先级拍板）：占位腿时刻是

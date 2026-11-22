@@ -130,3 +130,46 @@ def test_changing_start_date_reanchors_the_flag(monkeypatch):
     _apply_flag_schedule(plan)
     assert card.fixed_sessions == [time(7, 32)], card.fixed_sessions
     assert card.start_time == time(7, 32), card.start_time
+
+
+def test_missing_flag_time_is_disclosed(monkeypatch):
+    """R18 续（2026-11-22 拍板「we need msg」）：查表落空不再静默——
+    assumptions 明说「暂按常规晨间时段（未按升旗时刻锚定）」。"""
+    from app.services.agent.plan import _apply_flag_schedule
+
+    _patch_flag_table(monkeypatch, {})
+    monkeypatch.setattr(
+        "app.services.flag_schedule.get_flag_time", lambda *a, **k: None
+    )
+    plan = _plan(monkeypatch, table={})
+    _apply_flag_schedule(plan)
+    assert any("暂按常规晨间时段" in str(a) for a in plan.assumptions)
+    assert any("未按升旗时刻锚定" in str(a) for a in plan.assumptions)
+
+
+def test_no_departure_date_flag_disclosure(monkeypatch):
+    """无出发日期同理：披露「以出行当日官方公告为准」，不装作已锚定。"""
+    from app.services.agent.plan import _apply_flag_schedule
+
+    _patch_flag_table(monkeypatch, {})
+    plan = _plan(monkeypatch, table={})
+    plan.start_date = None
+    _apply_flag_schedule(plan)
+    assert any("尚未确定出发日期" in str(a) for a in plan.assumptions)
+
+
+def test_date_moved_to_uncovered_year_keeps_anchor_but_discloses(monkeypatch):
+    """改到公告未覆盖的年份：旧锚留卡（有真值不回退、不编造），但必须披露。"""
+    from app.services.agent.plan import _apply_flag_schedule
+
+    table = {"2026-11-25": time(7, 10)}
+    monkeypatch.setattr(
+        "app.services.flag_schedule.get_flag_time",
+        lambda date_iso, category="morning", **k: table.get(str(date_iso)),
+    )
+    plan = _plan(monkeypatch)
+    plan.start_date = "2027-02-06"
+    _apply_flag_schedule(plan)
+    card = _sunrise_cards(plan)[0][1]
+    assert card.fixed_sessions == [time(7, 10)], card.fixed_sessions
+    assert any("升旗时刻暂缺" in str(a) for a in plan.assumptions)

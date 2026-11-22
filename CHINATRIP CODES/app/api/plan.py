@@ -829,6 +829,31 @@ async def start_plan(
         if request.departure_no_override
         else request.departure_no
     )
+    # R18 续（2026-11-22 用户拍板「date is mandatory field」）：出发日期必填。
+    # 纯表单提交（城市+天数、日期空、无 brief/preferences 文字）此前绕过行
+    # 前卡闸直接生成——升旗/天气/订票预热全失去日期锚（天安门回落 06:30 且
+    # 无披露）。行前卡信息里的到达日可以先折成出发日；走到生成这一步还没有
+    # 出发日期的一律回行前卡，不再放行。链接/带图流豁免（确认轮由 agent.
+    # start 开，日期随读点/行前卡补齐；2026-11-15 拍板「链接流不走行前卡」）。
+    if not request.start_date and request.arrival_date:
+        request = request.model_copy(update={"start_date": request.arrival_date})
+    _has_link = find_urls((request.brief or "") + " " + (request.preferences or ""))
+    # 连路线信息都没有的空开局（{}）仍走 legacy clarify（它会连城市/天数
+    # 一起问，2026-11-15 口径）；有路线信息才轮到「日期必填」闸。
+    _no_route_info = not (
+        request.cities
+        or request.days
+        or request.city_days
+        or (request.brief or "").strip()
+        or (request.preferences or "").strip()
+    )
+    if (
+        not request.start_date
+        and not request.images
+        and not _has_link
+        and not _no_route_info
+    ):
+        return {"state": "intake", "start_date_hint": text_date}
     # P3 seam (F-35/F-42, default legacy = zero behavior change): when
     # TRIP_SOLVER=cpsat and the serving stack is ready, generate through
     # the model engine in a worker thread; any failure falls back to the

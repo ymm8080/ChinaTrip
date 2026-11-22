@@ -253,7 +253,12 @@ def test_plan_start_does_not_autopersist_and_save_persists():
     client = TestClient(make_app(agent))
     resp = client.post(
         "/api/v1/plan/start",
-        json={"cities": ["上海", "杭州"], "days": 2, "preferences": "地标美食"},
+        json={
+            "cities": ["上海", "杭州"],
+            "days": 2,
+            "preferences": "地标美食",
+            "start_date": "2026-11-25",
+        },
         headers=DEVICE_HEADERS,
     )
     assert resp.status_code == 200
@@ -296,7 +301,12 @@ def test_plan_message_then_save_freezes_latest_plan():
     # day, leaving no v1 to move. Here v1=外滩 exists and the move lands.
     start = client.post(
         "/api/v1/plan/start",
-        json={"cities": ["上海"], "days": 2, "preferences": "地标美食"},
+        json={
+            "cities": ["上海"],
+            "days": 2,
+            "preferences": "地标美食",
+            "start_date": "2026-11-25",
+        },
         headers=DEVICE_HEADERS,
     )
     sid = start.json()["session_id"]
