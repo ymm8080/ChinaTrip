@@ -359,7 +359,10 @@ async def save_plan(
         # 立刻开跑，下一次组装/重排直接吃缓存。
         _warm = asyncio.create_task(
             agent.prefetch_transfer_schedules(
-                plan.cities, len(plan.days), request.start_date
+                plan.cities,
+                len(plan.days),
+                request.start_date,
+                getattr(session, "city_days", None),
             )
         )
         _BG_PREFETCH_TASKS.add(_warm)

@@ -158,7 +158,10 @@ class StartNluMixin:
         if session.start_date and len(session.cities) > 1:
             self._transfer_prefetch_task = asyncio.create_task(
                 self.prefetch_transfer_schedules(
-                    session.cities, session.days or 1, session.start_date
+                    session.cities,
+                    session.days or 1,
+                    session.start_date,
+                    session.city_days,
                 )
             )
         if not session.cities:
