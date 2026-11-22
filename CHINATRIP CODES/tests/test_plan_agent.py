@@ -1828,8 +1828,12 @@ class UnwantRecorder:
         self.calls: list[tuple[str, str | None, str | None]] = []
 
     def list_groups(
-        self, itinerary_id: str | None = None, owner_device_id: str | None = None
+        self,
+        itinerary_id: str | None = None,
+        owner_device_id: str | None = None,
+        owner_account_id: str | None = None,
     ) -> dict:
+        # 2026-11-22 F2：_absorb_wishlist 按账号归属读取，第三参必到。
         return {"wishlist": [], "scheduled": [], "booked": [], "unwanted": []}
 
     def mark_unwanted(self, name, *, itinerary_id=None, city=None):

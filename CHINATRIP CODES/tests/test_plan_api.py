@@ -1082,8 +1082,12 @@ class UnwantRecorder:
         self.calls: list[tuple[str, str | None, str | None]] = []
 
     def list_groups(
-        self, itinerary_id: str | None = None, owner_device_id: str | None = None
+        self,
+        itinerary_id: str | None = None,
+        owner_device_id: str | None = None,
+        owner_account_id: str | None = None,
     ) -> dict:
+        # 2026-11-22 F2：_absorb_wishlist 按账号归属读取，第三参必到。
         return {"wishlist": [], "scheduled": [], "booked": [], "unwanted": []}
 
     def mark_unwanted(self, name, *, itinerary_id=None, city=None):
@@ -3817,6 +3821,117 @@ def test_start_seam_absorbs_wishlist_into_musts(monkeypatch):
         "陕西历史博物馆" in a and "不在本次行程城市" in a
         for a in r.json()["assumptions"]
     )
+
+
+def test_start_seam_absorbs_account_owned_wishlist_e2e(monkeypatch, tmp_path):
+    """2026-11-22 换设备登录心愿漏排案（F2）端到端闭环：
+    账号在旧设备建的心愿（owner_account_id=alice、owner_device_id=old-device），
+    换到新设备带 Bearer token 开局——token → _account_from_auth → account_id →
+    引擎缝 wish_probe → _absorb_wishlist(owner_account_id) → 引擎 musts → 会话，
+    整条链路必须打通。此前 _absorb_wishlist 只读 device，跨设备账号心愿看板
+    看得到、规划不排且无披露。用隔离 SQLite 账号库，不污染生产。"""
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    from app.api.auth import router as auth_router
+    from app.api.itineraries import get_account_service
+    from app.services.accounts import AccountService
+    from app.services.state_persist import SqliteStateBackend
+    from app.services.trip_items import TripItemService
+    from app.services.trip_solver import live as _live
+
+    made: list[PlanSession] = []
+
+    def _spy(**kw):
+        calls.append(kw)
+        plan = ItineraryPlan(
+            itinerary_id="it-acct-wish",
+            cities=["成都"],
+            days=[
+                DayPlan(
+                    day=1,
+                    base_city="成都",
+                    items=[
+                        VisitItem(
+                            item_id="v1",
+                            name="成都环球中心",
+                            city="成都",
+                            day=1,
+                            duration_minutes=90,
+                            category="attraction",
+                        )
+                    ],
+                )
+            ],
+        )
+        s = PlanSession(
+            session_id="ts-acct-wish",
+            device_id="new-device",
+            cities=["成都"],
+            days=2,
+        )
+        s.plan = plan
+        s.state = "ready"
+        s.assumptions = list(plan.assumptions)
+        made.append(s)
+        return s, None
+
+    calls: list[dict] = []
+    monkeypatch.setattr(_live, "generate_session_via_trip_solver", _spy)
+
+    # 账号 alice 在旧设备建的心愿（本次换到 new-device 开局）
+    svc = TripItemService()
+    svc.create(
+        "成都环球中心",
+        source="chat",
+        city="成都",
+        owner_device_id="old-device",
+        owner_account_id="alice",
+    )
+    # 隔离锚：别的账号 + 别的设备的心愿不得被 alice 的会话捞走（USER ID 隔离）
+    svc.create(
+        "都江堰",
+        source="chat",
+        city="成都",
+        owner_device_id="another-device",
+        owner_account_id="someone-else",
+    )
+    agent = PlanningAgent(StubAdapter([V0_JSON, V0_JSON]), trip_items=svc)
+    app = make_app(agent)
+
+    # 真账号服务（隔离 SQLite）——注册拿真 token，verify_token 能解析
+    account = AccountService(
+        SqliteStateBackend(str(tmp_path / "accounts.db")), InMemoryItineraryStore()
+    )
+    app.dependency_overrides[get_account_service] = lambda: account
+    app.include_router(auth_router)
+    client = TestClient(app)
+
+    reg = client.post(
+        "/api/v1/auth/register",
+        json={"username": "alice", "password": "secret6"},
+        headers={"X-Device-ID": "old-device"},
+    )
+    assert reg.status_code == 201, reg.text
+    token = reg.json()["token"]
+
+    # 换设备 + 真 Bearer token 开局
+    r = client.post(
+        "/api/v1/plan/start",
+        json={"cities": ["成都"], "days": 2, "start_date": "2026-11-25"},
+        headers={
+            "X-Device-ID": "new-device",
+            "Authorization": f"Bearer {token}",
+        },
+    )
+    assert r.status_code == 200, r.text
+    assert len(calls) == 1
+    # 正向：跨设备账号心愿进引擎必去
+    assert "成都环球中心" in calls[0]["musts"], calls[0]["musts"]
+    # 反向隔离锚：别的账号心愿不进
+    assert "都江堰" not in calls[0]["musts"]
+    # 会话记住登录账号，供后续 message/replan 继续按账号读心愿
+    assert made and made[0].account_id == "alice"
+    # 带入披露上卡（不许静默）
+    assert any("已从行程中心心愿单带入必去" in a for a in r.json()["assumptions"])
 
 
 def test_start_seam_wishlist_e2e_real_solver(monkeypatch):
