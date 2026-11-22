@@ -25,6 +25,8 @@ from ...itinerary.models import (
     UnplacedCandidate,
     VisitItem,
 )
+from ...itinerary.rules import SHUTTLE_BOARD_BUFFER_MINUTES, TAXI_HAIL_MINUTES
+from ...itinerary.stay_city import apply_stay_cities
 from ..model.c05_c08 import DEFAULT_GATEWAY_TAXI_MINUTES
 from ..snapshot import snapshot_hash
 
@@ -270,6 +272,42 @@ def push_after_intercity(plan: ItineraryPlan) -> ItineraryPlan:
     return plan
 
 
+def _apply_flag_anchors(days, snapshot: "FactSnapshot") -> None:
+    """R18（2026-11-22 用户令「不可能没有升旗时间」）：升旗时刻装配期落硬锚。
+
+    天安门广场（best_visit_time=sunrise）卡的起止由 C-01 等式钉在
+    flag_schedule 真值上，但此前**不写 fixed_sessions**——下游所有「升旗锚
+    保护」都不认这张卡：摘钉重排（agent/plan.py）、晨卡拉回、重叠推平、
+    coverage 自愈全按普通卡处理，卡一挪旗时就没了（legacy 路一直带 fixed，
+    所以只有引擎路丢）。这里把同一份真值落成 fixed_sessions，让两道保护
+    重新生效：模型侧等式（定时刻）+ 卡上锚（保时刻）。
+
+    只打标不改时刻：时刻归模型管（等式已保证等于真值），装配期再改会让
+    已按原时刻排好的后继卡违反转场间隔。幂等；无出发日期/库空 → 不动作。
+    """
+    from ...flag_schedule import flag_minutes_by_day
+
+    minutes = flag_minutes_by_day(
+        getattr(snapshot.request, "start_date", None),
+        getattr(snapshot.request, "days", 0),
+    )
+    if not minutes:
+        return
+    for day in days:
+        flag_min = minutes.get(day.day)
+        if not flag_min:
+            continue
+        anchor = time(flag_min // 60 % 24, flag_min % 60)
+        for item in day.items:
+            if not isinstance(item, VisitItem):
+                continue
+            if str(getattr(item, "best_visit_time", "") or "") != "sunrise":
+                continue
+            if item.fixed_sessions == [anchor]:
+                continue
+            item.fixed_sessions = [anchor]
+
+
 def materialize_plan(
     solution: "Solution",
     snapshot: "FactSnapshot",
@@ -470,10 +508,17 @@ def materialize_plan(
             # C-13 的晨窗起点是打包窗（ready−60 起），晨卡要显示的却是
             # 「离店时刻」=班次−打车（C-13 ready 同语义）。带去程班次的日子
             # 把晨卡收成离店点卡；打车分钟=档案值（缺省网关口径，与
-            # C-06/C-08/C-13 约束同源——去程打车卡同读此值）。
+            # C-06/C-08/C-13 约束同源——去程打车卡同读此值）。R16：离店再减
+            # 叫车 15 与强约束缓冲 15（乘车点候车）——去程打车卡跨度=叫车+
+            # 车程、卡尾=班次前 15 分。
             if day_outbounds:
                 _dep, _taxi = min(day_outbounds, key=lambda p: p[0])
-                _ready = int(_dep) - int(_taxi)
+                _ready = (
+                    int(_dep)
+                    - int(_taxi)
+                    - TAXI_HAIL_MINUTES
+                    - SHUTTLE_BOARD_BUFFER_MINUTES
+                )
                 if _ready > 0:
                     m_start = m_end = _ready
             if m_end >= m_start and m_end > 0:
@@ -571,6 +616,17 @@ def materialize_plan(
                 duration_minutes=_minutes,
             ),
         )
+
+    # R17（2026-11-22 用户实录「第四天西安→北京，酒店应该住北京，测试显示
+    # 西安」）：夜卡/晨卡城市上面按 `_day_label`（当日多数城）落——跨城日到达
+    # 城的卡还没排进来时多数城仍是出发城，夜卡于是写「西安」，次日晨卡继承它
+    # 继续错。城际腿卡此刻已插好，按唯一口径（末段到达城优先）把占位酒店卡
+    # 的城市拨正（已验证真实酒店不动）。
+    apply_stay_cities(days)
+
+    # R18：升旗真值落卡（fixed_sessions + 起止对齐）——必须在计划返回前，
+    # assemble 的 compact/右推都以卡上锚为准。
+    _apply_flag_anchors(days, snapshot)
 
     cand_by_rid: dict[str, object] = {}
     for cand in snapshot.candidates:

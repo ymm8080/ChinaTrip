@@ -57,6 +57,7 @@ from app.services.agent.hotel_stays import (
     paired_hotel_card,
     reanchor_hotel_cards,
     sync_hotel_stay,
+    sync_stay_cities,
 )
 from app.services.agent.plan import (
     PlanningAgent,
@@ -487,6 +488,10 @@ async def start_plan_from_itinerary(
     ):
         plan.assumptions.extend(attach_hotel_nights(plan.days))
         plan.assumptions.extend(attach_hotel_mornings(plan.days))
+    # 2026-11-22（用户实录「第四天西安→北京，酒店应该住北京，测试显示西安」）：
+    # 老行程快照/引擎物化的酒店卡可能带着「出发城」——开档统一按实际住哪儿
+    # 拨回（占位卡才改，手输真实酒店不动）。
+    sync_stay_cities(plan.days)
     session = PlanSession(
         session_id=uuid.uuid4().hex,
         device_id=x_device_id,

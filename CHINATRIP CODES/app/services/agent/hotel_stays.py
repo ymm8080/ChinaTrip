@@ -38,6 +38,12 @@ from app.services.itinerary.rules import (
     morning_departure_anchor,
     travel_gap_needed,
 )
+from app.services.itinerary.stay_city import (
+    apply_stay_cities,
+    is_intercity_transfer,
+    last_stop,
+    stay_city,
+)
 from app.services.lang_ctx import L
 from app.services.restaurants import is_dinner_placeholder, is_lunch_placeholder
 
@@ -212,9 +218,10 @@ def attach_hotel_nights(day_plans: list[DayPlan]) -> list[str]:
     （末件为离程 transfer 的回家日不插，同入住卡「末段回家不插」口径）；
     幂等：已有夜卡的天不重复插。卡不带 poi/坐标/地址——回填与小时链按
     is_hotel_night 跳过（同入住卡口径，防「搜『回酒店』烧配额」）；手输
-    酒店名经 set-hotel 端点验证后写回名称+地址+坐标。城取当天最后一个
-    观光件的城（晚间换城日夜宿新城），夕发朝至末件取到达城，无观光件
-    回落醒来城。仅初次排程插入；编辑/修复路径不复活已删卡。
+    酒店名经 set-hotel 端点验证后写回名称+地址+坐标。城=当天**实际睡在
+    哪儿**（`itinerary.stay_city`：末段城际腿到达城优先，回落到时刻最晚的
+    落脚点，再回落醒来城）——跨城日的夜卡恒落在到达城，不落出发城。
+    仅初次排程插入；编辑/修复路径不复活已删卡。
     """
     inserted_days: list[int] = []
     for dp in day_plans:
@@ -222,25 +229,24 @@ def attach_hotel_nights(day_plans: list[DayPlan]) -> list[str]:
             continue
         # 末件=离程 transfer（到达城不再是任何更晚日子的宿城）：当晚在途/
         # 到家，不插夜卡（同入住卡「末段回家不插」口径）；反之夕发朝至
-        # 落在宿城，则夜宿到达城（city 覆写为 to_city）。
-        arr_city: str | None = None
-        last = dp.items[-1] if dp.items else None
-        if isinstance(last, TransferItem):
-            to_key = _city_key(last.to_city)
-            arrives_stay = bool(to_key) and any(
-                later.day > dp.day and _city_key(later.base_city) == to_key
-                for later in day_plans
-            )
-            if not arrives_stay:
+        # 落在宿城，则夜宿到达城。
+        # 2026-11-22（用户实录「第四天西安→北京，酒店应该住北京，测试显示
+        # 西安」）：末件按**时链**取（`last_stop` = 结束时刻最晚的非酒店落脚
+        # 点），不再读 `items[-1]`——列表顺序是排程相位的副作用，跨城日能吃
+        # 到出发城的卡；宿城口径统一走 `itinerary.stay_city`（末段到达城优先，
+        # 离程腿不算落脚）。
+        stay_scope = {
+            _city_key(later.base_city)
+            for later in day_plans
+            if later.day > dp.day and _city_key(later.base_city)
+        }
+        last = last_stop(dp.items)
+        if is_intercity_transfer(last):
+            to_key = _city_key(getattr(last, "to_city", None))
+            if not to_key or to_key not in stay_scope:
                 continue
-            arr_city = (last.to_city or "").strip()
-        city = dp.base_city
-        for item in dp.items:
-            if isinstance(item, VisitItem) and item.city:
-                city = item.city
+        city = stay_city(dp.items, dp.base_city, stay_cities=stay_scope or None)
         last_end = _last_timed_end_minutes(dp)
-        if arr_city:
-            city = arr_city
         s, e = _night_window(last_end)
         dp.items.append(
             VisitItem(
@@ -699,6 +705,20 @@ def attach_hotel_mornings(day_plans: list[DayPlan]) -> list[str]:
             ),
         )
     ]
+
+
+def sync_stay_cities(day_plans: list[DayPlan]) -> int:
+    """交付边界保险闸：夜卡/晨卡城市拨回「实际睡哪儿」（2026-11-22 用户实录
+    「第四天西安→北京，酒店应该住北京，测试显示西安。第五天早上也是从北京
+    酒店出发，测试结果是从西安酒店出发」）。
+
+    引擎缝物化的酒店卡在排程期就落了城（当日多数城，跨城日=出发城），
+    `attach_hotel_nights` 因「已有夜卡」幂等跳过、改不到它；本闸在夜卡/晨卡
+    都落定后统一收口：夜卡城=当天晚宿城，晨卡城=前一晚夜卡城。只改占位卡
+    （无 poi/地址/坐标）；用户手输验证过的真实酒店一律不动。返回改写卡数，
+    幂等（干净盘面 0）。
+    """
+    return apply_stay_cities(day_plans)
 
 
 def _day_with(day_plans: list[DayPlan], day: int) -> DayPlan | None:

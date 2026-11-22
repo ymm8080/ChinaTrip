@@ -40,6 +40,7 @@ from app.services.agent.hotel_stays import (
     reanchor_hotel_cards,
     reanchor_hotel_mornings,
     reanchor_hotel_nights,
+    sync_stay_cities,
 )
 from app.services.amap_client import AmapQuotaExhaustedError
 from app.services.city_fallback import is_city_fallback_point
@@ -30045,6 +30046,12 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
         morning_notes = attach_hotel_mornings(plan.days)
         if morning_notes:
             plan.assumptions.extend(morning_notes)
+        # 住哪儿收口（2026-11-22 用户实录「第四天西安→北京，酒店应该住北京，
+        # 测试显示西安；第五天早上也是从北京酒店出发，测试显示西安」）：引擎缝
+        # 物化的夜卡城市是排程期的「当日多数城」，跨城日=出发城；本闸在夜卡/
+        # 晨卡都落定后统一拨回实际住处（占位卡才改，手输真实酒店不动），
+        # 早于 reanchor——晨卡的时刻/城心锚要按拨正后的城重算。
+        sync_stay_cities(plan.days)
         # 定序收口后再对一次晨卡：出发卡恒 08:30-09:00（2026-11-14）
         reanchor_hotel_mornings(plan.days)
         # 城市日一致性终局收口（2026-11-22 用户「第五天北京行程里还有上海
