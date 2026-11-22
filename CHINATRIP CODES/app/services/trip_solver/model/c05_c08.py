@@ -299,7 +299,8 @@ def add_c08_access(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
                     "aft_%s_%s_%d" % (cand.cid, other.cid, day)
                 )
                 bundle.model.Add(
-                    dep >= bundle.start[(other.cid, day)]
+                    dep
+                    >= bundle.start[(other.cid, day)]
                     + bundle.dur[other.cid]
                     + board_chain
                 ).OnlyEnforceIf([lit, lo, after.Not()])

@@ -10,8 +10,8 @@ Day k+1 早上转场去第一目的地；闭合行程出发城=尾城，起始�
 from __future__ import annotations
 
 from app.services.agent.plan import _city_day_ranges, _city_leg_start_days
-from app.services.trip_solver.entry import seam_plain_shape
 from app.services.trip_orchestrator.session import PlanSession
+from app.services.trip_solver.entry import seam_plain_shape
 
 
 def test_origin_window_open_trip():
