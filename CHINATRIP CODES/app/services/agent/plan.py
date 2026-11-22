@@ -13421,6 +13421,52 @@ def _evict_evening_gate_breachers(plan: ItineraryPlan) -> list[str]:
     return notes
 
 
+def _evict_past_midnight_sights(plan: ItineraryPlan) -> list[str]:
+    """越午夜假条目清闸（2026-11-22 起始城停留案）：补点/顺延链在满载日
+    把光标推过 1440，_time_of 钳制把越界时刻统一钳成 23:59（北京中轴线
+    23:59-23:59 实录，且被挪日链拽到前一天尾巴上）——观感垃圾条目。
+    口径：观光件（非餐/住）start_time ≥23:00 或 end≤start（零长钳制
+    特征）→ 移出行程转 unplaced（reason=day_overflow）+ 披露。真实
+    夜间活动（夜游/演出）开始 ≤23:00 不受影响；幂等：移出件无时刻。"""
+    evicted: list[tuple[int, VisitItem]] = []
+    for day in plan.days:
+        keep = []
+        for it in day.items:
+            if (
+                isinstance(it, VisitItem)
+                and it.start_time is not None
+                and (it.category or "") not in ("food", "hotel")
+            ):
+                s = it.start_time.hour * 60 + it.start_time.minute
+                e = it.end_time.hour * 60 + it.end_time.minute if it.end_time else s
+                if s >= 23 * 60 or e <= s:
+                    evicted.append((day.day, it))
+                    continue
+            keep.append(it)
+        day.items = keep
+    notes = []
+    for day_no, it in evicted:
+        plan.unplaced = list(plan.unplaced or []) + [
+            UnplacedCandidate(
+                name=it.name,
+                name_en=getattr(it, "name_en", None),
+                poi_id=it.poi_id,
+                category=it.category,
+                duration_minutes=it.duration_minutes,
+                location=it.location,
+                city=it.city,
+                day_hint=day_no,
+                reason="day_overflow",
+                best_visit_time=getattr(it, "best_visit_time", None),
+            )
+        ]
+        notes.append(
+            "第%d天「%s」被排到了深夜/越午夜（当天窗口装不下），"
+            "已移出行程转想排——前一天的空档白天可手动加回" % (day_no, it.name)
+        )
+    return notes
+
+
 def _lunch_before_destination_visit(plan: ItineraryPlan) -> list[str]:
     """先午餐后游览（2026-11-17 用户拍板「到景区先吃午饭（约 12:00）再游玩」）。
 
@@ -22309,6 +22355,15 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
             if day_start_notes:
                 session.plan.assumptions.extend(day_start_notes)
                 session.assumptions.extend(day_start_notes)
+        if session.plan is not None:
+            # 越午夜假条目清闸（2026-11-22 起始城停留案）：_assemble_plan
+            # 之后的让位/换序/晨卡 pass 还会把满载日光标推过 1440（北京
+            # 中轴线 23:59 实录）——_generate_v0 交付前最后一道扫掉。
+            overflow_notes = _evict_past_midnight_sights(session.plan)
+            if overflow_notes:
+                annotate_legs(session.plan)
+                session.plan.assumptions.extend(overflow_notes)
+                session.assumptions.extend(overflow_notes)
         return session
 
     async def _collect_candidates(
@@ -29320,10 +29375,14 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
                     )
                 if anchor is None:
                     continue
-                if vcity not in pool_cache:
+                pkey = (vcity, round(anchor[0], 2), round(anchor[1], 2))
+                if pkey not in pool_cache:
                     # 直接查库（5→8 公里圈，评分排序）：agent 的 poi_details
                     # 句柄在降级态只剩内存几十行，挑不到真点。
-                    pool_cache[vcity] = await asyncio.to_thread(
+                    # 锚点进键（2026-11-22 起始城停留案）：同城市不同锚点
+                    # （离城日锚在下一站酒店）复用旧池会把另一座城的点
+                    # 塞进 8km 圈外的日。
+                    pool_cache[pkey] = await asyncio.to_thread(
                         _nearby_poi_rows, vcity, anchor[0], anchor[1], 8000, 120
                     )
                 exclude = {
@@ -29332,14 +29391,14 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
                     for i in d0.items
                 }
                 cand = _pick_arrival_nearby(
-                    pool_cache[vcity], anchor, exclude=exclude, radii_km=(5.0, 8.0)
+                    pool_cache[pkey], anchor, exclude=exclude, radii_km=(5.0, 8.0)
                 )
                 if cand is None:
                     logger.debug(
                         "plan: arrival-fill no candidate day=%s city=%s pool=%d",
                         day.day,
                         vcity,
-                        len(pool_cache[vcity]),
+                        len(pool_cache[pkey]),
                     )
                 if cand is None:
                     continue
@@ -29384,6 +29443,10 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
                     if gap is None:
                         continue
                     st, dur2 = gap
+                    # 越日拒绝（2026-11-22 起始城停留案）：_time_of 会把
+                    # 越午夜时刻钳成 23:59 假条目，宁可留白不硬塞。
+                    if st is None or st < 0 or st + dur2 > 24 * 60 - 1:
+                        continue
                     v.duration_minutes = dur2
                     v.start_time = _time_of(st)
                     v.end_time = _time_of(st + dur2)
@@ -29402,6 +29465,9 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
                     if gap is None:
                         continue
                     st, dur3 = gap
+                    # 同上：越日拒绝（宁可留白）。
+                    if st is None or st < 0 or st + dur3 > 24 * 60 - 1:
+                        continue
                     v.duration_minutes = dur3
                     v.start_time = _time_of(st)
                     v.end_time = _time_of(st + dur3)
@@ -30431,6 +30497,10 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
         # 交付前最后一道（2026-11-16）：上游任何相位把班次点贴回「没车的
         # 时刻」，这里再收一次（幂等；末班已过 → 打车直达并留痕）。
         plan.assumptions.extend(_clamp_chain_gaps(plan))
+        # 越午夜假条目清闸（2026-11-22 起始城停留案）：补点/顺延链在满载
+        # 日把光标推过 1440、_time_of 钳成 23:59 假条目（北京中轴线实录）
+        # ——交付边界最后一道扫掉，转想排+披露。
+        plan.assumptions.extend(_evict_past_midnight_sights(plan))
         plan.assumptions = _dedupe_assumptions(plan.assumptions)
         annotate_legs(plan)
         if self._leg_cache:
@@ -32267,6 +32337,17 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
                 if note not in session.assumptions:
                     session.assumptions.append(note)
             evicted.extend(gated)
+        # 越午夜假条目清闸（2026-11-22 起始城停留案）：_time_of 钳制把
+        # 越界时刻统一钳成 23:59 的观感垃圾（北京中轴线 23:59 实录）。
+        overflow = _evict_past_midnight_sights(session.plan)
+        if overflow:
+            annotate_legs(session.plan)
+            for note in overflow:
+                if note not in session.plan.assumptions:
+                    session.plan.assumptions.append(note)
+                if note not in session.assumptions:
+                    session.assumptions.append(note)
+            evicted.extend(overflow)
         # 降级灰卡撤下（2026-11-22 尾城日案）：排不进时刻的自动观光件不能
         # 只靠下发层剔除——撤下、留痕、同天按市区圈重开补点。这不是「往
         # 行程里加卡」而是「修被灰卡占掉的空档」，所以 `reopen_days` 会越过
@@ -35210,6 +35291,9 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
         # 交付前接驳链最后一道对账（2026-11-15）：任何一道都不得把两张卡
         # 贴成 0 分钟；引擎钉住的必去也在这里按链后移（用户手钉不动）。
         plan.assumptions.extend(_clamp_chain_gaps(plan))
+        # 越午夜假条目清闸（2026-11-22 起始城停留案）：兜底/legacy 交付
+        # 分支同样要扫——补点/顺延链推过午夜的 23:59 假条目，转想排+披露。
+        plan.assumptions.extend(_evict_past_midnight_sights(plan))
         # 行程单模糊去重收口（2026-10-28）：三条交付分支（干净落定/
         # 保底原样/半成品）统一过闸——2026-10-24 版只挂在「无硬校验错误」
         # 分支，编辑失败回合会跳过合并，历史脏对子继续露出。

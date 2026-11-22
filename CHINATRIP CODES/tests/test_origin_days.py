@@ -72,3 +72,50 @@ def test_session_defaults_origin_days_zero():
     assert s.origin_days == 0
     s2 = PlanSession.model_validate(s.model_dump())
     assert s2.origin_days == 0
+
+
+def test_evict_past_midnight_sights():
+    # 2026-11-22 起始城停留案：补点/顺延链把光标推过 1440，_time_of 钳成
+    # 23:59 假条目（北京中轴线 23:59-23:59 实录）→ 终扫移出转想排。
+    from datetime import date, time
+
+    from app.services.agent.plan import _evict_past_midnight_sights
+    from app.services.itinerary.models import DayPlan, ItineraryPlan, VisitItem
+
+    def _v(item_id, name, start, end, cat="historic"):
+        return VisitItem(
+            item_id=item_id,
+            name=name,
+            city="北京",
+            day=2,
+            category=cat,
+            duration_minutes=90,
+            start_time=start,
+            end_time=end,
+        )
+
+    plan = ItineraryPlan(
+        itinerary_id="t",
+        cities=["北京"],
+        days=[
+            DayPlan(
+                day=2,
+                base_city="北京",
+                date=date(2026, 11, 26),
+                items=[
+                    _v("a", "北京中轴线", time(23, 59), time(23, 59)),
+                    _v("b", "夜游商场", time(21, 0), time(22, 30), "citywalk"),
+                    _v("c", "零长卡", time(20, 0), time(20, 0)),
+                    _v("d", "晚饭", time(19, 0), time(20, 30), "food"),
+                ],
+            )
+        ],
+    )
+    notes = _evict_past_midnight_sights(plan)
+    names = [i.name for i in plan.days[0].items]
+    assert "北京中轴线" not in names and "零长卡" not in names
+    assert "夜游商场" in names and "晚饭" in names  # 正常夜间件/餐卡不动
+    assert [u.reason for u in plan.unplaced] == ["day_overflow", "day_overflow"]
+    assert len(notes) == 2
+    # 幂等
+    assert _evict_past_midnight_sights(plan) == []
