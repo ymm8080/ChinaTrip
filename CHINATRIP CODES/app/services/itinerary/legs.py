@@ -33,6 +33,8 @@ from app.services.itinerary.rules import (
     MORNING_RUSH_EXTRA_MINUTES,
     SAME_VENUE_KM,
     SCHEDULED_ACCESS_MODES,
+    SHUTTLE_BOARD_BUFFER_MINUTES,
+    TAXI_HAIL_MINUTES,
     TAXI_WALK_MAX_KM,
     TRAVEL_MIN_PER_KM,
     _access_profile,
@@ -951,6 +953,41 @@ def attach_return_cards(plan: ItineraryPlan) -> ItineraryPlan:
                 spent = site.next_leg_minutes or 0
             walk = int(detail.get("walk_minutes") or 0)
             arrive = _time_of((start_min or 0) + walk + int(spent))
+        # 2026-11-22 大足石刻案：同址餐占位排在游后（午饭 14:00-15:00 锚在
+        # 景区旁），班次 depart_time 恰好=散场时刻 → 回城卡与午饭完全重叠。
+        # 用户拍板「回程腿给午饭让位、顺延到 15:00-16:47」：开始让到同址
+        # 占位结束之后，到达时刻整体顺延。只认景区旁（≤SAME_VENUE_KM）的
+        # 游后占位——市区晚饭与回城段重叠是正常抵达后用餐，不让。
+        site_pt = site.location or site.anchor_location
+        meal_end_candidates: list[int] = []
+        for m in day.items:
+            if not isinstance(m, VisitItem) or m is site:
+                continue
+            if not (is_lunch_placeholder(m) or is_dinner_placeholder(m)):
+                continue
+            m_start = _clock_minutes(m.start_time)
+            m_end = _clock_minutes(m.end_time)
+            if m_start is None or m_end is None or site_end_min is None:
+                continue
+            if m_start < site_end_min - 5:  # 已吃过的饭不挡回程
+                continue
+            if m_start >= (_clock_minutes(arrive) or 0):  # 不与回程窗重叠
+                continue
+            m_pt = m.anchor_location or m.location
+            if site_pt is None or m_pt is None:
+                continue
+            if haversine_km(site_pt, m_pt) > SAME_VENUE_KM:
+                continue
+            meal_end_candidates.append(m_end)
+        if meal_end_candidates:
+            hold = max(meal_end_candidates)
+            if hold > (start_min or 0):
+                arrive = _time_of(
+                    (_clock_minutes(arrive) or 0) + hold - (start_min or 0)
+                )
+                start = _time_of(hold)
+                start_min = hold
+                clamped_return_start = True
         name, name_en = _return_card_name(detail)
         card = VisitItem(
             item_id=f"{RETURN_CARD_PREFIX}{site.item_id}",
@@ -1046,7 +1083,8 @@ def _attach_engine_outbound_legs(plan: ItineraryPlan) -> None:
                 "taxi_km": round(km, 2),
                 "taxi_minutes": taxi_minutes,
                 "rush": 0,
-                "wait": 0,
+                # R16：到点缓冲进候车行（强约束班车前 15 分到乘车点）
+                "wait": SHUTTLE_BOARD_BUFFER_MINUTES,
                 "service": ride,
                 "last": last,
                 "board": depart_min,
@@ -1112,15 +1150,22 @@ def attach_outbound_taxi_cards(plan: ItineraryPlan) -> ItineraryPlan:
             if boarding is None:
                 continue
             km = haversine_km(anchor_pt, boarding)
-            # R15：打车分钟优先档案值（与晨卡离店/C-06/C-08/C-13 约束同源），
-            # 无档案才按坐标几何估。
-            taxi_min = int(getattr(site, "access_taxi_minutes", 0) or 0) or (
-                taxi_leg_min(km) or 0
-            )
+            # R16（2026-11-21 用户拍板「所有出租车含 15 分钟叫车；接强约束班次再
+            # 加 15 分钟硬缓冲」）：打车卡跨度=叫车 15+车程（档案值优先，无档案
+            # 按几何估——几何值已含叫车）；卡尾=班次前 15 分（到点缓冲，去程卡
+            # 候车行同值），晨卡离店同式（materialize R16）。
+            drive = int(getattr(site, "access_taxi_minutes", 0) or 0)
+            if drive:
+                taxi_min = drive + TAXI_HAIL_MINUTES
+            else:
+                taxi_min = taxi_leg_min(km) or 0
             if km <= 0.05 or taxi_min <= 0:
                 continue  # 乘车点就在脚下：无打车段（与前端打车行同闸）
             board = _clock_minutes(item.start_time)
             if board is None or board <= 0:
+                continue
+            board_arrive = board - SHUTTLE_BOARD_BUFFER_MINUTES
+            if board_arrive <= 0:
                 continue
             idx = day.items.index(item)
             prev_end = None
@@ -1129,12 +1174,12 @@ def attach_outbound_taxi_cards(plan: ItineraryPlan) -> ItineraryPlan:
                     m = _clock_minutes(prev.end_time)
                     if m is not None:
                         prev_end = m if prev_end is None else max(prev_end, m)
-            start_min = board - taxi_min
+            start_min = board_arrive - taxi_min
             if prev_end is not None and prev_end > start_min:
-                if prev_end >= board:
-                    continue  # 前卡已顶到发车时刻：窗口不够，绝不硬塞
+                if prev_end >= board_arrive:
+                    continue  # 前卡已顶到到点缓冲线：窗口不够，绝不硬塞
                 start_min = prev_end
-            span = board - start_min
+            span = board_arrive - start_min
             if span <= 0:
                 continue
             gateway = str(getattr(site, "access_boarding_stop", "") or "")
@@ -1147,7 +1192,7 @@ def attach_outbound_taxi_cards(plan: ItineraryPlan) -> ItineraryPlan:
                 city=item.city or site.city,
                 day=item.day or day.day,
                 start_time=_time_of(start_min),
-                end_time=_time_of(board),
+                end_time=_time_of(board_arrive),
                 duration_minutes=span,
                 synthetic=True,
             )
