@@ -23058,7 +23058,10 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
         if not names:
             return
         try:
-            groups = self._trip_items.list_groups(None, session.device_id)
+            # 2026-11-22 F2 同型补齐：对账读口也要认账号归属（跨设备账号行）
+            groups = self._trip_items.list_groups(
+                None, session.device_id, getattr(session, "account_id", None)
+            )
         except Exception:
             return
         rows = groups.get("wishlist", []) + groups.get("scheduled", [])
@@ -23321,7 +23324,10 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
             and (item.category or "") != "hotel"
         ]
         try:
-            groups = self._trip_items.list_groups(None, session.device_id)
+            # 2026-11-22 F2 同型补齐：对账读口也要认账号归属（跨设备账号行）
+            groups = self._trip_items.list_groups(
+                None, session.device_id, getattr(session, "account_id", None)
+            )
         except Exception:
             return
         rows = [r for g in groups.values() for r in g]
@@ -33915,7 +33921,9 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
                     rows = [
                         it
                         for group in self._trip_items.list_groups(
-                            None, session.device_id
+                            None,
+                            session.device_id,
+                            getattr(session, "account_id", None),
                         ).values()
                         for it in group
                         if _name_dup(str(it.get("name") or ""), wish)
@@ -34084,9 +34092,13 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
         missing: list[str] = []
         rows: dict[str, dict] = {}
         trip_cities = [c.strip().removesuffix("市") for c in session.cities]
-        for it in self._trip_items.list_groups(None, session.device_id).get(
-            "wishlist", []
-        ):
+        # 2026-11-22 F2 同型补齐：docstring 承诺 same filter as _absorb_wishlist，
+        # 账号归属口径必须一致——登录账号在别的设备建的心愿也要被覆盖补排。
+        # 此前这里两参读口把跨设备账号心愿静默漏掉（无披露），与 F2 同型。
+        wish_account = getattr(session, "account_id", None)
+        for it in self._trip_items.list_groups(
+            None, session.device_id, wish_account
+        ).get("wishlist", []):
             name = (it.get("name") or "").strip()
             if not name or name.startswith(("http://", "https://")):
                 continue

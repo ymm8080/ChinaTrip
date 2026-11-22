@@ -2357,6 +2357,53 @@ def test_wishlist_coverage_mirrors_city_gate():
     assert "看变脸" not in names and "李子坝站" not in names
 
 
+def test_wishlist_coverage_reads_account_owned_rows():
+    """2026-11-22 F2 同型补齐：常规消息轮的心愿补排兜底（_ensure_wishlist_coverage）
+    的 docstring 承诺 same filter as _absorb_wishlist，账号归属口径必须一致。
+    登录账号在别的设备建的心愿（owner_account_id 有值、owner_device_id 不同），
+    此前这里两参读口读不到 → 静默漏排且无披露。修复：第三参传 session.account_id，
+    list_groups 的 _mine 谓词据此把本账号跨设备行算作「我的」。"""
+    seen: list[tuple] = []
+
+    class Spy(TripItemService):
+        def list_groups(self, *args, **kwargs):
+            seen.append(args)
+            return super().list_groups(*args, **kwargs)
+
+    spy = Spy()
+    spy.create(
+        "博物馆",
+        source="chat",
+        city="上海",
+        owner_device_id="old-device",
+        owner_account_id="alice",
+    )
+    agent = PlanningAgent(ScriptedLLM([]), trip_items=spy)
+    item = VisitItem(item_id="v1", name="豫园", city="上海", day=1, duration_minutes=90)
+    session = PlanSession(
+        session_id="s-acct-cov",
+        device_id="new-device",
+        account_id="alice",
+        cities=["上海"],
+        days=1,
+        state="ready",
+        plan=ItineraryPlan(
+            itinerary_id="it_t",
+            cities=["上海"],
+            days=[DayPlan(day=1, base_city="上海", items=[item])],
+        ),
+    )
+    run(agent._ensure_wishlist_coverage(session))
+    # 读口收到三参，第三参 = 当前会话登录账号
+    assert seen and len(seen[0]) == 3, seen
+    assert seen[0][0] is None and seen[0][1] == "new-device" and seen[0][2] == "alice"
+    # 跨设备账号心愿被补排进计划（不是静默漏掉）
+    names = {
+        i.name for d in session.plan.days for i in d.items if isinstance(i, VisitItem)
+    }
+    assert any("博物馆" in n for n in names), names
+
+
 def test_absorb_wishlist_skips_items_from_other_cities():
     agent = _wishlist_agent([("故宫", "北京")])
     session = run(
