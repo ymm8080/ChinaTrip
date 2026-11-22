@@ -104,9 +104,22 @@ def _row_to_candidate(
         # R12-H10（2026-11-20 用户拍板「按库里的数据来排」）：必去
         # 绑定把库内数据分（名录 tags/来源 + 真值评分[名录缺评按
         # 4.8 地板——池排序同哲学] + 时长档）落到 quality——覆盖
-        # 层据此定删点序；fills 不占此字段。
+        # 层据此定删点序。
+        # R12-H10c（2026-11-22 用户令「legacy 与 cp-sat 同一套选点
+        # 排序逻辑」）：填充候选此前 quality 恒 0（库行无 quality
+        # 键）——引擎填充选择只有 flat FILL_REWARD，完全不吃评分/
+        # 名录档，与 legacy 确定性选点「①选点=tier 梯子序、同档
+        # 评分降序 tie-break」脱钩。填充同吃库内数据分（有界奖励
+        # 见 objectives.FILL_QUALITY_REWARD_CAP），选点序与 legacy
+        # 同源；无评分/无标签行保持 0（旧快照行为不变）。
         quality=(
-            _data_priority_score(row) if kind == "requested" else row.get("quality")
+            _data_priority_score(row)
+            if kind == "requested"
+            else (
+                _data_priority_score(row)
+                if (row.get("rating") or row.get("tags"))
+                else row.get("quality")
+            )
         ),
         lon=lon,
         lat=lat,
@@ -260,6 +273,7 @@ def snapshot_from_request(
     service_rows: Optional[list[dict]] = None,
     preferences: str = "",
     city_days: Optional[dict] = None,
+    origin_days: int = 0,
     day1_start: Optional[str] = None,
     arrival_day: Optional[int] = None,
     departure_day: Optional[int] = None,
@@ -358,17 +372,21 @@ def snapshot_from_request(
     pool: list[dict] = []
     seen_names = set(must_names_bound)
     # R8-S4 池按行程形状配额（修多城 all-fill 空排）：总量 ≈ days×7，
-    # 按城市窗天数（有 city_days：C-17 同口径，出发城/闭合尾城不取
-    # 数——C-17 已灭活，纯模型负重）或城市均分分配；单城下限 6、
-    # 上限 pool_limit。此前 3 城×30=90 候选的模型在 tier② 0.4
-    # dtime 下 UNKNOWN，阶梯保 tier① 空前缀=空计划（live 实锤）。
+    # 按城市窗天数（有 city_days/origin_days：C-17 同口径——出发城
+    # origin_days≥1 占 (1,k) 窗取数、闭合尾城 ≥2 真实停留取数；
+    # k=0 出发城/闭合返程标记不取数——C-17 已灭活，纯模型负重）或
+    # 城市均分分配；单城下限 6、上限 pool_limit。此前 3 城×30=90
+    # 候选的模型在 tier② 0.4 dtime 下 UNKNOWN，阶梯保 tier① 空前缀
+    # =空计划（live 实锤）。
     from .model.c17_city_days import _norm as _city_norm
     from .model.c17_city_days import city_day_windows
 
     city_list = [c for c in cities if c]
     total_target = max(12, int(days or 1) * 7)
-    if city_days:
-        windows = city_day_windows(city_list, days, dict(city_days))
+    if city_days or (int(origin_days or 0) >= 1 and len(city_list) > 1):
+        windows = city_day_windows(
+            city_list, days, dict(city_days or {}), origin_days=origin_days
+        )
         share = {
             c: windows[_city_norm(c)][1] - windows[_city_norm(c)][0] + 1
             for c in city_list
@@ -449,6 +467,15 @@ def snapshot_from_request(
                     if pc == city:
                         weather.append((poi_id, iso, text))
 
+    # 起始城真实首站（2026-11-22）：到达端点随去程腿右移——origin_days≥1
+    # 时去程腿落 k+1 早上（legacy 同口径），C-05 到达地板也要跟着落 k+1；
+    # 显式传了 arrival_day（中途转移日）则用户权威优先。
+    from .model.c17_city_days import origin_shift
+
+    _shift = origin_shift(city_list, days, origin_days)
+    if arrival_day is None and _shift >= 1:
+        arrival_day = _shift + 1
+
     return FactSnapshot(
         schema_version=2,
         request=TripRequest(
@@ -465,6 +492,7 @@ def snapshot_from_request(
             city_days=tuple(
                 sorted((str(k), int(v)) for k, v in dict(city_days or {}).items())
             ),
+            origin_days=int(origin_days or 0),
             day1_start=day1_start,
             arrival_day=arrival_day,
             departure_day=departure_day,
@@ -516,6 +544,7 @@ def generate_session_via_trip_solver(
     departure_no: Optional[str] = None,
     intercity_mode: Optional[str] = None,
     city_days: Optional[dict] = None,
+    origin_days: int = 0,
     preferences: str = "",
     arrival_time: Optional[str] = None,
     departure_time: Optional[str] = None,
@@ -617,6 +646,7 @@ def generate_session_via_trip_solver(
         departure_no=departure_no,
         intercity_mode=intercity_mode,
         city_days=city_days,
+        origin_days=origin_days,
         avoid=[],
         weather_lookup=_weather,
         service_rows=service_rows,
@@ -662,6 +692,7 @@ def generate_session_via_trip_solver(
         departure_date=departure_date,
         intercity_mode=intercity_mode or "auto",
         city_days=dict(city_days or {}),
+        origin_days=int(origin_days or 0),
         comment_day_start=day1_start,
         preferences=preferences or "",
         lang=lang,
@@ -893,6 +924,7 @@ def _session_snapshot(session, store, extra_musts=None, weather_lookup=None):
         avoid=list(getattr(session, "avoid_sites", None) or []),
         preferences=(getattr(session, "preferences", "") or ""),
         city_days=dict(getattr(session, "city_days", None) or {}),
+        origin_days=int(getattr(session, "origin_days", 0) or 0),
         service_rows=service_rows,
         day1_start=getattr(session, "comment_day_start", None),
         arrival_day=_intake_day_no(

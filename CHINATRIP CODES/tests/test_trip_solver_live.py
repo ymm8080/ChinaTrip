@@ -1329,3 +1329,203 @@ def test_generator_parses_day1_start_from_preferences(monkeypatch):
     assert outcome is not None and outcome.engine == "cpsat"
     assert session is not None
     assert session.comment_day_start == "11:00"
+
+
+def test_fill_candidates_carry_library_data_priority():
+    """R12-H10c（2026-11-22 用户令「cp-sat 应跟 legacy 同一套选点排序」）：
+    live 库行填充候选此前 quality 恒 0——引擎填充选择只有 flat
+    FILL_REWARD，完全不吃评分/名录档，与 legacy 确定性选点「tier 梯子
+    序、同档评分 tie-break」脱钩。库行（有 rating/tags）填充同吃库内
+    数据分；无数据行保持 0（旧快照行为不变）。"""
+    from app.services.trip_solver.live import _data_priority_score, _row_to_candidate
+
+    rated_row = {
+        "name": "秦始皇帝陵博物院",
+        "rating": 4.7,
+        "tags": ["5a"],
+        "source": "5a",
+        "location": (109.28, 34.38),
+    }
+    cand = _row_to_candidate("f1", rated_row, kind="fill")
+    assert cand.quality == _data_priority_score(rated_row) == 77
+
+    bare_row = {"name": "无名骨架", "location": (109.28, 34.38)}
+    assert _row_to_candidate("f2", bare_row, kind="fill").quality is None
+
+
+def test_solve_prefers_higher_quality_fill():
+    """选点对齐 legacy：同结构单坑对决，库内数据分高的填充胜出
+    （此前填充选择与评分无关）。"""
+    from app.services.trip_solver.inputs.enrich import enrich
+    from app.services.trip_solver.model.solve import solve_snapshot
+    from app.services.trip_solver.types import CandidateItem, FactSnapshot, TripRequest
+
+    def cand(cid, name, quality, lon):
+        return CandidateItem(
+            cid=cid,
+            name=name,
+            category="attraction",
+            tier=4,
+            quality=quality,
+            lon=lon,
+            lat=31.22,
+            opening_hours="09:00-18:00",
+            suggested_duration_min=90,
+        )
+
+    snap = FactSnapshot(
+        schema_version=2,
+        request=TripRequest(days=1, cities=("西安",), sight_cap_per_day=1),
+        candidates=(
+            cand("low", "低分点", 40, 121.42),
+            cand("high", "秦始皇帝陵博物院", 77, 121.47),
+        ),
+    )
+    sol = solve_snapshot(enrich(snap), budget_s=3.0)
+    placed = [i.cid for i in sol.items if i.kind == "visit"]
+    assert placed == ["high"]
+
+
+# ------------------------------------------------------ origin_days 拆闸
+# （2026-11-22 用户拍板「起始城市也要能够选游玩日期数」+「fix all」：
+
+
+def _multi_city_store():
+    return SnapshotStore(
+        [
+            CandidateItem(
+                cid="b%d" % i,
+                name=name,
+                poi_id="ct_北京_%d" % i,
+                city="北京",
+                category=cat,
+                tier=tier,
+                lon=116.40 + i * 0.01,
+                lat=39.90,
+                opening_hours="09:00-18:00",
+                suggested_duration_min=90,
+            )
+            for i, (name, cat, tier) in enumerate(
+                [
+                    ("故宫博物院", "sight", 1),
+                    ("天坛", "sight", 2),
+                    ("颐和园", "sight", 3),
+                    ("南锣鼓巷", "citywalk", 6),
+                ],
+                start=1,
+            )
+        ]
+        + [
+            CandidateItem(
+                cid="x%d" % i,
+                name=name,
+                poi_id="ct_西安_%d" % i,
+                city="西安",
+                category=cat,
+                tier=tier,
+                lon=108.94 + i * 0.01,
+                lat=34.26,
+                opening_hours="09:00-18:00",
+                suggested_duration_min=90,
+            )
+            for i, (name, cat, tier) in enumerate(
+                [
+                    ("陕西历史博物馆", "sight", 1),
+                    ("大雁塔", "sight", 2),
+                    ("华清宫", "sight", 3),
+                    ("永兴坊", "citywalk", 6),
+                ],
+                start=1,
+            )
+        ]
+    )
+
+
+def test_seam_plain_shape_origin_days_unblocked():
+    """origin_days 语义已进引擎（C-17 shift 窗 + 到达端点右移）——形状闸
+    放行，不再回落 legacy（2026-11-22 拆闸）。"""
+    from app.services.trip_solver.entry import seam_plain_shape
+
+    assert seam_plain_shape(days=5, cities=["北京", "西安"], origin_days=2)
+    # brief/带图仍拦（读点确认轮 NLU 边界不变）
+    assert not seam_plain_shape(
+        brief="去西安玩", days=5, cities=["北京", "西安"], origin_days=2
+    )
+
+
+def test_generator_origin_days_lands_session_and_windows(monkeypatch):
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    session, outcome = generate_session_via_trip_solver(
+        device_id="t",
+        cities=["北京", "西安"],
+        days=5,
+        start_date="2026-11-25",
+        musts=[],
+        store=_multi_city_store(),
+        origin_days=2,
+    )
+    assert outcome is not None and outcome.engine == "cpsat"
+    assert session is not None
+    assert int(getattr(session, "origin_days", 0) or 0) == 2
+    plan = session.plan
+    # Day1-2 = 北京真实首站（有北京游玩卡）；Day3 = 去程腿日（北京→西安）
+    bj_days = {
+        d.day
+        for d in plan.days
+        for i in d.items
+        if getattr(i, "city", None) == "北京"
+        and (getattr(i, "category", "") or "") not in ("hotel", "transfer")
+    }
+    assert bj_days == {1, 2}
+    d3 = next(d for d in plan.days if d.day == 3)
+    assert any(
+        isinstance(i, object)
+        and getattr(i, "from_city", None) == "北京"
+        and getattr(i, "to_city", None) == "西安"
+        for i in d3.items
+    )
+    # 快照侧：origin_days 随请求入模型
+    assert outcome.solution is not None
+
+
+def test_generator_closed_trip_keeps_return_leg(monkeypatch):
+    """闭合行程（北京→西安→北京）末日必须带回程腿——引擎装配兜底 +
+    C-05 返程顶盖（白天游玩 ≤14:30）+ C-09 晚餐槽抑制（2026-11-22）。"""
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    session, outcome = generate_session_via_trip_solver(
+        device_id="t",
+        cities=["北京", "西安", "北京"],
+        days=7,
+        start_date="2026-11-25",
+        musts=[],
+        store=_multi_city_store(),
+        city_days={"西安": 3, "北京": 1},
+        origin_days=3,
+    )
+    assert outcome is not None and outcome.engine == "cpsat"
+    assert session is not None and session.plan is not None
+    plan = session.plan
+    last = plan.days[-1]
+    ret_legs = [
+        i
+        for i in last.items
+        if getattr(i, "from_city", None) == "西安"
+        and getattr(i, "to_city", None) == "北京"
+    ]
+    assert ret_legs, "闭合行程末日缺返程腿（回不了家）"
+    ret = ret_legs[0]
+    assert ret.start_time is not None and ret.start_time.hour >= 15
+    # 末日游玩卡在返程腿前收尾（C-05 顶盖 ≤ 17:00−150）
+    from datetime import time as _t
+
+    cap = _t(14, 30)
+    for i in last.items:
+        if not isinstance(i, object) or hasattr(i, "from_city"):
+            continue  # TransferItem / 合成腿
+        if getattr(i, "category", "") in ("hotel", "transfer", "food"):
+            continue
+        if getattr(i, "end_time", None) is not None:
+            assert i.end_time <= cap, "末日游玩卡越过返程顶盖: %s %s" % (
+                getattr(i, "name", ""),
+                i.end_time,
+            )

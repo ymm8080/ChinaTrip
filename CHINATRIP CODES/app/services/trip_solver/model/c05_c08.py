@@ -114,6 +114,26 @@ def add_c05_endpoints(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
             bundle.model.Add(
                 bundle.start[(cand.cid, departure_day)] + bundle.dur[cand.cid] <= cap
             ).OnlyEnforceIf(lit)
+    elif departure_day in bundle.days:
+        # 2026-11-22 闭合行程返程顶盖（北京→西安→北京 不再回不了家的
+        # 模型侧配套）：首尾同名（闭合）且用户没给离开时刻时，装配层会在
+        # 末日补傍晚返程腿（17:00 口径）——模型侧末日游玩收尾必须给赶车
+        # 留缓冲（departure_buffer 同口径），否则装配腿与晚餐/晚卡重叠。
+        # 闭合尾城填 ≥2 天=真实停留（797f350 口径）时末日无返程腿，
+        # 不加顶盖（尾窗是完整游玩日）——closed_return_day 统一裁决。
+        from .c17_city_days import closed_return_day
+
+        if closed_return_day(
+            request.cities, request.days, request.city_days
+        ) == departure_day:
+            cap = 17 * 60 - departure_buffer
+            for cand in enriched.snapshot.candidates:
+                lit = bundle.presence[(cand.cid, departure_day)]
+                bundle.model.Add(
+                    bundle.start[(cand.cid, departure_day)]
+                    + bundle.dur[cand.cid]
+                    <= cap
+                ).OnlyEnforceIf(lit)
 
 
 def add_c06_remote_exclusivity(

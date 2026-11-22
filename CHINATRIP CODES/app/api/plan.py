@@ -903,8 +903,8 @@ async def start_plan(
             and serving_ready()[0]
             # R8 形状闸收窄（2026-11-18「全量切引擎」）：映射类字段
             # （城际方式/班次 override/行前卡标志）透传直连；仍留 legacy
-            # 的唯 brief/带图（读点确认轮）、分城天数（建模挂账）、
-            # 非默认端点行前日期（中途转移日）。
+            # 的唯 brief/带图（读点确认轮）。分城天数（C-17）与起始城
+            # 停留（C-17 shift，2026-11-22 拆闸）均已进引擎。
             and seam_plain_shape(
                 brief=start_brief,
                 images=request.images,
@@ -913,9 +913,6 @@ async def start_plan(
                 start_date=request.start_date,
                 days=ts_days,
                 cities=start_cities,
-                # 起始城停留（2026-11-22）引擎 C-17 尚无出发城窗口语义
-                # （c17 明确「出发城不占活动窗」）——先留 legacy，引擎
-                # 建模挂账后再拆闸。
                 origin_days=start_origin_days,
             )
         ):
@@ -960,6 +957,10 @@ async def start_plan(
                     departure_no=ts_departure_no,
                     intercity_mode=request.intercity_mode,
                     city_days=dict(ts_city_days) if ts_city_days else None,
+                    # 2026-11-22 起始城停留拆闸：origin_days 语义已进引擎
+                    # （C-17 shift 窗 + 到达端点右移 k+1）——随缝透传，
+                    # 不再回落 legacy。
+                    origin_days=start_origin_days or 0,
                     lang=request.lang,
                     # R13p（2026-11-22 审计修复）：原始行前日期也随缝落地——
                     # 重排 _session_snapshot 从会话 arrival_date/departure_date

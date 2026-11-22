@@ -52,14 +52,35 @@ def _base_city(snapshot: "FactSnapshot", day: int) -> str:
     return cities[min(day - 1, len(cities) - 1)]
 
 
+def _is_closed_trip(snapshot: "FactSnapshot") -> bool:
+    cities = [c for c in (snapshot.request.cities or ()) if c]
+    if len(cities) < 2:
+        return False
+
+    def _n(c: str) -> str:
+        return str(c or "").strip().removesuffix("市")
+
+    return _n(cities[0]) == _n(cities[-1])
+
+
 def _day_label(items, snapshot: "FactSnapshot", day: int) -> str:
     """R13o②：天的 base_city 按当天实际在排的卡取多数城——此前按
     请求城市序做朴素索引映射（day2=城市2），自由分配/显式分城窗下标签
     与内容错位（R13n 跨城探针：Day2/Day3 标「西安」但装的全是北京
     景点）。空日回落分城日窗（C-17 同口径），再退旧索引兜底。
+
+    2026-11-22 闭合行程末日修正：末日晨/夜酒店卡的城市是 _base_city
+    朴素索引（closed 时=出发城）——轻日多数标签被合成酒店卡劫走，末日
+    被误标成出发城（返程腿语义/夜卡城市全错）。末日剔除 hotel 卡再取
+    多数（游玩卡说了算）；闭合尾城真实停留窗下多数仍是尾城，口径自洽。
     """
+    _closed_last = (
+        _is_closed_trip(snapshot) and day == int(snapshot.request.days or 0)
+    )
     counts: dict[str, int] = {}
     for it in items:
+        if _closed_last and str(getattr(it, "category", "") or "") == "hotel":
+            continue
         city = getattr(it, "city", None)
         if city:
             counts[str(city)] = counts.get(str(city), 0) + 1
@@ -72,6 +93,7 @@ def _day_label(items, snapshot: "FactSnapshot", day: int) -> str:
             snapshot.request.cities,
             snapshot.request.days,
             dict(snapshot.request.city_days or {}),
+            origin_days=getattr(snapshot.request, "origin_days", 0) or 0,
         )
         for city, win in windows.items():
             if win[0] <= day <= win[1]:
@@ -247,6 +269,12 @@ def push_after_intercity(plan: ItineraryPlan) -> ItineraryPlan:
             None,
         )
         if xfer is None:
+            continue
+        # 2026-11-22 返程腿（傍晚出发）不右推：右推级联是去程腿语义
+        # （卡推到「到达之后」）；返程腿是「白天游玩 + 傍晚回城」——
+        # 把全天卡推到 19:30 之后 = 返程日全灭（闭合返程顶盖 C-05 已
+        # 保证模型卡在腿前收尾，无需推）。
+        if _m(xfer) >= 12 * 60:
             continue
         arrive = _m(xfer) + int(xfer.duration_minutes or 120)
         cursor = arrive + 30
@@ -616,6 +644,58 @@ def materialize_plan(
                 duration_minutes=_minutes,
             ),
         )
+
+    # 闭合行程返程腿（2026-11-22，北京→西安→北京 不再回不了家）：城市序
+    # 首尾同名时，末日必须有一条尾城→出发城的返程腿。上面的标签扫描只在
+    # 「末日标签恰好翻回出发城」时出腿——末日是轻日、多数标签仍停在目的
+    # 城时静默漏腿（行程停在西安，用户实报口径）。这里兜底：末日无城际腿
+    # 就补一条（傍晚 17:00 窗=legacy 返程窗口径，白天归末位目的地；compact
+    # 以其为固定屏障右推当天可动卡）。
+    def _norm_city(c: str) -> str:
+        return str(c or "").strip().removesuffix("市")
+
+    _req_cities = [c for c in (snapshot.request.cities or ()) if c]
+    if len(_req_cities) > 1 and _norm_city(_req_cities[0]) == _norm_city(
+        _req_cities[-1]
+    ):
+        _last_day = days[-1]
+        _has_leg = any(
+            isinstance(i, TransferItem) for i in (_last_day.items or [])
+        )
+        _from_city = _last_day.base_city
+        if (
+            not _has_leg
+            and _from_city
+            and _norm_city(_from_city) != _norm_city(_req_cities[0])
+        ):
+            _ret_mode = "train"
+            _ret_minutes = 120
+            try:
+                from ..inputs.travel import haversine_km
+
+                _a = _city_coord(_from_city)
+                _b = _city_coord(_req_cities[0])
+                if _a and _b:
+                    _km = haversine_km(_a[1], _a[0], _b[1], _b[0])
+                    if _km > 600:
+                        _ret_mode = "flight"
+                        _ret_minutes = 150
+            except Exception:  # noqa: BLE001 - 距离判失败退火车口径
+                pass
+            _ret_dep = 17 * 60  # legacy 返程窗（15:00-21:00）中点口径
+            _ret_card = TransferItem(
+                item_id="xfer-return-d%d" % _last_day.day,
+                day=_last_day.day,
+                seq=1,
+                from_city=_from_city,
+                to_city=_req_cities[0],
+                mode=_ret_mode,
+                start_time=_hhmm(_ret_dep),
+                end_time=_hhmm(_ret_dep + _ret_minutes),
+                duration_minutes=_ret_minutes,
+            )
+            # 返程腿殿后（列表序≈时间序）：白天游玩卡在前，傍晚回城收尾。
+            _last_day.items.append(_ret_card)
 
     # R17（2026-11-22 用户实录「第四天西安→北京，酒店应该住北京，测试显示
     # 西安」）：夜卡/晨卡城市上面按 `_day_label`（当日多数城）落——跨城日到达

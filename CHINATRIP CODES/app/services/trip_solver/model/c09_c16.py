@@ -116,6 +116,16 @@ def add_c09_meals(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
     model = bundle.model
     _add_same_venue_nesting(bundle, enriched)
 
+    # 2026-11-22 闭合行程返程日晚餐抑制：末日有合成返程腿（17:00 傍晚
+    # 回城，closed_return_day 统一裁决）——晚餐槽（17:00-19:30）与腿窗
+    # 完全重叠，人在回城路上不在这座城吃晚饭（legacy 返程日无晚餐同
+    # 口径）。真餐馆绑定槽一并抑制（绑定语义=在这座城吃，回城日不成立）。
+    from .c17_city_days import closed_return_day
+
+    _return_day = closed_return_day(
+        snapshot.request.cities, snapshot.request.days, snapshot.request.city_days
+    )
+
     for day in bundle.days:
         active = model.NewBoolVar("day_active_%d" % day)
         literals = [bundle.presence[(c.cid, day)] for c in snapshot.candidates]
@@ -161,6 +171,9 @@ def add_c09_meals(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
                 "bound_any": model.NewBoolVar("mba_%s_%d" % (slot, day)),
             }
             bundle.meal_vars[(slot, day)] = meal
+            if slot == "dinner" and day == _return_day:
+                # 返程日晚餐槽灭活（占位与真餐馆绑定一并）：腿窗重叠排除
+                model.Add(lit == 0)
             # R12-H18 大点盖饭：游览段盖住饭点核心 ⇒ 占位槽取消；
             # 真餐馆绑定槽（bound_any）不受取消——烤鸭卡照常落午餐/晚餐。
             from ..inputs.hours_caps import is_big_site as _is_big

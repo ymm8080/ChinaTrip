@@ -116,7 +116,9 @@ def seam_plain_shape(
     纯 opting-in）。仍留 legacy 的是引擎尚无语义的开局形状：
     - 文字路线 brief / 开局带图：读点确认轮（F-03 缝不吞点）；
     - 非默认端点行前日期：到达≠首日/离开≠末日=中途转移日。
-    days/cities 齐备才可解（缺=追问轮）。"""
+    days/cities 齐备才可解（缺=追问轮）。
+    2026-11-22 起始城停留拆闸：origin_days 语义已进引擎（C-17 shift
+    窗 + 到达端点右移 k+1），此形状不再回落 legacy。"""
     if (brief or "").strip():
         return False
     if images:
@@ -125,10 +127,6 @@ def seam_plain_shape(
     # （C-05 地板/顶盖挪日，天窗外全天窗=legacy 撤腿重排同语义）——端点
     # 闸拆除，唯余 brief/带图（读点确认轮 NLU）与缺天数/城市（追问轮）
     if not days or not cities:
-        return False
-    # 起始城停留天数（2026-11-22）：C-17 出发城不占活动窗，引擎还没有
-    # 出发城真实停留语义——此形状留 legacy（引擎建模挂账后拆闸）。
-    if origin_days and int(origin_days) >= 1:
         return False
     return True
 
@@ -158,14 +156,12 @@ def replan_seam_shape(session) -> bool:
     放行——自造点折 musts 由快照绑定链接住（库内→行、库外→骨架兜底，
     B-01 缝不吞点）；餐类必去=C-09 any-槽（S2b）；分城天数=C-17（S2）。
     唯余中途转移日（到达/离开≠端点日）留 R9-2 C-08 建模。天数/城市齐备
-    才可解（缺=追问轮）。"""
+    才可解（缺=追问轮）。
+    2026-11-22 起始城停留拆闸：origin_days 语义已进引擎（C-17 shift 窗 +
+    到达端点右移 k+1），重解缝同样放行。"""
     if not getattr(session, "cities", None):
         return False
     if not (getattr(session, "days", 0) or 0) > 0:
-        return False
-    # 起始城停留天数（2026-11-22）：C-17 出发城不占活动窗，引擎还没有
-    # 出发城真实停留语义——重解缝同样留 legacy（建模挂账后拆闸）。
-    if (getattr(session, "origin_days", 0) or 0) >= 1:
         return False
     return True
 

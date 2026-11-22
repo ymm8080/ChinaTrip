@@ -148,6 +148,11 @@ class TripRequest:
     # R8-S2（2026-11-18 拍板「全量切引擎」口径 A）：H5 分城停留
     # 天数——C-17 legacy 拆窗镜像（城市块连续+请求序，末位吃满）
     city_days: tuple[tuple[str, int], ...] = ()
+    # 起始城停留天数（2026-11-22 用户拍板「起始城市也要能够选游玩日期
+    # 数」）：≥1 = 出发城是真实首站占 Day1..k 活动窗，第一目的城市窗右移
+    # （去程腿落 k+1 早上）；0/缺省 = 出发日只排交通（旧口径）。C-17
+    # 镜像 legacy _city_day_ranges 的 shift 口径。
+    origin_days: int = 0
 
 
 @dataclass(frozen=True)

@@ -10,6 +10,40 @@ from app.services.trip_solver.snapshot import default_golden_path, load_golden
 G14 = Path(default_golden_path()).with_name("g14_city_days_windows.json")
 
 
+def test_city_day_windows_origin_days_shift():
+    """起始城真实首站（2026-11-22 用户拍板）：出发城占 (1,k) 活动窗，
+    目的地窗右移 k 天（legacy _city_day_ranges shift 分支镜像）。"""
+    # 开式：北京玩 2 天 → 西安吃满余下
+    assert city_day_windows(["北京", "西安"], 5, {}, origin_days=2) == {
+        "西安": (3, 5),
+        "北京": (1, 2),
+    }
+    # 闭合：北京(3)→西安(3)→北京(1 返程标记)——尾城 <2 天仍是返程标记，
+    # 同名键只留起始段（legacy shift 分支同款）
+    assert city_day_windows(
+        ["北京", "西安", "北京"], 7, {"西安": 3, "北京": 1}, origin_days=3
+    ) == {"西安": (4, 7), "北京": (1, 3)}
+    # k 钳位：k ≥ days-1 收到 days-1（至少留 1 天给目的地）
+    assert city_day_windows(["北京", "西安"], 3, {}, origin_days=5) == {
+        "西安": (3, 3),
+        "北京": (1, 2),
+    }
+    # 单城无出发城语义：origin_days 忽略
+    assert city_day_windows(["西安"], 2, {}, origin_days=2) == {"西安": (1, 2)}
+
+
+def test_city_day_windows_closed_tail_real_stay():
+    """闭合尾城 city_days ≥2 = 真实停留（legacy 797f350 口径对齐）：尾城
+    占最后 k_tail 天窗，真实目的地在 1..days-k_tail 切窗，回城日提前。"""
+    assert city_day_windows(
+        ["北京", "西安", "北京"], 7, {"西安": 3, "北京": 2}
+    ) == {"西安": (1, 5), "北京": (6, 7)}
+    # k=1 仍是纯返程标记（旧口径不变）
+    assert city_day_windows(
+        ["北京", "西安", "北京"], 7, {"西安": 3, "北京": 1}
+    ) == {"西安": (1, 7)}
+
+
 def test_city_day_windows_mirror_legacy_split():
     # 常规多城：出发城不吃天，真实目的地按请求序连续切窗
     assert city_day_windows(["北京", "杭州", "上海"], 5, {"杭州": 2, "上海": 3}) == {
