@@ -14736,6 +14736,12 @@ def _day_fixed_windows(
         # 把下午整档的探针判死，yield/rehome 永远放不下 240min 块）。
         if is_lunch_placeholder(item) or is_dinner_placeholder(item):
             continue
+        # R12 交通桥卡（leg-bridge-*）：纯渲染件，响应层 attach_gap_bridges
+        # 会按最终形状幂等重挂——不进固定窗当墙（2026-11-22 起始城停留
+        # 案：14:00-19:00 桥卡把下午整档判死，补进的天坛被顺延链推过
+        # 午夜又被越午夜清闸撤下，Day2 空转实录）。
+        if str(getattr(item, "item_id", "") or "").startswith("leg-bridge-"):
+            continue
         s = start.hour * 60 + start.minute
         e = _item_end_minutes(item)
         if isinstance(item, TransferItem):
@@ -22364,6 +22370,24 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
                 annotate_legs(session.plan)
                 session.plan.assumptions.extend(overflow_notes)
                 session.assumptions.extend(overflow_notes)
+            # 清出来立即重补（2026-11-22）：被推过午夜撤下的天（Day2 全空
+            # 实录）在 fill 已跑完、短路口不再进——带 reopen 越过短路口
+            # 重开一次，空档由 unplaced/库件回填（探针裁决，装不下留想去）。
+            evicted_days = {
+                int(u.day_hint)
+                for u in (session.plan.unplaced or [])
+                if getattr(u, "reason", None) == "day_overflow" and u.day_hint
+            }
+            if evicted_days:
+                refill_notes = await self._fill_leftover_time(
+                    session.plan,
+                    avoid=set(session.avoid_sites or ()),
+                    reopen_days=evicted_days,
+                )
+                if refill_notes:
+                    annotate_legs(session.plan)
+                    session.plan.assumptions.extend(refill_notes)
+                    session.assumptions.extend(refill_notes)
         return session
 
     async def _collect_candidates(
@@ -32249,6 +32273,15 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
         if self._poi_details is None:
             return []
         bench: list[UnplacedCandidate] = []
+        # unplaced 回流（2026-11-22 起始城停留案 Day2 上午 240min 空档 +
+        # 天安门/恭王府/天坛躺池实录）：cluster_day / day_overflow /
+        # untimed_demoted 撤下的件就在 unplaced 里——docstring 口径
+        # 「池 = plan.unplaced + 同城库 top 200」，实现一直漏了前一半，
+        # 空天宁可白着也不回填。探针排得进就排回，排不进留在想去。
+        for u in plan.unplaced or []:
+            if str(u.name or "") in set(avoid or ()):
+                continue
+            bench.append(u)
         for city in plan.cities:
             try:
                 rows = await asyncio.to_thread(
@@ -32280,6 +32313,17 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
         """
         if session.plan is None:
             return []
+        # R12 交通桥卡剥除（2026-11-22 起始城停留案）：leg-bridge-* 是纯
+        # 渲染件、响应层 attach_gap_bridges 按最终形状幂等重挂——但排程期
+        # 留在 day.items 里会占住时线（14:00-19:00 桥卡），顺延链把补进的
+        # 天坛推过晚饭→午夜→被越午夜清闸撤下，Day2 空转实录。进补点流程
+        # 先剥掉，时线只留真实内容。
+        for _d in session.plan.days:
+            _d.items = [
+                i
+                for i in _d.items
+                if not str(getattr(i, "item_id", "") or "").startswith("leg-bridge-")
+            ]
         # 晨卡先回日始（2026-11-16 上海案「FIRST CARD STARTS AT 10:30」）：旧
         # 行程的卡贴晚首件滑到 10:30，补点下限跟着变——先回拨 08:30-09:00，
         # 下面按新下限重新看空档（腿是派生态，动了就重算）。
@@ -33782,7 +33826,15 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
     ) -> list[str]:
         """到达/离开的班次与时刻都没填：把该天的城际腿撤掉，当天非钉景点清
         时刻按全天游玩重排（2026-11-14 拍板「不填默认全天都可以规划」）。
-        当天没有（或不止一条）城际腿时不动。"""
+        当天没有（或不止一条）城际腿时不动。
+
+        2026-11-22 例外（北京→西安→北京 7 天闭合案，session 61443ea4）：
+        闭合行程（首城==尾城）的返程腿是路线本体——引擎已选定班次，撤掉
+        后行程永远回不了家（用户实报「TESTING PLAN DOES NOT BACK TO
+        BEIJING」）。闭合行程的城际腿不撤：保留腿、当天非钉景点清时刻按
+        「白天游玩 + 傍晚返程」重排（同 2026-10-31 末日语义）；开式行程
+        （结束城市≠出发城）不受影响——11-13 拍板本就不加返程腿，撤腿
+        口径原样生效。"""
         if session.plan is None:
             return []
         plan = session.plan
@@ -33795,6 +33847,67 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
         ]
         if len(legs) != 1:
             return []
+        _cities = list(session.cities or plan.cities or [])
+        closed_trip = len(_cities) >= 2 and _norm_city(_cities[0]) == _norm_city(
+            _cities[-1]
+        )
+        _leg = legs[0]
+        leg_is_intercity = bool(
+            _leg.from_city
+            and _leg.to_city
+            and _norm_city(_leg.from_city) != _norm_city(_leg.to_city)
+        )
+        if closed_trip and leg_is_intercity:
+            # 闭合行程：腿保留（路线本体），只放宽当天活动时刻
+            candidate = plan.model_copy(deep=True)
+            for d in candidate.days:
+                if d.day != day_no:
+                    continue
+                for it in d.items:
+                    if isinstance(it, VisitItem) and not it.pinned and not it.soft_pin:
+                        it.start_time = None
+                        it.end_time = None
+            _reconcile_transfer_days(candidate, user_edit=True)
+            _fallback_sequence_times(candidate, keep_list_order=True)
+            reanchor_hotel_cards(candidate.days, keep_ids=set())
+            annotate_legs(candidate)
+            self._replay_measured_legs(candidate)
+            session.plan = candidate
+            kept = next(
+                t
+                for d in candidate.days
+                if d.day == day_no
+                for t in d.items
+                if isinstance(t, TransferItem)
+            )
+            _dep = (
+                kept.start_time.strftime("%H:%M")
+                if getattr(kept, "start_time", None) is not None
+                else ""
+            )
+            _arr = (
+                kept.end_time.strftime("%H:%M")
+                if getattr(kept, "end_time", None) is not None
+                else ""
+            )
+            _window = ""
+            if _dep:
+                _window = f"（{_dep} 出发" + (f"、{_arr} 到达）" if _arr else "）")
+            else:
+                _window = "，当天按可游玩编排"
+            return [
+                L(
+                    f"第{day_no}天未提供离开班次/时刻：保留返程腿 "
+                    f"{kept.from_city}→{kept.to_city}{_window}。",
+                    f"Day {day_no}: no departure flight/train given — the return "
+                    f"leg {kept.from_city}→{kept.to_city} stays on the plan"
+                    + (
+                        f" (departs {_dep}, arrives {_arr})"
+                        if _dep
+                        else "; the day is planned as usable"
+                    ),
+                )
+            ]
         side = L("到达", "Arrival") if is_arrival else L("离开", "Departure")
         candidate = plan.model_copy(deep=True)
         for d in candidate.days:
