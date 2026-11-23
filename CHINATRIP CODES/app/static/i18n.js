@@ -706,6 +706,7 @@
       "plan.renderFailPre": "⚠ Data came back but rendering broke: ",
       "plan.renderFailTail": " (screenshot and report it)",
       "plan.route.apply": "✅ Plan with my choices",
+      "plan.route.incomplete": "{n} row(s) not chosen — pick a side for each line to plan",
       "plan.route.cardDaysDiff": "Trip-brief card ",
       "plan.route.conflict": "A few details disagree — pick one per line, then tap the button:",
       "plan.route.daysDiff": "Days: text ",

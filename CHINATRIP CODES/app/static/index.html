@@ -3653,16 +3653,37 @@ function planRenderReply(holder, body, opts) {
       const chips = el('<div class="chips"></div>');
       const bl = el('<button class="chip">' + leftLabel + "</button>");
       const br = el('<button class="chip">' + rightLabel + "</button>");
-      bl.onclick = () => { picks[d.what] = "left"; bl.style.background = "#2563eb"; bl.style.color = "#fff"; br.style.background = ""; br.style.color = ""; };
-      br.onclick = () => { picks[d.what] = "right"; br.style.background = "#2563eb"; br.style.color = "#fff"; bl.style.background = ""; bl.style.color = ""; };
+      bl.onclick = () => { picks[d.what] = "left"; bl.style.background = "#2563eb"; bl.style.color = "#fff"; br.style.background = ""; br.style.color = ""; updateGoState(); };
+      br.onclick = () => { picks[d.what] = "right"; br.style.background = "#2563eb"; br.style.color = "#fff"; bl.style.background = ""; bl.style.color = ""; updateGoState(); };
       chips.appendChild(bl);
       chips.appendChild(br);
       line.appendChild(chips);
       box.appendChild(line);
     });
     const go = el('<button class="btn">' + I18N.tf("plan.route.apply","✅ 就按所选规划") + "</button>");
-    go.onclick = () => planStartConfirmedByPicks(diffs, picks);
+    // 2026-11-23 用户实报「选了一行点 ✅ 又弹卡」：带文字开局差异卡有多行
+    // （days/numbers/card_days…），只答部分行点 ✅ → 未答行不在 resolved_diffs
+    // → 后端重新检出同一条差异再弹卡。✅ 必须等每行都选完才可点。
+    const remainHint = el('<div class="muted" style="margin-top:6px"></div>');
+    const updateGoState = () => {
+      const left = diffs.filter((d) => !picks[d.what]).length;
+      if (left > 0) {
+        go.disabled = true;
+        go.style.opacity = "0.5";
+        remainHint.textContent = I18N.tf("plan.route.incomplete", "还有 {n} 处没选，每行选一个后才能生成").replace("{n}", left);
+      } else {
+        go.disabled = false;
+        go.style.opacity = "";
+        remainHint.textContent = "";
+      }
+    };
+    updateGoState();
+    go.onclick = () => {
+      if (diffs.some((d) => !picks[d.what])) return; // 兜底：未选完不提交
+      planStartConfirmedByPicks(diffs, picks);
+    };
     box.appendChild(go);
+    box.appendChild(remainHint);
     holder.appendChild(box);
   } else if (body.state === "intake") {
     // 文字信息不足（缺出发日期或天数/结束日）：弹行前卡收集，提交后重发
