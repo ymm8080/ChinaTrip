@@ -60,9 +60,10 @@ def test_origin_days_clamped_when_exceeds_trip():
     }
 
 
-def test_seam_gate_rejects_origin_stay():
-    # 引擎 C-17 出发城不占活动窗——起始城停留形状留 legacy
-    assert seam_plain_shape(days=8, cities=["北京", "成都"], origin_days=2) is False
+def test_seam_gate_accepts_origin_stay():
+    # 起始城停留已进引擎（C-17 shift 窗+到达端点右移 k+1，6b4c884 拆闸）——
+    # origin_days 形状不再回落 legacy（重祝福：旧拒绝断言已被建模语义取代）。
+    assert seam_plain_shape(days=8, cities=["北京", "成都"], origin_days=2) is True
     assert seam_plain_shape(days=8, cities=["北京", "成都"]) is True
 
 
