@@ -94,9 +94,7 @@ def test_food_rows_join_snapshot_as_food_any_slot():
         "city": "北京",
         "location": (116.4, 39.9),
     }
-    kwargs = dict(
-        cities=["北京"], days=1, start_date="2026-11-24", musts=[]
-    )
+    kwargs = dict(cities=["北京"], days=1, start_date="2026-11-24", musts=[])
     base = snapshot_from_request(store=_EmptyStore(), **kwargs)
     enriched = snapshot_from_request(store=_EmptyStore(), food_rows=[row], **kwargs)
     assert len(enriched.candidates) == len(base.candidates) + 1

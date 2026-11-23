@@ -80,9 +80,7 @@ async def fill_structural_leg_numbers(
             continue
         try:
             if item.mode == "train" and trains is not None:
-                opt = await pick_best_train(
-                    trains, item.from_city, item.to_city, iso
-                )
+                opt = await pick_best_train(trains, item.from_city, item.to_city, iso)
                 if opt is None:
                     continue
                 item.train_no = opt.train_no
@@ -91,9 +89,7 @@ async def fill_structural_leg_numbers(
                 item.end_time = opt.arr_time
                 item.duration_minutes = opt.duration_minutes
             elif item.mode == "flight" and flights is not None:
-                opt = await pick_best_flight(
-                    flights, item.from_city, item.to_city, iso
-                )
+                opt = await pick_best_flight(flights, item.from_city, item.to_city, iso)
                 if opt is None:
                     continue
                 item.flight_no = opt.flight_no
@@ -111,7 +107,9 @@ async def fill_structural_leg_numbers(
         except Exception:
             logger.warning(
                 "leg_numbers: %s→%s day %d lookup failed; keeping structural card",
-                item.from_city, item.to_city, dp.day,
+                item.from_city,
+                item.to_city,
+                dp.day,
             )
 
     if not changed:

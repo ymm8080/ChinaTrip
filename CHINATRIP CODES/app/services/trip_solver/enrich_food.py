@@ -48,9 +48,7 @@ async def prefetch_food_rows(
         # 1) DB 荐点（legacy _rec_food 同源；同步 DB 调用放线程外，量小）
         if store is not None:
             try:
-                db_hits = store.recommendation_food_in_city(
-                    city, limit=PER_CITY_LIMIT
-                )
+                db_hits = store.recommendation_food_in_city(city, limit=PER_CITY_LIMIT)
                 for raw in db_hits:
                     hit = dict(raw)
                     hit["city"] = city
@@ -63,9 +61,7 @@ async def prefetch_food_rows(
             try:
                 from app.services.restaurants import search_restaurants
 
-                hits = await search_restaurants(
-                    amap_client, city, limit=PER_CITY_LIMIT
-                )
+                hits = await search_restaurants(amap_client, city, limit=PER_CITY_LIMIT)
                 searches += 1
                 for cand in hits:
                     loc = cand.location
