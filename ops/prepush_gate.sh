@@ -10,7 +10,9 @@ PY=".venv/Scripts/python.exe"
 [ -f "$PY" ] || PY=python
 
 echo "[pre-push gate] running full test suite (e2e excluded)..."
-"$PY" -m pytest tests -q -p no:logging
+# NOTE: do NOT add -p no:logging here - it kills the logging plugin and
+# with it the built-in caplog fixture (9 spurious ERRORs, 2026-11-23).
+"$PY" -m pytest tests -q
 rc=$?
 
 if [ $rc -ne 0 ]; then
