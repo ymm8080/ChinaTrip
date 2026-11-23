@@ -303,6 +303,13 @@ def candidate_from_poi_dict(poi: dict) -> RestaurantCandidate | None:
     name = poi.get("name")
     if not name:
         return None
+    # R28 止污：legacy 候选名剥餐槽展示后缀（与引擎 live._candidate
+    # 同口径）——污名行被荐点选中时卡面不再外露「（午餐）」尾巴。
+    from app.services.poi_names import clean_meal_slot_suffix
+
+    name = clean_meal_slot_suffix(name)
+    if not name:
+        return None
     raw_loc = poi.get("location")
     location = None
     if isinstance(raw_loc, dict):

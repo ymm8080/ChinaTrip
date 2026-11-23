@@ -84,11 +84,15 @@ def _row_to_candidate(
     remote: bool = False,
 ) -> CandidateItem:
     lon, lat = _row_location(row)
+    # R28 止污：候选名剥餐槽展示后缀（库行/图商行脏不脏都不外露；
+    # 虹鳟鱼案污名「…农家菜（午餐）」已固化进 pois.name_zh）。
+    from app.services.poi_names import clean_meal_slot_suffix
+
     from .inputs.cuisine import cuisine_key  # R12-D 菜系键
 
     return CandidateItem(
         cid=cid,
-        name=str(row.get("name") or ""),
+        name=clean_meal_slot_suffix(str(row.get("name") or "")),
         # R13（#4 修复）：真库 PoiDetailStore 行的 id 键=source_poi_id
         # （SnapshotStore 假库才叫 id）——两个键都认，ts- 会话卡片自 R8
         # 起无 poi_id 的根因（pin/换点/详情对餐馆卡受限一并解除）
@@ -137,6 +141,9 @@ def _row_to_candidate(
         booking_url=(str(row["booking_url"]) if row.get("booking_url") else None),
         website=(str(row["website"]) if row.get("website") else None),
         reservation_hint=_reservation_hint_for_row(row),
+        # R28：地址随候选（卡面 📍 行的数据源；不进 snapshot_hash）。
+        address=row.get("address"),
+        address_en=row.get("address_en"),
     )
 
 
@@ -238,9 +245,16 @@ def _access_profiles_for(
         if str(row.get("mode") or "").strip().lower() in BUS_MODES:
             continue
         poi_name = str(row.get("poi_name") or "")
-        target = next(
-            (r for n, r in by_name.items() if n and _name_hits(poi_name, n)), None
-        )
+        if poi_name and poi_name in by_name:
+            # R28：班次行优先绑精确同名池行——互含命中会让「慕田峪长城」
+            # 班次错绑「八达岭慕田峪长城旅游区」（坐标相距 50km 的错档档案，
+            # 绑定结果随池序漂移）；池里没有精确行时才允许互含回退
+            # （别名/简称行）。
+            target = by_name[poi_name]
+        else:
+            target = next(
+                (r for n, r in by_name.items() if n and _name_hits(poi_name, n)), None
+            )
         # R13c（2026-11-19）：真库 PoiDetailStore 行的 id 键=source_poi_id
         # （同 R13 #4 根因的另一处）——此前 live 全链接驳档案恒空（C-08
         # 班次约束空转、引擎去程/回城卡永不渲染，live 回城卡全靠响应层）。

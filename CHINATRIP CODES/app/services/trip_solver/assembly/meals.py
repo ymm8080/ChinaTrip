@@ -43,11 +43,17 @@ def _meal_card(
 
         host_loc = GeoPoint(lon=float(host.lon), lat=float(host.lat))
     named = host is not None and (host.category == "food" or host.meal_slot == slot)
+    # R28（2026-11-23 虹鳟鱼案）：命名餐卡必须带店名地址——候选行
+    # 的 address 此前在 CandidateItem 转换处被丢，卡面 📍 行判空
+    # 整行不画，用户只看到怪名/无址餐卡。占位卡维持无地址规则。
+    from app.services.poi_names import clean_meal_slot_suffix
+
     # R8-S2b：命名卡（真餐厅）携带 POI 坐标；占位卡维持无 POI 规则
     named_loc = host_loc if named else None
     return VisitItem(
         item_id=item_id,
-        name=(host.name if named else PLACEHOLDER[slot]["zh"]),
+        # R28 止污：库行污名（带槽位后缀的展示名）不再外露到卡面。
+        name=(clean_meal_slot_suffix(host.name) if named else PLACEHOLDER[slot]["zh"]),
         name_en=(None if named else PLACEHOLDER[slot]["en"]),
         poi_id=(host.poi_id if named else None),
         category="food",
@@ -56,6 +62,9 @@ def _meal_card(
         anchor_from_prev=False,
         anchor_location=host_loc,  # F-31: anchor from the host record
         opening_hours=(host.opening_hours if named else None),
+        # R28：命名卡带候选行地址；占位卡无地址（自由安排语义）。
+        address=(host.address if named else None),
+        address_en=(getattr(host, "address_en", None) if named else None),
         day=day,
         start_time=_hhmm(start_min),
         end_time=_hhmm(end_min),

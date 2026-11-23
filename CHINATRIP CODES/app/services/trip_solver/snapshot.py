@@ -60,6 +60,9 @@ def _cand(raw: dict[str, Any]) -> CandidateItem:
         meal_slot=raw.get("meal_slot"),
         same_venue=raw.get("same_venue"),
         cuisine=raw.get("cuisine"),
+        # R28：地址显示糖字段，旧语料无键 → None（零漂移兼容）。
+        address=raw.get("address"),
+        address_en=raw.get("address_en"),
     )
 
 

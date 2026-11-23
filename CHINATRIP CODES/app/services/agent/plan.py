@@ -137,6 +137,7 @@ from app.services.llm import (
 )
 from app.services.poi_details import PoiDetailStore
 from app.services.poi_names import (
+    clean_meal_slot_suffix,
     latin_typo_near,
     latin_typo_prefix,
     place_core,
@@ -3677,6 +3678,31 @@ def _content_core(name: str) -> tuple[str, bool]:
 # 一站；包含/演出通道维持 2km（泛名山岳样本 vs skydive 跳伞基地 ~6km 的
 # 同山不同场馆不误并）。
 _CONTENT_TWIN_GATE_KM = 30.0
+
+
+def _twin_site_gate(cand_a: dict, cand_b: dict) -> bool:
+    """R28(2026-11-23)同站孪生候选地理闸:双侧有坐标且相距超过
+    _CONTENT_TWIN_GATE_KM(30km)不是「同站」——八达岭(延庆)与慕田峪
+    (怀柔)相距约 50km,合名行「八达岭慕田峪长城旅游区」凭名字互含把
+    有官方班次档案的原生卡并掉,远郊腿随之换宿主到无档合名卡上
+    (attach_access 三闸全拦 → 腿蒸发)。缺坐标保持既有池级行为(True,
+    与 _content_dup 通道同一缺坐标口径)。"""
+    _loca = cand_a.get("location")
+    _locb = cand_b.get("location")
+    if not (
+        isinstance(_loca, dict)
+        and _loca.get("lon") is not None
+        and isinstance(_locb, dict)
+        and _locb.get("lon") is not None
+    ):
+        return True
+    return (
+        haversine_km(
+            GeoPoint(lon=float(_loca["lon"]), lat=float(_loca["lat"])),
+            GeoPoint(lon=float(_locb["lon"]), lat=float(_locb["lat"])),
+        )
+        <= _CONTENT_TWIN_GATE_KM
+    )
 # 同馆家族闸（2026-11-01 用户拍板沿革：先 5km，同日二拍「距离可以放宽
 # 到10公里」）：陵寝类同一票制院区两园区实测 2.2-2.4km；石窟北山+宝顶
 # ~8km 也收进同馆半径。同名异地 >10km 不并。
@@ -20590,7 +20616,13 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
 
     async def _search_poi(self, keywords: str, *, city: str | None) -> list[dict]:
         """检索走 vendor_policy 链（map_provider.FUNCTION_PROVIDER_PRIORITY
-        ["search"]=amap>tencent>baidu）；配额死 latch 到下一家，失败行跳过。"""
+        ["search"]=amap>tencent>baidu）；配额死 latch 到下一家，失败行跳过。
+
+        R28 止污：关键词先剥餐槽展示后缀（「…农家菜（午餐）」形态的污名
+        让 amap/腾讯必空手而回、白烧配额还把错匹配写回库）——检索永远
+        用干净名，验证链才能命中真行自愈。
+        """
+        keywords = clean_meal_slot_suffix(keywords)
         for client in self._search_chain:
             vendor = getattr(client, "vendor", "amap")
             if vendor in self._search_quota_dead:
@@ -25279,7 +25311,15 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
                             )
                     if (
                         nm_b
-                        and (_same_site(nm_a, nm_b) or _twin_content)
+                        and (
+                            # R28:名字互含通道补同款地理闸(_content_dup
+                            # 通道本就带 30km 门,见 _twin_site_gate)。
+                            (
+                                _same_site(nm_a, nm_b)
+                                and _twin_site_gate(pool[i_a][1], pool[i_b][1])
+                            )
+                            or _twin_content
+                        )
                         and not _street_banquet_split(pool[i_a][1], pool[i_b][1])
                     ):
                         grp.append(i_b)
@@ -32953,7 +32993,11 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
                 if item.poi_id:
                     detail = self._poi_details.get(item.poi_id)
                 if detail is None and item.city and item.name:
-                    detail = self._poi_details.get_by_name(item.city, item.name)
+                    # R28 止污：查询词剥餐槽展示后缀——卡名带「（午餐）」
+                    # 时按污名查库永远 miss，只能白走图商链。
+                    detail = self._poi_details.get_by_name(
+                        item.city, clean_meal_slot_suffix(item.name)
+                    )
                 if detail:
                     if not item.poi_id and detail.get("poi_id"):
                         item.poi_id = detail["poi_id"]
@@ -32975,10 +33019,12 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
                     continue
                 if item.poi_id and (item.opening_hours or item.address):
                     # v3 payload 免费值 write-through 作种子
+                    # R28 止污：upsert 名剥餐槽展示后缀——展示名当真名
+                    # 入库就是「虹鳟鱼一条街农家菜（午餐）」固化案的根。
                     self._poi_details.upsert(
                         item.poi_id,
                         city=item.city,
-                        name=item.name,
+                        name=clean_meal_slot_suffix(item.name),
                         address=item.address,
                         opening_hours=item.opening_hours,
                         hours_source=("amap_v3" if item.opening_hours else None),
@@ -33078,8 +33124,11 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
                         key,
                         # 2026-11-13：哨兵城市不落库（脏行 city='未标注'
                         # 的根因）；未知城市留 NULL，等库内精确行补。
+                        # R28 止污（2026-11-23）：名字剥餐槽展示后缀再入库
+                        # ——展示名原样入库让污名固化进 pois.name_zh，
+                        # 此后检索/验证/荐点链全用污名（虹鳟鱼案）。
                         city=None if _is_unspecified(item.city) else item.city,
-                        name=item.name,
+                        name=clean_meal_slot_suffix(item.name),
                         address=item.address,
                         opening_hours=hours,
                         hours_source=source,

@@ -43,9 +43,10 @@
 // v130 2026-11-23: 卡片时间编辑改直输文本框（用户实报两条：「改完时间按 Enter 不生效」「只能点时钟选不能直接敲」）——点时间戳原地输入 9:30 / 09:30 / 930 / 2130，Enter 提交、Esc 取消、失焦还原，非法值留编辑态提示；桥卡「乘车去下一站」与观光卡同一控件。必须 bump 拉新缓存壳。
 // v129 2026-11-23: 乘车/步行腿卡（「前往下一站」桥卡）的时刻也能编辑了（用户令「乘车去下一站的时间应该也可以编辑」）——点桥卡时间戳原地改出发时刻（POST /departure direction=out；桥卡出发=上一站结束：普通站时长伸缩、午餐/酒店等骨架卡平移，后续卡只顺延真被压住的）；整卡导航点击与时间编辑互不抢（卡内按钮/输入优先）。必须 bump 拉新缓存壳。
 // v128 2026-11-23: 乘车/步行腿卡（「前往下一站」）整卡可点——乘车卡直唤高德打车（起点=当前位置，终点=下一景点），步行/自由安排卡直唤高德步行导航（callnative=1 打开即拉起 App）；交通腿卡不再显示点赞/点评行（用户令「乘车或者步行腿不需要点赞、打卡、好评功能等」）。必须 bump 拉新缓存壳。
+// v135 2026-11-23: API GET 不再被 3 秒超时掐死（networkFirst 只在缓存有兜底时提前让路，无缓存就继续等网络）——慢实例上 >3s 的行程/规划大 GET 此前直接 Failed to fetch 且无恢复路径。必须 bump 拉新缓存壳。
 // v133 2026-11-23: 时间编辑失败码转人话+时钟选择器加回（用户实报「there is error msg」「时钟选、点击保存要保留」）——已知失败码转明确文案（行程已更新请刷新/当天无班次表/结构锁定）；编辑态双控件=直输框（9:30/0930，Enter 提交）+右侧时钟选择器（选完即存）；餐卡双家族 id（meal-lunch-N ↔ food-lunch-ph-dN）后端按别名解析不再 404（后端随下次重启生效）。必须 bump 拉新缓存壳。
 // v132 2026-11-23: 确认卡必须逐行选完才能点 ✅（用户实报「选了一行点 ✅ 又弹卡」）——带文字开局差异卡有多行（days/numbers/card_days），只答部分行点 ✅ → 未答行不在 resolved_diffs → 后端重新检出再弹卡；✅ 未选完置灰+剩余行数提示，选完即亮。必须 bump 拉新缓存壳。
-const VERSION = 'v134';
+const VERSION = 'v135';
 const CACHE = 'chinatrip-h5-' + VERSION;
 const SHELL = [
   './', './index.html', './i18n.js', './qrcode.min.js', './sortable.min.js', './manifest.webmanifest', './agent.html',
@@ -65,18 +66,41 @@ self.addEventListener('activate', (e) => {
 });
 
 function networkFirst(req) {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 3000);
-  return fetch(req, { signal: ctrl.signal })
-    .then((res) => {
-      clearTimeout(timer);
-      if (res && res.status === 200 && (res.type === 'basic' || res.type === 'cors')) {
-        const copy = res.clone();
-        caches.open(CACHE).then((c) => c.put(req, copy));
-      }
-      return res;
-    })
-    .catch(() => caches.match(req));
+  // R28 (2026-11-23): the 3s timer only hands the response over to the
+  // cached copy when one exists; with no cached fallback we must NOT
+  // abort the in-flight request. The old shape (abort -> caches.match ->
+  // undefined) turned every >3s API GET (big plan payloads on a loaded
+  // instance) into a hard 'Failed to fetch' with no recovery.
+  return new Promise((resolve) => {
+    let settled = false;
+    const timer = setTimeout(() => {
+      caches.match(req).then((hit) => {
+        if (hit && !settled) {
+          settled = true;
+          resolve(hit);
+        }
+      });
+    }, 3000);
+    fetch(req)
+      .then((res) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        if (res && res.status === 200 && (res.type === 'basic' || res.type === 'cors')) {
+          const copy = res.clone();
+          caches.open(CACHE).then((c) => c.put(req, copy));
+        }
+        resolve(res);
+      })
+      .catch(() => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        caches.match(req)
+          .then((hit) => resolve(hit || Response.error()))
+          .catch(() => resolve(Response.error()));
+      });
+  });
 }
 
 self.addEventListener('fetch', (e) => {

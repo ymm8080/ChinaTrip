@@ -61,6 +61,13 @@ class CandidateItem:
     booking_url: Optional[str] = None
     website: Optional[str] = None
     reservation_hint: Optional[str] = None
+    # R28（2026-11-23 虹鳟鱼案）：餐卡地址随候选——amap 检索/DB 荐点行
+    # 本就带 address（enrich_food 预取行、poi_details 行），转
+    # CandidateItem 时丢弃导致物化餐卡（assembly/meals.py）天然无地址，
+    # 前端 `it.address ? 📍 : ""` 判空整行不画。显示糖字段：不进
+    # snapshot_hash 枚举（与 booking/website 同白名单），旧语料零漂移。
+    address: Optional[str] = None
+    address_en: Optional[str] = None
     # R19 (chosen-shuttle durability): user-selected outbound /
     # return bus times (HH:MM). Live-session fact only -- the
     # selection surgery writes them onto the scenic cards and
