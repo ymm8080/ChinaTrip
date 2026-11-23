@@ -795,6 +795,8 @@ def generate_session_via_trip_solver(
     session.plan = outcome.plan
     session.assumptions = list(getattr(outcome.plan, "assumptions", []) or [])
     session.state = "ready"
+    # 首屏就要带地址（2026-11-23）：装配出口补一次库，别等 GET 读闸
+    _fill_detail_from_store(session.plan, store)
     return session, outcome
 
 
@@ -893,7 +895,70 @@ def replan_session_via_trip_solver(
     )
     session.state = "ready"
     session.brief_notes = []
+    # 重排首屏同款：装配出口补一次库（地址/营业时间），不靠 GET 读闸兜底
+    _fill_detail_from_store(session.plan, store)
     return outcome
+
+
+def _fill_detail_from_store(plan, store) -> int:
+    """引擎卡读库补地址/营业时间（2026-11-23 修「表里有地址，卡片不显示」）。
+
+    根因：CandidateItem 没有地址字段，materialize 造 VisitItem 时也不带
+    address/address_en/opening_hours —— ts- 会话生成首屏的观光卡全是
+    「无地址」，前端 `it.address ? "📍 " + ...` 判空直接不画。GET 打开
+    旧行程时 legacy 的 `_hours_db_pass` 会把地址补回来并落库，所以
+    「库里明明有地址、刷新后还是看不到首屏」只出现在生成那一刻。
+
+    这里在装配出口按库行就地补齐——与 legacy `_hours_db_pass` 同口径：
+    只填空，绝不覆盖求解/库已给的非空值；占位卡（餐/酒店/腿）无 POI
+    行，查不到自然跳过。返回补齐条数供日志。
+    """
+    if plan is None or store is None:
+        return 0
+    filled = 0
+    for day in getattr(plan, "days", ()) or ():
+        for item in getattr(day, "items", ()) or ():
+            need_addr = not getattr(item, "address", None)
+            need_hours = not getattr(item, "opening_hours", None)
+            if not need_addr and not need_hours:
+                continue
+            # 腿/占位卡没有 poi_id，且名字是「🚕 乘车前往下一站」这类
+            # 合成串——按名回查只会白跑一趟
+            if getattr(item, "from_city", None) or getattr(item, "to_city", None):
+                continue
+            detail = None
+            poi_id = getattr(item, "poi_id", None)
+            if poi_id:
+                try:
+                    detail = store.get(str(poi_id))
+                except Exception:  # noqa: BLE001 - 补链是显示糖，失败不挡交付
+                    detail = None
+            if detail is None:
+                city = getattr(item, "city", None)
+                name = getattr(item, "name", None)
+                if city and name:
+                    try:
+                        detail = store.get_by_name(city, name)
+                    except Exception:  # noqa: BLE001
+                        detail = None
+            if not detail:
+                continue
+            hit = False
+            if need_addr and detail.get("address"):
+                item.address = detail["address"]
+                hit = True
+            if not getattr(item, "address_en", None) and detail.get("address_en"):
+                item.address_en = detail["address_en"]
+            if need_hours and detail.get("opening_hours"):
+                item.opening_hours = detail["opening_hours"]
+                hit = True
+            if not getattr(item, "opening_hours_en", None) and detail.get(
+                "opening_hours_en"
+            ):
+                item.opening_hours_en = detail["opening_hours_en"]
+            if hit:
+                filled += 1
+    return filled
 
 
 def _pinned_names(session) -> list:

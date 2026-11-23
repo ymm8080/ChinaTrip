@@ -34,7 +34,7 @@
     font-family:"PingFang SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif;
     background:var(--bg); color:var(--text); font-size:14px;
   }
-  #app{display:grid;grid-template-columns:220px 1fr;height:100vh}
+  #app{display:grid;grid-template-columns:220px minmax(0,1fr);height:100vh}
 
   /* ---------- 左栏 ---------- */
   #side{
@@ -341,8 +341,11 @@
   .sug{opacity:.65}
 
   /* 两套布局按设备区分（2026-10-30 用户规则）：桌面设备（精确指针）任何窗口宽度都用
-     左栏+右区 grid；触屏设备窄屏才进抽屉布局——断点叠加 pointer:coarse，桌面窄窗不再误入移动布局 */
-  @media (max-width:760px) and (pointer:coarse){
+     左栏+右区 grid；触屏设备窄屏才进抽屉布局——断点叠加 pointer:coarse，桌面窄窗不再误入移动布局。
+     2026-11-23 兜底（用户实报「地址完全不显示」）：桌面细指针窗口窄到 <560px 时，220px 侧栏
+     把主区压到 <200px，行程卡整卡塌成 0 宽竖条（地址行 0px、高度上千 px）。故 ≤560px 一律收抽屉，
+     与设备指针无关；560–760px 的桌面窄窗仍保留左栏+右区 grid。 */
+  @media (max-width:760px) and (pointer:coarse), (max-width:560px){
     #app{display:flex;flex-direction:column;height:100vh}
     main{height:auto;flex:1;min-height:0}
     #menuBtn{display:flex;align-items:center;justify-content:center;
