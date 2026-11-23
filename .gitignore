@@ -167,3 +167,10 @@ CHINATRIP CODES/hist.txt
 !tmp_unesco/scrape_ncha_by_province.py
 !tmp_unesco/scrape_ncha_museum_dir.py
 keepalive_strikes.txt
+
+# E2E（真实浏览器）运行时产物
+.pw-browsers/
+CHINATRIP CODES/tests/e2e/artifacts/
+CHINATRIP CODES/data/e2e_state.db
+CHINATRIP CODES/data/e2e_state.db-shm
+CHINATRIP CODES/data/e2e_state.db-wal

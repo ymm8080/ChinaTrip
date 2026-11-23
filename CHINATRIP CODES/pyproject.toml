@@ -37,9 +37,16 @@ select = ["E", "F", "I"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# 真实浏览器 E2E 默认不跑（要 Chromium、要起真服务、比单测慢两个量级）：
+# 用 `bash ops/e2e.sh` 显式触发，见 tests/e2e/README.md
+addopts = "-m 'not e2e'"
+markers = [
+    "e2e: 真浏览器端到端（Playwright + 真 uvicorn），用 ops/e2e.sh 跑",
+]
 
 [dependency-groups]
 dev = [
     "pytest>=9.2.0",
     "pytest-asyncio>=1.4.1",
+    "playwright>=1.49",
 ]
