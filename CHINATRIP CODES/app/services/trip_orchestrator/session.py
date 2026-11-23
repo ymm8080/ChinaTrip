@@ -137,6 +137,8 @@ class PlanSession(BaseModel):
     # 天气/地理重排」）：keep=site_days 天钉喂引擎（C-25）与 legacy（forced_days）；
     # replan=两边都不吃 site_days；None=旧口径（legacy 吃、引擎不吃）。
     sequence_choice: str | None = None
+    # R25d both：同一贴文另存一份「引擎自排版」行程的会话号（用户一键查看/对比）
+    alt_session_id: str | None = None
     # 自由输入点名的排除项（2026-11-14 北京小众案）：「尽量避开故宫、长城」
     # 里的地点不是必去，是排除项——不进 must_visits，选点池同名候选直接出局。
     avoid_sites: list[str] = Field(default_factory=list)

@@ -502,7 +502,10 @@
       "card.retime.title": "Click to change start time",
       "card.hopedit.title": "Click to change departure time",
       "card.time.invalid": "Please enter a time, e.g. 9:30 or 1530",
+<<<<<<< Updated upstream
       "card.time.clock": "Pick a time with the clock",
+=======
+>>>>>>> Stashed changes
       "card.time.gone": "Itinerary changed — refresh the page and try again",
       "card.time.noTT": "No timetable on this day — the departure time follows the shuttle",
       "card.time.locked": "This card's time is fixed by the itinerary structure",
@@ -768,6 +771,8 @@
       "plan.sites.seqAsk": "Your text already lays out the days — keep what you wrote (each day's sites and their order stay fixed; a whole day may shift for better weather), or treat every place you listed as must-visit and let the engine replan freely?",
       "plan.sites.seqKeep": "📝 Keep my written sequence",
       "plan.sites.seqReplan": "🌦 Replan by weather/geography",
+      "plan.sites.seqBoth": "📝+🌦 Both (two trips)",
+      "plan.sites.altView": "🌦 View the engine-planned version",
       "plan.sites.intro": "Places spotted in your link — tap to mark “must-visit”; only those are written to your trip-center wishlist (skip = not saved):",
       "plan.sites.introBrief": "Places spotted in your description — all pre-selected; tap to unselect any. Only the selected ones are written to your trip-center wishlist (skip = not saved):",
       "plan.sites.introImage": "Places spotted in your image — all pre-selected; tap to unselect any. Only the selected ones are written to your trip-center wishlist (skip = not saved):",

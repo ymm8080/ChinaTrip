@@ -2163,6 +2163,20 @@ function timeEditFail(err, box, plan) {
 }
 
 
+// 时间编辑的已知失败码转人话（2026-11-23 用户实报「there is error msg」）：
+// 裸错误码（HTTP 422 · no_timetable）对用户没有信息量；未知码仍走 failToast。
+function timeEditFail(err, box, plan) {
+  const code = err && err.detail;
+  const known = code && {
+    item_not_found: I18N.tf("card.time.gone", "行程已更新——刷新页面后再改一次"),
+    no_timetable: I18N.tf("card.time.noTT", "这一天没有可改的班次表，出发时刻随班次固定"),
+    duration_locked: I18N.tf("card.time.locked", "这张卡的时刻由行程结构决定"),
+  }[code];
+  if (known) { toast(known); box.replaceWith(planCard(plan)); }
+  else { failToast(err); box.replaceWith(planCard(plan)); }
+}
+
+
 function planCard(plan) {
   const box = el('<div class="card"><h4>' + I18N.tf("card.itinId","🧳 行程编号 ") + "<code>" + esc(plan.itinerary_id) + "</code> · " + esc((plan.cities || []).map(c => I18N.city(c)).join(" → ")) + "</h4></div>");
   (plan.days || []).forEach(d => {
@@ -3606,6 +3620,7 @@ function planRenderReply(holder, body, opts) {
       };
       rowSeq.appendChild(seqBtn("keep", I18N.tf("plan.sites.seqKeep", "📝 按我写的顺序")));
       rowSeq.appendChild(seqBtn("replan", I18N.tf("plan.sites.seqReplan", "🌦 按天气/地理重排")));
+      rowSeq.appendChild(seqBtn("both", I18N.tf("plan.sites.seqBoth", "📝+🌦 两个都要（两趟行程）")));
       box.appendChild(rowSeq);
       rowSeq.querySelectorAll("button").forEach(x => {
         const on = x.dataset.seq === seqPick;
@@ -3620,6 +3635,8 @@ function planRenderReply(holder, body, opts) {
     holder.appendChild(box);
     siteChipBoxes.push(box);
     if (body.reply) holder.appendChild(el('<div class="muted">' + esc(body.reply) + "</div>"));
+    // R25d both：引擎自排版行程已同时生成 → 一键切看
+    if (body.alt_session_id) holder.appendChild(planAltChip(body.alt_session_id));
   } else if (body.state === "clarify" && (body.clarify || []).length) {
     const qs = body.clarify;
     holder.appendChild(frag("<div>" + I18N.tf("plan.clarify.title","还需要补充一点信息：") + "</div>" + qs.map(q => '<div class="card">❓ ' + esc(q) + "</div>").join("")));
@@ -4058,6 +4075,19 @@ document.getElementById("planStart").onclick = (e) => busy(e.target, planStartBu
 
 // 产品规则 2026-10-20：点选「必去」确认后直连确认接口——只把勾选的
 // 条目交给后端写入心愿单库；未点选的不回传、不入库（不拼长文本重解析）。
+function planAltChip(altId) {
+  const row = el('<div class="chips"></div>');
+  const b = el('<button class="chip">' + I18N.tf("plan.sites.altView", "🌦 查看引擎版行程") + "</button>");
+  b.onclick = (e) => busy(e.target, async () => {
+    const altBody = await api("/api/v1/plan/" + altId, undefined, "GET");
+    planSetSession({ session_id: altBody.session_id, state: altBody.state, origin: planLastStart ? { cities: planLastStart.formCities, days: planLastStart.formDays, preferences: planLastStart.prefs, city_days: planLastStart.cityDays, origin_days: planLastStart.originDays || 0, start_date: planLastStart.startDate || undefined, intercity_mode: planTransportMode(), intake: undefined } : undefined });
+    const holder = addMsg("flow-plan", "sys", "");
+    planRenderSafe(holder, altBody, { first: false });
+    document.getElementById("flow-plan").scrollTop = 1e9;
+  });
+  row.appendChild(b);
+  return row;
+}
 async function planConfirmSites(allSites, must, sequence) {
   if (!planSession) return;
   const mand = allSites.filter(s => must.has(s));

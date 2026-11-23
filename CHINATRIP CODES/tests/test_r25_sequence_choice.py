@@ -165,7 +165,45 @@ def test_plan_turn_body_sequence_ask_filters_pending():
     )
     ask = _plan_turn_body(s, None, None).get("sequence_ask")
     assert ask and ask["days"] == {"故宫博物院": 1, "天坛": 2}
-    assert ask["options"] == ["keep", "replan"]
+    assert ask["options"] == ["keep", "replan", "both"]
 
     s2 = _sess(state="site_confirm", pending_sites=["天坛"])
     assert "sequence_ask" not in _plan_turn_body(s2, None, None)
+
+
+def test_make_alt_engine_plan_builds_ready_alt_session(monkeypatch):
+    """R25d both：引擎版会话独立生成（alt-*，replan 语义）并入库。"""
+    import asyncio
+    from types import SimpleNamespace
+
+    import app.services.trip_solver.live as live_mod
+    from app.api.plan import _make_alt_engine_plan
+
+    fake_plan = SimpleNamespace(days=[], assumptions=["alt"], itinerary_id="it-alt")
+    calls = {}
+
+    def _fake_replan(session, **kwargs):
+        calls["sequence_choice"] = session.sequence_choice
+        calls["plan_is_none"] = session.plan is None
+        return SimpleNamespace(plan=fake_plan)
+
+    monkeypatch.setattr(live_mod, "replan_session_via_trip_solver", _fake_replan)
+
+    from app.services.agent.plan import PlanSessionStore
+
+    store = PlanSessionStore()
+    sess = _sess(
+        state="ready",
+        must_visits=["故宫博物院"],
+        site_days={"故宫博物院": 1},
+        sequence_choice="keep",
+    )
+    store.save(sess)
+    alt = asyncio.run(_make_alt_engine_plan(None, sess, store))
+    assert alt is not None
+    assert alt.session_id.startswith("alt-")
+    assert alt.state == "ready"
+    assert alt.sequence_choice == "replan"
+    assert alt.plan is fake_plan
+    assert calls["sequence_choice"] == "replan" and calls["plan_is_none"] is True
+    assert store.get(alt.session_id, device_id=alt.device_id) is not None

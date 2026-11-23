@@ -79,6 +79,8 @@ from app.services.agent.plan import (
     _extract_transport_numbers,
     _find_transfer_item,
     _leg_date_iso,
+    _MIN_BRIEF_TEXT,
+    _brief_is_route_declaration,
     _normalize_city,
     _open_meal_leg_gaps,
     _parse_days,
@@ -867,6 +869,17 @@ async def start_plan(
     # 读不出该问。必须放在两道闸之前，否则第一道闸已经把 start_date 当缺失。
     _has_link = find_urls(f"{brief_text} {pref_raw}")
     _defaulted_start = False
+    # 2026-11-23 用户实报「贴文字让 LLM 读点，必填的日期没问」：长文本会进
+    # LLM 读点流程（_mine_brief_sites 的 LLM 通道，≥ _MIN_BRIEF_TEXT）→
+    # site_confirm 必达交互轮，日期是行程必填信息，缺了要先弹行前卡收集，
+    # 不能被「默认下周一」静默吞掉。短偏好句（带娃、慢节奏——本日早些拍板
+    # 「表单给足信息不弹卡」）与路线声明不在此列，默认口径保持不变。
+    _will_mine_sites_via_llm = (
+        bool(brief_text)
+        and len(brief_text) >= _MIN_BRIEF_TEXT
+        and not find_urls(brief_text)
+        and not _brief_is_route_declaration(brief_text, request.cities)
+    )
     if (
         not request.start_date
         and not request.arrival_date
@@ -874,6 +887,7 @@ async def start_plan(
         and (request.days or request.city_days)
         and not request.images
         and not _has_link
+        and not _will_mine_sites_via_llm
     ):
         request = request.model_copy(update={"start_date": _next_monday_beijing_iso()})
         _defaulted_start = True
@@ -1407,11 +1421,17 @@ async def start_plan(
             if str(n) in set(session.pending_sites) and isinstance(d, int) and d > 0
         }
         if _sd:
-            body["sequence_ask"] = {"days": _sd, "options": ["keep", "replan"]}
+            body["sequence_ask"] = {
+                "days": _sd,
+                "options": ["keep", "replan", "both"],
+            }
         if session.history and session.history[-1].role == "assistant":
             body["reply"] = session.history[-1].content
         body["clarify"] = clarify_questions(session)
         return body
+    # R25d：both 选边后的引擎自排版会话号（H5 据此渲染「查看引擎版」）
+    if getattr(session, "alt_session_id", None):
+        body["alt_session_id"] = session.alt_session_id
     if session.state == "resto_confirm":
         body["restos"] = [r.model_dump() for r in session.pending_restos]
         if session.history and session.history[-1].role == "assistant":
@@ -2170,7 +2190,13 @@ def _plan_turn_body(session, reply: str, change, *, alternatives: bool = True) -
             if str(n) in set(session.pending_sites) and isinstance(d, int) and d > 0
         }
         if _sd:
-            body["sequence_ask"] = {"days": _sd, "options": ["keep", "replan"]}
+            body["sequence_ask"] = {
+                "days": _sd,
+                "options": ["keep", "replan", "both"],
+            }
+    # R25d：both 选边后的引擎自排版会话号（H5 据此渲染「查看引擎版」）
+    if getattr(session, "alt_session_id", None):
+        body["alt_session_id"] = session.alt_session_id
     if session.state == "resto_confirm":
         body["restos"] = [r.model_dump() for r in session.pending_restos]
     if session.state == "clarify":
@@ -2229,9 +2255,13 @@ async def confirm_plan_sites(
         raise HTTPException(status_code=404, detail="session_not_found")
     if session.state != "site_confirm" or not session.pending_sites:
         raise HTTPException(status_code=409, detail="not_awaiting_sites")
+    # R25d both：主盘按 keep（写明顺序）生成，另产一份引擎自排版。
+    _seq_raw = str(request.sequence or "").strip().lower()
+    _both = _seq_raw == "both"
+    _primary_seq = "keep" if _both else (request.sequence or None)
     try:
         session, reply, change = await agent.confirm_sites(
-            session, request.mandatory, request.sequence
+            session, request.mandatory, _primary_seq
         )
     except PoiStoreUnavailableError:
         logger.warning("plan/sites_confirm poi_store_unavailable")
@@ -2239,6 +2269,13 @@ async def confirm_plan_sites(
     except LLMError as exc:
         logger.exception("plan/sites_confirm llm_error: %s", exc)
         raise HTTPException(status_code=502, detail="llm_error") from exc
+    if _both:
+        try:
+            _alt = await _make_alt_engine_plan(agent, session, store)
+            if _alt is not None:
+                session.alt_session_id = _alt.session_id
+        except Exception:
+            logger.warning("plan/sites_confirm alt-plan failed", exc_info=True)
     store.save(session)
     return _plan_turn_body(session, reply, change)
 
@@ -2279,6 +2316,38 @@ async def plan_session_images(
         raise HTTPException(status_code=502, detail="llm_error") from exc
     store.save(session)
     return _plan_turn_body(session, reply, None)
+
+
+async def _make_alt_engine_plan(agent, session, store):
+    """R25d both：同一贴文再产一份「引擎自排」行程。
+
+    复制会话（sequence_choice=replan、清空盘面）→ 重排缝（引擎原生）→
+    落一个新会话（alt-*）并存储；引擎未服务时返回 None（主盘不受影响）。"""
+    from app.services.trip_solver.live import replan_session_via_trip_solver
+
+    alt = session.model_copy(deep=True)
+    alt.session_id = "alt-%s" % uuid.uuid4().hex[:16]
+    alt.state = "planning"
+    alt.plan = None
+    alt.assumptions = []
+    alt.pending_sites = []
+    alt.pending_sites_source = "link"
+    alt.sequence_choice = "replan"
+    alt.alt_session_id = None
+    outcome = await asyncio.to_thread(
+        replan_session_via_trip_solver,
+        alt,
+        store=get_poi_detail_store(),
+        weather_lookup=partial(daily_weather_text, get_session_factory()),
+    )
+    plan = getattr(outcome, "plan", None)
+    if plan is None:
+        return None
+    alt.plan = plan
+    alt.assumptions = list(getattr(plan, "assumptions", []) or [])
+    alt.state = "ready"
+    store.save(alt)
+    return alt
 
 
 def _find_visit_item(plan, item_id: str) -> VisitItem | None:
