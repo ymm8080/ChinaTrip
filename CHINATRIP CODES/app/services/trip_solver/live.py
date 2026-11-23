@@ -625,6 +625,66 @@ def _degenerate_plan(plan) -> bool:
     return sights == 0
 
 
+def _musts_all_placed(outcome, snapshot) -> bool:
+    """R24：引擎盘全部必去在场（rid 键；无候选的必去不参与判定）。
+
+    空池/未绑定的必去引擎同样排不了，不能据此把盘判死（legacy 也排不了）。
+    """
+    solution = getattr(outcome, "solution", None)
+    placed = {i.cid for i in (getattr(solution, "items", None) or ())}
+    by_rid: dict[str, set[str]] = {}
+    for cand in getattr(snapshot, "candidates", ()) or ():
+        rid = getattr(cand, "rid", None)
+        if rid:
+            by_rid.setdefault(str(rid), set()).add(cand.cid)
+    resolved = 0
+    for req in getattr(getattr(snapshot, "request", None), "musts", ()) or ():
+        cids = by_rid.get(str(getattr(req, "rid", "") or ""))
+        if not cids:
+            continue
+        resolved += 1
+        if not (cids & placed):
+            return False
+    return resolved > 0
+
+
+def _recover_outcome(snapshot, outcome, budget_s):
+    """R24 引擎原生恢复：解不出盘（INFEASIBLE/UNKNOWN/瞬时坏池）→ 预算升档重解一次。
+
+    2026-11-23 用户令「NO MEANING TO RUN LEGACY. WE NEED TO RUN CP-SAT TO REPLACE
+    LEGACY」：回落 legacy 之前先给引擎一次翻盘机会（R19 fill 抖动族实测同参重解
+    可翻盘）。重试自身失败保持原 outcome 的回落语义，绝不把生成打死。
+    """
+    from .entry import ENGINE_CPSAT, solve_trip
+
+    if outcome.engine != ENGINE_CPSAT or getattr(outcome, "plan", None) is not None:
+        return outcome
+    try:
+        return solve_trip(
+            snapshot,
+            flag=ENGINE_CPSAT,
+            budget_s=max(float(budget_s or 20.0), 20.0) * 2.0,
+        )
+    except Exception:
+        return outcome
+
+
+def _engine_declines(outcome, snapshot) -> bool:
+    """R24：是否仍需回落 legacy——解不出盘/非引擎服务/退化盘且必去不全在场。
+
+    退化盘但「必去全在场」不再回落（R19 (1) 拍板：legacy 再丢必去，比空日引擎盘
+    更差）；调用方放行引擎盘并补披露假设。
+    """
+    from .entry import ENGINE_CPSAT
+
+    if outcome.engine != ENGINE_CPSAT:
+        return True
+    plan = getattr(outcome, "plan", None)
+    if plan is None:
+        return True
+    return bool(_degenerate_plan(plan)) and not _musts_all_placed(outcome, snapshot)
+
+
 def generate_session_via_trip_solver(
     *,
     device_id: str,
@@ -755,19 +815,19 @@ def generate_session_via_trip_solver(
         return None, _disclosed_fallback()
 
     outcome = solve_trip(snapshot, flag=ENGINE_CPSAT, budget_s=budget_s)
-    if (
-        outcome.engine != ENGINE_CPSAT
-        or getattr(outcome, "plan", None) is None
-        # R8b-2 退化闸：空天/零观光绝不交付（瞬态坏池兜底）
-        or _degenerate_plan(getattr(outcome, "plan", None))
-    ):
-        # F-35 生产语义：cpsat 无可服务计划（INFEASIBLE/UNKNOWN/装配失败
-        # /退化空行程）= 回退形状——legacy 服务且必须披露，绝不静默
+    outcome = _recover_outcome(snapshot, outcome, budget_s)
+    if _engine_declines(outcome, snapshot):
+        # R24：只有引擎真解不出/必去不全时才回落（安全网；F-35 披露语义不变）。
         from .entry import FALLBACK_DISCLOSURE
 
         outcome.fallback = True
         outcome.disclosures = [dict(FALLBACK_DISCLOSURE)]
         return None, outcome
+    if _degenerate_plan(getattr(outcome, "plan", None)):
+        # R24 放行形态（必去全在场）：空日引擎盘优于 legacy 丢必去（R19 (1)）。
+        outcome.plan.assumptions = list(
+            getattr(outcome.plan, "assumptions", []) or []
+        ) + ["部分日期未排满（必去已全部排入，可继续补点）"]
 
     session = PlanSession(
         session_id="ts-%s" % datetime.datetime.now().strftime("%Y%m%d%H%M%S%f"),
@@ -879,15 +939,19 @@ def replan_session_via_trip_solver(
         return None
 
     outcome = solve_trip(snapshot, flag=ENGINE_CPSAT, budget_s=budget_s)
-    if (
-        outcome.engine != ENGINE_CPSAT
-        or getattr(outcome, "plan", None) is None
-        # R8b-2 退化闸：重排同样不出空行程（回落 legacy 原生保钉）
-        or _degenerate_plan(getattr(outcome, "plan", None))
-    ):
+    outcome = _recover_outcome(snapshot, outcome, budget_s)
+    if _engine_declines(outcome, snapshot):
+        # R24：只有引擎真解不出/必去不全时才回落（安全网；F-35 披露语义不变）。
+        from .entry import FALLBACK_DISCLOSURE
+
         outcome.fallback = True
         outcome.disclosures = [dict(FALLBACK_DISCLOSURE)]
         return outcome
+    if _degenerate_plan(getattr(outcome, "plan", None)):
+        # R24 放行形态（必去全在场）：空日引擎盘优于 legacy 丢必去（R19 (1)）。
+        outcome.plan.assumptions = list(
+            getattr(outcome.plan, "assumptions", []) or []
+        ) + ["部分日期未排满（必去已全部排入，可继续补点）"]
 
     session.plan = outcome.plan
     session.assumptions = list(getattr(outcome.plan, "assumptions", []) or []) + list(
