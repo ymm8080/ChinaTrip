@@ -38,6 +38,69 @@ def norm_name(name: str) -> str:
     return re.sub(r"\s+", "", re.sub(r"[（(][^（）()]*[)）]", "", name))
 
 
+# 2026-11-23 补：短名（西湖/朱家角）没有括号，原 contains 兜底的
+# `norm != wanted` 条件恒假 → 直接未命中。底库里真景点叫「杭州西湖风景区」
+# 「朱家角古镇」，需要「名称互含 + 同城 + 景点类目优先」的宽松挑选。
+# 复用 backfill_locations 的 name_overlap / city_compatible 口径，避免两套。
+from app.jobs.backfill_locations import (  # noqa: E402
+    city_compatible,
+    name_overlap,
+)
+
+# 噪声类目：短名互含会命中「西湖己度民宿」「朱家角安麓酒店」，这些不是
+# 景点本身，地址不能拿来回填。真景点类目放前档。
+_SIGHT_CATEGORIES = {
+    "attraction", "scenic", "nature", "ancient_town", "historic",
+    "museum", "theme_park", "temple", "park", "sight", "geography",
+}
+_NOISE_CATEGORIES = {"hotel", "food", "restaurant", "shop", "inn"}
+# 同为景点类目时靠名字里的景区标志词区分：
+# 「杭州西湖风景区」应胜出「西湖文化广场」（后者是商圈，非西湖本体）。
+_SIGHT_HINTS = (
+    "风景名胜", "风景区", "景区", "旅游区", "古镇", "古城", "古村",
+    "公园", "博物", "名胜", "遗址", "寺院", "长城",
+)
+
+
+def pick_best_poi(
+    candidates: list[dict], wanted: str, city: str | None
+) -> dict | None:
+    """从同城候选里挑最像目标景点的一行；纯函数，便于 CI 无 PG 测试。
+
+    判定顺序（都满足才入池）：
+      1. 名称互含（西湖 ⊂ 杭州西湖风景区；朱家角 ⊂ 朱家角古镇）；
+      2. 城市相容（同城，防异地同名）；
+      3. 有 address（我们要回填的就是地址）。
+    排序：景点类目 > 其他；有 opening_hours > 无；名字更短（更贴近短名本体）优先。
+    """
+    pool = []
+    for c in candidates:
+        if not name_overlap(wanted, c.get("name_zh")):
+            continue
+        if not city_compatible(city, c.get("city")):
+            continue
+        if not (c.get("address") or "").strip():
+            continue
+        cat = (c.get("category") or "").strip().lower()
+        if cat in _NOISE_CATEGORIES:
+            continue  # 民宿/酒店/餐/店，即使互含也不作景点地址
+        pool.append(c)
+    if not pool:
+        return None
+
+    def rank(c: dict) -> tuple:
+        cat = (c.get("category") or "").strip().lower()
+        is_sight = 0 if cat in _SIGHT_CATEGORIES else 1
+        nm = norm_name(c.get("name_zh") or "")
+        has_hint = 0 if any(h in nm for h in _SIGHT_HINTS) else 1
+        has_hours = 0 if (c.get("opening_hours") or "").strip() else 1
+        name_len = len(nm)
+        rating = c.get("rating")
+        return (is_sight, has_hint, has_hours, name_len, -(rating or 0))
+
+    return sorted(pool, key=rank)[0]
+
+
 def find_poi(conn, city: str | None, name: str) -> dict | None:
     variants = city_variants(city)
     wanted = name.strip()
@@ -80,6 +143,23 @@ def find_poi(conn, city: str | None, name: str) -> dict | None:
         row = q(" AND name_zh LIKE :pat", {"pat": f"%{norm}%"})
         if row:
             return row
+    # 4) 宽松：短名（无括号）互含匹配。拉同城候选交给纯函数挑，景点类目
+    #    优先、排除民宿/酒店噪声。仅当 1~3 都未命中时走到这里。
+    pat = f"%{norm}%"
+    if variants:
+        rows = conn.execute(
+            text(
+                "SELECT id, name_zh, city, category, rating, address, opening_hours"
+                " FROM pois"
+                " WHERE (status IS NULL OR status = 'active')"
+                " AND city = ANY(:cities) AND name_zh LIKE :pat"
+                " ORDER BY rating DESC NULLS LAST LIMIT 25"
+            ),
+            {"cities": variants, "pat": pat},
+        ).mappings().all()
+        best = pick_best_poi([dict(x) for x in rows], wanted, city)
+        if best:
+            return best
     return None
 
 
