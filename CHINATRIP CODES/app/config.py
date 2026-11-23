@@ -120,6 +120,13 @@ class Settings(BaseSettings):
     # 餐位走「已留时段」占位；恢复检索=环境变量置 true。
     plan_restaurant_search_enabled: bool = False
     plan_transfer_lookup_enabled: bool = False
+    # R13q（2026-11-23）：实测腿回填的配额/时延决策——legacy 在生成回合
+    # 跑 _enrich_parallel（最多 LEG_ENRICH_MAX_PAIRS=24 对、并发 6、
+    # 每批 sleep 0.35s，实测冷启可达 12-30s），CP-SAT 缝此前不跑、靠读侧
+    # GET /plan/{id} 的 refresh_legs 兜。默认关=生成零新增外呼（现状
+    # 不变）；开=生成缝同步跑有界实测回填，缓存同时暖好（读侧命中零
+    # 重复外呼）。配额沿用 plan.py 既有常量，不新造口径。
+    plan_measured_legs_at_generation_enabled: bool = False
     # 航班时刻（2026-10-28 骨架）：VariFlight 个人开发者 key，注册后填入；
     # 空（默认）→ MockFlightService 确定性占位，零网络零行为变化。API 契约
     # 在 key 注册后按 open.variflight.com 文档校正（app/services/

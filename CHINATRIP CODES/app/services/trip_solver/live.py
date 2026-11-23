@@ -278,6 +278,7 @@ def snapshot_from_request(
     arrival_day: Optional[int] = None,
     departure_day: Optional[int] = None,
     pool_limit: int = POOL_LIMIT_PER_CITY,
+    food_rows: Optional[list[dict]] = None,
 ) -> FactSnapshot:
     """Build a schema-v2 FactSnapshot from request fields + live stores."""
     avoid = [a for a in (avoid or []) if a]
@@ -426,6 +427,21 @@ def snapshot_from_request(
             seen_names.add(name)
             pool.append(row)
 
+    # R13q（gap #1）：餐饮候选搜索入池。async 调用方预取的 DB 荐点 + amap
+    # 检索行在此并池（legacy _rec_food/recommend_restaurants 同源），与
+    # top_pois  food 行同一 seen_names 去重 + 同一 any-槽标注。无 food_rows
+    # 时零行为变化（影子语料/旧测试形状完全不动）。
+    for row in food_rows or []:
+        name = str(row.get("name") or "")
+        if not name or name in seen_names:
+            continue
+        if any(_name_hits(name, a) for a in avoid):
+            continue
+        if any(_name_hits(name, m) for m in must_names_bound):
+            continue
+        seen_names.add(name)
+        pool.append(row)
+
     profiles = _access_profiles_for(must_rows + pool, service_rows or [])
     profiled_ids = {p.to_poi for p in profiles}
     for k, cand in enumerate(candidates):
@@ -561,6 +577,7 @@ def generate_session_via_trip_solver(
     departure_date: Optional[str] = None,
     weather_lookup: Optional[Callable[[str, str], Any]] = None,
     budget_s: float = 3.0,
+    food_rows: Optional[list[dict]] = None,
 ) -> tuple:
     """Flag-gated seam core (sync — the api wraps in ``asyncio.to_thread``).
 
@@ -656,6 +673,7 @@ def generate_session_via_trip_solver(
         day1_start=day1_start,
         arrival_day=arrival_day,
         departure_day=departure_day,
+        food_rows=food_rows,
     )
     errors = validate_snapshot(snapshot)
     if errors:
@@ -712,6 +730,7 @@ def replan_session_via_trip_solver(
     extra_assumptions=None,
     budget_s: float = 3.0,
     weather_lookup=None,
+    food_rows: Optional[list[dict]] = None,
 ):
     """F-35 二期会话级重解（2026-11-18 拍板「偏好重排也要换 CP-SAT」）。
 
@@ -737,7 +756,9 @@ def replan_session_via_trip_solver(
     if not serving_ready()[0]:
         return _disclosed_fallback()
 
-    snapshot = _session_snapshot(session, store, weather_lookup=weather_lookup)
+    snapshot = _session_snapshot(
+        session, store, weather_lookup=weather_lookup, food_rows=food_rows
+    )
     if snapshot is None:
         return _disclosed_fallback()
 
@@ -879,7 +900,9 @@ def _intake_day_no(date_iso, start_date, days: int, default_day: int) -> Optiona
     return _role_endpoint(day)
 
 
-def _session_snapshot(session, store, extra_musts=None, weather_lookup=None):
+def _session_snapshot(
+    session, store, extra_musts=None, weather_lookup=None, food_rows=None
+):
     """R10：会话 → 快照重建（replan/edit 共用）——musts=必去+钉卡+自造点，
     班次/分城/中途日/偏好/首日出发全参数随缝；None=引擎不可载。
     R13-#2：extra_musts=编辑 add 注入的新必去名（尾插去重——重复名会
@@ -941,6 +964,7 @@ def _session_snapshot(session, store, extra_musts=None, weather_lookup=None):
             int(getattr(session, "days", 1) or 1),
             int(getattr(session, "days", 1) or 1),
         ),
+        food_rows=food_rows,
     )
     if validate_snapshot(snapshot):
         return None

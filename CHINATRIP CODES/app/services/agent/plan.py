@@ -21889,12 +21889,28 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
         ):
             from app.services.poi_details import get_poi_detail_store
 
+            # R13q（gap #1）：重排缝餐饮候选补位（async 预取，legacy
+            # recommend_restaurants 同源；失败降级空，绝不拦生成）。
+            _replan_food_rows: list[dict] = []
+            try:
+                from app.services.trip_solver.enrich_food import prefetch_food_rows
+
+                _replan_food_rows = await prefetch_food_rows(
+                    cities=list(session.cities or []),
+                    amap_client=self._amap,
+                    store=get_poi_detail_store(),
+                    enabled=_resto_search_enabled(),
+                )
+            except Exception:
+                logger.warning("plan: replan food prefetch failed", exc_info=True)
+
             outcome = replan_session_via_trip_solver(
                 session,
                 store=get_poi_detail_store(),
                 extra_assumptions=extra_assumptions,
                 # R13j：重解缝同接天气（同 legacy _weather_lookup 口径）
                 weather_lookup=self._weather_lookup,
+                food_rows=_replan_food_rows,
             )
             if (
                 outcome is not None
@@ -21912,6 +21928,28 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
                         ),
                     )
                 )
+                # R13q（gap #2 挂账）：重排后引擎结构腿自动回填真实班次
+                # （用户已填号码由 helper 内跳过；失败保留占位不造号）。
+                try:
+                    from app.services.trip_solver.leg_numbers import (
+                        fill_structural_leg_numbers,
+                    )
+
+                    _leg_notes = await fill_structural_leg_numbers(
+                        session.plan,
+                        start_date=session.start_date,
+                        trains=self._trains,
+                        flights=self._flights,
+                    )
+                    if _leg_notes:
+                        session.assumptions.extend(_leg_notes)
+                    from app.services.trip_solver.leg_numbers import (
+                        enrich_measured_legs_if_enabled,
+                    )
+
+                    await enrich_measured_legs_if_enabled(self, session.plan)
+                except Exception:
+                    logger.warning("plan: replan leg backfill failed", exc_info=True)
                 self._sync_wish_rows(session)
                 self._sync_planned_rows(session)
                 # R11（intake 双重应用守卫）：引擎已服务本会话——start
@@ -23630,6 +23668,12 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
                     created_by=session.device_id,
                     city=city,
                     note=note,
+                    # 2026-11-23（用户报「行程中心站点没地址」）：心愿行物化
+                    # 时带上排期点的地址/开放时间——看板 📍 行不再空白
+                    address=(target.address if target is not None else None),
+                    opening_hours=(
+                        target.opening_hours if target is not None else None
+                    ),
                     poi_id=str((bound or {}).get("source_poi_id") or "") or None,
                     raw_command=name,
                     must_visit=(name in (session.must_visits or []) and not dropped),
@@ -23716,7 +23760,7 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
             except ValueError:
                 planned = None
         loc = item.location
-        return {
+        fields = {
             "kind": (item.category or None),
             "duration_minutes": item.duration_minutes,
             "must_visit": bool(getattr(item, "must", False)),
@@ -23732,6 +23776,14 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
             ),
             "end_time": item.end_time.strftime("%H:%M") if item.end_time else None,
         }
+        # 2026-11-23（用户报「行程中心站点没地址」）：地址/开放时间只在
+        # 排期点真有值时回写——排期点缺地址不冲掉行里既有的地址
+        # （看板 📍 行取的就是这两列）。
+        if item.address:
+            fields["address"] = item.address
+        if item.opening_hours:
+            fields["opening_hours"] = item.opening_hours
+        return fields
 
     def _sync_wish_rows(self, session: PlanSession, *, at_save: bool = False) -> None:
         """心愿行收口（2026-10-30 拍板「行程中心已排期写清楚」）：已绑定

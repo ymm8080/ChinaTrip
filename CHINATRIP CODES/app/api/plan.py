@@ -1021,6 +1021,23 @@ async def start_plan(
                 logger.warning("plan/start seam wishlist absorb failed", exc_info=True)
                 seam_wish_musts, seam_wish_notes = [], []
 
+            # R13q（gap #1）：引擎侧餐饮候选搜索补位——legacy `_assemble_plan`
+            # 按餐窗调 recommend_restaurants，CP-SAT 此前只顶已有 food 行。
+            # async 侧预取（DB 荐点 + amap，legacy 同源、默认关），随缝入
+            # 快照；任何失败在 prefetch 内降级空列表，绝不拦生成。
+            _food_rows: list[dict] = []
+            try:
+                from app.services.trip_solver.enrich_food import prefetch_food_rows
+
+                _food_rows = await prefetch_food_rows(
+                    cities=list(start_cities or []),
+                    amap_client=getattr(agent, "_amap", None),
+                    store=get_poi_detail_store(),
+                    enabled=get_settings().plan_restaurant_search_enabled,
+                )
+            except Exception:
+                logger.warning("plan/start: food prefetch failed", exc_info=True)
+
             def _ts_generate():
                 return generate_session_via_trip_solver(
                     device_id=x_device_id,
@@ -1065,9 +1082,36 @@ async def start_plan(
                         ts_days or 0,
                         ts_days or 1,
                     ),
+                    food_rows=_food_rows,
                 )
 
             trip_session, trip_outcome = await asyncio.to_thread(_ts_generate)
+            # R13q（gap #2 挂账）：引擎结构腿自动回填真实车次/航班号——
+            # 只在引擎已服务时跑；用户已填班次（intake/manual）由 helper
+            # 内部跳过。失败保留占位卡，不造号、不拦生成。
+            if trip_session is not None and trip_session.plan is not None:
+                try:
+                    from app.services.trip_solver.leg_numbers import (
+                        fill_structural_leg_numbers,
+                    )
+
+                    _leg_notes = await fill_structural_leg_numbers(
+                        trip_session.plan,
+                        start_date=trip_session.start_date,
+                        trains=getattr(agent, "_trains", None),
+                        flights=getattr(agent, "_flights", None),
+                    )
+                    if _leg_notes:
+                        trip_session.assumptions.extend(_leg_notes)
+                    # R13q 挂账「实测腿配额/时延决策」= opt-in（默认关，
+                    # 读侧 refresh_legs 仍兜），开则生成期有界回填并暖缓存。
+                    from app.services.trip_solver.leg_numbers import (
+                        enrich_measured_legs_if_enabled,
+                    )
+
+                    await enrich_measured_legs_if_enabled(agent, trip_session.plan)
+                except Exception:
+                    logger.warning("plan/start: leg backfill failed", exc_info=True)
     except Exception:
         logger.exception("plan/start trip_solver seam failed; legacy serves")
     if trip_session is not None:
@@ -1245,6 +1289,22 @@ async def message_plan(
                 generate_session_via_trip_solver,
             )
 
+            # R13q：换局缝同 gap #1 补位（餐饮候选预取，失败降级空）。
+            _restart_food_rows: list[dict] = []
+            try:
+                from app.services.trip_solver.enrich_food import prefetch_food_rows
+
+                _restart_food_rows = await prefetch_food_rows(
+                    cities=list(restart_cities or []),
+                    amap_client=getattr(agent, "_amap", None),
+                    store=get_poi_detail_store(),
+                    enabled=get_settings().plan_restaurant_search_enabled,
+                )
+            except Exception:
+                logger.warning(
+                    "plan/message restart: food prefetch failed", exc_info=True
+                )
+
             if (
                 engine_flag() == ENGINE_CPSAT
                 and serving_ready()[0]
@@ -1303,9 +1363,33 @@ async def message_plan(
                         ),
                         preferences=request.text,
                         lang=session.lang,
+                        food_rows=_restart_food_rows,
                     )
 
                 trip_session, trip_outcome = await asyncio.to_thread(_ts_restart)
+                if trip_session is not None and trip_session.plan is not None:
+                    try:
+                        from app.services.trip_solver.leg_numbers import (
+                            fill_structural_leg_numbers,
+                        )
+
+                        _leg_notes = await fill_structural_leg_numbers(
+                            trip_session.plan,
+                            start_date=trip_session.start_date,
+                            trains=getattr(agent, "_trains", None),
+                            flights=getattr(agent, "_flights", None),
+                        )
+                        if _leg_notes:
+                            trip_session.assumptions.extend(_leg_notes)
+                        from app.services.trip_solver.leg_numbers import (
+                            enrich_measured_legs_if_enabled,
+                        )
+
+                        await enrich_measured_legs_if_enabled(agent, trip_session.plan)
+                    except Exception:
+                        logger.warning(
+                            "plan/message restart: leg backfill failed", exc_info=True
+                        )
         except Exception:
             logger.exception("plan/message restart seam failed; legacy serves")
         if trip_session is not None:

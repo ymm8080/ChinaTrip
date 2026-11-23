@@ -92,7 +92,16 @@ def test_edit_resolve_is_deterministic():
 
 
 def test_edit_within_q7_envelope_on_corpus():
-    # corpus-scale edits must land inside the 800ms hint envelope
+    """编辑重解的交互预算契约（Q7/M12 + Q3 放宽）。
+
+    小语料（≤20 候选）必须落在 800ms 交互信封内——编辑即时生效。
+
+    大语料（>20 候选，如 g11_trip_scale）走 Q3 拍板的披露式放宽：预算
+    提到 ~5.8s，墙钟可能超 800ms。此时 edit_resolve 不得静默应用超预算
+    解，必须按 M12 契约退化为 RETIMING——保留现计划 + 披露「重排中」，
+    让交互不阻塞。旧断言对所有语料一律要求 within_edit_budget 是 2026-
+    11-18 12:39 写的，8h 后 a15b487 才引入 Q3 放宽，故大语料分支过时。
+    """
     for stem in ("g01", "g11_trip_scale"):
         scenario = load_scenario(os.path.join(default_corpus_dir(), "%s.json" % stem))
         prev = _base_solution(scenario.snapshot)
@@ -101,7 +110,16 @@ def test_edit_within_q7_envelope_on_corpus():
             prev,
             [DiffOp(kind="retime", cid="c1", day=1, start_min=430)],
         )
-        assert out.within_edit_budget, (stem, out.wall_ms)
+        is_large = len(scenario.snapshot.candidates) > 20
+        if is_large and not out.within_edit_budget:
+            # Q3 慢路径：超预算 = 保留计划 + 披露，绝不静默应用超预算解
+            assert out.solution is prev, (stem, "over-budget must keep plan")
+            assert out.status == "RETIMING", (stem, out.status)
+            assert out.disclosure and "重排中" in out.disclosure["zh"]
+        else:
+            # 小语料 / 恰好落在信封内：编辑即时生效
+            assert out.within_edit_budget, (stem, out.wall_ms)
+            assert out.status != "RETIMING", (stem, out.status)
 
 
 def test_overrun_keeps_plan_and_discloses():
