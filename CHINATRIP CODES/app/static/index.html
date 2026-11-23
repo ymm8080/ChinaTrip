@@ -2510,7 +2510,9 @@ function planCard(plan) {
       const bnm = brg.getAttribute("data-dest-name");
       if (isFinite(blon) && isFinite(blat)) {
         if (brg.getAttribute("data-bridge") === "taxi") callTaxiTo(bnm, blon, blat);
-        else window.open(amapWalkUrl({ name: bnm, location: { lon: blon, lat: blat } }), "_blank", "noopener");
+        // 步行腿固定高德（2026-11-23 用户点名高德；与 CALL TAXI 的 amapuri 同口径，
+        // 不受 MAP_VENDOR 图商开关影响——当前线上 provider=baidu，amapWalkUrl 会落百度 marker 页）
+        else window.open("https://uri.amap.com/navigation?to=" + blon + "," + blat + "," + encodeURIComponent(bnm) + "&mode=walk&src=chinatrip&coordinate=gaode&callnative=1", "_blank", "noopener");
       }
       return;
     }
