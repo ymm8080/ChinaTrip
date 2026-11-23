@@ -176,6 +176,7 @@ def add_c09_meals(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
                 model.Add(lit == 0)
             # R12-H18 大点盖饭：游览段盖住饭点核心 ⇒ 占位槽取消；
             # 真餐馆绑定槽（bound_any）不受取消——烤鸭卡照常落午餐/晚餐。
+            from ..inputs.hours_caps import BIG_SITE_MIN_MINUTES
             from ..inputs.hours_caps import is_big_site as _is_big
 
             _cover_lits = []
@@ -187,12 +188,23 @@ def add_c09_meals(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
                     "transfer",
                 ):
                     continue
-                if not _is_big(
-                    duration_min=c.suggested_duration_min,
-                    category=c.category,
-                    best_visit_time=c.best_visit_time,
-                    tier=c.tier,
-                    pinned_with_time=False,
+                _bvt = (c.best_visit_time or "").lower()
+                # R20：夜属性大时长卡同样盖得住饭点核——18:00 开场的夜街把
+                # 18-19 晚餐核盖住时取消占位晚餐槽，而不是把晚餐挤到 17:00
+                # （R12-H18 大点盖饭语义的夜游扩展；真餐馆绑定槽不受影响）。
+                _evening_big = (
+                    _bvt in ("evening", "sunset")
+                    and (c.suggested_duration_min or 0) > BIG_SITE_MIN_MINUTES
+                )
+                if (
+                    not _is_big(
+                        duration_min=c.suggested_duration_min,
+                        category=c.category,
+                        best_visit_time=c.best_visit_time,
+                        tier=c.tier,
+                        pinned_with_time=False,
+                    )
+                    and not _evening_big
                 ):
                     continue
                 _cl = model.NewBoolVar("mcover_%s_%s_%d" % (slot, c.cid, day))

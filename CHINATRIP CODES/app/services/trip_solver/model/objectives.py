@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from ..inputs.hours_caps import EVENING_OK_BEST
 from ..inputs.weather import RAIN_INDOOR_PENALTY, is_rainy
 from .c01_c04 import day_date
 from .slack import SlackFlags
@@ -68,6 +69,18 @@ BIG_MUST_MIN_DURATION = 80
 # 接炸 40 测）。镜像打分器 late_entries 口径：≥12:30 罚 40、≥14:00 再
 # 罚 80——必去大点让出下午/傍晚给填充，天安门后故宫先于天坛。
 BIG_MUST_LATE_BANDS = ((12 * 60 + 30, 40), (14 * 60, 80), (15 * 60, 120))
+# R20（2026-11-23 用户令「大唐不夜城步行街 BEST VISIT TIME IS EVENING, WHY IT IS
+# ARRANGED IN THE MORNING」）：库内 evening/sunset 卡（83+2 行：夜街/夜游船/夜市/
+# 灯光秀/主题街区）此前在引擎里只换入场帽豁免（hours_caps.entry_cap_minutes），
+# 偏好层唯一的强晚排力只认 show——「夜里才好看」这个语义在引擎零消费，夜街被
+# 必去大点晚开罚带＋大点先排＋晨间占用＋紧凑压早合力推进上午/正午（探针实锤
+# 10:00/12:01）。镜像反向晚排带（逐档叠加）：17:00→+120、18:00→+180、19:00→
+# +240——90 分钟夜街（如 大唐不夜城步行街 dur=90）压到 19:30-21:00 灯火最盛
+# 段；时长长的夜点最晚开场受限（日窗 21:00 收口）时仍稳拿低档。峰值 ≥2×
+# FILL_REWARD：稠密日里「夜街落晚上」强过保一张填充卡，也压过 QUALITY 上限
+# 200 与晚餐收缩罚。晚间不可行（远郊日回程班等）时带值拿不到 → 自然回落
+# 白天，fail-open 不加硬约束。
+EVENING_LATE_BANDS = ((17 * 60, 120), (18 * 60, 60), (19 * 60, 60))
 MORNING_MINUTE = 12 * 60
 ENTERTAINMENT_PRESENT_REWARD = 40
 CATEGORY_DIVERSITY_REWARD = 20
@@ -257,8 +270,12 @@ def _preference(
             quality = min(int(_q) * 2, FILL_QUALITY_REWARD_CAP)
         else:  # 快照/语料 float 域
             quality = int(round(_q * QUALITY_SCALE))
+        # R20：夜属性卡不吃必去晚开罚带（口径同 is_big_site 的 EVENING_OK_BEST
+        # 豁免）——否则晚开罚(−120)与晚排带(+240)同层精确对消，夜街照旧上午。
         big_must = bool(
-            cand.rid and int(cand.suggested_duration_min or 0) > BIG_MUST_MIN_DURATION
+            cand.rid
+            and int(cand.suggested_duration_min or 0) > BIG_MUST_MIN_DURATION
+            and (cand.best_visit_time or "").lower() not in EVENING_OK_BEST
         )
         for day in bundle.days:
             lit = bundle.presence[(cand.cid, day)]
@@ -347,6 +364,19 @@ def _preference(
                     [lit, early.Not()]
                 )
                 negative.append(SHOW_EARLY_PENALTY * early)
+            bvt = (cand.best_visit_time or "").lower()
+            if bvt in ("evening", "sunset") and not relax_tod:
+                # R20 晚排带（见 EVENING_LATE_BANDS 注）：evening/sunset 卡偏好
+                # 晚间开场；带值只在场时计（late<=lit），不在场不白送。
+                start = bundle.start[(cand.cid, day)]
+                for _threshold, _weight in EVENING_LATE_BANDS:
+                    late = model.NewBoolVar(
+                        "obj_evl_%s_%d_%d" % (cand.cid, day, _threshold)
+                    )
+                    model.Add(late <= lit)
+                    model.Add(start >= _threshold).OnlyEnforceIf([lit, late])
+                    model.Add(start < _threshold).OnlyEnforceIf([lit, late.Not()])
+                    positive.append(_weight * late)
 
     # R1 拆簇镜像：近距对（打分器 _near_mate_km 同源口径，取
     # solver.NEAR_SAMEDAY_KM）同日共处奖励——O(对数) 公式：dayVar
