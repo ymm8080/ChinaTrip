@@ -36,12 +36,18 @@ def _poi(name, city, cat="attraction", addr=None, hours=None, rating=0):
 
 # --- 短名宽松命中：这是回归的核心 ---
 
+
 def test_xihu_picks_scenic_area_not_hotel_noise():
     """西湖 ⊂ 杭州西湖风景区；不得命中「西湖己度民宿」。"""
     candidates = [
         _poi("西湖己度民宿", "杭州", "hotel", "浙江省杭州市西湖区飞来峰", rating=9),
-        _poi("杭州西湖风景区", "杭州", "attraction",
-             "浙江省杭州市西湖区西湖街道杭州西湖风景名胜区", rating=5),
+        _poi(
+            "杭州西湖风景区",
+            "杭州",
+            "attraction",
+            "浙江省杭州市西湖区西湖街道杭州西湖风景名胜区",
+            rating=5,
+        ),
         _poi("西湖文化广场", "杭州", "attraction", "浙江省杭州市拱墅区", rating=6),
     ]
     got = pick_best_poi(candidates, "西湖", "杭州")
@@ -52,14 +58,20 @@ def test_zhujiajiao_picks_ancient_town():
     """朱家角 ⊂ 朱家角古镇（active），而非朱家角安麓酒店。"""
     candidates = [
         _poi("上海朱家角安麓酒店", "上海", "hotel", "上海市青浦区安麓酒店"),
-        _poi("朱家角古镇", "上海", "attraction",
-             "上海市青浦区朱家角镇朱家角古镇游客中心", rating=5),
+        _poi(
+            "朱家角古镇",
+            "上海",
+            "attraction",
+            "上海市青浦区朱家角镇朱家角古镇游客中心",
+            rating=5,
+        ),
     ]
     got = pick_best_poi(candidates, "朱家角", "上海")
     assert got["name_zh"] == "朱家角古镇"
 
 
 # --- 守卫：不能回填错地址 ---
+
 
 def test_rejects_wrong_city_even_if_name_overlaps():
     """瘦西湖风景区在扬州，不能给杭州的西湖回填。"""
@@ -102,6 +114,7 @@ def test_empty_candidates_returns_none():
 
 
 # --- 基础工具函数边界 ---
+
 
 def test_city_variants():
     assert city_variants("杭州") == ["杭州", "杭州市"]
