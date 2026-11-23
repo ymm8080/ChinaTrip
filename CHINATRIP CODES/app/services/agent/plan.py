@@ -2598,6 +2598,33 @@ _ALIAS_RE = re.compile(
     + r")(?![a-z0-9'])",
     re.IGNORECASE,
 )
+# 复合地名掩蔽（2026-11-23 北京 4 天贴文「Kunming Lake」案，类级修复）：
+# 「城市名+地理通名」的子地名——颐和园文案里的「昆明湖 / Kunming Lake」、
+# 上海的「南京路」、广州的「北京路」——会被 `_parse_cities` 的裸子串匹配
+# 当成第二目的地：会话 cities 混进昆明，引擎随即分城、排跨城航班与空城日
+# （用户实报「4 DAYS' TRIP BEIJING, WHY THERE IS 昆明 flight」，实盘会话
+# d5972a25 的 Day2 就多出一张昆明→北京 MU1001）。城市名直接连着自然/
+# 人文地理通名时按子地名掩蔽：吞城市名段、通名保留、等长替换保
+# `text.find` 排序稳定。行政/交通通名（市/站/机场）与海湾不掩——
+# 「昆明站」「昆明市」「三亚湾」仍是城市信号。英文通名允许一个空格
+# 间隔（别名归一后形如「昆明 Lake」）；IGNORECASE 只作用英文段。
+_CITY_SUBPLACE_MASK_RE = re.compile(
+    "(?:"
+    + "|".join(
+        re.escape(c) for c in sorted(frozenset(KNOWN_CITIES), key=len, reverse=True)
+    )
+    + r")(?=湖|河|池|溪|桥|路|街|巷|弄"
+    r"| ?(?:Lake|River|Pond|Reservoir|Park|Garden|Square|Street|Road|"
+    r"Avenue|Ave|Lane|Bridge|Market|Mall|Plaza|Island|Pavilion|Trail|Walk))",
+    re.IGNORECASE,
+)
+
+
+def _mask_city_subplaces(text: str) -> str:
+    """把「城市名+地理通名」复合地名里的城市段替换成等长占位符。"""
+    if not text:
+        return text
+    return _CITY_SUBPLACE_MASK_RE.sub(lambda m: "□" * len(m.group(0)), text)
 
 
 def _normalize_city(name: str) -> str:
@@ -2993,6 +3020,9 @@ def _parse_days(text: str) -> int | None:
 def _parse_cities(text: str) -> list[str]:
     """Known cities (Chinese or English aliases) in order of first appearance."""
     text = _ALIAS_RE.sub(lambda m: CITY_ALIASES[m.group(0).lower()], text or "")
+    # 子地名先掩（2026-11-23「Kunming Lake」案，见 _CITY_SUBPLACE_MASK_RE）：
+    # 颐和园文案里的昆明湖不读成目的地昆明，上海的南京路不读成南京。
+    text = _mask_city_subplaces(text)
     found = {city for city in KNOWN_CITIES if city in text}
     return sorted(found, key=text.find)
 
@@ -5285,6 +5315,8 @@ def _match_city_token(text: str) -> str | None:
     m = _ALIAS_RE.search(s)
     if m:
         return CITY_ALIASES[m.group(1).lower()]
+    # 子地名先掩（同 _parse_cities：「南京路」不是城市答复「南京」）
+    s = _mask_city_subplaces(s)
     best = None
     for c in KNOWN_CITIES:
         if (c in s or f"{c}市" in s) and (best is None or len(c) > len(best)):
