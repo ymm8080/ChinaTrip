@@ -2194,11 +2194,16 @@ function planCard(plan) {
         const ind = handle ? "74px" : "56px";
         // 桥卡（leg-bridge-，响应副本渲染件）也放开时刻编辑（2026-11-23 用户令
         // 「乘车去下一站的时间应该也可以编辑」）：出发=上一站结束，提交走
-        // /departure（hopedit）；其余合成卡（班车/打车/回城）仍纯展示（班次 chips 已覆盖）。
+        // /departure（hopedit）。R26（用户令「酒店、打车、晚餐的时间也要能
+        // 改」）：打车卡与班次日晨卡按意图时刻落班次链（leaveedit）；酒店夜卡/
+        // 城内日晨卡走普通 retime；班次卡班表选择仍走班次 chips。
         const isBridgeCard = isSynth && (it.item_id || "").indexOf("leg-bridge-") === 0;
-        const canEditTime = !!(planSession && planSession.session_id && (!isSynth || isHotelSlot || (isBridgeCard && it.start_time)));
+        const isTaxiCard = isSynth && (it.item_id || "").indexOf("taxi-board-") === 0;
+        const hasOutbound = (d.items || []).some(function (x) { return String((x && x.item_id) || "").indexOf("access-out-") === 0; });
+        const timeAction = isBridgeCard ? "hopedit" : ((isTaxiCard || (isHotelSlot && isMorning && hasOutbound)) ? "leaveedit" : "retime");
+        const canEditTime = !!(planSession && planSession.session_id && (!isSynth || isHotelSlot || (isBridgeCard && it.start_time) || (isTaxiCard && it.start_time)));
         const timeCell = canEditTime
-          ? '<button class="t t-edit" data-action="' + (isBridgeCard ? "hopedit" : "retime") + '" data-item-id="' + esc(it.item_id) + '" data-cur="' + (it.start_time ? String(it.start_time).slice(0, 5) : "") + '" title="' + (isBridgeCard ? I18N.tf("card.hopedit.title", "点击修改出发时间") : I18N.tf("card.retime.title", "点击修改开始时间")) + '">' + fmtTime(it.start_time) + "</button>"
+          ? '<button class="t t-edit" data-action="' + timeAction + '" data-item-id="' + esc(it.item_id) + '" data-cur="' + (it.start_time ? String(it.start_time).slice(0, 5) : "") + '" title="' + (timeAction === "retime" ? I18N.tf("card.retime.title", "点击修改开始时间") : I18N.tf("card.hopedit.title", "点击修改出发时间")) + '">' + fmtTime(it.start_time) + "</button>"
           : '<span class="t">' + fmtTime(it.start_time) + "</span>";
         // 同级备选（2026-11-05 拍板「每个点要有一个备选，尤其 UNESCO/5A/
         // 国际旅行网站推荐」）：站点行右侧 chip 区，点击一键换为主点——
@@ -2683,6 +2688,14 @@ function planCard(plan) {
         // 直输控件同 retime（Enter 提交 / Esc 取消 / 失焦还原）。
         startTimeEdit(btn, box, plan, function (v) {
           api("/api/v1/plan/" + sid + "/departure", { item_id: id, direction: "out", depart: v }, "POST")
+            .then(body => box.replaceWith(planCard(body.plan)))
+            .catch(err => { failToast(err); box.replaceWith(planCard(plan)); });
+        });
+      } else if (action === "leaveedit") {
+        // 打车卡/班次日晨卡改出发时刻（2026-11-23 用户令「打车、酒店时间也
+        // 要能改」）：后端按意图时刻取班次链起点最近的一班整链重锚。
+        startTimeEdit(btn, box, plan, function (v) {
+          api("/api/v1/plan/" + sid + "/departure", { item_id: id, direction: "out", depart: v, mode: "leave" }, "POST")
             .then(body => box.replaceWith(planCard(body.plan)))
             .catch(err => { failToast(err); box.replaceWith(planCard(plan)); });
         });

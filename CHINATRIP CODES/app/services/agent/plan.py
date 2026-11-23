@@ -33844,6 +33844,123 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
         summary = ChangeSummary(change_summary=[label], affected_items_count=1)
         return report, summary, notes
 
+    def set_chain_time(
+        self,
+        session: PlanSession,
+        target_item_id: str,
+        *,
+        depart: time,
+        taxi: bool = False,
+        chain_gap: int | None = None,
+    ) -> tuple[ValidationReport, ChangeSummary, list[str]]:
+        """打车卡/晨卡按意图时刻落班次链（2026-11-23 用户令「酒店、打车、
+        晚餐的时间也应该同样能改」）。
+
+        链式口径（R15/R16，legs.attach_outbound_taxi_cards 同源派生）：
+        taxi-board-* 与班次日 hotel-morning-* 的时刻恒为「班次 − 缓冲15 −
+        叫车15 − 车程」（两卡同值）。意图时刻 T → 取班次表里链起点离 T
+        最近的一班（并列取晚班）→ set_access_departure(out) 整链重锚
+        （点选值落卡、晨卡随班次平移、后继按 retime 游标级联）。
+        chain_gap=班次起−链起点（api 层按响应打车卡实测传入，含前卡钳位）；
+        晨卡路径由会话内 owner/晨卡起算。城内日（无去程卡）晨卡 → 回落
+        plain retime（R21「出发点锚」语义）；无班次表 → no_timetable；
+        目标不是班次链卡 → item_not_found。纯计算。
+        """
+        plan = session.plan
+        if plan is None:
+            raise ValueError("no_plan")
+        item = next(
+            (
+                i
+                for d in plan.days
+                for i in d.items
+                if isinstance(i, VisitItem) and i.item_id == target_item_id
+            ),
+            None,
+        )
+        if item is None:
+            raise ValueError("item_not_found")
+        day = next((d for d in plan.days if d.day == item.day), None)
+        items = list(day.items) if day is not None else []
+        from app.services.trip_solver.assembly.materialize import (
+            OUTBOUND_CARD_PREFIX,
+        )
+
+        owner = next(
+            (
+                i
+                for i in items
+                if isinstance(i, VisitItem)
+                and (i.item_id or "").startswith(OUTBOUND_CARD_PREFIX)
+            ),
+            None,
+        )
+        gap = chain_gap
+        if gap is None and owner is not None:
+            morning = next(
+                (i for i in items if isinstance(i, VisitItem) and is_hotel_morning(i)),
+                None,
+            )
+            if (
+                morning is not None
+                and owner.start_time is not None
+                and morning.start_time is not None
+            ):
+                gap = (_minutes_of(owner.start_time) or 0) - (
+                    _minutes_of(morning.start_time) or 0
+                )
+        if owner is None or not gap or gap <= 0:
+            if (target_item_id or "").startswith("hotel-morning-") and not taxi:
+                report, _summary, notes = self.retime_item(
+                    session, target_item_id, start=depart
+                )
+                summary = ChangeSummary(
+                    change_summary=[
+                        L(
+                            f"第{item.day}天 从酒店出发改为 {_fmt_hm(depart)}",
+                            f"Day {item.day}: leave the hotel at {_fmt_hm(depart)}",
+                        )
+                    ],
+                    affected_items_count=1,
+                )
+                return report, summary, notes
+            raise ValueError("item_not_found")
+        dep_mins: list[int] = []
+        for raw in list(getattr(owner, "access_depart_times", None) or []):
+            try:
+                h, _, m = str(raw).partition(":")
+                minutes = int(h) * 60 + int((m or "0")[:2])
+            except (TypeError, ValueError):
+                continue
+            if 0 <= minutes < 24 * 60:
+                dep_mins.append(minutes)
+        if not dep_mins:
+            raise ValueError("no_timetable")
+        want = depart.hour * 60 + depart.minute
+        best = min(dep_mins, key=lambda b: (abs((b - int(gap)) - want), -b))
+        report, _summary, notes = self.set_access_departure(
+            session,
+            owner.item_id,
+            direction="out",
+            depart=time(best // 60, best % 60),
+        )
+        chain_start = best - int(gap)
+        chain_hm = _fmt_hm(time(chain_start // 60, chain_start % 60))
+        bus_hm = _fmt_hm(time(best // 60, best % 60))
+        if taxi:
+            label = L(
+                f"第{item.day}天 打车 {chain_hm} 出发（按 {bus_hm} 班次）",
+                f"Day {item.day}: taxi at {chain_hm} (on the {bus_hm} shuttle)",
+            )
+        else:
+            label = L(
+                f"第{item.day}天 从酒店出发 {chain_hm}（按 {bus_hm} 班次）",
+                f"Day {item.day}: leave the hotel at {chain_hm} "
+                f"(on the {bus_hm} shuttle)",
+            )
+        summary = ChangeSummary(change_summary=[label], affected_items_count=1)
+        return report, summary, notes
+
     def reflow_after_delete(self, session: PlanSession, *, days: set[int]) -> list[str]:
         """删卡后的当天时间链压缩（2026-11-15 用户「删掉天安门后后面的
         故宫没有做相应调整」）：删一张卡后，受影响天按列表顺序重新起排——

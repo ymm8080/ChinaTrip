@@ -2523,10 +2523,59 @@ async def set_plan_item_duration(
     return _plan_turn_body(session, reply, None)
 
 
+def _resolve_taxi_chain(plan, taxi_id: str) -> tuple[str, int]:
+    """打车卡 → (去程班次卡 id, 班次起−链起点 gap)。
+
+    taxi-board-* 是响应副本渲染件（legs.attach_outbound_taxi_cards 派生：
+    id = 前缀 + 去程卡后缀；起点可能被前卡钳位）。在响应同形状盘面上实测
+    班次起−打车起 的 gap（含缓冲15/叫车15/车程），agent.set_chain_time 用
+    同一 gap 反推每班候选的链起点。解析不到=盘面已变 → item_not_found。
+    """
+    from app.services.itinerary.legs import TAXI_BOARD_PREFIX
+    from app.services.trip_solver.assembly.materialize import (
+        OUTBOUND_CARD_PREFIX,
+    )
+
+    tid = str(taxi_id or "")
+    if not tid.startswith(TAXI_BOARD_PREFIX):
+        raise ValueError("item_not_found")
+    owner_id = OUTBOUND_CARD_PREFIX + tid[len(TAXI_BOARD_PREFIX) :]
+    for day in getattr(plan, "days", None) or []:
+        taxi = next(
+            (i for i in day.items or [] if str(getattr(i, "item_id", "") or "") == tid),
+            None,
+        )
+        if taxi is None:
+            continue
+        owner = next(
+            (
+                i
+                for i in day.items or []
+                if str(getattr(i, "item_id", "") or "") == owner_id
+            ),
+            None,
+        )
+        if owner is None or taxi.start_time is None or owner.start_time is None:
+            raise ValueError("item_not_found")
+        gap = (
+            owner.start_time.hour * 60
+            + owner.start_time.minute
+            - taxi.start_time.hour * 60
+            - taxi.start_time.minute
+        )
+        if gap <= 0:
+            raise ValueError("item_not_found")
+        return owner_id, gap
+    raise ValueError("item_not_found")
+
+
 class PlanDepartureRequest(BaseModel):
     item_id: str
     direction: Literal["out", "return"] = "out"
     depart: str  # "HH:MM"
+    # bus=点选班次/桥卡语义（默认，chips 与 R20 桥卡不变）；leave=意图时刻
+    # 落班次链（打车卡/班次日晨卡，R26「酒店、打车等时间也要能改」）。
+    mode: Literal["bus", "leave"] = "bus"
 
 
 @router.post("/plan/{session_id}/departure")
@@ -2546,6 +2595,10 @@ async def select_plan_departure(
     在响应同形状探针盘面上解析桥卡→上一站（bridges.resolve_bridge_prev），
     落 agent.set_leg_departure（R20 2026-11-23「乘车去下一站的时间应该
     也可以编辑」）。
+    mode="leave"（R26 2026-11-23「酒店、打车等所有卡的时间都要能改」）：
+    打车卡/班次日晨卡给意图时刻 → 解析打车卡到去程卡 + 实测链 gap，落
+    agent.set_chain_time（按班次链取最近一班整链重锚）；城内日晨卡回落
+    plain retime。
     """
     if not x_device_id:
         raise HTTPException(status_code=400, detail="missing_device_id")
@@ -2561,7 +2614,21 @@ async def select_plan_departure(
     except (TypeError, ValueError):
         raise HTTPException(status_code=422, detail="bad_depart") from None
     try:
-        if (request.item_id or "").startswith("leg-bridge-"):
+        if request.mode == "leave":
+            # R26（2026-11-23 用户令「酒店、打车、晚餐的时间也应该同样能改」）：
+            # 打车卡/班次日晨卡给意图时刻 → 按班次链落最近一班（整链重锚）。
+            target = request.item_id
+            taxi = False
+            gap = None
+            if (request.item_id or "").startswith("taxi-board-"):
+                taxi = True
+                target, gap = _resolve_taxi_chain(
+                    _plan_for_response(session.plan), request.item_id
+                )
+            _, summary, notes = agent.set_chain_time(
+                session, target, depart=depart_at, taxi=taxi, chain_gap=gap
+            )
+        elif (request.item_id or "").startswith("leg-bridge-"):
             # R20（2026-11-23 用户令「乘车去下一站的时间应该也可以编辑」）：
             # 桥卡只活在响应副本（幂等先清后挂、卡上无可编辑实体）——在
             # 响应同形状的探针盘面上解析桥卡 → 上一站，改出发时刻=把上一
