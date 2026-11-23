@@ -80,7 +80,9 @@ def test_fills_address_and_hours_from_store():
 def test_never_overwrites_existing_values():
     item = _item(address="模型给的地址", opening_hours="08:00-18:00")
     store = FakeStore(
-        by_id={"unesco_Q125445": {"address": "库里的地址", "opening_hours": "06:30-22:00"}}
+        by_id={
+            "unesco_Q125445": {"address": "库里的地址", "opening_hours": "06:30-22:00"}
+        }
     )
 
     filled = _fill_detail_from_store(_plan(item), store)
@@ -91,7 +93,9 @@ def test_never_overwrites_existing_values():
 
 
 def test_skips_legs_without_poi_lookup():
-    leg = _item(name="🚕 乘车前往下一站·约20分钟", poi_id=None, from_city="北京", to_city="北京")
+    leg = _item(
+        name="🚕 乘车前往下一站·约20分钟", poi_id=None, from_city="北京", to_city="北京"
+    )
     store = FakeStore()
 
     filled = _fill_detail_from_store(_plan(leg), store)
@@ -103,7 +107,9 @@ def test_skips_legs_without_poi_lookup():
 
 def test_falls_back_to_name_lookup_when_poi_id_misses():
     item = _item(poi_id=None, name="景山公园", city="北京")
-    store = FakeStore(by_name={("北京", "景山公园"): {"address": "北京市西城区景山西街44号"}})
+    store = FakeStore(
+        by_name={("北京", "景山公园"): {"address": "北京市西城区景山西街44号"}}
+    )
 
     filled = _fill_detail_from_store(_plan(item), store)
 
