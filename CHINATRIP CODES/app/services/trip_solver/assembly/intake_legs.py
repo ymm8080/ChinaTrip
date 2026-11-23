@@ -82,17 +82,24 @@ def _apply_number(leg, number: str) -> None:
         leg.duration_minutes = FLIGHT_MINUTES if kind == "flight" else TRAIN_MINUTES
 
 
-def _drop_overlapping_synthetic_hotel(plan, day_no: int, lo: int, hi: int) -> bool:
-    """合成晨/夜酒店卡与行前腿重叠 → 撤卡（legacy 端点日形状）。
-    游玩卡/真酒店卡不动；撤的是 materialize 合成锚（hotel-* 前缀）。"""
+def _drop_overlapping_hotel_anchor(plan, day_no: int, lo: int, hi: int) -> bool:
+    """行前腿与「未验证酒店占位锚」重叠 → 撤卡（legacy 端点日形状）。
+    判定=category=hotel 且 hotel-* 前缀且未验证（无 poi/地址/坐标）——
+    用户 ✏️ 验证过的真酒店卡绝不撤。R21b（2026-11-23）：旧判定按
+    materialize 的 synthetic 旗，但验证写回从不清旗 → 真酒店卡会被
+    行前腿误撤；且旗已随「酒店卡可编辑」拍板摘除，改类级判定。"""
     dropped = False
 
     def _overlap(it) -> bool:
         if str(getattr(it, "category", "") or "") != "hotel":
             return False
-        if not getattr(it, "synthetic", False):
-            return False
         if not str(getattr(it, "item_id", "") or "").startswith("hotel-"):
+            return False
+        if (
+            getattr(it, "poi_id", None)
+            or getattr(it, "address", None)
+            or getattr(it, "location", None) is not None
+        ):
             return False
         s = _m(getattr(it, "start_time", None))
         e = _m(getattr(it, "end_time", None))
@@ -137,7 +144,7 @@ def _arrival_side(plan, snapshot, notes: list[str]) -> None:
             dur = int(leg.duration_minutes or INTAKE_LEG_MINUTES)
             leg.end_time = _hhmm(local)
             leg.start_time = _hhmm(local - dur)
-        _drop_overlapping_synthetic_hotel(
+        _drop_overlapping_hotel_anchor(
             plan,
             day_no,
             _m(leg.start_time) or 0,
@@ -176,7 +183,7 @@ def _arrival_side(plan, snapshot, notes: list[str]) -> None:
         flight_no=number if kind == "flight" else None,
     )
     day_plan.items.insert(0, new_leg)
-    _drop_overlapping_synthetic_hotel(plan, day_no, end - INTAKE_LEG_MINUTES, end)
+    _drop_overlapping_hotel_anchor(plan, day_no, end - INTAKE_LEG_MINUTES, end)
     stamp = "%02d:%02d" % (end // 60, end % 60)
     notes.append(
         "第%d天到达已按你填的%s合成接驳腿（%s→%s，%s 到达），"
@@ -220,7 +227,7 @@ def _departure_side(plan, snapshot, notes: list[str]) -> None:
             dur = int(leg.duration_minutes or INTAKE_LEG_MINUTES)
             leg.start_time = _hhmm(local)
             leg.end_time = _hhmm(local + dur)
-        _drop_overlapping_synthetic_hotel(
+        _drop_overlapping_hotel_anchor(
             plan, day_no, _m(leg.start_time) or 0, _m(leg.end_time) or 24 * 60
         )
         notes.append(
@@ -255,7 +262,7 @@ def _departure_side(plan, snapshot, notes: list[str]) -> None:
         flight_no=number if kind == "flight" else None,
     )
     day_plan.items.append(new_leg)
-    _drop_overlapping_synthetic_hotel(plan, day_no, start, start + INTAKE_LEG_MINUTES)
+    _drop_overlapping_hotel_anchor(plan, day_no, start, start + INTAKE_LEG_MINUTES)
     stamp = "%02d:%02d" % (start // 60, start % 60)
     notes.append(
         "第%d天离开已按你填的%s合成接驳腿（%s→%s，%s 出发）。"

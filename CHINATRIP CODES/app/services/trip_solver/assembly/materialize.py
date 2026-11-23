@@ -177,6 +177,8 @@ def compact_days(plan, snapshot):
             )
     for day in plan.days:
         timed = [i for i in day.items if i.start_time is not None]
+        # R21b：酒店晨/夜锚是固定件（此前靠 synthetic 旗，旗已随「酒店卡
+        # 可编辑」拍板摘除——按 category 类级判定，legacy 同语义）。
         fixed = [
             i
             for i in timed
@@ -184,6 +186,7 @@ def compact_days(plan, snapshot):
             # 此前 (i.category or "") 直接 AttributeError——只在带城际卡的
             # 引擎计划上炸）。
             if not isinstance(i, VisitItem)
+            or (i.category or "") == "hotel"
             or getattr(i, "synthetic", False)
             or (i.category or "") in ("transfer", "transport", "food")
             or getattr(i, "access_mode", None)
@@ -567,7 +570,11 @@ def materialize_plan(
                         start_time=_hhmm(m_start),
                         end_time=_hhmm(m_end),
                         duration_minutes=m_end - m_start,
-                        synthetic=True,
+                        # R21b（2026-11-23 用户令「EDIT FUNCTION IS NOT THERE
+                        # FOR HOTEL」）：酒店卡是会话实体不是响应副本渲染件
+                        # ——synthetic 会让前端隐藏一切编辑入口（✏️/改时/删）。
+                        # 锚固定语义由上方 compact fixed 谓词按 category=hotel
+                        # 保障，不再借 synthetic。
                         soft_pin=True,
                     ),
                 )
@@ -595,7 +602,7 @@ def materialize_plan(
                         start_time=_hhmm(n_start),
                         end_time=_hhmm(n_end),
                         duration_minutes=n_end - n_start,
-                        synthetic=True,
+                        # R21b：同晨卡——酒店卡可编辑（R21 拍板），不打 synthetic。
                         soft_pin=True,
                     )
                 )

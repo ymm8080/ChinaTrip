@@ -653,7 +653,10 @@ def test_hotel_anchor_cards_materialize():
     assert "hotel-morning-d1" in ids
     assert "hotel-night-d1" in ids
     m = next(i for i in plan.days[0].items if str(i.item_id) == "hotel-morning-d1")
-    assert m.category == "hotel" and m.synthetic and m.soft_pin
+    # R21b（2026-11-23 拍板「酒店卡时间/名字/地址可编辑」）：酒店卡不再是
+    # 响应副本渲染件——synthetic 会让前端隐藏一切编辑入口，改断言非合成；
+    # 锚固定语义由 compact fixed 谓词按 category=hotel 保障。
+    assert m.category == "hotel" and not m.synthetic and m.soft_pin
     # R16：带去程班次的日子，晨卡=离店点卡（班次−车程15−叫车15−缓冲15=08:00−45=07:15）
     assert m.start_time == time(7, 15) and m.end_time == time(7, 15)
     assert int(m.duration_minutes or 0) == 0

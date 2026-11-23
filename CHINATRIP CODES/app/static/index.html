@@ -2181,7 +2181,7 @@ function planCard(plan) {
         const htlBtn = it.category === "hotel"
           ? ' <button class="btn mini ghost" data-action="htlbook" data-item-id="' + esc(it.item_id) + '" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '" data-day="' + (isMorning ? d.day - 1 : d.day) + '" title="' + (isMorning ? I18N.tf("card.hotel.book.title.morning", "晨卡指向昨晚住宿：拉携程/美团/飞猪渠道卡订上一晚；未验证酒店时按前一天末个带坐标景点定位附近") : I18N.tf("card.hotel.book.title", "拉携程/美团/飞猪渠道卡订本晚酒店；未验证具体酒店时按当天末个带坐标景点定位附近")) + '">🏨 ' + I18N.tf("card.hotel.book", "订酒店") + "</button>"
           : "";
-        if (planSession && planSession.session_id && !isSynth) { // 会话内：换点/钉住/删除可点（合成卡无编辑入口）
+        if (planSession && planSession.session_id && (!isSynth || isHotelSlot)) { // 会话内：换点/钉住/删除可点（合成卡无编辑入口；酒店卡例外——R21 拍板时间/名字/地址可编辑，R15 物化遗留 synthetic 旗不挡）
           tail = mtBtn + htlBtn + (mealSlot ? "" : ' <button class="btn mini ghost" data-action="rename" data-item-id="' + esc(it.item_id) + '" data-city="' + esc(it.city) + '" data-name="' + esc(it.name) + '" data-dur="' + (it.duration_minutes || 0) + '"' + (isHotelSlot ? ' data-hotel="1" data-addr="' + esc(it.address || "") + '"' : "") + ' title="' + (isMorning ? I18N.tf("card.hotel.set.title.morning", "输入酒店名，验证后写入晨卡（名称+地址）") : (isNight ? I18N.tf("card.hotel.set.title", "输入酒店名，验证后写入本晚酒店卡（名称+地址）") : I18N.tf("card.rename.title","✏️ 改关键字，从库内匹配替换；无匹配回车留空"))) + '">' + I18N.tf("card.rename","✏️") + "</button>") +
             ' <button class="btn mini ghost' + (it.pinned ? " on" : "") + '" data-action="pin" data-item-id="' + esc(it.item_id) + '" data-pinned="' + (it.pinned ? "1" : "0") + '">' + (it.pinned ? I18N.t("card.pinned") : I18N.t("card.pin")) + "</button>" +
             ' <button class="btn mini ghost" data-action="del" data-item-id="' + esc(it.item_id) + '">' + I18N.tf("card.del","🗑 删除") + "</button>";
@@ -2189,14 +2189,14 @@ function planCard(plan) {
           tail = mtBtn + htlBtn + ((it.pinned && !it.soft_pin) ? ' <span class="badge warn">' + I18N.tf("card.pinned.badge","已钉住") + "</span>" : "");
         }
         // 悬停简介走 .site-pop 浮层（本行下方 JS），不再挂原生 title（双 tooltip 重叠）
-        const handle = (planSession && planSession.session_id && !it.pinned && !isSynth)
+        const handle = (planSession && planSession.session_id && !it.pinned && (!isSynth || isHotelSlot))
           ? '<span class="drag-handle" title="' + I18N.tf("card.drag.title","拖 ⠿ 排序 / 跨天") + '">⠿</span>' : "";
         const ind = handle ? "74px" : "56px";
         // 桥卡（leg-bridge-，响应副本渲染件）也放开时刻编辑（2026-11-23 用户令
         // 「乘车去下一站的时间应该也可以编辑」）：出发=上一站结束，提交走
         // /departure（hopedit）；其余合成卡（班车/打车/回城）仍纯展示（班次 chips 已覆盖）。
         const isBridgeCard = isSynth && (it.item_id || "").indexOf("leg-bridge-") === 0;
-        const canEditTime = !!(planSession && planSession.session_id && (!isSynth || (isBridgeCard && it.start_time)));
+        const canEditTime = !!(planSession && planSession.session_id && (!isSynth || isHotelSlot || (isBridgeCard && it.start_time)));
         const timeCell = canEditTime
           ? '<button class="t t-edit" data-action="' + (isBridgeCard ? "hopedit" : "retime") + '" data-item-id="' + esc(it.item_id) + '" data-cur="' + (it.start_time ? String(it.start_time).slice(0, 5) : "") + '" title="' + (isBridgeCard ? I18N.tf("card.hopedit.title", "点击修改出发时间") : I18N.tf("card.retime.title", "点击修改开始时间")) + '">' + fmtTime(it.start_time) + "</button>"
           : '<span class="t">' + fmtTime(it.start_time) + "</span>";

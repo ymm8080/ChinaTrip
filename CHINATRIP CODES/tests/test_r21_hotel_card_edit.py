@@ -235,3 +235,49 @@ def test_retime_hotel_morning_card_anchors_day():
         v2 = items["v2"]
         assert v2["start_time"] is not None
         assert v2["start_time"] >= "10:00"
+
+
+def test_intake_leg_drop_keeps_verified_hotel():
+    """行前腿重叠撤卡只撤未验证占位锚；验证过的真酒店卡绝不撤。
+
+    R21b：旧判定按 materialize 的 synthetic 旗（验证写回不清旗）——
+    真酒店卡会被行前腿误撤；改按「无 poi/地址/坐标占位锚」类级判定。
+    """
+    from app.services.trip_solver.assembly.intake_legs import (
+        _drop_overlapping_hotel_anchor,
+    )
+
+    night = VisitItem(
+        item_id="hotel-night-d1",
+        name="测试酒店甲",
+        category="hotel",
+        city="杭州",
+        day=1,
+        start_time=dtime(20, 0),
+        end_time=dtime(21, 0),
+        duration_minutes=60,
+        soft_pin=True,
+        poi_id="B001",
+        address="甲路1号",
+    )
+    morning = VisitItem(
+        item_id="hotel-morning-d1",
+        name="🏨 从酒店出发",
+        category="hotel",
+        city="杭州",
+        day=1,
+        start_time=dtime(19, 0),
+        end_time=dtime(19, 30),
+        duration_minutes=30,
+        soft_pin=True,
+    )
+    plan = ItineraryPlan(
+        itinerary_id="it-r21b",
+        cities=["杭州"],
+        days=[DayPlan(day=1, base_city="杭州", items=[morning, night])],
+    )
+    dropped = _drop_overlapping_hotel_anchor(plan, 1, 19 * 60 + 10, 19 * 60 + 20)
+    assert dropped is True
+    ids = {i.item_id for i in plan.days[0].items}
+    assert "hotel-morning-d1" not in ids  # 未验证占位锚撤下
+    assert "hotel-night-d1" in ids  # 验证过的真酒店卡不动
