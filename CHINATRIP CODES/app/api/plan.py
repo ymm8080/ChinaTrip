@@ -731,9 +731,7 @@ async def start_plan(
     date_text = brief_text
     # brief 读不出日期时把 preferences 并进来（2026-11-23 用户实报）：H5 把
     # 城市写在主输入、日期写在偏好栏时，只取 brief 会漏掉日期再弹行前卡。
-    if pref_raw and (
-        not date_text or _parse_text_start_date(date_text) is None
-    ):
+    if pref_raw and (not date_text or _parse_text_start_date(date_text) is None):
         date_text = f"{date_text} {pref_raw}".strip() if date_text else pref_raw
     if find_urls(date_text):
         date_text = ""
