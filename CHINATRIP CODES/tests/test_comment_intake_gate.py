@@ -119,13 +119,16 @@ def test_intake_still_shown_when_llm_also_blank():
     assert body.get("start_date_hint") is None
 
 
-def test_intake_still_shown_for_date_range_without_days():
-    # 起止两个日期但没写天数：单日期=一日游的拍板不适用，仍要问
+def test_intake_not_shown_for_date_range_days_derived():
+    # 起止两个日期=完整信息（2026-11-23 用户拍板「IF I INPUT ENOUGH
+    # INFORMATION, THERE SHOULD BE NO POP UP WINDOW」）：天数=首末跨度正则
+    # 直推（Nov 20 to Nov 22=3），不弹行前卡；缺的是城市 → 走追问城市，
+    # 不弹卡。旧口径「区间没写天数仍要问」被本拍板取代（11-23 早实锤：
+    # LLM 周配额 429 全灭，区间句被弹卡、用户被迫手填卡里已有的日期）。
     agent = PlanningAgent(None, amap_client=None, poi_details=_GateStore())
     resp = start(client_for(agent), {"preferences": "trip from Nov 20 to Nov 22"})
     body = resp.json()
-    assert body["state"] == "intake"
-    assert body.get("start_date_hint")  # 首日期预填卡
+    assert body["state"] != "intake"
 
 
 def test_intake_not_shown_when_form_days_present():
