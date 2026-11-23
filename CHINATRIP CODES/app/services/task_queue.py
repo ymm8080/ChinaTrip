@@ -374,7 +374,8 @@ async def _replan_handler(payload: dict, _task: TaskRecord) -> dict:
         # 窗口 A：排队期间用户已操作 → 当前 rev 即最新基线，就地对齐。
         if baseline_rev is not None and session.rev != baseline_rev:
             logger.warning(
-                "replan %s: baseline drift before start (%s -> %s), re-running on latest",
+                "replan %s: baseline drift before start (%s -> %s), "
+                "re-running on latest",
                 _task.task_id,
                 baseline_rev,
                 session.rev,
@@ -397,7 +398,8 @@ async def _replan_handler(payload: dict, _task: TaskRecord) -> dict:
                 rebase_count += 1
                 baseline_rev = latest.rev if latest is not None else start_rev
                 logger.warning(
-                    "replan %s: baseline drift during execution (%s -> %s), re-run %d/%d",
+                    "replan %s: baseline drift during execution (%s -> %s), "
+                    "re-run %d/%d",
                     _task.task_id,
                     start_rev,
                     latest.rev if latest is not None else "?",

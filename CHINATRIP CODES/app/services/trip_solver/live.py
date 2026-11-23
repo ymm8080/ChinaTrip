@@ -210,10 +210,10 @@ def _expand_hhmm_window(times, first, last, freq) -> list[str]:
     if explicit:
         return explicit
     f = _row_hhmm(first)
-    l = _row_hhmm(last)
-    if not f or not l:
+    lst = _row_hhmm(last)
+    if not f or not lst:
         return []
-    fm, lm = _hhmm_to_min(f), _hhmm_to_min(l)
+    fm, lm = _hhmm_to_min(f), _hhmm_to_min(lst)
     if fm is None or lm is None or lm < fm:
         return []
     step = max(5, int(freq or DEFAULT_HEADWAY_MINUTES))
