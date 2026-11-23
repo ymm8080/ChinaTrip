@@ -294,7 +294,12 @@ def test_plan_message_then_save_freezes_latest_plan():
         },
         ensure_ascii=False,
     )
-    agent = PlanningAgent(StubAdapter([V0_JSON, edit_json]))
+    # R25: the edit turn may resample a degenerate/unparseable draw
+    # (LLM_ATTEMPTS=2). A one-shot stub turns any such retry into an
+    # exhausted-script hard failure, which is exactly the full-suite load
+    # flake ("assert 1 == 2", the move never applied). Extra copies keep the
+    # test's real promise -- the edit eventually lands -- load-independent.
+    agent = PlanningAgent(StubAdapter([V0_JSON, edit_json, edit_json, edit_json]))
     client = TestClient(make_app(agent))
     # Single-city session: under the 2026-10-19 origin rule the two-city
     # variant would drop 外滩 (origin) and strand 西湖 on the return-train
@@ -331,7 +336,9 @@ def test_plan_message_then_save_freezes_latest_plan():
     assert body["working_sync_version"] == 1
     items = [i for d in body["plan"]["days"] for i in d["items"]]
     moved = next(i for i in items if i["item_id"] == "v1")
-    assert moved["day"] == 2  # frozen copy holds the latest plan
+    # frozen copy holds the latest plan (diagnostics: when this goes red the
+    # reply says which path degraded -- LLM retry exhausted vs apply miss)
+    assert moved["day"] == 2, (moved, msg.json().get("reply"))
     assert body["snapshots"]  # one immutable snapshot frozen
 
     # Second save: upsert bumps the working copy, freezes another snapshot.
