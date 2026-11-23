@@ -794,7 +794,20 @@ def test_p1d_solution_is_deterministic_including_auxiliary_anchors():
     assert shape(a) == shape(b)
 
 
-def test_large_snapshot_timeout_prefix_is_deterministic():
+def test_large_snapshot_solve_is_deterministic():
+    """大池（17 候选）双解确定性：形状/状态/目标值逐一相等。
+
+    2026-11-23 修 flaky（原 ``test_large_snapshot_timeout_prefix_is_deterministic``）：
+    默认 3s 预算下，本环境（Windows 开发机）会先撞**墙钟安全网**
+    （``solve`` 里 ``max_time_in_seconds=remaining``）而不是 dtime 帽，于是同一
+    输入两次求解一次 OPTIMAL 一次 FEASIBLE、且弃排/目标值跟着漂（实测
+    preference 2056 vs 1950）。墙钟截断本身与机器负载相关——引擎注释已明写
+    「do not gate tiers on elapsed wall time, which would reintroduce
+    load-dependent output on slow machines」，所以「截断下确定性」不是引擎
+    承诺的语义，按它断言必 flaky。
+
+    这里给足墙钟余量（30s ≫ 实测 ~5.5s/解），让 dtime 帽（机器无关）成为
+    唯一的搜索量决定因素，再断言全等——这才是引擎真正承诺的确定性。"""
     snapshot, _, _ = load_golden(G01)
     base = next(c for c in snapshot.candidates if c.cid == "c2")
     categories = ("attraction", "entertainment", "tea_experience", "citywalk", "museum")
@@ -813,8 +826,9 @@ def test_large_snapshot_timeout_prefix_is_deterministic():
             )
         )
     stress = replace(snapshot, candidates=snapshot.candidates + tuple(extra))
-    first = solve_snapshot(enrich(stress))
-    second = solve_snapshot(enrich(stress))
+    enriched = enrich(stress)
+    first = solve_snapshot(enriched, budget_s=30)
+    second = solve_snapshot(enriched, budget_s=30)
 
     def timeout_shape(solution):
         return (
