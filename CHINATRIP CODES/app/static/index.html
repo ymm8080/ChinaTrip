@@ -3554,7 +3554,7 @@ function planRenderReply(holder, body, opts) {
     // 同一张站点卡上问顺序选边——keep=按你写的第N天钉，replan=按天气/地理重排。
     let seqPick = body.sequence_ask ? "keep" : null;
     if (body.sequence_ask) {
-      box.appendChild(frag("<div class='muted'>" + I18N.tf("plan.sites.seqAsk", "你的文字已经按天写好了：按你写的顺序排，还是按天气/地理重排？（天内先后仍会按开放时间与路程微调）") + "</div>"));
+      box.appendChild(frag("<div class='muted'>" + I18N.tf("plan.sites.seqAsk", "你的文字已经按天写好了：按你写的排（每天内的景点与先后固定，遇天气更适合可整天换），还是把链接/文字里的景点全当必去、按引擎自身逻辑完全重排？") + "</div>"));
       const rowSeq = el('<div class="chips"></div>');
       const seqBtn = (val, label) => {
         const b = el('<button class="chip">' + label + "</button>");

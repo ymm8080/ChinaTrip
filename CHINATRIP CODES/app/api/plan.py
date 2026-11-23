@@ -521,7 +521,11 @@ async def save_plan(
     # 雨日调换终闸（2026-11-11 拍板「打开行程自动更新天气，同时根据雨
     # 天走调换逻辑」）：冻结前现查天气库——雨日不耐雨组合与干日耐雨组
     # 合对调，钉/场次/餐酒店不动，披露进 assumptions。
-    rain_notes = agent.rain_rebalance_days(session)
+    rain_notes = (
+        []
+        if str(getattr(session, "sequence_choice", "") or "") == "keep"
+        else agent.rain_rebalance_days(session)
+    )
     if rain_notes:
         for note in rain_notes:
             logger.warning("plan/save %s rain-swap: %s", session_id, note)
@@ -701,9 +705,13 @@ async def get_plan_session(
         raise HTTPException(status_code=404, detail="session_not_found")
     if session.plan is None:
         raise HTTPException(status_code=400, detail="no_plan")
+    # R25c：KEEP 会话的盘面由引擎负责（快照期已按 POI 去重、按天气选天）——
+    # 读路径不再做同站合并/雨日对调，免得拆掉用户写明的整天块。
+    _keep_seq = str(getattr(session, "sequence_choice", "") or "") == "keep"
     # 同站合并读闸（2026-10-28 变脸 x4 事故）：历史脏数据打开即自愈，
     # 与下方实测腿刷新同模式（读路径修复 + store.save 持久化）。
-    dedupe_plan_visits(session.plan)
+    if not _keep_seq:
+        dedupe_plan_visits(session.plan)
     # 腿间隔读闸（2026-11-03 Day2 大明宫→城墙 15:00 零车程事故）：
     # 11-02 前旧兜底产物带腿重排自愈，钉/餐不动，装不下留空披露。
     for note in heal_leg_gaps(session.plan):
@@ -720,8 +728,9 @@ async def get_plan_session(
     # 雨日调换读闸（2026-11-11 拍板「天气真值每日漂移，打开行程自动更
     # 新天气，同时根据雨天走调换逻辑」）：现查天气库——雨日不耐雨组合
     # 与干日耐雨组合对调，钉/场次/餐酒店不动；双语披露进 assumptions。
-    for note in agent.rain_rebalance_days(session):
-        logger.warning("plan/session %s rain-swap: %s", session_id, note)
+    if not _keep_seq:
+        for note in agent.rain_rebalance_days(session):
+            logger.warning("plan/session %s rain-swap: %s", session_id, note)
     # 空档补点读闸（2026-11-16 上海案）：开页只治「上午空着」——晨卡先回
     # 08:30 日始，上午空出来的天按类型多样性补点；无空上午的行程零成本空转，
     # 绝不在刷新时往行程里加新卡。

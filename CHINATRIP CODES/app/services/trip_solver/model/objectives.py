@@ -662,15 +662,63 @@ def _remote_first(bundle: "VarBundle", enriched: "EnrichedSnapshot") -> Objectiv
     return ObjectiveTier("remote_first", sum(terms), "min")
 
 
+def _weather_days(bundle: "VarBundle", enriched: "EnrichedSnapshot"):
+    """R25c 天气选天层（归日偏好之前）：只计雨天室外暴露的惩项（库内
+    weather.penalty）——KEEP 的整天块可因天气换天（排前= 天气比质量/填充更硬）；
+    非雨天零成本、无 forecast 时返 None（零漂移）。轻雨内室 60 惩与周末罚
+    仍留 preference 层。"""
+    request = enriched.snapshot.request
+    terms = []
+    weather = getattr(enriched, "weather", None) or {}
+    for cand in enriched.snapshot.candidates:
+        for day in bundle.days:
+            day_dt = day_date(request.start_date, int(day))
+            if day_dt is None:
+                continue
+            iso = day_dt.isoformat()
+            entry = weather.get((cand.cid, iso))
+            if not entry:
+                continue
+            penalty = int(entry.get("penalty") or 0)
+            if penalty > 0:
+                terms.append(penalty * bundle.presence[(cand.cid, int(day))])
+    if not terms:
+        return None
+    return ObjectiveTier("weather_days", sum(terms), "min")
+
+
+def _day_hint(bundle: "VarBundle", enriched: "EnrichedSnapshot"):
+    """R25c 归日软偏好：在天气/质量（preference）之后的词典序层——
+    天气更优时前层已锁定（KEEP 当天可换）；平手时块回写明的天。"""
+    from .c25_must_days import day_hint_terms
+
+    terms = day_hint_terms(bundle)
+    if not terms:
+        return None
+    return ObjectiveTier("day_hint", sum(terms), "min")
+
+
 def build_objectives(
     bundle: "VarBundle",
     enriched: "EnrichedSnapshot",
     slack: SlackFlags | None = None,
 ) -> list[ObjectiveTier]:
-    return [
-        _coverage(bundle, enriched),
-        _preference(bundle, enriched, slack),
-        _travel(bundle, enriched),
-        _makespan(bundle, enriched),
-        _remote_first(bundle, enriched),
-    ]
+    # R25c：天气选天 → 归日偏好（写明的天）→ 质量/填充。
+    # KEEP 的整天块：天气有更优时换天（天气层在前）；否则回写明的天（归日层在
+    # preference 之前，质量/填充不再抢数据写明的天）。
+    tiers = [_coverage(bundle, enriched)]
+    _wx = _weather_days(bundle, enriched)
+    if _wx is not None:
+        tiers.append(_wx)
+    _dh = _day_hint(bundle, enriched)
+    if _dh is not None:
+        tiers.append(_dh)
+    tiers.append(_preference(bundle, enriched, slack))
+    tiers.extend(
+        [
+            _travel(bundle, enriched),
+            _makespan(bundle, enriched),
+            _remote_first(bundle, enriched),
+        ]
+    )
+    return tiers

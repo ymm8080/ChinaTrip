@@ -761,7 +761,7 @@
       "plan.share": "🔗 Share",
       "plan.sites.echo": "✅ Must-visit: ",
       "plan.sites.fail": "❌ Confirm failed: ",
-      "plan.sites.seqAsk": "Your text already lays out the days — keep the sequence you wrote, or replan by weather/geography? (Within a day, order still fine-tunes around opening hours and travel.)",
+      "plan.sites.seqAsk": "Your text already lays out the days — keep what you wrote (each day's sites and their order stay fixed; a whole day may shift for better weather), or treat every place you listed as must-visit and let the engine replan freely?",
       "plan.sites.seqKeep": "📝 Keep my written sequence",
       "plan.sites.seqReplan": "🌦 Replan by weather/geography",
       "plan.sites.intro": "Places spotted in your link — tap to mark “must-visit”; only those are written to your trip-center wishlist (skip = not saved):",

@@ -132,6 +132,12 @@ def solve(
     if hint is not None:
         _apply_hint(bundle, hint)
     tiers = build_objectives(bundle, enriched, slack)
+    # R25c：写明的天作为搜索种子（hint 只暖启动，不改确定性口径）——
+    # 使 day_hint/coverage 层第一个 incumbent 就是「按写的天」，截断 FEASIBLE 不会
+    # 锁死一个被换乱的初解（R25c live 实测：天块整体漂移的根因）。
+    _blocks = getattr(bundle, "c25_day_blocks", None) or {}
+    for (_hd, _d), _var in (_blocks.get("vars") or {}).items():
+        bundle.model.AddHint(_var, 1 if int(_d) == int(_hd) else 0)
     solver = None
     status = "UNKNOWN"
     objective_values: dict[str, int] = {}
@@ -230,9 +236,15 @@ def solve(
         # R8-S4：tier②（fill 最大化）专属 dtime——大池 all-fill 的
         # 病灶层（36×5 在 0.4/0.5 下 UNKNOWN=空排）；其余层维持
         # R5 调好的口径（g11 墙钟不被拖爆）。
-        candidate_solver.parameters.max_deterministic_time = (
-            tier2_det if (index == 1 and tier2_det is not None) else tier_det
+        # R25c：层序名化——插入 weather_days/day_hint 后 index 不再等价于名字。
+        _det = (
+            tier2_det
+            if (tier.name == "preference" and tier2_det is not None)
+            else tier_det
         )
+        if tier.name in ("day_hint", "weather_days"):
+            _det = max(_det, 1.2)
+        candidate_solver.parameters.max_deterministic_time = _det
         if tier.sense == "min":
             bundle.model.Minimize(tier.expression)
         else:

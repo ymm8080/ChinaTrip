@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """R25 顺序选边（用户令：文本已按天写好 → 问保持顺序还是按天气/
-地理重排）。keep=site_days 天钉喂引擎（C-25）与 legacy；replan=两边都不吃。
+地理重排）。keep=日内固定（同组同日+顺序固定）、整天可随天气换（C-25 块）；
+replan=不建块约束、引擎自排。
 """
 
 from types import SimpleNamespace
@@ -11,7 +12,10 @@ from test_brief_text_input import SitesStore
 from app.api.plan import _plan_turn_body
 from app.services.agent.plan import PlanSession
 from app.services.trip_solver.live import _session_snapshot, snapshot_from_request
-from app.services.trip_solver.model.c25_must_days import add_c25_must_days
+from app.services.trip_solver.model.c25_must_days import (
+    add_c25_day_blocks,
+    day_hint_terms,
+)
 
 
 def _known(names, city="北京"):
@@ -71,36 +75,86 @@ def test_session_snapshot_keep_vs_replan():
     ]
 
 
-def test_c25_forbids_wrong_day_presence():
+def _block_world(hint=2, days=(1, 2, 3)):
     snapshot = SimpleNamespace(
         request=SimpleNamespace(
             days=3,
-            musts=[SimpleNamespace(rid="r1", day_hint=2)],
+            musts=[
+                SimpleNamespace(rid="r1", day_hint=hint),
+                SimpleNamespace(rid="r2", day_hint=hint),
+            ],
         ),
-        candidates=[SimpleNamespace(cid="c1", kind="requested", rid="r1")],
+        candidates=[
+            SimpleNamespace(cid="c1", kind="requested", rid="r1"),
+            SimpleNamespace(cid="c2", kind="requested", rid="r2"),
+        ],
     )
     enriched = SimpleNamespace(snapshot=snapshot)
-
     m = cp_model.CpModel()
-    presence = {("c1", d): m.NewBoolVar("p%d" % d) for d in (1, 2, 3)}
-    bundle = SimpleNamespace(model=m, presence=presence, days=[1, 2, 3])
-    add_c25_must_days(bundle, enriched)
-    m.Add(presence[("c1", 1)] == 1)  # 错天在场 → 不可行
+    presence = {
+        (c, d): m.NewBoolVar("p_%s_%d" % (c, d)) for c in ("c1", "c2") for d in days
+    }
+    start = {
+        (c, d): m.NewIntVar(0, 1440, "s_%s_%d" % (c, d))
+        for c in ("c1", "c2")
+        for d in days
+    }
+    dur = {c: 60 for c in ("c1", "c2")}
+    bundle = SimpleNamespace(
+        model=m, presence=presence, start=start, dur=dur, days=list(days)
+    )
+    add_c25_day_blocks(bundle, enriched)
+    return m, bundle, presence, start, dur
+
+
+def test_c25_block_members_stay_same_day_but_may_swap():
+    # 日内选择固定=同一块同一天：一个在第1天、一个在第2天 → 不可行
+    m, bundle, presence, _start, _dur = _block_world()
+    m.Add(presence[("c1", 1)] == 1)
+    m.Add(presence[("c2", 2)] == 1)
     assert cp_model.CpSolver().Solve(m) == cp_model.INFEASIBLE
 
-    m2 = cp_model.CpModel()
-    presence2 = {("c1", d): m2.NewBoolVar("q%d" % d) for d in (1, 2, 3)}
-    bundle2 = SimpleNamespace(model=m2, presence=presence2, days=[1, 2, 3])
-    add_c25_must_days(bundle2, enriched)
-    m2.Add(presence2[("c1", 2)] == 1)  # 指定天在场 → 可行
+    # 整天可换：同一块一起落在第3天 → 可行
+    m2, _b2, presence2, _s2, _d2 = _block_world()
+    m2.Add(presence2[("c1", 3)] == 1)
+    m2.Add(presence2[("c2", 3)] == 1)
     assert cp_model.CpSolver().Solve(m2) in (cp_model.FEASIBLE, cp_model.OPTIMAL)
 
-    m3 = cp_model.CpModel()
-    presence3 = {("c1", d): m3.NewBoolVar("s%d" % d) for d in (1, 2, 3)}
-    bundle3 = SimpleNamespace(model=m3, presence=presence3, days=[1, 2, 3])
-    add_c25_must_days(bundle3, enriched)
-    m3.Add(presence3[("c1", 3)] == 1)  # 又一错天 → 不可行
-    assert cp_model.CpSolver().Solve(m3) == cp_model.INFEASIBLE
+
+def test_c25_block_order_chain_fixed():
+    # 顺序固定：c2 排在 c1 之后（start2 >= start1+dur1）
+    m, bundle, presence, start, dur = _block_world()
+    m.Add(presence[("c1", 2)] == 1)
+    m.Add(presence[("c2", 2)] == 1)
+    m.Add(start[("c1", 2)] == 100)
+    m.Add(start[("c2", 2)] == 120)  # < 100+60 → 违反顺序
+    assert cp_model.CpSolver().Solve(m) == cp_model.INFEASIBLE
+    m2, _b, presence2, start2, _d = _block_world()
+    m2.Add(presence2[("c1", 2)] == 1)
+    m2.Add(presence2[("c2", 2)] == 1)
+    m2.Add(start2[("c1", 2)] == 100)
+    m2.Add(start2[("c2", 2)] == 160)  # 刚好接上 → 可行
+    assert cp_model.CpSolver().Solve(m2) in (cp_model.FEASIBLE, cp_model.OPTIMAL)
+
+
+def test_day_hint_terms_prefer_written_day_but_never_block():
+    m, bundle, presence, _start, _dur = _block_world()
+    m.Add(presence[("c1", 2)] == 1)
+    m.Add(presence[("c2", 2)] == 1)
+    terms = day_hint_terms(bundle)
+    assert terms  # 非空=_归日层真存在
+    m.Minimize(sum(terms))
+    solver = cp_model.CpSolver()
+    assert solver.Solve(m) in (cp_model.FEASIBLE, cp_model.OPTIMAL)
+    assert solver.ObjectiveValue() == 0  # 落在写的天：零罚
+    # 写的天装不下（天气/闭馆）→ 块换天，仍可行（软约束）
+    m3, bundle3, presence3, _s3, _d3 = _block_world()
+    m3.Add(presence3[("c1", 1)] == 1)
+    m3.Add(presence3[("c2", 1)] == 1)
+    m3.Minimize(sum(day_hint_terms(bundle3)))
+    s3 = cp_model.CpSolver()
+    assert s3.Solve(m3) in (cp_model.FEASIBLE, cp_model.OPTIMAL)
+    assert s3.ObjectiveValue() == 1  # 块换到非写明日：每块每天记 1
 
 
 def test_plan_turn_body_sequence_ask_filters_pending():

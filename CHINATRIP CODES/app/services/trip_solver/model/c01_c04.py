@@ -316,7 +316,7 @@ def build_model(
     from .c17_city_days import add_c17_city_days
 
     add_c17_city_days(bundle, enriched)
-    from .c25_must_days import add_c25_must_days
+    from .c25_must_days import add_c25_day_blocks
 
-    add_c25_must_days(bundle, enriched)
+    add_c25_day_blocks(bundle, enriched)
     return bundle
