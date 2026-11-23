@@ -111,7 +111,11 @@ def test_parse_days_reads_english_counts():
     assert _parse_days("twenty-one days") == 21
     # 中文口径不受影响
     assert _parse_days("三日游") == 3
-    assert _parse_days("就 5 个人玩") == 5
+    # 2026-11-23 R22 重祝福：「就 5 个人玩」是人数不是天数——旧断言把句中
+    # 任何数字都当天数（_BARE_INT_RE.search 任意位），同款搜索把贴文「Day1」
+    # 读成 1 天（4 天行程塌 1 天实报）。裸整数兜底只认整句就是一个数
+    # 的短答（「5」）；无天单位的数字不再当天数。
+    assert _parse_days("就 5 个人玩") is None
 
 
 def test_parse_days_ignores_day_ordinals():
