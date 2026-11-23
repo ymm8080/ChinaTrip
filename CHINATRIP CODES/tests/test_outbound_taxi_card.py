@@ -177,7 +177,9 @@ def test_engine_outbound_detail_emits_multi_option_block(monkeypatch):
     assert detail["service_name"] == "前门旅游专线"
     assert detail["gateway"] == "前门大街北口"
     # options 块被 _options_detail 补全打车估算/购票链接
-    assert all("taxi_km" in o and "access_cost" in o and "booking_url" in o for o in opts)
+    assert all(
+        "taxi_km" in o and "access_cost" in o and "booking_url" in o for o in opts
+    )
 
 
 def test_engine_outbound_detail_survives_service_options_failure(monkeypatch):

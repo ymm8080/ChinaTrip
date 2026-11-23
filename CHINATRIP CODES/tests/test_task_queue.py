@@ -307,7 +307,12 @@ def test_replan_no_drift_saves_normally(monkeypatch):
     sessions, agent, task, baseline = _replan_fixture(monkeypatch)
     result = run(
         _replan_handler(
-            {"session_id": "s1", "device_id": "d", "text": "重排", "baseline_rev": baseline},
+            {
+                "session_id": "s1",
+                "device_id": "d",
+                "text": "重排",
+                "baseline_rev": baseline,
+            },
             task,
         )
     )
@@ -324,7 +329,12 @@ def test_replan_baseline_drift_during_execution_reruns_on_latest(monkeypatch):
     sessions, agent, task, baseline = _replan_fixture(monkeypatch, drift_on_call=1)
     result = run(
         _replan_handler(
-            {"session_id": "s1", "device_id": "d", "text": "重排", "baseline_rev": baseline},
+            {
+                "session_id": "s1",
+                "device_id": "d",
+                "text": "重排",
+                "baseline_rev": baseline,
+            },
             task,
         )
     )
@@ -348,7 +358,12 @@ def test_replan_baseline_drift_before_start_reruns_without_burning_quota(monkeyp
 
     result = run(
         _replan_handler(
-            {"session_id": "s1", "device_id": "d", "text": "重排", "baseline_rev": baseline},
+            {
+                "session_id": "s1",
+                "device_id": "d",
+                "text": "重排",
+                "baseline_rev": baseline,
+            },
             task,
         )
     )
@@ -402,8 +417,12 @@ def test_replan_rebase_exhausted_when_session_keeps_changing(monkeypatch):
 
     agent = AlwaysDriftAgent()
     task = TaskRecord(
-        task_id="t1", kind="replan", device_id="d", status="running",
-        created_at="", updated_at="",
+        task_id="t1",
+        kind="replan",
+        device_id="d",
+        status="running",
+        created_at="",
+        updated_at="",
     )
     monkeypatch.setattr("app.api.plan.get_plan_sessions", lambda: sessions)
     monkeypatch.setattr("app.api.plan.get_planning_agent", lambda: agent)
@@ -411,9 +430,13 @@ def test_replan_rebase_exhausted_when_session_keeps_changing(monkeypatch):
     with pytest.raises(ValueError, match="replan_rebase_exhausted"):
         run(
             _replan_handler(
-                {"session_id": "s1", "device_id": "d", "text": "重排", "baseline_rev": sess.rev},
+                {
+                    "session_id": "s1",
+                    "device_id": "d",
+                    "text": "重排",
+                    "baseline_rev": sess.rev,
+                },
                 task,
             )
         )
     assert agent.calls == 4  # _REPLAN_MAX_REBASE(3) + 1 次尝试
-
