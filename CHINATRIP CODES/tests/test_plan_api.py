@@ -4546,7 +4546,13 @@ def test_generate_v0_routes_replan_through_engine(monkeypatch):
     )
 
     def _fake_replan(
-        sess, *, store, extra_assumptions=None, budget_s=3.0, weather_lookup=None
+        sess,
+        *,
+        store,
+        extra_assumptions=None,
+        budget_s=3.0,
+        weather_lookup=None,
+        food_rows=None,
     ):
         calls["sid"] = sess.session_id
         plan = ItineraryPlan(
@@ -4610,7 +4616,13 @@ def test_generate_v0_routes_confirmed_brief_sites_through_engine(monkeypatch):
     )
 
     def _fake_replan(
-        sess, *, store, extra_assumptions=None, budget_s=3.0, weather_lookup=None
+        sess,
+        *,
+        store,
+        extra_assumptions=None,
+        budget_s=3.0,
+        weather_lookup=None,
+        food_rows=None,
     ):
         calls["musts"] = list(sess.must_visits)
         calls["origin_days"] = int(getattr(sess, "origin_days", 0) or 0)
@@ -4956,7 +4968,13 @@ def test_apply_intake_times_skipped_when_engine_served(monkeypatch):
     monkeypatch.setattr(agent, "_apply_intake_times", _intake_sentinel)
 
     def _fake_replan(
-        sess, *, store, extra_assumptions=None, budget_s=3.0, weather_lookup=None
+        sess,
+        *,
+        store,
+        extra_assumptions=None,
+        budget_s=3.0,
+        weather_lookup=None,
+        food_rows=None,
     ):
         plan = ItineraryPlan(
             itinerary_id="it-r11b",
