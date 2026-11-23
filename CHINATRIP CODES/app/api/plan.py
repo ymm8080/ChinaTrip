@@ -1432,6 +1432,7 @@ async def start_plan(
     # R25d：both 选边后的引擎自排版会话号（H5 据此渲染「查看引擎版」）
     if getattr(session, "alt_session_id", None):
         body["alt_session_id"] = session.alt_session_id
+        body["alt_role"] = getattr(session, "alt_role", None) or "primary"
     if session.state == "resto_confirm":
         body["restos"] = [r.model_dump() for r in session.pending_restos]
         if session.history and session.history[-1].role == "assistant":
@@ -1478,6 +1479,27 @@ async def message_plan(
         raise HTTPException(status_code=404, detail="session_not_found")
     # 2026-11-14（用户拍板「心愿单按 USER ID 出内容」）：会话记住登录账号
     session.account_id = account or session.account_id
+    # R28b（2026-11-24 用户令「继续开发」，live 实测）：站点/餐厅确认轮里用户在
+    # 回答卡片——此前「按我写的顺序」被车道分类判成重排意图直接入队异步
+    # 重排，根本到不了 _answer_site_confirm（选择静默丢失）。确认轮的消息就是在回答
+    # 卡片，不进换局闸/车道分类，直接交 agent 对话入口（含链接读取）。
+    if session.state in ("site_confirm", "resto_confirm") and not find_urls(
+        request.text
+    ):
+        try:
+            session, reply, change = await agent.message(session, request.text)
+        except PoiStoreUnavailableError:
+            logger.warning("plan/message poi_store_unavailable")
+            raise HTTPException(status_code=503, detail="poi_store_unavailable")
+        except LLMError as exc:
+            logger.exception("plan/message llm_error: %s", exc)
+            raise HTTPException(status_code=502, detail="llm_error") from exc
+        if session.plan is not None and not consume_fast_turn(session.session_id):
+            await agent.refresh_legs(session)
+        store.save(session)
+        body = _plan_turn_body(session, reply, change)
+        body["lane"] = {"lane": "main", "intent": "confirm_round"}
+        return body
     # 换局闸（2026-11-13「重新规划却回到上次行程」）：这句话本身是另一趟完整
     # 行程（换城市/换天数）时重开会话出新车，旧行程一个字段都不动；必须先于
     # 车道分类——否则慢车道会把「重新规划」当后台重排塞回旧行程。
@@ -2202,6 +2224,7 @@ def _plan_turn_body(session, reply: str, change, *, alternatives: bool = True) -
     # R25d：both 选边后的引擎自排版会话号（H5 据此渲染「查看引擎版」）
     if getattr(session, "alt_session_id", None):
         body["alt_session_id"] = session.alt_session_id
+        body["alt_role"] = getattr(session, "alt_role", None) or "primary"
     if session.state == "resto_confirm":
         body["restos"] = [r.model_dump() for r in session.pending_restos]
     if session.state == "clarify":
@@ -2338,7 +2361,9 @@ async def _make_alt_engine_plan(agent, session, store):
     alt.pending_sites = []
     alt.pending_sites_source = "link"
     alt.sequence_choice = "replan"
-    alt.alt_session_id = None
+    alt.alt_role = "engine"
+    # R28 回链：引擎版上「回到我写的顺序」指回主会话。
+    alt.alt_session_id = session.session_id
     outcome = await asyncio.to_thread(
         replan_session_via_trip_solver,
         alt,

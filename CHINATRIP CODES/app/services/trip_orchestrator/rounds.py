@@ -28,6 +28,7 @@ llm.base / trip_orchestrator.session / 标准库，与 conversation / start_nlu
 from __future__ import annotations
 
 import json
+import re
 
 from app.services.itinerary import ChangeSummary, DiffOp, VisitItem
 from app.services.lang_ctx import L
@@ -68,12 +69,54 @@ def _match_picked_sites(all_sites, mandatory):
     return picked, unmatched
 
 
+# R28 打字顺序意图（中英，类级关键词族）。只认「整句是在回答顺序」的短句，
+# 点名站点的句子（含“必去/可选/去掉/去除”等）不判，免得与站点解析抢。
+_SEQ_KEEP_RE = re.compile(
+    r"按我写的顺序|按写的顺序|保持顺序|按原顺序|按我排的|\bkeep\s+(?:my|the)?\s*(?:written\s+)?(?:order|sequence|plan)\b",
+    re.IGNORECASE,
+)
+_SEQ_REPLAN_RE = re.compile(
+    r"按天气|按地理|重新排|重排|自由排|引擎排|\bre-?plan\b|\brearrange\b|\bby\s+weather\b",
+    re.IGNORECASE,
+)
+_SEQ_BOTH_RE = re.compile(
+    r"两个都要|两种都要|都要|两趟|两份|\bboth\b|\btwo\s+trips?\b",
+    re.IGNORECASE,
+)
+_SITE_ANSWER_TOKEN_RE = re.compile(
+    r"必去|可选|不去|去掉|去除|只去|只要|\bmust\b|\boptional\b|\bskip\b|\bonly\b",
+    re.IGNORECASE,
+)
+
+
+def _typed_sequence_choice(text: str) -> str | None:
+    """打字回答里的顺序意图：keep / replan / both / None。"""
+    t = str(text or "").strip()
+    if not t or len(t) > 60 or _SITE_ANSWER_TOKEN_RE.search(t):
+        return None
+    if _SEQ_BOTH_RE.search(t):
+        return "both"
+    if _SEQ_KEEP_RE.search(t):
+        return "keep"
+    if _SEQ_REPLAN_RE.search(t):
+        return "replan"
+    return None
+
+
 class RoundsMixin:
     async def _answer_site_confirm(
         self, session: PlanSession, text: str
     ) -> tuple[PlanSession, str, ChangeSummary | None]:
         self._absorb_days_cities(session, text)
         sites = list(session.pending_sites)
+        # R28（用户令「继续开发」）：打字回答顺序意图——此前「按我写的顺序」被当
+        # 纯确认句=全选，sequence_choice 不落
+        # （走 _finish_link_sites 不经 confirm_sites）
+        # → 选择静默丢失。这里先读意图；命中 both 时消息轮建不了 alt 会话
+        # （无 store）→ 按 keep 生成并披露请在确认卡上点「两个都要」。
+        _typed_seq = _typed_sequence_choice(text)
+        if _typed_seq:
+            session.sequence_choice = "keep" if _typed_seq == "both" else _typed_seq
         mandatory, optional, parsed = await self._split_site_answer(text, sites)
         if not parsed:
             # Product rule 2026-10-20: an unrecognizable answer keeps the
@@ -88,6 +131,14 @@ class RoundsMixin:
         session.pending_link_url = ""
         session.pending_sites_source = "link"
         notes: list[str] = []
+        if _typed_seq == "both":
+            notes.append(
+                L(
+                    "输入框里暂不能直接生成引擎版；想要两趟对比，请在确认卡上点「两个都要」。",
+                    "The engine version can't be created from the text box; "
+                    "for two trips, tap \u201cBoth\u201d on the confirmation card.",
+                )
+            )
         mentioned = set(mandatory) | set(optional)
         unmentioned = [s for s in sites if s not in mentioned]
         if unmentioned:

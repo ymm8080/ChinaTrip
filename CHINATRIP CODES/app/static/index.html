@@ -3636,7 +3636,8 @@ function planRenderReply(holder, body, opts) {
     siteChipBoxes.push(box);
     if (body.reply) holder.appendChild(el('<div class="muted">' + esc(body.reply) + "</div>"));
     // R25d both：引擎自排版行程已同时生成 → 一键切看
-    if (body.alt_session_id) holder.appendChild(planAltChip(body.alt_session_id));
+    if (body.alt_session_id)
+      holder.appendChild(planAltChip(body.alt_session_id, body.alt_role));
   } else if (body.state === "clarify" && (body.clarify || []).length) {
     const qs = body.clarify;
     holder.appendChild(frag("<div>" + I18N.tf("plan.clarify.title","还需要补充一点信息：") + "</div>" + qs.map(q => '<div class="card">❓ ' + esc(q) + "</div>").join("")));
@@ -4075,9 +4076,13 @@ document.getElementById("planStart").onclick = (e) => busy(e.target, planStartBu
 
 // 产品规则 2026-10-20：点选「必去」确认后直连确认接口——只把勾选的
 // 条目交给后端写入心愿单库；未点选的不回传、不入库（不拼长文本重解析）。
-function planAltChip(altId) {
+function planAltChip(altId, altRole) {
   const row = el('<div class="chips"></div>');
-  const b = el('<button class="chip">' + I18N.tf("plan.sites.altView", "🌦 查看引擎版行程") + "</button>");
+  const back = altRole === "engine";
+  const label = back
+    ? I18N.tf("plan.sites.altBack", "📝 回到我写的顺序")
+    : I18N.tf("plan.sites.altView", "🌦 查看引擎版行程");
+  const b = el('<button class="chip">' + label + "</button>");
   b.onclick = (e) => busy(e.target, async () => {
     const altBody = await api("/api/v1/plan/" + altId, undefined, "GET");
     planSetSession({ session_id: altBody.session_id, state: altBody.state, origin: planLastStart ? { cities: planLastStart.formCities, days: planLastStart.formDays, preferences: planLastStart.prefs, city_days: planLastStart.cityDays, origin_days: planLastStart.originDays || 0, start_date: planLastStart.startDate || undefined, intercity_mode: planTransportMode(), intake: undefined } : undefined });

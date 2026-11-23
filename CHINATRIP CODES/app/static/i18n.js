@@ -770,6 +770,7 @@
       "plan.sites.seqReplan": "🌦 Replan by weather/geography",
       "plan.sites.seqBoth": "📝+🌦 Both (two trips)",
       "plan.sites.altView": "🌦 View the engine-planned version",
+      "plan.sites.altBack": "📝 Back to my written sequence",
       "plan.sites.intro": "Places spotted in your link — tap to mark “must-visit”; only those are written to your trip-center wishlist (skip = not saved):",
       "plan.sites.introBrief": "Places spotted in your description — all pre-selected; tap to unselect any. Only the selected ones are written to your trip-center wishlist (skip = not saved):",
       "plan.sites.introImage": "Places spotted in your image — all pre-selected; tap to unselect any. Only the selected ones are written to your trip-center wishlist (skip = not saved):",

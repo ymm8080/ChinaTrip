@@ -207,3 +207,70 @@ def test_make_alt_engine_plan_builds_ready_alt_session(monkeypatch):
     assert alt.plan is fake_plan
     assert calls["sequence_choice"] == "replan" and calls["plan_is_none"] is True
     assert store.get(alt.session_id, device_id=alt.device_id) is not None
+
+
+def test_typed_sequence_choice_families():
+    from app.services.trip_orchestrator.rounds import _typed_sequence_choice
+
+    assert _typed_sequence_choice("按我写的顺序") == "keep"
+    assert _typed_sequence_choice("keep my written order") == "keep"
+    assert _typed_sequence_choice("按天气重排") == "replan"
+    assert _typed_sequence_choice("replan by weather") == "replan"
+    assert _typed_sequence_choice("两个都要") == "both"
+    assert _typed_sequence_choice("Both please") == "both"
+    # 点名站点/选站的句子不判顺序（不与站点解析抢）
+    assert _typed_sequence_choice("必去：天坛，其余不去") is None
+    assert _typed_sequence_choice("") is None
+
+
+def test_typed_keep_lands_sequence_choice():
+    # 打字回答落位口径（与 _answer_site_confirm 前半段同款）：
+    # keep/replan 直落；both 消息轮建不了 alt → 按 keep 落。
+    from app.services.trip_orchestrator.rounds import _typed_sequence_choice
+
+    for text, want in (
+        ("按我写的顺序", "keep"),
+        ("按天气重排", "replan"),
+        ("两个都要", "keep"),
+    ):
+        probe = _sess(state="site_confirm", pending_sites=["故宫博物院"])
+        typed = _typed_sequence_choice(text)
+        probe.sequence_choice = "keep" if typed == "both" else typed
+        assert probe.sequence_choice == want
+
+
+def test_alt_plan_backlinks_to_primary():
+    import asyncio
+    from types import SimpleNamespace
+
+    import app.services.trip_solver.live as live_mod
+    from app.api.plan import _make_alt_engine_plan
+
+    fake_plan = SimpleNamespace(days=[], assumptions=[], itinerary_id="it-x")
+    monkey_target = live_mod.replan_session_via_trip_solver
+    live_mod.replan_session_via_trip_solver = lambda session, **kw: SimpleNamespace(
+        plan=fake_plan
+    )
+    try:
+        from app.services.agent.plan import PlanSessionStore
+
+        store = PlanSessionStore()
+        primary = _sess(
+            state="ready",
+            must_visits=["故宫博物院"],
+            site_days={"故宫博物院": 1},
+            sequence_choice="keep",
+        )
+        store.save(primary)
+        alt = asyncio.run(_make_alt_engine_plan(None, primary, store))
+    finally:
+        live_mod.replan_session_via_trip_solver = monkey_target
+    assert alt is not None
+    assert alt.alt_role == "engine"
+    assert alt.alt_session_id == primary.session_id
+    # 主会话回包带 role=primary
+    body = _plan_turn_body(primary, None, None)
+    primary.alt_session_id = alt.session_id
+    body = _plan_turn_body(primary, None, None)
+    assert body["alt_session_id"] == alt.session_id
+    assert body["alt_role"] == "primary"
