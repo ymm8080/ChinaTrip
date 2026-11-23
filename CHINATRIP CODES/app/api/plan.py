@@ -814,9 +814,7 @@ async def start_plan(
         and not request.images
         and not _has_link
     ):
-        request = request.model_copy(
-            update={"start_date": _next_monday_beijing_iso()}
-        )
+        request = request.model_copy(update={"start_date": _next_monday_beijing_iso()})
         _defaulted_start = True
         logger.info(
             "plan/start: 表单开局缺出发日期，按下周一 %s 起排（dev=%s）",

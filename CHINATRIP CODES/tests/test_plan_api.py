@@ -295,8 +295,10 @@ def test_start_form_without_date_defaults_next_monday_without_intake(monkeypatch
     assert body.get("session_id")
     expect = _next_monday_beijing_iso()
     assert (body.get("plan") or {}).get("start_date") == expect
-    assert any("下周一" in str(a) or "next Monday" in str(a)
-               for a in body.get("assumptions") or [])
+    assert any(
+        "下周一" in str(a) or "next Monday" in str(a)
+        for a in body.get("assumptions") or []
+    )
 
 
 def test_start_form_plus_chitchat_without_date_still_no_intake(monkeypatch):
