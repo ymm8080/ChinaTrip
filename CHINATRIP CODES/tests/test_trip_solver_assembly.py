@@ -73,6 +73,22 @@ def test_g01_golden_end_to_end():
     snapshot, solution = _g01_solution()
     plan = assemble(solution, snapshot)
     assert isinstance(plan, ItineraryPlan)
+
+
+def test_assemble_echoes_request_origin_days():
+    """C-17 出发城停留回显（2026-11-23 用户实报「起始城天数框生成后恒回
+    0」）：装配必须把请求里的 origin_days 带回 ItineraryPlan——H5
+    planFormSyncFromPlan 靠它回填起始城天数框，丢了=用户填的 k 被静默
+    抹回 0（引擎窗口语义正确、唯独回显丢失案）。"""
+    from dataclasses import replace as dc_replace
+
+    snapshot, solution = _g01_solution()
+    shifted = dc_replace(snapshot, request=dc_replace(snapshot.request, origin_days=2))
+    plan = assemble(solution, shifted)
+    assert plan.origin_days == 2
+    # 缺省请求保持 0（旧口径：出发日只排交通）
+    default_plan = assemble(solution, snapshot)
+    assert default_plan.origin_days == 0
     assert len(plan.days) == snapshot.request.days
     # every requested must is timed or honestly unplaced (B-01 dead)
     must_names = {m.name for m in snapshot.request.musts}

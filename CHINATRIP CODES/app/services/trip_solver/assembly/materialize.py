@@ -739,6 +739,11 @@ def materialize_plan(
         unplaced=unplaced_rows,
         unarranged_musts=unarranged,
         start_date=snapshot.request.start_date,
+        # C-17 出发城停留回显（2026-11-23 用户实报「起始城天数框生成后恒回 0」）：
+        # 引擎窗口语义已吃 origin_days（C-17 shift），但装配没把请求值带回
+        # ItineraryPlan——H5 planFormSyncFromPlan 读 plan.origin_days 回填
+        # 表单，缺省 0 把用户填的 k 静默抹掉。
+        origin_days=getattr(snapshot.request, "origin_days", 0) or 0,
     )
     ensure_unique_item_ids(plan)
     return plan
