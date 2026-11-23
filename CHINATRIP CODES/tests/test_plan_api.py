@@ -3356,6 +3356,125 @@ def test_text_with_date_skips_intake_card():
     assert plan["start_date"] == _d.isoformat()
 
 
+def test_text_date_span_days_unit():
+    """起止日期区间 ⇒ 天数（2026-11-23 用户拍板「IF I INPUT ENOUGH
+    INFORMATION, THERE SHOULD BE NO POP UP WINDOW」）：首末日期跨度正则
+    直推，不依赖 LLM——11-23 早实锤 LLM 周配额 429 全灭，区间句被弹行前
+    卡。动态日期取未来（+40 天），两日期都未来→同滚同不滚，跨度恒稳。"""
+    from datetime import date as _date
+    from datetime import timedelta as _td
+
+    from app.api.plan import _text_date_span_days
+
+    assert _text_date_span_days("2026-11-30到2026-12-07去西安") == 8
+    assert _text_date_span_days("2026-11-30 and 2026-11-30") is None  # 同日非区间
+    assert _text_date_span_days("11月30号去西安") is None  # 单日期=一日游拍板
+    assert _text_date_span_days("西安玩 8 天") is None  # 无日期走旧天数解析
+    assert _text_date_span_days("") is None
+
+    d1 = _date.today() + _td(days=40)
+    d2 = d1 + _td(days=7)
+    _mon = [
+        "Jan",
+        "Feb",
+        "Mar",
+        "Apr",
+        "May",
+        "Jun",
+        "Jul",
+        "Aug",
+        "Sep",
+        "Oct",
+        "Nov",
+        "Dec",
+    ]
+    assert (
+        _text_date_span_days(
+            "%d月%d号到%d月%d号去西安" % (d1.month, d1.day, d2.month, d2.day)
+        )
+        == 8
+    )
+    assert (
+        _text_date_span_days(
+            "%s %d to %s %d Beijing"
+            % (_mon[d1.month - 1], d1.day, _mon[d2.month - 1], d2.day)
+        )
+        == 8
+    )
+    assert (
+        _text_date_span_days(
+            "%04d-%02d-%02d到%04d-%02d-%02d"
+            % (d1.year, d1.month, d1.day, d2.year, d2.month, d2.day)
+        )
+        == 8
+    )
+
+
+def test_text_date_range_skips_intake_card():
+    """文字给了起止日期=信息足够：不弹行前卡，天数=首末跨度直接生成
+    （2026-11-23 用户实报：LLM 周配额 429，「11月30号到12月7号」被弹卡）。"""
+    from datetime import date as _date
+    from datetime import timedelta as _td
+
+    d1 = _date.today() + _td(days=40)
+    d2 = d1 + _td(days=1)
+    text = "%d月%d号到%d月%d号去北京" % (d1.month, d1.day, d2.month, d2.day)
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    client = client_for(agent)
+    resp = start(
+        client,
+        {"cities": [], "days": 0, "preferences": text, "brief": text},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["state"] == "ready"
+    assert body["plan"]["start_date"] == d1.isoformat()
+    assert len(body["plan"]["days"]) == 2
+
+
+def test_text_date_range_days_diff_on_card_resubmit():
+    """区间天数进「days」差异：文字区间 2 天 vs 行前卡跨度 1 天 →
+    confirm_route 摆差异，不静默按卡生成（拍板③对区间句同成立）。"""
+    from datetime import date as _date
+    from datetime import timedelta as _td
+
+    d1 = _date.today() + _td(days=40)
+    d2 = d1 + _td(days=1)
+    text = "%d月%d号到%d月%d号去重庆" % (d1.month, d1.day, d2.month, d2.day)
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    client = client_for(agent)
+    first = start(
+        client,
+        {
+            "cities": [],
+            "days": 0,
+            "preferences": text,
+            "brief": text,
+            "start_date": d1.isoformat(),
+        },
+    )
+    assert first.status_code == 200
+    assert first.json()["state"] == "ready"  # 区间句首轮直接生成，不弹卡
+    second = start(
+        client,
+        {
+            "cities": [],
+            "days": 0,
+            "preferences": text,
+            "brief": text,
+            "start_date": d1.isoformat(),
+            "arrival_date": d1.isoformat(),
+            "departure_date": d1.isoformat(),
+        },
+    )
+    assert second.status_code == 200
+    body = second.json()
+    assert body["state"] == "confirm_route"
+    days = next(d for d in body["diffs"] if d["what"] == "days")
+    assert days["text"] == 2
+    assert days["intake"] == 1
+
+
 def test_text_without_date_asks_intake_card():
     """文字读不出出发日期：返回 state=intake（行前卡收集），不开会话。"""
     agent = PlanningAgent(StubAdapter([V0_JSON]))

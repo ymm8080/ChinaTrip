@@ -20,7 +20,7 @@ import base64
 import logging
 import re
 import uuid
-from datetime import date, datetime, time, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from functools import partial
 from time import monotonic
 from typing import Literal
@@ -60,6 +60,11 @@ from app.services.agent.hotel_stays import (
     sync_stay_cities,
 )
 from app.services.agent.plan import (
+    _EN_DAY_MONTH_RE,
+    _EN_MONTH_DAY_RE,
+    _EN_MONTHS,
+    _TEXT_MD_RE,
+    _TEXT_YMD_RE,
     PlanningAgent,
     PlanSession,
     PlanSessionStore,
@@ -154,6 +159,67 @@ _ALLOWED_IMAGE_MIME = {
     "image/webp",
     "image/bmp",
 }
+
+
+def _text_date_span_days(text: str) -> int | None:
+    """文内起止日期区间 → 天数（2026-11-23 用户拍板「IF I INPUT ENOUGH
+    INFORMATION, THERE SHOULD BE NO POP UP WINDOW」）。
+
+    文里带 ≥2 个绝对日期（11月30号到12月7号 / 2026-11-30~12-07 /
+    Nov 30 to Dec 7）时，行程天数=首末日期跨度——起止都给了就是完整信息，
+    正则直推、不依赖 LLM（11-23 早实锤 LLM 周配额 429 全灭，trip_facts
+    兜底失效，「11月30号到12月7号」类区间句被弹行前卡）。年份口径与
+    _parse_text_start_date 一致：月日缺省年份=今年、已过进下一年，YMD
+    绝对日期不滚动；相对词（今天/明天/下周X）不参与区间推断，仍走 LLM
+    兜底。不同日期 <2 或跨度出 1..30 → None（走既有信息不足闸）。"""
+    t = str(text or "")
+    if not t:
+        return None
+    today = (datetime.now(timezone.utc) + timedelta(hours=8)).date()
+    days: list[date] = []
+    # 逐族扫描、命中即掩：防「2026年11月30号」被 YMD+MD 各计一次。
+    for m in _TEXT_YMD_RE.finditer(t):
+        try:
+            days.append(date(int(m.group(1)), int(m.group(2)), int(m.group(3))))
+        except ValueError:
+            continue
+    masked = _TEXT_YMD_RE.sub("□", t)
+    for m in _TEXT_MD_RE.finditer(masked):
+        try:
+            cand = date(today.year, int(m.group(1)), int(m.group(2)))
+        except ValueError:
+            continue
+        if cand < today:
+            cand = date(today.year + 1, int(m.group(1)), int(m.group(2)))
+        days.append(cand)
+    masked = _TEXT_MD_RE.sub("□", masked)
+    for m in _EN_MONTH_DAY_RE.finditer(masked):
+        mon = _EN_MONTHS.get(m.group(1).lower()[:3])
+        if mon is None:
+            continue
+        try:
+            cand = date(today.year, mon, int(m.group(2)))
+        except ValueError:
+            continue
+        if cand < today:
+            cand = date(today.year + 1, mon, int(m.group(2)))
+        days.append(cand)
+    masked = _EN_MONTH_DAY_RE.sub("□", masked)
+    for m in _EN_DAY_MONTH_RE.finditer(masked):
+        mon = _EN_MONTHS.get(m.group(2).lower()[:3])
+        if mon is None:
+            continue
+        try:
+            cand = date(today.year, mon, int(m.group(1)))
+        except ValueError:
+            continue
+        if cand < today:
+            cand = date(today.year + 1, mon, int(m.group(1)))
+        days.append(cand)
+    if len(set(days)) < 2:
+        return None
+    span = (max(days) - min(days)).days + 1
+    return span if 1 <= span <= 30 else None
 
 
 def _decode_image_payloads(items: list[str] | None) -> list[tuple[bytes, str]]:
@@ -660,6 +726,17 @@ async def start_plan(
     text_days = parsed_brief[1] if parsed_brief else None
     if text_days is None and fact_text:
         text_days = _parse_days(fact_text)
+    # 起止日期区间 ⇒ 天数（2026-11-23 用户拍板「IF I INPUT ENOUGH
+    # INFORMATION, THERE SHOULD BE NO POP UP WINDOW」）：文字给了起止
+    # 两个日期就是完整信息，天数=首末跨度正则直推——LLM 429/不可用
+    # 不再把完整信息弹成行前卡。区间天数只喂生成（range_days），不折
+    # 进 request.days：卡跨度差异时避免与「days」行重复出「card_days」行。
+    range_days: int | None = None
+    if text_days is None and fact_text:
+        range_days = _text_date_span_days(fact_text)
+        if range_days is not None:
+            text_days = range_days
+    # 文字明说的天数
     # 文字明说的天数（拍板③「行前卡信息和文字不同要摆差异」的文字侧）：
     # 正则口径（brief 天数 → 原句天数兜底）。下面「单日期⇒一日游」只是行前
     # 卡闸门的推断，不算文字陈述——用户在卡上挑了别的跨度不算和文字打架，
@@ -735,9 +812,16 @@ async def start_plan(
         resolved = _resolve_brief_cities(
             [_normalize_city(c) for c in parsed[0]], request.cities
         )
+        # 区间推导的天数与 brief 明说天数同级参与 text vs form 对比
+        # （拍板②：表单和文字都填了 → 摆出差异让用户确认）。
+        text_days_claim = parsed[1] if parsed[1] is not None else range_days
         if {_normalize_city(c) for c in resolved} != {
             _normalize_city(c) for c in request.cities
-        } or (parsed[1] is not None and request.days and parsed[1] != request.days):
+        } or (
+            text_days_claim is not None
+            and request.days
+            and text_days_claim != request.days
+        ):
             diffs.append(
                 {
                     "what": "route",
@@ -812,7 +896,7 @@ async def start_plan(
         # 作废（city_days=None），文字天数才能生效。起始城天数同作废
         # （文字路线暂无「出发城玩几天」语法，2026-11-22）。
         start_cities = request.cities
-        start_days = request.days or 0
+        start_days = request.days or range_days or 0
         start_brief = request.brief
         start_city_days = None
         start_origin_days = None
@@ -824,7 +908,7 @@ async def start_plan(
         start_origin_days = request.origin_days
     else:
         start_cities = request.cities or []
-        start_days = request.days or 0
+        start_days = request.days or range_days or 0
         start_brief = request.brief
         start_city_days = request.city_days
         start_origin_days = request.origin_days
