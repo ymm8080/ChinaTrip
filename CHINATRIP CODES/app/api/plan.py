@@ -342,6 +342,8 @@ class PlanMessageRequest(BaseModel):
 
 class PlanSitesConfirmRequest(BaseModel):
     mandatory: list[str] = Field(default_factory=list)  # 点选的必去地点名
+    # R25 顺序选边（同一张站点卡）：keep=按文字日程的天下钉；replan=天气/地理重排
+    sequence: str | None = None
 
 
 class PlanPinRequest(BaseModel):
@@ -1389,6 +1391,14 @@ async def start_plan(
     if session.state == "site_confirm":
         body["sites"] = session.pending_sites
         body["sites_source"] = session.pending_sites_source
+        # R25：文字日程（site_days 非空）→ 同一张卡上问顺序选边
+        _sd = {
+            str(n): int(d)
+            for n, d in (getattr(session, "site_days", None) or {}).items()
+            if str(n) in set(session.pending_sites) and isinstance(d, int) and d > 0
+        }
+        if _sd:
+            body["sequence_ask"] = {"days": _sd, "options": ["keep", "replan"]}
         if session.history and session.history[-1].role == "assistant":
             body["reply"] = session.history[-1].content
         body["clarify"] = clarify_questions(session)
@@ -2144,6 +2154,14 @@ def _plan_turn_body(session, reply: str, change, *, alternatives: bool = True) -
     if session.state == "site_confirm":
         body["sites"] = session.pending_sites
         body["sites_source"] = session.pending_sites_source
+        # R25：文字日程（site_days 非空）→ 同一张卡上问顺序选边
+        _sd = {
+            str(n): int(d)
+            for n, d in (getattr(session, "site_days", None) or {}).items()
+            if str(n) in set(session.pending_sites) and isinstance(d, int) and d > 0
+        }
+        if _sd:
+            body["sequence_ask"] = {"days": _sd, "options": ["keep", "replan"]}
     if session.state == "resto_confirm":
         body["restos"] = [r.model_dump() for r in session.pending_restos]
     if session.state == "clarify":
@@ -2203,7 +2221,9 @@ async def confirm_plan_sites(
     if session.state != "site_confirm" or not session.pending_sites:
         raise HTTPException(status_code=409, detail="not_awaiting_sites")
     try:
-        session, reply, change = await agent.confirm_sites(session, request.mandatory)
+        session, reply, change = await agent.confirm_sites(
+            session, request.mandatory, request.sequence
+        )
     except PoiStoreUnavailableError:
         logger.warning("plan/sites_confirm poi_store_unavailable")
         raise HTTPException(status_code=503, detail="poi_store_unavailable")

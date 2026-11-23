@@ -67,6 +67,11 @@ class PlanSession(BaseModel):
         "clarify"
     )
     clarify_count: int = 0
+    # 链接读不到时的专属追问（2026-11-23 用户拍板「IF ENGINE CAN NOT READ
+    # LINK, SHOULD REPLY AND ASK USER TO PASTE THE CONTENTS」）：非空时
+    # clarify_questions 原样返回它，不再问城市/天数；用户答复后由
+    # _answer_clarification 清空。
+    clarify_override: list[str] = Field(default_factory=list)
     pref_asked: bool = False
     plan: ItineraryPlan | None = None
     history: list[ChatMessage] = Field(default_factory=list)
@@ -128,6 +133,10 @@ class PlanSession(BaseModel):
     # 文本日程（2026-11-14「按输入的日程顺序排」）：自由输入写明「第 N 天/
     # On day N」时，点名的地点落到那一天，不再由地理择日改天。
     site_days: dict[str, int] = Field(default_factory=dict)
+    # R25 顺序选边（2026-11-23 用户令「文本已按天写好 → 问保持顺序还是按
+    # 天气/地理重排」）：keep=site_days 天钉喂引擎（C-25）与 legacy（forced_days）；
+    # replan=两边都不吃 site_days；None=旧口径（legacy 吃、引擎不吃）。
+    sequence_choice: str | None = None
     # 自由输入点名的排除项（2026-11-14 北京小众案）：「尽量避开故宫、长城」
     # 里的地点不是必去，是排除项——不进 must_visits，选点池同名候选直接出局。
     avoid_sites: list[str] = Field(default_factory=list)

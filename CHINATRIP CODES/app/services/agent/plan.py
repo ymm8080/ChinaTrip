@@ -19497,6 +19497,11 @@ def _parse_resto_answer(
 def clarify_questions(session: PlanSession) -> list[str]:
     """§6.1: the two v0 blockers (cities first: origin/destination, then
     days) + the preference round."""
+    override = list(getattr(session, "clarify_override", None) or [])
+    if override:
+        # 链接读不到时的专属追问（2026-11-23 拍板）：只让用户粘贴内容，
+        # 不再叠问城市/天数。
+        return override
     questions: list[str] = []
     if not session.cities:
         questions.append(
@@ -22267,7 +22272,12 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
             site_cities=session.site_cities,
             bindings={**session.wish_bindings, **self._wish_bindings},
             transfer_days=transfer_days,
-            site_days=session.site_days,
+            # R25：replan 选边=不吃文字日程（按天气/地理自由排）；keep/None 照旧
+            site_days=(
+                {}
+                if str(getattr(session, "sequence_choice", "") or "") == "replan"
+                else session.site_days
+            ),
         )
         # 8.1.5 硬闸门联动（TravelPlanner 常识约束）：每天非 food 游览点
         # >4 裁到 4——过载日既走不完也过不了铁律 6。

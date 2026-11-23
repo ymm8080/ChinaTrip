@@ -3537,9 +3537,35 @@ function planRenderReply(holder, body, opts) {
       row.appendChild(b);
     });
     box.appendChild(row);
+    // R25（2026-11-23 用户令「文字已按天写好 → 问保持顺序还是按天气/地理重排」）：
+    // 同一张站点卡上问顺序选边——keep=按你写的第N天钉，replan=按天气/地理重排。
+    let seqPick = body.sequence_ask ? "keep" : null;
+    if (body.sequence_ask) {
+      box.appendChild(frag("<div class='muted'>" + I18N.tf("plan.sites.seqAsk", "你的文字已经按天写好了：按你写的顺序排，还是按天气/地理重排？（天内先后仍会按开放时间与路程微调）") + "</div>"));
+      const rowSeq = el('<div class="chips"></div>');
+      const seqBtn = (val, label) => {
+        const b = el('<button class="chip">' + label + "</button>");
+        b.dataset.seq = val;
+        b.onclick = () => {
+          seqPick = val;
+          rowSeq.querySelectorAll("button").forEach(x => {
+            const on = x.dataset.seq === seqPick;
+            x.style.background = on ? "#2563eb" : ""; x.style.color = on ? "#fff" : "";
+          });
+        };
+        return b;
+      };
+      rowSeq.appendChild(seqBtn("keep", I18N.tf("plan.sites.seqKeep", "📝 按我写的顺序")));
+      rowSeq.appendChild(seqBtn("replan", I18N.tf("plan.sites.seqReplan", "🌦 按天气/地理重排")));
+      box.appendChild(rowSeq);
+      rowSeq.querySelectorAll("button").forEach(x => {
+        const on = x.dataset.seq === seqPick;
+        x.style.background = on ? "#2563eb" : ""; x.style.color = on ? "#fff" : "";
+      });
+    }
     const row2 = el('<div class="chips"></div>');
     const ok = el('<button class="chip">' + I18N.tf("plan.chipConfirm","✅ 确认") + "</button>");
-    ok.onclick = (e) => busy(e.target, () => planConfirmSites(body.sites, must));
+    ok.onclick = (e) => busy(e.target, () => planConfirmSites(body.sites, must, seqPick));
     row2.appendChild(ok);
     box.appendChild(row2);
     holder.appendChild(box);
@@ -3962,14 +3988,14 @@ document.getElementById("planStart").onclick = (e) => busy(e.target, planStartBu
 
 // 产品规则 2026-10-20：点选「必去」确认后直连确认接口——只把勾选的
 // 条目交给后端写入心愿单库；未点选的不回传、不入库（不拼长文本重解析）。
-async function planConfirmSites(allSites, must) {
+async function planConfirmSites(allSites, must, sequence) {
   if (!planSession) return;
   const mand = allSites.filter(s => must.has(s));
   addMsg("flow-plan", "user", I18N.tf("plan.sites.echo","✅ 必去：") + (mand.join("、") || I18N.tf("plan.sites.none","（未选）")));
   const holder = addMsg("flow-plan", "sys", I18N.tf("plan.sites.writing","⏳ 正在写入心愿单…"));
   try {
     if (planSession.state !== "site_confirm") throw { status: 409, detail: "not_awaiting_sites" };
-    const body = await api("/api/v1/plan/" + planSession.session_id + "/sites/confirm", { mandatory: mand });
+    const body = await api("/api/v1/plan/" + planSession.session_id + "/sites/confirm", { mandatory: mand, sequence: sequence || undefined });
     planSession.state = body.state;
     planRenderSafe(holder, body); // 非 site_confirm 状态会顺手关掉旧 chips
   } catch (err) {

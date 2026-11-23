@@ -334,6 +334,7 @@ def _explicit_mode(intercity_mode):
 def snapshot_from_request(
     *,
     cities: list[str],
+    must_days: dict[str, int] | None = None,
     days: int,
     start_date: Optional[str],
     musts: list[str],
@@ -360,6 +361,12 @@ def snapshot_from_request(
     request_musts: list[RequestedItem] = []
     candidates: list[CandidateItem] = []
     must_names_bound: set[str] = set()
+    # R25：keep 选边的文字日程天钉（site_days）→ RequestedItem.day_hint；C-25 消费
+    _day_of: dict[str, int] = {
+        str(k): int(v)
+        for k, v in (must_days or {}).items()
+        if isinstance(v, int) and v > 0
+    }
     must_rows: list[dict] = []
     # R13h：同 POI 必去去重——裂词/别名会让同一地点以两个名字进
     # musts（重启缝按「和」裂词、R13f 短语收 + LLM 抽名各异），绑定
@@ -409,6 +416,11 @@ def snapshot_from_request(
                     ),
                     kind="must",
                     importance=3,
+                    day_hint=(
+                        _day_of.get(str(name))
+                        or _day_of.get(str(row.get("name") or ""))
+                        or None
+                    ),
                 )
             )
             must_rows.append(row)
@@ -423,7 +435,13 @@ def snapshot_from_request(
             # tier surfaces it honestly (timed anywhere legal or unplaced),
             # never a silent drop (B-01).
             request_musts.append(
-                RequestedItem(rid=rid, name=name, kind="must", importance=3)
+                RequestedItem(
+                    rid=rid,
+                    name=name,
+                    kind="must",
+                    importance=3,
+                    day_hint=_day_of.get(str(name)) or None,
+                )
             )
             candidates.append(
                 CandidateItem(cid="c%d" % i, name=name, kind="requested", rid=rid)
@@ -1188,6 +1206,18 @@ def _overlay_chosen_departures(snapshot, session):
     return _replace(snapshot, candidates=tuple(out))
 
 
+def _sequence_must_days(session) -> dict[str, int] | None:
+    """R25：keep 选边时把文字日程的「第N天」带进快照（C-25 硬钉）。"""
+    if str(getattr(session, "sequence_choice", "") or "") != "keep":
+        return None
+    out = {
+        str(n): int(d)
+        for n, d in (getattr(session, "site_days", None) or {}).items()
+        if isinstance(d, int) and d > 0
+    }
+    return out or None
+
+
 def _session_snapshot(
     session, store, extra_musts=None, weather_lookup=None, food_rows=None
 ):
@@ -1225,6 +1255,7 @@ def _session_snapshot(
         days=max(1, int(getattr(session, "days", 1) or 1)),
         start_date=getattr(session, "start_date", None),
         musts=musts,
+        must_days=_sequence_must_days(session),
         store=store,
         weather_lookup=weather_lookup,
         arrival_time=getattr(session, "arrival_time", None),

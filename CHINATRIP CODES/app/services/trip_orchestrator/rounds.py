@@ -102,12 +102,19 @@ class RoundsMixin:
         )
 
     async def confirm_sites(
-        self, session: PlanSession, mandatory: list[str]
+        self,
+        session: PlanSession,
+        mandatory: list[str],
+        sequence: str | None = None,
     ) -> tuple[PlanSession, str, ChangeSummary | None]:
         """H5 chip-confirm path (product rule 2026-10-20): the picked
         必去 names ride straight to the wishlist write + pipeline —
         no composed text, no re-parsing; unpicked sites never land."""
         session = session.model_copy(deep=True)
+        _seq = str(sequence or "").strip().lower()
+        if _seq in ("keep", "replan"):
+            # R25：站点卡上的顺序选边（keep=按文字日程的天下钉 / replan=天气地理重排）
+            session.sequence_choice = _seq
         all_sites = list(session.pending_sites)
         # R19: exact + alias matching -- a mandatory name that
         # matches no candidate must be disclosed, never dropped
@@ -368,6 +375,9 @@ class RoundsMixin:
             clarify_questions,
             logger,
         )
+
+        # 进入答复轮就撤掉链接专属追问，恢复正常解析/追问口径。
+        session.clarify_override = []
 
         if session.pref_asked:
             # Preference round: any non-empty answer counts as the
