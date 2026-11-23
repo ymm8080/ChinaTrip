@@ -173,11 +173,13 @@ def e2e(_browser, server_url, request):
     page.on("request", _on_request)
     page.on(
         "console",
-        lambda msg: handle.console_errors.append(
-            {"text": msg.text, "url": (msg.location or {}).get("url", "")}
-        )
-        if msg.type == "error"
-        else None,
+        lambda msg: (
+            handle.console_errors.append(
+                {"text": msg.text, "url": (msg.location or {}).get("url", "")}
+            )
+            if msg.type == "error"
+            else None
+        ),
     )
     page.on("pageerror", lambda exc: handle.page_errors.append(str(exc)))
 
@@ -215,9 +217,7 @@ def _artifact_on_failure(request):
         "URL: "
         + str(getattr(handle.page, "url", ""))
         + "\n\n-- console errors --\n"
-        + "\n".join(
-            f"{e.get('text')} @ {e.get('url')}" for e in handle.console_errors
-        )
+        + "\n".join(f"{e.get('text')} @ {e.get('url')}" for e in handle.console_errors)
         + "\n\n-- page errors --\n"
         + "\n".join(handle.page_errors)
         + "\n\n-- api calls --\n"

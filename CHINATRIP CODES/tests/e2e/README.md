@@ -34,7 +34,7 @@ E2E_HEADED=1 bash ops/e2e.sh    # 看着它点（排查用）
 
 ```python
 def test_xxx(e2e):
-    e2e.goto()                              # 打开 /h5/
+    e2e.goto()  # 打开 /h5/
     page = e2e.page
     page.fill("#planInput", "杭州 3 天，12月5日出发")
     page.click("#planSend")
@@ -43,7 +43,8 @@ def test_xxx(e2e):
     expect(page.locator("#intakeModal")).to_be_hidden()
     page.wait_for_function(
         "n => document.querySelectorAll('#flow-plan .day-h').length >= n",
-        arg=3, timeout=180_000,
+        arg=3,
+        timeout=180_000,
     )
 
     # ② 报文断言：界面对了但请求缺字段，也是 bug 的另一半
