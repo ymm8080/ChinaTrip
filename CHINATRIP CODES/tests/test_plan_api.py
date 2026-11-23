@@ -3526,7 +3526,8 @@ def test_intake_resubmit_text_vs_one_day_card_asks_confirm():
             "days": 0,
             "preferences": "重庆 2 天",
             "brief": "重庆 2 天",
-            "start_date": "2026-11-20",
+            # 2026-11-23 拍板「信息给足不弹卡」：首轮不带日期 → 才弹行前卡；
+            # 带 start_date 时日期已给足，不再弹，差异确认改由第二轮卡值触发。
         },
     )
     assert first.status_code == 200

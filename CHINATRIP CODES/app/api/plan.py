@@ -721,7 +721,16 @@ async def start_plan(
     fact_text = brief_text or pref_text
     if find_urls(fact_text):  # 链接流不走行前卡（链接自己进读点管线）
         fact_text = ""
-    text_date = _parse_text_start_date(fact_text) if fact_text else None
+    # 日期专用文本（2026-11-23 用户再拍板「IF I INPUT ENOUGH INFORMATION,
+    # THERE SHOULD BE NO POP UP WINDOW」）：上面 pref_text 为「表单用户不
+    # 打扰」在 cities/days 已填时置空，但 H5 常规路径会把自由输入折进
+    # preferences——起止日期写在那里同样是用户给足的信息，不能因为表单
+    # 有值就装没看见、再弹行前卡。这里只用于日期/天数读取，不参与路线
+    # diff（文字路线仍只认 brief，避免偏好文本误触发 confirm_route）。
+    date_text = brief_text or (request.preferences or "").strip()
+    if find_urls(date_text):
+        date_text = ""
+    text_date = _parse_text_start_date(date_text) if date_text else None
     parsed_brief = _trip_brief(brief_text) if brief_text else None
     text_days = parsed_brief[1] if parsed_brief else None
     if text_days is None and fact_text:
@@ -732,8 +741,8 @@ async def start_plan(
     # 不再把完整信息弹成行前卡。区间天数只喂生成（range_days），不折
     # 进 request.days：卡跨度差异时避免与「days」行重复出「card_days」行。
     range_days: int | None = None
-    if text_days is None and fact_text:
-        range_days = _text_date_span_days(fact_text)
+    if text_days is None and date_text:
+        range_days = _text_date_span_days(date_text)
         if range_days is not None:
             text_days = range_days
     # 文字明说的天数
@@ -748,16 +757,21 @@ async def start_plan(
         text_date is not None
         and text_days is None
         and not request.days
-        and _count_text_dates(fact_text) <= 1
+        and _count_text_dates(date_text) <= 1
     ):
         text_days = 1
     # 信息不足=缺「任何必填项」（2026-11-15 用户拍板二拍「不止是出发日期」）：
     # 文字读不出出发日期、或读得出日期却读不出天数/结束日 → 都弹行前卡
     # （响应带 start_date_hint，卡上的开始日期用文字日期预填）。
-    insufficient = text_date is None or text_days is None
+    # 表单已给 days（H5 常规开局）时天数不缺——不再因为读不出原句天数
+    # 就白弹卡；唯一还要补的是出发日期。
+    insufficient = text_date is None or (text_days is None and not request.days)
     if (
         request.route_source is None
-        and fact_text
+        and date_text
+        # 出发日期+天数都已给足才跳过 LLM（自然语言「三晚」还要 LLM 读天数）；
+        # 只有日期没天数仍属信息不足，不能默默按 0 天生成。
+        and not (request.start_date and (request.days or request.city_days))
         and not request.arrival_date
         and not request.departure_date
         and insufficient
@@ -765,7 +779,7 @@ async def start_plan(
         # LLM 先读懂日期/天数（2026-11-17 拍板「LLM UNDERSTAND DATE, TIME
         # DURATION ETC」）：正则读不出的（next Friday / around New Year /
         # 三晚）交给 LLM；LLM 也读不出才弹行前卡。
-        facts = await agent.trip_facts_from_llm(fact_text) or {}
+        facts = await agent.trip_facts_from_llm(date_text) or {}
         if text_date is None and facts.get("start_date"):
             text_date = str(facts["start_date"])
         if text_days is None and facts.get("days"):
@@ -774,10 +788,10 @@ async def start_plan(
             text_date is not None
             and text_days is None
             and not request.days
-            and _count_text_dates(fact_text) <= 1
+            and _count_text_dates(date_text) <= 1
         ):
             text_days = 1
-        insufficient = text_date is None or text_days is None
+        insufficient = text_date is None or (text_days is None and not request.days)
         if insufficient:
             return {"state": "intake", "start_date_hint": text_date}
         if facts.get("city") and not request.cities:
