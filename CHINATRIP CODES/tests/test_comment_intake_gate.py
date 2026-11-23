@@ -9,7 +9,7 @@ DATE, TIME DURATION ETC）；LLM 也读不出才弹行前卡。只写一个日�
 
 import json
 
-from test_plan_api import V0_JSON, StubAdapter, client_for, start
+from test_plan_api import DEVICE_HEADERS, V0_JSON, StubAdapter, client_for, start
 
 from app.services.agent.plan import PlanningAgent
 
@@ -183,6 +183,30 @@ def test_intake_not_shown_for_form_cities_with_preferences_date_range():
     body = resp.json()
     assert body["state"] != "intake"
     assert body.get("start_date_hint") is None
+
+
+def test_intake_not_shown_when_date_only_in_preferences_with_brief_city():
+    # 主输入只写城市、日期写在偏好栏（H5 分栏输入；brief=北京，
+    # preferences=Nov 30 to Dec 7）：日期仍在用户给的信息里，不能只看
+    # brief 就判信息不足再弹卡。
+    agent = PlanningAgent(
+        StubAdapter([V0_JSON]), amap_client=None, poi_details=_GateStore()
+    )
+    # 直发 client：test_plan_api.start() 会给表单用例补 start_date，掩盖
+    # 「日期只在 preferences」这条缝。
+    resp = client_for(agent).post(
+        "/api/v1/plan/start",
+        json={
+            "cities": ["北京"],
+            "brief": "北京",
+            "preferences": "Nov 30 to Dec 7",
+        },
+        headers=DEVICE_HEADERS,
+    )
+    body = resp.json()
+    assert body["state"] != "intake"
+    assert body.get("start_date_hint") is None
+    assert (body.get("plan") or {}).get("start_date") == "2026-11-30"
 
 
 def test_intake_not_shown_when_form_days_present():

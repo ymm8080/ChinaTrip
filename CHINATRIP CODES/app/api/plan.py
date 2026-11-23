@@ -727,14 +727,21 @@ async def start_plan(
     # preferences——起止日期写在那里同样是用户给足的信息，不能因为表单
     # 有值就装没看见、再弹行前卡。这里只用于日期/天数读取，不参与路线
     # diff（文字路线仍只认 brief，避免偏好文本误触发 confirm_route）。
-    date_text = brief_text or (request.preferences or "").strip()
+    pref_raw = (request.preferences or "").strip()
+    date_text = brief_text
+    # brief 读不出日期时把 preferences 并进来（2026-11-23 用户实报）：H5 把
+    # 城市写在主输入、日期写在偏好栏时，只取 brief 会漏掉日期再弹行前卡。
+    if pref_raw and (
+        not date_text or _parse_text_start_date(date_text) is None
+    ):
+        date_text = f"{date_text} {pref_raw}".strip() if date_text else pref_raw
     if find_urls(date_text):
         date_text = ""
     text_date = _parse_text_start_date(date_text) if date_text else None
     parsed_brief = _trip_brief(brief_text) if brief_text else None
     text_days = parsed_brief[1] if parsed_brief else None
-    if text_days is None and fact_text:
-        text_days = _parse_days(fact_text)
+    if text_days is None and date_text:
+        text_days = _parse_days(date_text)
     # 起止日期区间 ⇒ 天数（2026-11-23 用户拍板「IF I INPUT ENOUGH
     # INFORMATION, THERE SHOULD BE NO POP UP WINDOW」）：文字给了起止
     # 两个日期就是完整信息，天数=首末跨度正则直推——LLM 429/不可用

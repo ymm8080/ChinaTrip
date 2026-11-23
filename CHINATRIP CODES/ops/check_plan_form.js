@@ -24,6 +24,14 @@ function loadForm() {
   return m[0];
 }
 
+function loadFn(name) {
+  const src = fs.readFileSync(HTML, "utf8");
+  const re = new RegExp("function " + name + "\\([^)]*\\) \\{[\\s\\S]*?\\n\\}");
+  const m = src.match(re);
+  if (!m) throw new Error("index.html 里没有找到 " + name + "（提取规则失效？）");
+  return m[0];
+}
+
 function build(values) {
   const nodes = {};
   const document = {
@@ -101,6 +109,18 @@ check(
   { planStartCity: "北京", planEndCity: "杭州", planVia1: "上海", planVia1Days: "2", planVia2: "上海", planVia2Days: "4", planEndDays: "1" },
   { cities: ["北京", "上海", "杭州"], cityDays: { 上海: 4, 杭州: 1 }, total: 5 }
 );
+
+/* 7. 开始日期来源（2026-11-23 用户实报「表单填了日期仍弹行前卡」）：
+ *    行前卡日期优先；表单开局带表单日期；纯文字开局不注入表单默认值。 */
+function checkStartDate(label, intakeDate, formDate, useFormParams, expect) {
+  const fn = new Function(loadFn("planResolveStartDate") + "\nreturn planResolveStartDate;")();
+  const got = fn(intakeDate, formDate, useFormParams);
+  if (got !== expect) fail(label + " → " + JSON.stringify(got) + " 期望 " + JSON.stringify(expect));
+  else ok(label);
+}
+checkStartDate("开始日期：行前卡优先", "2026-12-01", "2026-11-26", true, "2026-12-01");
+checkStartDate("开始日期：表单开局带表单日期", "", "2026-11-26", true, "2026-11-26");
+checkStartDate("开始日期：纯文字开局不注默认值", "", "2026-11-26", false, "");
 
 if (failed) {
   console.error("\n规划表单守门失败 " + failed + " 项");

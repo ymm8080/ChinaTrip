@@ -3703,6 +3703,14 @@ async function planStartConfirmed(routeSource, overrides) {
   document.getElementById("flow-plan").scrollTop = 1e9;
 }
 
+// 开始日期解析（2026-11-23 用户实报「表单填了日期仍弹行前卡」）：
+// 行前卡/文字给的日期优先；表单开局带表单「开始日期」；纯文字开局不注入
+// 表单默认值（否则打「北京 2 天」会被默认下周一悄悄绑上）。
+function planResolveStartDate(intakeDate, formDate, useFormParams) {
+  if (intakeDate) return String(intakeDate);
+  return useFormParams ? String(formDate || "") : "";
+}
+
 // extraPref：无会话时从下方输入框直接发送的整句话，并入偏好一起开规划
 async function planStartCore(extraPref, images) {
   planTouch(); // 新一局开跑：作废在途的自动载入，旧行程不许再画回来
@@ -3719,12 +3727,18 @@ async function planStartCore(extraPref, images) {
   // 差异确认（2026-11-14 用户拍板）；纯默认表单仍不发。重新规划/自动载入的
   // 预填不算亲手改（2026-11-15 用户实报：打「北京 2 天」被注入上海出发城）——
   // 只读文字，城市/天数全从文字解析，不注入出发城。
-  const r =
-    formIntent || (textMode && PLAN.formUserTouched)
-      ? planRouteForm()
-      : { cities: [], cityDays: {}, total: 0 };
+  const useFormParams = formIntent || (textMode && PLAN.formUserTouched);
+  const r = useFormParams
+    ? planRouteForm()
+    : { cities: [], cityDays: {}, total: 0 };
   const prefs = textMode ? extraPref : [document.getElementById("planPref").value.trim(), extraPref].filter(Boolean).join("；");
-  PLAN.startDate = intake.start_date || ""; // 行程开始日期=行前卡「开始」日期
+  // 表单「开始日期」也是用户已给的信息：之前这里只认行前卡，表单日期被丢掉，
+  // 后端看不到 start_date → 明明填了日期仍返回 state=intake 弹卡。
+  PLAN.startDate = planResolveStartDate(
+    intake.start_date,
+    document.getElementById("planStartDate").value,
+    useFormParams
+  );
   const tSel = document.getElementById("planTransport");
   addMsg("flow-plan", "user", textMode
     ? I18N.tf("plan.echo.text","开始规划：") + extraPref
