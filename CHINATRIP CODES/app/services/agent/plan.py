@@ -31,6 +31,7 @@ from typing import Literal
 from app.services.agent.hotel_stays import (
     HOTEL_MORNING_ID_PREFIX,
     HOTEL_NIGHT_ID_PREFIX,
+    HOTEL_NIGHT_MINUTES,
     attach_hotel_mornings,
     attach_hotel_nights,
     attach_hotel_stays,
@@ -33301,7 +33302,9 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
     ) -> tuple[ValidationReport, ChangeSummary, list[str]]:
         """规划页手动改时间（2026-10-24）：用户显式设时即最高优先——pinned
         也允许改（pin 冻结的是引擎重排，不是用户本人）。被改项成固定锚点，
-        当天其余非 pinned 景点清空时间后按顺序游标重排并按时间排序。纯计算。"""
+        当天其余非 pinned 景点清空时间后按顺序游标重排并按时间排序。
+        酒店卡（R21 2026-11-23）：夜卡=收尾锚只移卡本身（白天景点不动）；
+        晨卡=出发点锚走通用重排（离店推后→当天顺延）。纯计算。"""
         plan = session.plan
         if plan is None:
             raise ValueError("no_plan")
@@ -33316,6 +33319,46 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
         )
         if visit is None:
             raise ValueError("item_not_found")
+
+        # R21（2026-11-23 用户拍板「酒店卡也要像景点卡一样，时间，名字都
+        # 可以编辑」）：酒店卡改时=用户权威，但级联语义分两档——
+        # ①夜卡是「当天收尾」锚：改它绝不重排白天景点（旧通用路径把当天
+        #   非钉住景点清时刻后从日始重游标，13:00 的西湖会被拽到 09:00）
+        #   → 只移卡本身，reanchor keep_ids 保护它；
+        # ②晨卡是「当天出发点」：改它=离店提前/推后 → 落到下方通用路径
+        #   （当天其余非钉住景点围绕新离店时刻按序重排）。
+        # 名字/地址编辑面在 set-hotel（酒店身份输入）；retime 只动时刻。
+        if is_hotel_night(visit):
+            candidate = plan.model_copy(deep=True)
+            edited = next(
+                i
+                for d in candidate.days
+                for i in d.items
+                if isinstance(i, VisitItem) and i.item_id == item_id
+            )
+            day_no = edited.day
+            dur = edited.duration_minutes or HOTEL_NIGHT_MINUTES
+            start_min = start.hour * 60 + start.minute
+            end_min = start_min + dur
+            edited.start_time = start
+            edited.end_time = (
+                time(end_min // 60, end_min % 60) if end_min < 24 * 60 else None
+            )
+            reanchor_hotel_cards(candidate.days, keep_ids={item_id})
+            report = validate_plan(candidate, poi_hours=[])
+            annotate_legs(candidate)
+            self._replay_measured_legs(candidate)
+            session.plan = candidate
+            summary = ChangeSummary(
+                change_summary=[
+                    L(
+                        f"第{day_no}天 {visit.name} 改到 {_fmt_hm(start)}",
+                        f"Day {day_no}: {visit.name} moved to {_fmt_hm(start)}",
+                    )
+                ],
+                affected_items_count=1,
+            )
+            return report, summary, []
 
         candidate = plan.model_copy(deep=True)
         edited = next(

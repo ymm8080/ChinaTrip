@@ -1875,6 +1875,7 @@ function startHotelEditor(btn, box, plan, id) {
   if (!sid) return;
   const city = btn.getAttribute("data-city") || "";
   const selfName = btn.getAttribute("data-name") || "";
+  const selfAddr = btn.getAttribute("data-addr") || "";
   const holder = el('<div class="rename-box"></div>');
   const input = document.createElement("input");
   input.type = "text";
@@ -1882,12 +1883,31 @@ function startHotelEditor(btn, box, plan, id) {
   input.maxLength = 64;
   input.value = selfName.indexOf("🏨") === 0 ? "" : selfName; // 系统占位名不回填，直接输新名
   const list = el('<div class="rename-list"></div>');
+  // 📍 地址直输（2026-11-23 拍板「WE ONLY ALLOW USER TO INPUT HOTEL NAME
+  // AND ADDRESS」）：店名走验证下拉（必验证），地址可直接手输；名称
+  // 留空只改地址回车也提交（免验证）。卡面「（城市）住 N 晚（日期）」
+  // 等注释是 hotelStayLabel 的系统派生文本，不提供输入面。
+  const addrRow = el('<div style="display:flex;gap:6px;align-items:center;margin-top:6px"></div>');
+  const addrLbl = el('<span style="white-space:nowrap;opacity:.75"></span>');
+  addrLbl.textContent = I18N.tf("card.hotel.addrPh", "📍 地址（可手输）");
+  const addrIn = document.createElement("input");
+  addrIn.type = "text";
+  addrIn.className = "rename-in";
+  addrIn.maxLength = 200;
+  addrIn.value = selfAddr;
+  addrIn.style.flex = "1";
+  addrIn.style.minWidth = "0";
+  addrRow.appendChild(addrLbl);
+  addrRow.appendChild(addrIn);
   holder.appendChild(input);
+  holder.appendChild(addrRow);
   holder.appendChild(list);
   blk.appendChild(holder);
   input.focus();
   input.select();
   const st = { items: [], hi: -1, loading: false, done: false, seq: 0 };
+  let addrEdited = false;
+  addrIn.addEventListener("input", () => { addrEdited = true; });
   const close = () => { if (!st.done) { st.done = true; box.replaceWith(planCard(plan)); } };
   const drawHint = (t) => { list.textContent = ""; const d = el('<div class="rename-hint"></div>'); d.textContent = t; list.appendChild(d); };
   const draw = () => {
@@ -1927,7 +1947,9 @@ function startHotelEditor(btn, box, plan, id) {
     api("/api/v1/plan/" + sid + "/items/" + encodeURIComponent(id) + "/set-hotel", {
       name: h.name,
       source_poi_id: h.source_poi_id || null,
-      address: h.address || null,
+      address: (addrEdited
+        ? (addrIn.value.trim() || null)
+        : (h.address == null || h.address === "" ? null : h.address)),
       opening_hours: h.opening_hours || null,
       lon: h.location ? h.location.lon : null,
       lat: h.location ? h.location.lat : null,
@@ -1956,11 +1978,33 @@ function startHotelEditor(btn, box, plan, id) {
     if (ev.key === "Enter") {
       ev.preventDefault();
       if (st.loading) return;
+      const q = input.value.trim();
+      const addr = addrIn.value.trim();
       if (st.items.length) { pick(st.hi >= 0 ? st.hi : 0); return; }
+      if (!q && addr) { submitAddrOnly(addr); return; } // 只改地址=免验证
+      if (!q && !addr) { close(); return; }
       toast(I18N.tf("card.hotel.noMatchErr", "没验证到这个酒店，换个名称试试")); // 手输必须验证——绝不删卡
     }
   });
-  input.addEventListener("blur", () => { setTimeout(() => close(), 180); });
+  // 只改地址（名称留空）：POST /set-hotel 仅带 address——后端只写地址，
+  // 不动名称/坐标/身份（2026-11-23 拍板「WE ONLY ALLOW USER TO INPUT
+  // HOTEL NAME AND ADDRESS」）。
+  const submitAddrOnly = (addr) => {
+    if (st.done) return;
+    st.done = true;
+    input.disabled = true;
+    addrIn.disabled = true;
+    api("/api/v1/plan/" + sid + "/items/" + encodeURIComponent(id) + "/set-hotel", { address: addr }, "POST")
+      .then(body => {
+        box.replaceWith(planCard(body.plan));
+        toast(I18N.tf("card.hotel.addrDone", "已更新酒店地址"));
+      })
+      .catch(err => { failToast(err); box.replaceWith(planCard(plan)); });
+  };
+  // 双输入框：焦点在面板内互切不关面板（失焦到面板外才还原）。
+  const blurAway = () => { setTimeout(() => { const act = document.activeElement; if (!st.done && (!act || !holder.contains(act))) close(); }, 180); };
+  input.addEventListener("blur", blurAway);
+  addrIn.addEventListener("blur", blurAway);
   drawHint(I18N.tf("card.hotel.ph", "输入酒店名，验证后写入酒店卡"));
 }
 
@@ -2091,7 +2135,7 @@ function planCard(plan) {
           ? ' <button class="btn mini ghost" data-action="htlbook" data-item-id="' + esc(it.item_id) + '" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '" data-day="' + (isMorning ? d.day - 1 : d.day) + '" title="' + (isMorning ? I18N.tf("card.hotel.book.title.morning", "晨卡指向昨晚住宿：拉携程/美团/飞猪渠道卡订上一晚；未验证酒店时按前一天末个带坐标景点定位附近") : I18N.tf("card.hotel.book.title", "拉携程/美团/飞猪渠道卡订本晚酒店；未验证具体酒店时按当天末个带坐标景点定位附近")) + '">🏨 ' + I18N.tf("card.hotel.book", "订酒店") + "</button>"
           : "";
         if (planSession && planSession.session_id && !isSynth) { // 会话内：换点/钉住/删除可点（合成卡无编辑入口）
-          tail = mtBtn + htlBtn + (mealSlot ? "" : ' <button class="btn mini ghost" data-action="rename" data-item-id="' + esc(it.item_id) + '" data-city="' + esc(it.city) + '" data-name="' + esc(it.name) + '" data-dur="' + (it.duration_minutes || 0) + '"' + (isHotelSlot ? ' data-hotel="1"' : "") + ' title="' + (isMorning ? I18N.tf("card.hotel.set.title.morning", "输入酒店名，验证后写入晨卡（名称+地址）") : (isNight ? I18N.tf("card.hotel.set.title", "输入酒店名，验证后写入本晚酒店卡（名称+地址）") : I18N.tf("card.rename.title","✏️ 改关键字，从库内匹配替换；无匹配回车留空"))) + '">' + I18N.tf("card.rename","✏️") + "</button>") +
+          tail = mtBtn + htlBtn + (mealSlot ? "" : ' <button class="btn mini ghost" data-action="rename" data-item-id="' + esc(it.item_id) + '" data-city="' + esc(it.city) + '" data-name="' + esc(it.name) + '" data-dur="' + (it.duration_minutes || 0) + '"' + (isHotelSlot ? ' data-hotel="1" data-addr="' + esc(it.address || "") + '"' : "") + ' title="' + (isMorning ? I18N.tf("card.hotel.set.title.morning", "输入酒店名，验证后写入晨卡（名称+地址）") : (isNight ? I18N.tf("card.hotel.set.title", "输入酒店名，验证后写入本晚酒店卡（名称+地址）") : I18N.tf("card.rename.title","✏️ 改关键字，从库内匹配替换；无匹配回车留空"))) + '">' + I18N.tf("card.rename","✏️") + "</button>") +
             ' <button class="btn mini ghost' + (it.pinned ? " on" : "") + '" data-action="pin" data-item-id="' + esc(it.item_id) + '" data-pinned="' + (it.pinned ? "1" : "0") + '">' + (it.pinned ? I18N.t("card.pinned") : I18N.t("card.pin")) + "</button>" +
             ' <button class="btn mini ghost" data-action="del" data-item-id="' + esc(it.item_id) + '">' + I18N.tf("card.del","🗑 删除") + "</button>";
         } else { // 已保存行程回看：仅静态徽标（美团订/订酒店仍可点）

@@ -133,7 +133,7 @@
       "card.hotel.searching": "Searching map data…",
       "card.hotel.noMatch": "No verified match — try another name",
       "card.hotel.noMatchErr": "Couldn't verify that hotel — try another name",
-      "card.hotel.done": "✅ Hotel verified and set",
+      "card.hotel.done": "✅ Hotel verified and set", "card.hotel.addrPh": "📍 Address (type to override)", "card.hotel.addrDone": "Hotel address updated",
       "card.hotel.noAnchor": "Can't locate tonight yet: verify the hotel with ✏️ first, or add a located sight to this day",
       "card.hotel.stay": "{n}-night stay", "card.hotel.stayRange": " ({ci} → {co})",
       "card.tmode.flight.title": "Switch to flight: re-query flights and update times automatically",

@@ -49,9 +49,14 @@ from app.api.trip_items import get_trip_item_service
 from app.config import Settings, get_settings
 from app.db import get_session_factory
 from app.services.agent.hotel_stays import (
+    _hotel_placeholder,
+    _morning_card_of,
+    _night_card_of,
+    _same_hotel,
     attach_hotel_mornings,
     attach_hotel_nights,
     hotel_morning_label,
+    hotel_stay_bounds,
     is_hotel_morning,
     is_hotel_night,
     paired_hotel_card,
@@ -2745,11 +2750,14 @@ async def insert_plan_alternative(
 
 
 class PlanSetHotelRequest(BaseModel):
-    # 验证下拉选中的候选（H5 /api/v1/hotels/search 选中后携带）。仅 name
-    # 必填：客户端带坐标=已在下拉验证过，直接落卡；缺坐标由服务端重走
-    # 检索链验证——绝不落未验证裸名（2026-11-07 用户指令「NEED TO VERIFY
-    # THE NAME AND SHOW ADDRESS ACCORDINGLY」）。
-    name: str = Field(min_length=1, max_length=64)
+    # 验证下拉选中的候选（H5 /api/v1/hotels/search 选中后携带）。
+    # 2026-11-23 R21（用户拍板「WE ONLY ALLOW USER TO INPUT HOTEL NAME
+    # AND ADDRESS」）：name 改可选——只改地址时省略 name（服务端不验证、
+    # 只写地址，名称/坐标/身份不动；卡面「（城市）住 N 晚（日期）」等
+    # 注释是系统派生文本，永不落用户输入）；name+坐标=直接落卡；name
+    # 缺坐标=服务端重走检索链验证——绝不落未验证裸名（2026-11-07 拍板
+    # 保持不变）。名称与地址都为空=422 empty_request。
+    name: str | None = Field(default=None, max_length=64)
     source_poi_id: str | None = Field(default=None, max_length=64)
     address: str | None = Field(default=None, max_length=200)
     opening_hours: str | None = Field(default=None, max_length=120)
@@ -2786,11 +2794,15 @@ async def set_plan_hotel(
         raise HTTPException(status_code=404, detail="item_not_found")
     if not (is_hotel_night(item) or is_hotel_morning(item)):
         raise HTTPException(status_code=422, detail="not_hotel_slot")
-    name = request.name.strip()
+    name = (request.name or "").strip()
     lon, lat = request.lon, request.lat
-    address, opening_hours = request.address, request.opening_hours
+    address = (request.address or "").strip() or None
+    opening_hours = request.opening_hours
     poi_id = request.source_poi_id
-    if lon is None or lat is None:
+    if not name and not address:
+        # R21：名称与地址都为空=没有可写内容（只收这两个输入面）。
+        raise HTTPException(status_code=422, detail="empty_request") from None
+    if name and (lon is None or lat is None):
         hits = await search_hotel_candidates(chain, settings, name, item.city or None)
         best = next((h for h in hits if h["is_hotel"]), hits[0] if hits else None)
         if best is None or not best.get("name"):
@@ -2802,16 +2814,40 @@ async def set_plan_hotel(
         loc = best.get("location")
         if isinstance(loc, dict):
             lon, lat = loc.get("lon"), loc.get("lat")
-    item.name = hotel_morning_label(name) if is_hotel_morning(item) else name
-    item.poi_id = poi_id
-    item.address = address
-    item.opening_hours = opening_hours
-    item.location = (
-        GeoPoint(lon=lon, lat=lat) if lon is not None and lat is not None else None
-    )
-    # 2026-11-13 续：一次 ✏️ 铺开整段住宿（夜卡↔晨卡对 + 同城连续夜里
-    # 尚未验证的占位卡一起写上同一家酒店），随后全卡按当天首/末件顺延。
-    _, filled = sync_hotel_stay(session.plan.days, item, hotel_name=name)
+    if name:
+        item.name = hotel_morning_label(name) if is_hotel_morning(item) else name
+        item.poi_id = poi_id
+        item.address = address
+        item.opening_hours = opening_hours
+        item.location = (
+            GeoPoint(lon=lon, lat=lat) if lon is not None and lat is not None else None
+        )
+        # 2026-11-13 续：一次 ✏️ 铺开整段住宿（夜卡↔晨卡对 + 同城连续夜里
+        # 尚未验证的占位卡一起写上同一家酒店），随后全卡按当天首/末件顺延。
+        _, filled = sync_hotel_stay(session.plan.days, item, hotel_name=name)
+    else:
+        # R21 地址直输（2026-11-23 拍板「WE ONLY ALLOW USER TO INPUT HOTEL
+        # NAME AND ADDRESS」）：只写地址——名称/坐标/营业时间/身份一律
+        # 不动（「回酒店·夜间休息（城市）住 N 晚（日期）」是前端
+        # hotelStayLabel 的系统派生文本，不在可编辑面内）。地址按住宿段
+        # 铺开：占位卡继承；已验证卡=同一家（poi/坐标同源）才同步地址，
+        # 别家酒店绝不覆盖。
+        item.address = address
+        night_day = item.day if is_hotel_night(item) else item.day - 1
+        stay_lo, stay_hi = hotel_stay_bounds(session.plan.days, night_day)
+        by_day = {dp.day: dp for dp in session.plan.days}
+        filled = 0
+        for d in range(stay_lo, stay_hi + 1):
+            cards = [_night_card_of(by_day.get(d))]
+            morning = _morning_card_of(by_day.get(d + 1))
+            if morning is not None:
+                cards.append(morning)
+            for card in cards:
+                if card is None or card is item:
+                    continue
+                if _hotel_placeholder(card) or _same_hotel(card, item):
+                    card.address = address
+                    filled += 1
     reanchor_hotel_cards(session.plan.days)
     try:
         await agent.refresh_legs(session)
@@ -2823,8 +2859,14 @@ async def set_plan_hotel(
     addr_en = f" ({address})" if address else ""
     extra_zh = f"，同段住宿其余 {filled} 张卡已同步" if filled else ""
     extra_en = f", synced {filled} more card(s) of this stay" if filled else ""
-    reply = L(
-        f"已验证并填入酒店「{name}」" + addr_zh + extra_zh,
-        f'Verified hotel "{name}"' + addr_en + extra_en,
-    )
+    if name:
+        reply = L(
+            f"已验证并填入酒店「{name}」" + addr_zh + extra_zh,
+            f'Verified hotel "{name}"' + addr_en + extra_en,
+        )
+    else:
+        reply = L(
+            "已更新酒店地址" + addr_zh + extra_zh,
+            "Hotel address updated" + addr_en + extra_en,
+        )
     return _plan_turn_body(session, reply, None)
