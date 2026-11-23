@@ -1674,6 +1674,11 @@
    "name_zh": "鹭途鹰（国际）旅行社",
    "name_en": "",
    "reviews": 0
+  },
+  "34811533": {
+   "name_zh": "Shanghai Hengyu International Travel Co.,Ltd",
+   "name_en": "",
+   "reviews": 0
   }
  },
  "restaurants": {
@@ -8430,7 +8435,7 @@
  },
  "gid": "297407",
  "pages_crawled": {
-  "attractions": 1,
+  "attractions": 20,
   "restaurants": 45
  }
 }

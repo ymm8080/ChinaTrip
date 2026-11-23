@@ -1,7 +1,8 @@
 {
  "pages_crawled": {
-  "attractions": 22,
-  "restaurants": 45
+  "attractions": 30,
+  "restaurants": 66,
+  "hotels": 45
  },
  "attractions": {
   "1814790": {
@@ -9535,7 +9536,8269 @@
    "name_zh": "上佳分享食上餐厅",
    "name_en": "",
    "reviews": 0
+  },
+  "5234813": {
+   "name_zh": "上上厨",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5237254": {
+   "name_zh": "山椒乌鱼庄",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4860520": {
+   "name_zh": "鳝鱼馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5234367": {
+   "name_zh": "山珍汤",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4864663": {
+   "name_zh": "生记香鸡馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4705357": {
+   "name_zh": "盛世玺鼎秘制养生板栗鸡(南坪店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5235164": {
+   "name_zh": "生态鱼庄",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5236716": {
+   "name_zh": "食家庄",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4693261": {
+   "name_zh": "食街区美食广场(西政店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5237102": {
+   "name_zh": "石磨坊",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5236253": {
+   "name_zh": "食为天",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5236083": {
+   "name_zh": "石锅鱼火锅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4693184": {
+   "name_zh": "十里串串香(团结路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409731": {
+   "name_zh": "矢量咖啡馆(西城天街店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "15146518": {
+   "name_zh": "十三作星重庆老火锅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409730": {
+   "name_zh": "石油路大盘鸡",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5235396": {
+   "name_zh": "首尔厨师长",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5233127": {
+   "name_zh": "蜀天下",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5236682": {
+   "name_zh": "双风车法式餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4935986": {
+   "name_zh": "水八碗",
+   "name_en": "",
+   "reviews": 0
+  },
+  "11711192": {
+   "name_zh": "水月料理",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4861733": {
+   "name_zh": "水云坊主题牛肉馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4693131": {
+   "name_zh": "顺水鱼馆(紫都城店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4565305": {
+   "name_zh": "顺风123(重庆南方花园店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4693123": {
+   "name_zh": "顺水鱼馆(大渡口店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4693091": {
+   "name_zh": "顺水鱼馆(大坪店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4693320": {
+   "name_zh": "顺水鱼馆(回龙湾店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4705329": {
+   "name_zh": "顺水鱼馆(长寿店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4693274": {
+   "name_zh": "四村鱼庄(大石坝店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4934131": {
+   "name_zh": "私房菜",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5237817": {
+   "name_zh": "四方井火锅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "19414171": {
+   "name_zh": "四方上下火锅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "19386133": {
+   "name_zh": "四方上下火锅(重庆天地店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4693146": {
+   "name_zh": "四方食店(龙湖店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4693163": {
+   "name_zh": "四方食店(滩子口店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "15573518": {
+   "name_zh": "肆味(东原1891店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4693229": {
+   "name_zh": "宋记烤鸭(北碚店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409738": {
+   "name_zh": "宋记烤鸭(南坪店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409739": {
+   "name_zh": "宋记烤鸭(沙坪坝店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409742": {
+   "name_zh": "宋记烤鸭(渝北店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5237493": {
+   "name_zh": "松坡花园咖啡",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4692998": {
+   "name_zh": "星巴克(奥特莱斯店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4565866": {
+   "name_zh": "星巴克(重庆龙湖西城天街店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4703450": {
+   "name_zh": "星巴克咖啡(沙坪坝煌华新纪元店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5235121": {
+   "name_zh": "酸汤乌鱼府",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4566742": {
+   "name_zh": "索菲克牛排",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5233939": {
+   "name_zh": "素心小厨",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4864038": {
+   "name_zh": "素颜的春草居酒屋",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409743": {
+   "name_zh": "塔尔肥牛(上海城店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5234751": {
+   "name_zh": "塔斯马尼亚西餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409748": {
+   "name_zh": "泰香米(西城天街店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4864870": {
+   "name_zh": "泰香米泰国餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5234951": {
+   "name_zh": "太翁鱼坊",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4693154": {
+   "name_zh": "太翁鱼坊(南坪店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4705379": {
+   "name_zh": "泰苑(解放碑novo店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4565599": {
+   "name_zh": "谭谭鱼",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409750": {
+   "name_zh": "谭英雄鱼头火锅(金龙路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4566432": {
+   "name_zh": "唐肥肠",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4705367": {
+   "name_zh": "唐六妹酸辣粉(杨家坪店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5233272": {
+   "name_zh": "棠棣",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4865409": {
+   "name_zh": "桃花源Tea&Coffee Time",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409752": {
+   "name_zh": "陶然居(含谷店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5236060": {
+   "name_zh": "桃太郎",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5236494": {
+   "name_zh": "特等舱",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5234927": {
+   "name_zh": "特色乌鱼庄",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4705355": {
+   "name_zh": "缇雅休闲餐厅(大学城店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409756": {
+   "name_zh": "天地德苑食府",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4933893": {
+   "name_zh": "天绿·上品料理",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409760": {
+   "name_zh": "天绿回转寿司(新华路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409761": {
+   "name_zh": "天绿回转寿司(杨家坪店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4693201": {
+   "name_zh": "天绿回转寿司(长寿世纪广场店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5237431": {
+   "name_zh": "天府鱼庄",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409762": {
+   "name_zh": "天一沾水肥肠",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4693310": {
+   "name_zh": "铁锅门(陈家桥店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409763": {
+   "name_zh": "铁锅门养身香辣馆(解放碑店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4693073": {
+   "name_zh": "铁锅门养身香辣馆(两路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4693292": {
+   "name_zh": "铁锅门养身香辣馆(黔江店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409765": {
+   "name_zh": "铁锅门养身香辣馆(沙坪坝重大店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4693271": {
+   "name_zh": "铁锅门养身香辣馆(石坪桥店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4693157": {
+   "name_zh": "铁锅门养身香辣馆(桃源路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409766": {
+   "name_zh": "铁锅门养身香辣馆(铁路小学店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409769": {
+   "name_zh": "同和春(解放碑店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409774": {
+   "name_zh": "铜豌豆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4860792": {
+   "name_zh": "同道缘港式茶餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409773": {
+   "name_zh": "铜锣湾茶餐厅(杨家坪店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4693250": {
+   "name_zh": "同心酸菜笋子鸡(江津店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4934029": {
+   "name_zh": "兔八哥",
+   "name_en": "",
+   "reviews": 0
+  },
+  "19797011": {
+   "name_zh": "兔拾壹",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4862356": {
+   "name_zh": "土耳其餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4863658": {
+   "name_zh": "驼哥大坪老羊馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4705324": {
+   "name_zh": "蛙哇鸡(北碚店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4693067": {
+   "name_zh": "蛙哇鸡香锅年代(杨家坪店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5235166": {
+   "name_zh": "歪角老火锅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4865678": {
+   "name_zh": "王大拿饺子馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409788": {
+   "name_zh": "王记哈尔滨饺子城(南坪区府店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409798": {
+   "name_zh": "旺嫂私房菜",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409793": {
+   "name_zh": "王少龙火锅(工人村店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4693305": {
+   "name_zh": "旺斯咖啡(龙湖西苑店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5236244": {
+   "name_zh": "王五面庄",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4565969": {
+   "name_zh": "王府菜(重庆黄泥磅店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409786": {
+   "name_zh": "王府菜(大坪店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409787": {
+   "name_zh": "王府菜(佳宇广场店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4864123": {
+   "name_zh": "旺角港式茶餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4933552": {
+   "name_zh": "王杰私房菜",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4566143": {
+   "name_zh": "王牌正宗洞子老火锅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409792": {
+   "name_zh": "王牌正宗洞子老火锅(东和春天店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4693284": {
+   "name_zh": "王五炖鸡馆(南坪店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409797": {
+   "name_zh": "王五土灶老火锅(杨家坪店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4693181": {
+   "name_zh": "王子饭店(金港国际店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5235705": {
+   "name_zh": "碗中花",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4705365": {
+   "name_zh": "万州程师傅牛肉面(新牌坊店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4693227": {
+   "name_zh": "万州烤鱼(烈士墓店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409784": {
+   "name_zh": "万洲烤鱼(体育路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409785": {
+   "name_zh": "万洲烤鱼(杨公桥店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409782": {
+   "name_zh": "万州烤鱼(杨家坪店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4693256": {
+   "name_zh": "味老大土碗菜(中山三路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5234586": {
+   "name_zh": "维拓咖啡",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4933903": {
+   "name_zh": "味我可遇日式料理",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5237195": {
+   "name_zh": "闻香餐酒吧",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5233322": {
+   "name_zh": "我家厨房",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4935656": {
+   "name_zh": "窝子私房菜",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4693138": {
+   "name_zh": "五斗米养生厨房(大坪店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4693087": {
+   "name_zh": "五斗米养生厨房(南岸上海城店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5234940": {
+   "name_zh": "五谷粥坊",
+   "name_en": "",
+   "reviews": 0
+  },
+  "33991848": {
+   "name_zh": "无届青年餐馆(西南大学店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409809": {
+   "name_zh": "武陵山珍(直港店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5233677": {
+   "name_zh": "五牛老火锅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5237625": {
+   "name_zh": "乌鱼庄",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4693272": {
+   "name_zh": "稀饭村(都市花园店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4566779": {
+   "name_zh": "喜双火锅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4862422": {
+   "name_zh": "虾道餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5235228": {
+   "name_zh": "下饭菜",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5237633": {
+   "name_zh": "仙厨会馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4693198": {
+   "name_zh": "鲜龙井火锅(江山店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4936109": {
+   "name_zh": "鲜之屋",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409820": {
+   "name_zh": "香锅年代",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4693034": {
+   "name_zh": "乡水源火锅(青龙店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5233023": {
+   "name_zh": "祥泰稼味·滋味坊",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5235523": {
+   "name_zh": "香缇厨",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5236890": {
+   "name_zh": "湘域中餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4705363": {
+   "name_zh": "乡村基(赛博店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4693277": {
+   "name_zh": "乡村味道(黄泥塝店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4705362": {
+   "name_zh": "乡村味道(沙坪坝店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4693244": {
+   "name_zh": "祥和特色菜(桃园路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409821": {
+   "name_zh": "香辣源",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409822": {
+   "name_zh": "香榭里1902",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409823": {
+   "name_zh": "香樟一号公馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409827": {
+   "name_zh": "小蚝仔",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5236987": {
+   "name_zh": "小龙门鱼庄",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4693315": {
+   "name_zh": "小四川火锅店",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5236806": {
+   "name_zh": "小小面庄",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5235318": {
+   "name_zh": "小小面庄(建新西路)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4566933": {
+   "name_zh": "小厨港作",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4705350": {
+   "name_zh": "小厨港作(万达广场店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409825": {
+   "name_zh": "小洞天(凤天路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409826": {
+   "name_zh": "小洞天(加州店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4693147": {
+   "name_zh": "小天鹅(春森星悦荟店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409831": {
+   "name_zh": "小天鹅(南方花园店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409833": {
+   "name_zh": "小天鹅(松青路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4693148": {
+   "name_zh": "小天鹅(万州福斯特店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4565518": {
+   "name_zh": "小天鹅美人美时尚火锅(三峡广场店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4693035": {
+   "name_zh": "小玩子料理(大融城店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409836": {
+   "name_zh": "小玩子料理(南坪万达店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4693311": {
+   "name_zh": "小丸子料理(嘉滨路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5236753": {
+   "name_zh": "小眼睛火锅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4936722": {
+   "name_zh": "小羊倌(龙华大道店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4693263": {
+   "name_zh": "小羊倌(南方花园店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4693182": {
+   "name_zh": "西堤岛咖啡(重庆店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4705333": {
+   "name_zh": "邂逅甜品店",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4865340": {
+   "name_zh": "新四川牛肉馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409839": {
+   "name_zh": "新欣渔港",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409840": {
+   "name_zh": "鑫阳肥仔烤鱼",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4861029": {
+   "name_zh": "杏花村",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5233930": {
+   "name_zh": "兄弟火锅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4693321": {
+   "name_zh": "兄弟香辣蟹(杨家坪店团结路)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4693290": {
+   "name_zh": "兄弟香辣蟹(杨家坪店兴胜路)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5235527": {
+   "name_zh": "熊猫百味庄",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409844": {
+   "name_zh": "秀水粮仓",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409847": {
+   "name_zh": "旭海阁海鲜王国",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5236661": {
+   "name_zh": "叙絮苑私家酒馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409848": {
+   "name_zh": "学友乌江鱼火锅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4863868": {
+   "name_zh": "寻常故事莲餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4933222": {
+   "name_zh": "寻常故事私房菜",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4693094": {
+   "name_zh": "寻常故事私家菜馆(江北店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409849": {
+   "name_zh": "寻常故事私家菜馆(南方花园店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409845": {
+   "name_zh": "徐生记大酒楼(观音桥店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409846": {
+   "name_zh": "徐生记大酒楼(加州店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4693197": {
+   "name_zh": "徐生记大酒楼(沙坪坝店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4693020": {
+   "name_zh": "徐生记大酒楼(长安锦绣城店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4705335": {
+   "name_zh": "雅迷涮涮锅(观音桥拓展店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409856": {
+   "name_zh": "雅迷涮涮锅(袁家岗店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409857": {
+   "name_zh": "雅迷涮涮锅(重大店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409854": {
+   "name_zh": "哑巴兔(新牌坊店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4864369": {
+   "name_zh": "颜记羊肉馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "6643556": {
+   "name_zh": "燕家私房菜",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4705338": {
+   "name_zh": "研磨时光(永川店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4705332": {
+   "name_zh": "杨八面(六公里店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409859": {
+   "name_zh": "杨家坪烤鱼",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4862664": {
+   "name_zh": "养生馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4693166": {
+   "name_zh": "邀弟哥(洋河店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5235300": {
+   "name_zh": "幺妹聚香阁",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409858": {
+   "name_zh": "亚平宁西餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409860": {
+   "name_zh": "椰灯泰国餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409862": {
+   "name_zh": "易老九家常菜",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5237632": {
+   "name_zh": "意利咖啡",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5236431": {
+   "name_zh": "伊示雅咖啡",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5234467": {
+   "name_zh": "颐硕园",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5237685": {
+   "name_zh": "逸香园",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4705371": {
+   "name_zh": "艺兄烧鸡公店",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4693248": {
+   "name_zh": "颐真香汤锅坊(天星桥店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409861": {
+   "name_zh": "一罐飘香",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5234492": {
+   "name_zh": "忆江南河鲜",
+   "name_en": "",
+   "reviews": 0
+  },
+  "13973954": {
+   "name_zh": "壹角烧肉",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409863": {
+   "name_zh": "易老头三样菜(磁器口店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5233300": {
+   "name_zh": "银鲨国际美食百汇",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4864264": {
+   "name_zh": "影啡咖啡馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4935028": {
+   "name_zh": "印象土碗菜",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5234217": {
+   "name_zh": "一品干锅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5233303": {
+   "name_zh": "永和大王",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4705361": {
+   "name_zh": "永和豆浆(易初莲花店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4693137": {
+   "name_zh": "永乐火锅(王牌路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4693065": {
+   "name_zh": "有家鸡汤(科园六路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4693180": {
+   "name_zh": "渔八八(黄泥塝店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409872": {
+   "name_zh": "瑜彩峰饭店(文体路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4861076": {
+   "name_zh": "屿咖啡",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4564892": {
+   "name_zh": "渝风堂景观食府(重庆太阳城店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4693099": {
+   "name_zh": "渝风堂景观食府(九滨店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4933787": {
+   "name_zh": "渝风渝菜",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4705377": {
+   "name_zh": "俞福记烤鸭店",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5237186": {
+   "name_zh": "渝禾庄",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409870": {
+   "name_zh": "渝加渔(烈士墓店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5237548": {
+   "name_zh": "渔家宴",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409875": {
+   "name_zh": "御盛苑吴家菜坊",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5235129": {
+   "name_zh": "御仙临",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409876": {
+   "name_zh": "御粥坊(黄泥塝店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4933394": {
+   "name_zh": "御粥坊(龙湖店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4693217": {
+   "name_zh": "御粥坊(沙坪坝煌华店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4693000": {
+   "name_zh": "圆缘园(江北店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4693013": {
+   "name_zh": "圆缘园(南坪店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4705347": {
+   "name_zh": "圆缘园时尚茶餐厅(石桥铺店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "15032228": {
+   "name_zh": "元气小满",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4693286": {
+   "name_zh": "元气一煮(西城店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4693079": {
+   "name_zh": "原始老火锅(东湖南路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409879": {
+   "name_zh": "原始老火锅(腾龙大道店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409877": {
+   "name_zh": "元祖(科园四路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3426246": {
+   "name_zh": "鱼洞天雨豆花(巴南店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5235767": {
+   "name_zh": "悦尔咖啡",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5235551": {
+   "name_zh": "约里克咖啡",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5236055": {
+   "name_zh": "悦满楼",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5237824": {
+   "name_zh": "粤香楼",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5237182": {
+   "name_zh": "粤粥坊",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409882": {
+   "name_zh": "越香河越式料理",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5236144": {
+   "name_zh": "于家小馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4864529": {
+   "name_zh": "云南米线馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "15841710": {
+   "name_zh": "渝畔·石锅小鱼馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409874": {
+   "name_zh": "禹王鱼府(北碚店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5233154": {
+   "name_zh": "鱼香春北渡鱼",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5237228": {
+   "name_zh": "宰牛场",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4933882": {
+   "name_zh": "宰牛场火锅(石桥铺店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4705351": {
+   "name_zh": "掌上感觉(渝北店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4862182": {
+   "name_zh": "长和汇怀旧餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4693021": {
+   "name_zh": "长乐亭湘粤菜馆(解放碑NOVO店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409886": {
+   "name_zh": "赵大妹酸辣粉",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4693041": {
+   "name_zh": "赵二火锅(红黄路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4693122": {
+   "name_zh": "赵二火锅(回龙湾店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4933066": {
+   "name_zh": "朕之味(沙坪坝煌华店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5235106": {
+   "name_zh": "朕之味(西城天街店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4564896": {
+   "name_zh": "真爱酒吧",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5237565": {
+   "name_zh": "郑天府鱼庄(观音桥西环路)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3426237": {
+   "name_zh": "正阳砂锅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409892": {
+   "name_zh": "知味村",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5234991": {
+   "name_zh": "之香唐",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5237010": {
+   "name_zh": "纸上烧烤",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409893": {
+   "name_zh": "钟府私家菜",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5234485": {
+   "name_zh": "中粮君顶华悦会所",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5235530": {
+   "name_zh": "中顺浩特色老鸭汤",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409900": {
+   "name_zh": "周周渔府火锅(旗舰店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4936328": {
+   "name_zh": "周五海鲜烧烤",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4693127": {
+   "name_zh": "周渔府(嘉华鑫城店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4705381": {
+   "name_zh": "周渔府(九龙坡区店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3426228": {
+   "name_zh": "周渔府(西永店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409901": {
+   "name_zh": "周渔府(杨家坪店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5235217": {
+   "name_zh": "朱儿面庄(金龙路)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5235535": {
+   "name_zh": "朱二嫂鱼庄",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4693140": {
+   "name_zh": "祝幺妹火锅(裕华村店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409910": {
+   "name_zh": "竹源黑竹笋香鸡(观音桥店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409911": {
+   "name_zh": "竹源黑竹笋香鸡(加州花园店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409912": {
+   "name_zh": "竹源黑竹笋香鸡(金岛店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4565777": {
+   "name_zh": "诸葛烤鱼",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5235916": {
+   "name_zh": "猪脚林",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4862166": {
+   "name_zh": "琢玉土鸡馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409907": {
+   "name_zh": "竹叶三和鱼(黄龙路店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4693074": {
+   "name_zh": "竹叶三和鱼(洋河店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3409909": {
+   "name_zh": "竹园干锅(北碚店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4861430": {
+   "name_zh": "紫悦餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5236966": {
+   "name_zh": "紫悦中餐",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4693124": {
+   "name_zh": "邹开喜酸菜鱼风味庄(双福镇店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5235639": {
+   "name_zh": "祖母的厨房",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4865819": {
+   "name_zh": "醉江湖武侠主题餐厅",
+   "name_en": "",
+   "reviews": 0
+  },
+  "4564799": {
+   "name_zh": "醉今宵乌鱼庄(重庆杨家坪店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5235468": {
+   "name_zh": "醉香居鱼府",
+   "name_en": "",
+   "reviews": 0
+  },
+  "34101103": {
+   "name_zh": "炎西熹（北仓店）",
+   "name_en": "",
+   "reviews": 0
   }
  },
- "gid": "294213"
+ "gid": "294213",
+ "hotels": {
+  "1004968245": {
+   "name_zh": "重庆大乐之野公寓",
+   "name_en": "",
+   "reviews": 0
+  },
+  "1006232396": {
+   "name_zh": "海逸酒店(江津客运中心店)",
+   "name_en": "Haiyi Hotel (Jiangjin, Chongqing)",
+   "reviews": 43
+  },
+  "1006232403": {
+   "name_zh": "云朵酒店(重庆南川万达广场店)",
+   "name_en": "Janger Hotel (Chongqing Nanchuan branch)",
+   "reviews": 5
+  },
+  "1006232410": {
+   "name_zh": "重庆八零公寓",
+   "name_en": "Baling Apartment",
+   "reviews": 4
+  },
+  "1006232417": {
+   "name_zh": "重庆倦鸟宾馆",
+   "name_en": "Chongqing Juanniao Hotel",
+   "reviews": 1
+  },
+  "1006232424": {
+   "name_zh": "重庆瑞洁商务宾馆(沙坪坝万达广场店)",
+   "name_en": "Chongqing Ruijie Business Hotel (Shapingba Wanda Plaza)",
+   "reviews": 43
+  },
+  "1006232431": {
+   "name_zh": "清欢渡邀月民宿(缙云山店)",
+   "name_en": "Qinghuandu Yaoyue Hostel",
+   "reviews": 68
+  },
+  "1006232438": {
+   "name_zh": "重庆茶山竹海竹良山色民宿",
+   "name_en": "Chongqing Chashan Bamboo Sea Zhuliang Mountain View Homestay",
+   "reviews": 8
+  },
+  "1006232445": {
+   "name_zh": "月友轻奢酒店(重庆三峡广场高铁站店)",
+   "name_en": "Yueyou Light Luxury Hotel (Chongqing Three Gorges Square High-speed Railway Station)",
+   "reviews": 111
+  },
+  "1006232452": {
+   "name_zh": "重庆爱家快捷连锁民宿",
+   "name_en": "Chongqing Aijia Express Chain Homestay",
+   "reviews": 14
+  },
+  "1006232459": {
+   "name_zh": "涪陵种业宾馆(泽胜中央广场店)",
+   "name_en": "Fuling Seed Industry Hotel (Zesheng Central Plaza)",
+   "reviews": 48
+  },
+  "1006232466": {
+   "name_zh": "重庆芳帝商务酒店",
+   "name_en": "Chongqing Fangdi Business Hotel",
+   "reviews": 11
+  },
+  "1006232473": {
+   "name_zh": "重庆旺阁宾馆",
+   "name_en": "Wangge Hotel",
+   "reviews": 19
+  },
+  "1006232480": {
+   "name_zh": "金龙宾馆(重庆儿童医院店)",
+   "name_en": "Jinlong Hotel (Chongqing Children's Hospital Store)",
+   "reviews": 2
+  },
+  "1006232487": {
+   "name_zh": "重庆满堂红宾馆",
+   "name_en": "Mantanghong Hotel",
+   "reviews": 10
+  },
+  "1006232494": {
+   "name_zh": "重庆碚都宾馆",
+   "name_en": "Beidu Hotel",
+   "reviews": 16
+  },
+  "1006232501": {
+   "name_zh": "星豪鸿连锁酒店(重庆观音桥星光68店)",
+   "name_en": "Xinghaohong Chain Hotel (Chongqing Guanyinqiao Starlight 68 Store)",
+   "reviews": 126
+  },
+  "1006232508": {
+   "name_zh": "重庆天星两江假日酒店",
+   "name_en": "Tian Xing Hotel",
+   "reviews": 272
+  },
+  "1006232515": {
+   "name_zh": "重庆印象滨江酒店式公寓南滨路东原1891店",
+   "name_en": "Yinxiang Binjiang Apartment Hotel (Chongqing Nanbin Road Dongyuan 1891)",
+   "reviews": 8
+  },
+  "1006232522": {
+   "name_zh": "重庆斯维登服务公寓(洪崖洞解放碑店)",
+   "name_en": "Sweetome Vacation Apartment (Jiefangbei Xiexin Mansion)",
+   "reviews": 652
+  },
+  "1006232529": {
+   "name_zh": "重庆大足华美达广场酒店",
+   "name_en": "Ramada Plaza by Wyndham Chongqing West",
+   "reviews": 819
+  },
+  "1006232536": {
+   "name_zh": "重庆36度酒店(涪陵泽胜中央广场店)",
+   "name_en": "36 Degrees Chongqing Hotel",
+   "reviews": 101
+  },
+  "1006232543": {
+   "name_zh": "重庆美天宾馆",
+   "name_en": "Chongqing Meitian Hotel",
+   "reviews": 33
+  },
+  "1006232550": {
+   "name_zh": "重庆木桥宾馆",
+   "name_en": "Muqiao Hostel",
+   "reviews": 1
+  },
+  "1006232557": {
+   "name_zh": "重庆全家福酒店(大学城地铁站熙街店)",
+   "name_en": "Chongqing Quanjiafu Hotel (University Town Subway Station Xijie)",
+   "reviews": 366
+  },
+  "1006232564": {
+   "name_zh": "金新宾馆(重庆四公里店)",
+   "name_en": "",
+   "reviews": 3
+  },
+  "1006232571": {
+   "name_zh": "馨怡家影视民宿(大学城尖顶坡站店)",
+   "name_en": "Xinyijia Film and Television Homestay (University Town Jiandingpo Station)",
+   "reviews": 43
+  },
+  "1006232578": {
+   "name_zh": "云津酒店(长寿古镇店)",
+   "name_en": "Sanxin Business Hotel",
+   "reviews": 21
+  },
+  "1006232585": {
+   "name_zh": "蔓萝影视民宿(大学城龙湖U城天街店)",
+   "name_en": "Manluo Film and Television Homestay (University Town Longhu U Chengtian Street)",
+   "reviews": 73
+  },
+  "1006232592": {
+   "name_zh": "重庆云舟宾馆",
+   "name_en": "Chongqing Yunzhou Hotel",
+   "reviews": 0
+  },
+  "1006232599": {
+   "name_zh": "重庆凤安宾馆",
+   "name_en": "Feng'an Hostel",
+   "reviews": 22
+  },
+  "1006232606": {
+   "name_zh": "重庆优泰宾馆",
+   "name_en": "Chongqing youtai hotel",
+   "reviews": 7
+  },
+  "1006232613": {
+   "name_zh": "重庆久大宾馆",
+   "name_en": "Chongqing Jiuda Hotel",
+   "reviews": 8
+  },
+  "1006232620": {
+   "name_zh": "重庆海逸宾馆(大学城重庆建筑科技职业学院店)",
+   "name_en": "Haiyi Hotel",
+   "reviews": 41
+  },
+  "1006232627": {
+   "name_zh": "重庆好来屋家庭旅馆",
+   "name_en": "Hailaiwu Family Hostel",
+   "reviews": 19
+  },
+  "1006232634": {
+   "name_zh": "泽帮宾馆",
+   "name_en": "zebang Hotel",
+   "reviews": 7
+  },
+  "1006232641": {
+   "name_zh": "重庆兴旺公寓",
+   "name_en": "Xingwang Apartment",
+   "reviews": 1
+  },
+  "1006232648": {
+   "name_zh": "荔枝酒店(重庆永川店)",
+   "name_en": "LIzhi Wenxin Apartment",
+   "reviews": 2
+  },
+  "1006232655": {
+   "name_zh": "重庆小窝住宿",
+   "name_en": "Xiaowo Hostel",
+   "reviews": 4
+  },
+  "1006232662": {
+   "name_zh": "重庆兴友酒店(新桥医院店)",
+   "name_en": "Chongqing Xingyou Hotel",
+   "reviews": 20
+  },
+  "1006232669": {
+   "name_zh": "珉星酒店(沙坪坝高铁站三峡广场店)",
+   "name_en": "Kunxing Tea Art Hotel (Shapingba High-speed Railway Station)",
+   "reviews": 1331
+  },
+  "1006232676": {
+   "name_zh": "重庆澳渝宾馆",
+   "name_en": "Aoyu Hotel",
+   "reviews": 0
+  },
+  "1006232683": {
+   "name_zh": "武隆江庭公寓",
+   "name_en": "Jiangting Apartment",
+   "reviews": 0
+  },
+  "1006232690": {
+   "name_zh": "周记客栈(重庆大坪医院店)",
+   "name_en": "zhouji Apartment",
+   "reviews": 11
+  },
+  "1006232697": {
+   "name_zh": "武隆枫吟民宿",
+   "name_en": "Wulong Fengyin Homestay",
+   "reviews": 8
+  },
+  "1006232704": {
+   "name_zh": "武隆航苑宾馆",
+   "name_en": "hangyuanHotel",
+   "reviews": 3
+  },
+  "1006232711": {
+   "name_zh": "重庆布莱恩酒店",
+   "name_en": "Bulaien",
+   "reviews": 0
+  },
+  "1006232718": {
+   "name_zh": "悦美酒店",
+   "name_en": "Yuemei Hotel (Wansheng Sanyuanqiao Commercial Center)",
+   "reviews": 22
+  },
+  "1006232725": {
+   "name_zh": "武隆山桥人家农家乐",
+   "name_en": "Wulong County Shanqiao Renjia Farm Stay",
+   "reviews": 0
+  },
+  "1006232732": {
+   "name_zh": "重庆迎宾客栈",
+   "name_en": "Yingbin Inn",
+   "reviews": 5
+  },
+  "1006232739": {
+   "name_zh": "重庆盛旺宾馆",
+   "name_en": "Chongqing Shengwang Hotel",
+   "reviews": 11
+  },
+  "1006232746": {
+   "name_zh": "会吉宾馆",
+   "name_en": "Huiji Hotel",
+   "reviews": 0
+  },
+  "1006232753": {
+   "name_zh": "如家华驿精选酒店(重庆观音桥步行街轻轨站店)",
+   "name_en": "Huaying Select Hotel",
+   "reviews": 0
+  },
+  "1006232760": {
+   "name_zh": "重庆一碗水招待所",
+   "name_en": "Yiwanshui Hostel",
+   "reviews": 28
+  },
+  "1006232767": {
+   "name_zh": "重庆鑫显招待所",
+   "name_en": "Chongqing Xinxian Guest House",
+   "reviews": 8
+  },
+  "1006232774": {
+   "name_zh": "亿家民宿",
+   "name_en": "Yijia Homestay",
+   "reviews": 2
+  },
+  "1006232781": {
+   "name_zh": "重庆正茂宾馆",
+   "name_en": "Zhengmao Hostel",
+   "reviews": 3
+  },
+  "1006232788": {
+   "name_zh": "重庆金星酒店式公寓",
+   "name_en": "Chongqing Jinxing Serviced Apartment",
+   "reviews": 21
+  },
+  "1006232795": {
+   "name_zh": "晨曦酒店(重庆万象城店)",
+   "name_en": "Chenxi Hostel",
+   "reviews": 143
+  },
+  "1006232802": {
+   "name_zh": "重庆合龙宾馆",
+   "name_en": "Chongqing Helong Hotel",
+   "reviews": 1
+  },
+  "1006232809": {
+   "name_zh": "新大地宾馆(重庆江北鱼嘴店)",
+   "name_en": "Xindadi Hotel (Chongqing Jiangbei Yuzui Shop)",
+   "reviews": 10
+  },
+  "1006232816": {
+   "name_zh": "重庆交通商务宾馆(潼南兴潼大道店)",
+   "name_en": "Jiaotong Business Hotel",
+   "reviews": 18
+  },
+  "1006232823": {
+   "name_zh": "重庆花园客栈",
+   "name_en": "Garden House",
+   "reviews": 11
+  },
+  "1006232830": {
+   "name_zh": "重庆佳东招待所",
+   "name_en": "Jiadong Hostel",
+   "reviews": 3
+  },
+  "1006232837": {
+   "name_zh": "重庆吉美住宿",
+   "name_en": "Jimei Hostel",
+   "reviews": 1
+  },
+  "1006232844": {
+   "name_zh": "重庆云鹤商务宾馆",
+   "name_en": "Yunhe Business Hotel",
+   "reviews": 12
+  },
+  "1006232851": {
+   "name_zh": "万盛黑山谷聚缘山居",
+   "name_en": "Juyuan Shanju Hotel",
+   "reviews": 12
+  },
+  "1006232858": {
+   "name_zh": "重庆岚鑫招待所",
+   "name_en": "Lanxin Hostel",
+   "reviews": 1
+  },
+  "1006232865": {
+   "name_zh": "重庆鑫三角宾馆",
+   "name_en": "Xinsanjiao Hotel",
+   "reviews": 0
+  },
+  "1006232872": {
+   "name_zh": "重庆紫竹宾馆",
+   "name_en": "Zizhu Hotel",
+   "reviews": 14
+  },
+  "1006232879": {
+   "name_zh": "凯旋酒店(重庆三峡职业学院万州站店)",
+   "name_en": "Kaixuan Business Hotel",
+   "reviews": 20
+  },
+  "1006232886": {
+   "name_zh": "重庆万水千山宾馆",
+   "name_en": "Wanshui Qianshan Hostel",
+   "reviews": 0
+  },
+  "1006232893": {
+   "name_zh": "重庆福平公寓",
+   "name_en": "Chongqing Fuping Apartment",
+   "reviews": 55
+  },
+  "1006232900": {
+   "name_zh": "重庆嘉利来公寓",
+   "name_en": "Pengpeng Hostel",
+   "reviews": 36
+  },
+  "1006232907": {
+   "name_zh": "鑫渝祥客栈(重庆北站南广场店)",
+   "name_en": "Xinyuxiang Hotel",
+   "reviews": 67
+  },
+  "1006232914": {
+   "name_zh": "重庆兴源公寓",
+   "name_en": "Chongqing Xingyuan Apartment",
+   "reviews": 1
+  },
+  "1006232921": {
+   "name_zh": "重庆文曲宾馆(重医附属永川医院店)",
+   "name_en": "WEN QU HOTEL",
+   "reviews": 43
+  },
+  "1006232928": {
+   "name_zh": "重庆帮达招待所(观音桥北城天街店)",
+   "name_en": "Chongqing Banda Guest House",
+   "reviews": 2
+  },
+  "1006232935": {
+   "name_zh": "吉祥旅社(重庆北站店)",
+   "name_en": "Jixiang Inn (Chongqing North Railway Station)",
+   "reviews": 3
+  },
+  "1006232942": {
+   "name_zh": "重庆爱尚佳公寓",
+   "name_en": "Aishangjia Hostel",
+   "reviews": 1
+  },
+  "1006232949": {
+   "name_zh": "重庆三瑞宾馆",
+   "name_en": "Chongqing Sanrui Hotel",
+   "reviews": 3
+  },
+  "1006232956": {
+   "name_zh": "好梦青年旅舍（观音桥步行街店）",
+   "name_en": "Good Dream Youth Hostel (Guanyin Bridge Pedestrian Street Branch)",
+   "reviews": 20
+  },
+  "1006232963": {
+   "name_zh": "渝利宾馆(望城公园海亮国际广场店)",
+   "name_en": "Yuli Hotel (Yongchuan Wangcheng Park Hailiang International Plaza)",
+   "reviews": 12
+  },
+  "1006232970": {
+   "name_zh": "重庆陆亿栋宾馆",
+   "name_en": "Luyidong Hostel",
+   "reviews": 0
+  },
+  "1006232977": {
+   "name_zh": "重庆聚星宾馆",
+   "name_en": "Juxing Hostel",
+   "reviews": 1
+  },
+  "1006232984": {
+   "name_zh": "重庆肖家宾馆",
+   "name_en": "Xiaojia Hostel",
+   "reviews": 0
+  },
+  "1006232991": {
+   "name_zh": "重庆国容宾馆",
+   "name_en": "Guorong Hostel",
+   "reviews": 0
+  },
+  "1006232998": {
+   "name_zh": "重庆小绿天宾馆",
+   "name_en": "Xiaolvtian Hostel",
+   "reviews": 7
+  },
+  "1006233005": {
+   "name_zh": "重庆国福宾馆(綦江高铁东站店)",
+   "name_en": "Chongqing Guofu Apartment",
+   "reviews": 87
+  },
+  "1006233012": {
+   "name_zh": "铁路旅馆（永川汽车总站店）",
+   "name_en": "Chongqing Railway Hotel",
+   "reviews": 0
+  },
+  "1006233019": {
+   "name_zh": "沐栖酒店(渝西广场店)",
+   "name_en": "muqinianhua Hostel",
+   "reviews": 7
+  },
+  "1006233026": {
+   "name_zh": "雅居宾馆(重庆永川店)",
+   "name_en": "Yaju hotel (yongchuan store, chongqing)",
+   "reviews": 5
+  },
+  "1006233033": {
+   "name_zh": "重庆优雅宾馆",
+   "name_en": "Chongqing Elegant Hotel",
+   "reviews": 23
+  },
+  "1006233040": {
+   "name_zh": "重庆伟凯农家乐",
+   "name_en": "Weikai Farmhouse",
+   "reviews": 0
+  },
+  "1006233047": {
+   "name_zh": "重庆兰沁屿宾馆",
+   "name_en": "Lanqinyu hotel, chongqing",
+   "reviews": 1
+  },
+  "1006233054": {
+   "name_zh": "重庆豪天商务宾馆",
+   "name_en": "Hoatian Business Hostel",
+   "reviews": 13
+  },
+  "1006233061": {
+   "name_zh": "可可里酒店(大足双桥店)",
+   "name_en": "Kekeli Hotel (Dazu Shuangqiao)",
+   "reviews": 53
+  },
+  "1006233068": {
+   "name_zh": "重庆鸿福旅馆",
+   "name_en": "Hongfu Hostel",
+   "reviews": 2
+  },
+  "1006233075": {
+   "name_zh": "月友商务酒店(重庆南坪步行街店)",
+   "name_en": "Zhengyang Business Hotel",
+   "reviews": 0
+  },
+  "1006233082": {
+   "name_zh": "学府宾馆(理工大学店)",
+   "name_en": "Xuefu Hotel (Chongqing University of Technology)",
+   "reviews": 34
+  },
+  "1006233089": {
+   "name_zh": "重庆泷江宾馆",
+   "name_en": "Chongqing Lijiang Hotel",
+   "reviews": 5
+  },
+  "1006233096": {
+   "name_zh": "重庆静逸轩酒店(金童路地铁站店)",
+   "name_en": "Jingyixuan Hotel",
+   "reviews": 18
+  },
+  "1006233103": {
+   "name_zh": "重庆海燕客栈",
+   "name_en": "Chongqing Haiyan Chinese Inn",
+   "reviews": 3
+  },
+  "1006233110": {
+   "name_zh": "蚂蚁电竞酒店(重庆龙湖时代天街店)",
+   "name_en": "Ant E-Sports Hotel",
+   "reviews": 679
+  },
+  "1006233117": {
+   "name_zh": "重庆亿通商务宾馆",
+   "name_en": "Chongqing Yitong Business Hotel",
+   "reviews": 11
+  },
+  "1006233124": {
+   "name_zh": "重庆新逸招待所",
+   "name_en": "WOXIN  BINGUAN",
+   "reviews": 10
+  },
+  "1006233131": {
+   "name_zh": "重庆喜旺宾馆",
+   "name_en": "Chongqing Xiwang Hotel",
+   "reviews": 6
+  },
+  "1006233138": {
+   "name_zh": "重庆馨雅宾馆",
+   "name_en": "Xinya Hotel",
+   "reviews": 1
+  },
+  "1006233145": {
+   "name_zh": "重庆戴维宾馆",
+   "name_en": "David Business Hotel",
+   "reviews": 7
+  },
+  "1006233152": {
+   "name_zh": "重庆520主题酒店",
+   "name_en": "520 Theme Hotel",
+   "reviews": 12
+  },
+  "1006233159": {
+   "name_zh": "美度公寓(重庆南坪会展中心店)",
+   "name_en": "Meidu Apartment (Chongqing Nanping Exhibition Center)",
+   "reviews": 1
+  },
+  "1006233166": {
+   "name_zh": "重庆雪莲招待所",
+   "name_en": "Xuelian Hostel",
+   "reviews": 2
+  },
+  "1006233173": {
+   "name_zh": "飞跃宾馆(重庆电子工程职业学院店)",
+   "name_en": "Feiyue Hotel (Chongqing Electronic Engineering Vocational College)",
+   "reviews": 22
+  },
+  "1006233180": {
+   "name_zh": "重庆齐圆精品宾馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "1006233187": {
+   "name_zh": "重庆宏强宾馆",
+   "name_en": "Chongqing Hongqiang Hotel",
+   "reviews": 35
+  },
+  "1006233194": {
+   "name_zh": "重庆光顺客栈",
+   "name_en": "Guangshun Inn",
+   "reviews": 0
+  },
+  "1006233201": {
+   "name_zh": "会堂酒店(万州万达广场店)",
+   "name_en": "Huitang Hotel (Wanzhou Wanda Plaza)",
+   "reviews": 22
+  },
+  "1006233208": {
+   "name_zh": "重庆都曼商务宾馆",
+   "name_en": "Duman Business Hostel",
+   "reviews": 0
+  },
+  "1006233215": {
+   "name_zh": "重庆顺心旅馆",
+   "name_en": "Shunxin Hostel",
+   "reviews": 0
+  },
+  "1006233222": {
+   "name_zh": "重庆千客来宾馆",
+   "name_en": "Qiankelai Hostel",
+   "reviews": 2
+  },
+  "1006233229": {
+   "name_zh": "重庆锦洋宾馆",
+   "name_en": "Chongqing Jinyang Hotel",
+   "reviews": 2
+  },
+  "1006233236": {
+   "name_zh": "重庆红安宾馆",
+   "name_en": "Liang Ping Hong'an Hotel",
+   "reviews": 5
+  },
+  "1006233243": {
+   "name_zh": "重庆福润宾馆",
+   "name_en": "Home Inn Chongqing Xiezitai Subway Station",
+   "reviews": 37
+  },
+  "1006233250": {
+   "name_zh": "悦伴湾宾馆(重庆大学城熙街店)",
+   "name_en": "Yuebanwan Hotel Chongqing University Town Xijie Branch",
+   "reviews": 64
+  },
+  "1006233257": {
+   "name_zh": "重庆跃鑫商务酒店",
+   "name_en": "yueyin Business Hostel",
+   "reviews": 5
+  },
+  "1006233264": {
+   "name_zh": "重庆万服宾馆",
+   "name_en": "Wanfu Hotel",
+   "reviews": 2
+  },
+  "1006233271": {
+   "name_zh": "重庆润兰旅馆",
+   "name_en": "Chongqing Runlan Inn",
+   "reviews": 15
+  },
+  "1006233278": {
+   "name_zh": "钦文168舒心酒店(重庆江北机场店)",
+   "name_en": "Qinwen 168 Shuxin Hotel (Chongqing Jiangbei Airport)",
+   "reviews": 19
+  },
+  "1006233285": {
+   "name_zh": "重庆华芳琬宾馆",
+   "name_en": "OYO Chongqing Huafangwan Hotel",
+   "reviews": 34
+  },
+  "1006233292": {
+   "name_zh": "重庆红运旅馆",
+   "name_en": "Chongqing Hongyun Inn",
+   "reviews": 15
+  },
+  "1006233299": {
+   "name_zh": "重庆洪霖招待所",
+   "name_en": "Honglin Hostel",
+   "reviews": 0
+  },
+  "1006233306": {
+   "name_zh": "双盈智能酒店(重庆三峡职业学院万州站店)",
+   "name_en": "Shuangying Smart Hotel (Chongqing Three Gorges Vocational College Wanzhou Station)",
+   "reviews": 15
+  },
+  "1006233313": {
+   "name_zh": "重庆西桃宾馆",
+   "name_en": "Xitao Hostel",
+   "reviews": 1
+  },
+  "1006233320": {
+   "name_zh": "重庆万洁宾馆",
+   "name_en": "Chongqing Wanjie Hotel",
+   "reviews": 5
+  },
+  "1006233327": {
+   "name_zh": "重庆曼沙宾馆",
+   "name_en": "Mansha Hostel",
+   "reviews": 7
+  },
+  "1006233334": {
+   "name_zh": "重庆金湖农庄",
+   "name_en": "Chongqing Jinhu Farm",
+   "reviews": 2
+  },
+  "1006233341": {
+   "name_zh": "重庆缘梦宾馆(五里店店)",
+   "name_en": "Chongqing Yuanmeng Hotel (Wuli Shop)",
+   "reviews": 7
+  },
+  "1006233348": {
+   "name_zh": "重庆隆祥宾馆",
+   "name_en": "Chongqing Longxiang Hotel",
+   "reviews": 4
+  },
+  "1006233355": {
+   "name_zh": "温馨时光民宿（重庆北站店）",
+   "name_en": "Warm Time Homestay (Chongqing North Railway Station)",
+   "reviews": 37
+  },
+  "1006233362": {
+   "name_zh": "重庆铁路公寓",
+   "name_en": "Tielu Apartment",
+   "reviews": 1
+  },
+  "1006233369": {
+   "name_zh": "重庆锦江宾馆",
+   "name_en": "Chongqing Jinjiang Hotel",
+   "reviews": 1
+  },
+  "1006233376": {
+   "name_zh": "漫步间宾馆(重庆市开州区店)",
+   "name_en": "Manbujian Hotel (Chongqing Kaizhou District)",
+   "reviews": 13
+  },
+  "1006233383": {
+   "name_zh": "兴都酒店(重庆月潭街店)",
+   "name_en": "Xingdu Hotel (Chongqing Yuetan Street)",
+   "reviews": 0
+  },
+  "1006233390": {
+   "name_zh": "重庆开州银河宾馆",
+   "name_en": "Chongqing Kaizhou Yinhe Hotel",
+   "reviews": 2
+  },
+  "1006233397": {
+   "name_zh": "重庆湖庭宾馆",
+   "name_en": "Chongqing Huting Hotel",
+   "reviews": 1
+  },
+  "1006233404": {
+   "name_zh": "安康智能投影酒店(汉丰湖度假区店)",
+   "name_en": "Ankang Smart Projection Hotel (Kaizhou Hanfeng Lake)",
+   "reviews": 72
+  },
+  "1006233411": {
+   "name_zh": "重庆星期天宾馆",
+   "name_en": "Sunday  hotel",
+   "reviews": 6
+  },
+  "1006233418": {
+   "name_zh": "友谊宾馆(重庆江津店)",
+   "name_en": "youyibingguan",
+   "reviews": 14
+  },
+  "1006233425": {
+   "name_zh": "重庆南方宾馆",
+   "name_en": "Chongqing Nanfang Hotel",
+   "reviews": 45
+  },
+  "1006233432": {
+   "name_zh": "重庆老友宾馆",
+   "name_en": "Chongqing old friend hotel",
+   "reviews": 5
+  },
+  "1006233439": {
+   "name_zh": "重庆旅途情缘招待所",
+   "name_en": "Lvtu Qingyuan Hostel",
+   "reviews": 17
+  },
+  "1006233446": {
+   "name_zh": "捷旭酒店（江津时代广场滨江大道店）",
+   "name_en": "Jiexu Hotel (Jiangjin Times Square Binjiang Avenue)",
+   "reviews": 42
+  },
+  "1006233453": {
+   "name_zh": "重庆美宁公寓",
+   "name_en": "Chongqing Meining Apartment",
+   "reviews": 10
+  },
+  "1006233460": {
+   "name_zh": "重庆和顺公寓(观音桥好吃街店)",
+   "name_en": "Chongqing Heshun Apartment (Guanyinqiao Delicious Street)",
+   "reviews": 0
+  },
+  "1006233467": {
+   "name_zh": "重庆名翔宾馆",
+   "name_en": "Mingxiang Hostel",
+   "reviews": 2
+  },
+  "1006233474": {
+   "name_zh": "重庆九州商务宾馆",
+   "name_en": "Jiuzhou Business Hostel",
+   "reviews": 13
+  },
+  "1006233481": {
+   "name_zh": "重庆寸心公寓",
+   "name_en": "Chongqing Cunxin Apartment",
+   "reviews": 5
+  },
+  "1006233488": {
+   "name_zh": "重庆滨湖豪庭酒店",
+   "name_en": "Huangchao Hostel",
+   "reviews": 45
+  },
+  "1006233495": {
+   "name_zh": "重庆玉盘招待所",
+   "name_en": "Chongqing Yupan Guest House",
+   "reviews": 6
+  },
+  "1006233502": {
+   "name_zh": "地久宾馆(重庆南津街店)",
+   "name_en": "Dijiu Hotel (Chongqing Nanjin Street)",
+   "reviews": 9
+  },
+  "1006233509": {
+   "name_zh": "庆渝宾馆(重庆江北国际机场店）",
+   "name_en": "Qingyu Hotel (Chongqing Jiangbei International Airport)",
+   "reviews": 15
+  },
+  "1006233516": {
+   "name_zh": "重庆968商务宾馆",
+   "name_en": "Chongqing 968 Business Hotel",
+   "reviews": 0
+  },
+  "1006233523": {
+   "name_zh": "重庆莱湖酒店（开州大时代店）",
+   "name_en": "Chongqing Laihu Hotel (Kaizhou Dashidai Branch)",
+   "reviews": 17
+  },
+  "1006233530": {
+   "name_zh": "光影酒店(开州区政府店)",
+   "name_en": "Phoenix Hostel",
+   "reviews": 45
+  },
+  "1006233537": {
+   "name_zh": "重庆众兴宾馆",
+   "name_en": "Chongqing Zhongxing Hotel",
+   "reviews": 0
+  },
+  "1006233544": {
+   "name_zh": "重庆顺美宾馆",
+   "name_en": "Chongqing Shunmei Hotel",
+   "reviews": 0
+  },
+  "1006233551": {
+   "name_zh": "重庆荣圣宾馆",
+   "name_en": "Rongsheng Hostel",
+   "reviews": 5
+  },
+  "1006233558": {
+   "name_zh": "重庆丰瑞商务宾馆",
+   "name_en": "Fengrui Business Hotel",
+   "reviews": 1
+  },
+  "1006233565": {
+   "name_zh": "重庆天天红短租公寓",
+   "name_en": "Chongqing Tiantianhongshor Rent Apartment",
+   "reviews": 0
+  },
+  "1006233572": {
+   "name_zh": "重庆嘉欣宾馆",
+   "name_en": "Chongqing Jiaxin Hotel",
+   "reviews": 1
+  },
+  "1006233579": {
+   "name_zh": "重庆平昌招待所",
+   "name_en": "Chongqing Pingchang Guest House",
+   "reviews": 3
+  },
+  "1006233586": {
+   "name_zh": "重庆新川民宿",
+   "name_en": "Xinchuan Hostel",
+   "reviews": 0
+  },
+  "1006233593": {
+   "name_zh": "重庆开州永兴宾馆",
+   "name_en": "Yongxing Hostel",
+   "reviews": 22
+  },
+  "1006233600": {
+   "name_zh": "重庆明月星招待所",
+   "name_en": "Chongqing Mingyuexing Guest House",
+   "reviews": 0
+  },
+  "1006233607": {
+   "name_zh": "瑞宜酒店",
+   "name_en": "Ruiyi Hotel",
+   "reviews": 8
+  },
+  "1006233614": {
+   "name_zh": "重庆华舒宾馆",
+   "name_en": "Chongqing Huashu Hotel",
+   "reviews": 5
+  },
+  "1006233621": {
+   "name_zh": "金鼓楼酒店",
+   "name_en": "Golden Drum Tower Hotel, Chongqing",
+   "reviews": 131
+  },
+  "1006233628": {
+   "name_zh": "重庆天涯宾馆",
+   "name_en": "Tianya Hostel",
+   "reviews": 0
+  },
+  "1006233635": {
+   "name_zh": "綦江区营盘山宾馆",
+   "name_en": "Yingpanshan Hostel",
+   "reviews": 2
+  },
+  "1006233642": {
+   "name_zh": "利得花园酒店(重庆沙坪坝高铁站三峡广场店)",
+   "name_en": "Lide Garden Hotel (Chongqing Shapingba High-Speed Railway Station Three Gorges Plaza)",
+   "reviews": 16
+  },
+  "1006233649": {
+   "name_zh": "重庆雅佳商务宾馆",
+   "name_en": "Chongqing Yajia Business Hotel",
+   "reviews": 0
+  },
+  "1006233656": {
+   "name_zh": "武隆悠然居宾馆",
+   "name_en": "Wulongyouranjubinguan",
+   "reviews": 4
+  },
+  "1006233663": {
+   "name_zh": "重庆港湾客栈(茶园桃花桥地铁站店)",
+   "name_en": "Chongqing Harbour Inn",
+   "reviews": 4
+  },
+  "1006233670": {
+   "name_zh": "重庆安怡酒店",
+   "name_en": "Chongqing Anyi Hotel",
+   "reviews": 1
+  },
+  "1006233677": {
+   "name_zh": "晴天优选旅舍(重庆北站南广场店)",
+   "name_en": "Qingtian Preferred Inn (Chongqing North Station South Square)",
+   "reviews": 95
+  },
+  "1006233684": {
+   "name_zh": "贵安酒店(綦江汽车站店)",
+   "name_en": "Chongqing Gui'an Hotel",
+   "reviews": 1
+  },
+  "1006233691": {
+   "name_zh": "重庆快乐时光主题公寓",
+   "name_en": "Chongqing Happy Time Theme Apartment",
+   "reviews": 39
+  },
+  "1006233698": {
+   "name_zh": "重庆昌都宾馆",
+   "name_en": "Chongqing Changdu Hotel",
+   "reviews": 0
+  },
+  "1006233705": {
+   "name_zh": "重庆双红公寓",
+   "name_en": "Chongqing Shuanghong Apartment",
+   "reviews": 0
+  },
+  "1006233712": {
+   "name_zh": "重庆金辰宾馆",
+   "name_en": "Jinchen Hotel",
+   "reviews": 3
+  },
+  "1006233719": {
+   "name_zh": "重庆馨逸民宿",
+   "name_en": "Chongqing Xinyi Homestay",
+   "reviews": 16
+  },
+  "1006233726": {
+   "name_zh": "重庆君怡宾馆",
+   "name_en": "Junyi hotel, chongqing",
+   "reviews": 0
+  },
+  "1006233733": {
+   "name_zh": "重庆宝龙宾馆",
+   "name_en": "Baolong Hostel",
+   "reviews": 1
+  },
+  "1006233740": {
+   "name_zh": "重庆渝夜公寓",
+   "name_en": "Chongqing Yuye Apartment",
+   "reviews": 0
+  },
+  "1006233747": {
+   "name_zh": "宾居酒店(重庆邮电大学店)",
+   "name_en": "Binju Hotel (Chongqing University of Posts and Telecommunications)",
+   "reviews": 21
+  },
+  "1006233754": {
+   "name_zh": "重庆兴辉宾馆",
+   "name_en": "Chongqing Xinghui Hotel",
+   "reviews": 0
+  },
+  "1006233761": {
+   "name_zh": "大林酒店(南坪万达店)",
+   "name_en": "Dalin Hostel",
+   "reviews": 3
+  },
+  "1006233768": {
+   "name_zh": "重庆炫亮宾馆",
+   "name_en": "Xuanliang Hostel",
+   "reviews": 7
+  },
+  "1006233775": {
+   "name_zh": "重庆源凯公寓",
+   "name_en": "Yuankai Apartment",
+   "reviews": 0
+  },
+  "1006233782": {
+   "name_zh": "重庆梦缘宾馆",
+   "name_en": "Mengyuan Hostel",
+   "reviews": 0
+  },
+  "1006233789": {
+   "name_zh": "重庆津顺宾馆",
+   "name_en": "Chongqing Jinshun Hotel",
+   "reviews": 34
+  },
+  "1006233796": {
+   "name_zh": "重庆教委商务酒店",
+   "name_en": "Chongqing Education Committee Guest House",
+   "reviews": 1
+  },
+  "1006233803": {
+   "name_zh": "重庆NO.1商务酒店",
+   "name_en": "Chongqing NO.1 Business Hotel",
+   "reviews": 2
+  },
+  "1006233810": {
+   "name_zh": "重庆学府中央宾馆(合川移通学院店)",
+   "name_en": "Xuefu Zhongyang Hostel",
+   "reviews": 6
+  },
+  "1006233817": {
+   "name_zh": "君临商务宾馆(重庆总店)",
+   "name_en": "Junlin Business Hostel (Chongqing headquaters)",
+   "reviews": 0
+  },
+  "1006233824": {
+   "name_zh": "重庆四方宾馆",
+   "name_en": "Sifang Hotel",
+   "reviews": 0
+  },
+  "1006233831": {
+   "name_zh": "金煌精品酒店(重庆梁平重百商场店)",
+   "name_en": "Jinhuang Boutique Hotel (Chongqing Liangping Zhongbai Mall)",
+   "reviews": 120
+  },
+  "1006233838": {
+   "name_zh": "重庆金客来宾馆",
+   "name_en": "Chongqing Jinkelai Hotel",
+   "reviews": 5
+  },
+  "1006233845": {
+   "name_zh": "重庆金林宾馆",
+   "name_en": "Chongqing Jinlin Hotel",
+   "reviews": 14
+  },
+  "1006233852": {
+   "name_zh": "重庆竹梦园宾馆",
+   "name_en": "OYO Chongqing Zhumengyuan Hotel",
+   "reviews": 0
+  },
+  "1006233859": {
+   "name_zh": "重庆红江商务宾馆",
+   "name_en": "Chongqing Hongjiang Business Hotel",
+   "reviews": 0
+  },
+  "1006233866": {
+   "name_zh": "重庆兄弟宾馆",
+   "name_en": "Chongqing Brothers Hotel",
+   "reviews": 0
+  },
+  "1006233873": {
+   "name_zh": "重庆蓝顿商务宾馆",
+   "name_en": "Landun Business Hotel",
+   "reviews": 0
+  },
+  "1006233880": {
+   "name_zh": "重庆惠缘宾馆",
+   "name_en": "Huiyuan Hostel",
+   "reviews": 1
+  },
+  "1006233887": {
+   "name_zh": "梁平顺风宾馆",
+   "name_en": "Liangping Shunfeng Hotel",
+   "reviews": 2
+  },
+  "1006233894": {
+   "name_zh": "开县江运商务宾馆",
+   "name_en": "Kaixian Jiangyun Business Hotel",
+   "reviews": 7
+  },
+  "1006233901": {
+   "name_zh": "重庆民中宾馆",
+   "name_en": "Chongqing Yuyang Hotel",
+   "reviews": 8
+  },
+  "1006233908": {
+   "name_zh": "重庆广华酒店",
+   "name_en": "guang  hua",
+   "reviews": 14
+  },
+  "1006233915": {
+   "name_zh": "重庆开州188小优品酒店",
+   "name_en": "Chongqing Kaizhou 188 Xiaoyoupin Hotel",
+   "reviews": 0
+  },
+  "1006233922": {
+   "name_zh": "重庆恒生商务宾馆",
+   "name_en": "Hengsheng Business Hostel",
+   "reviews": 0
+  },
+  "1006233929": {
+   "name_zh": "重庆圣亚商务宾馆",
+   "name_en": "Shengya Business Hostel",
+   "reviews": 1
+  },
+  "1006233936": {
+   "name_zh": "星月民宿(重庆火车北站店)",
+   "name_en": "Xingyue Hostel (Chongqing North Railway Station)",
+   "reviews": 1
+  },
+  "1006233943": {
+   "name_zh": "诗秀宾馆",
+   "name_en": "Shixiu Hotel",
+   "reviews": 0
+  },
+  "1006233950": {
+   "name_zh": "重庆添顺商务宾馆",
+   "name_en": "chongqintianshunshangwubinguan",
+   "reviews": 1
+  },
+  "1006233957": {
+   "name_zh": "石柱民宿",
+   "name_en": "Shizhu Hotel",
+   "reviews": 7
+  },
+  "1006233964": {
+   "name_zh": "重庆慈祥民宿(重庆火车北站南广场店)",
+   "name_en": "Chongqing Cixiang Homestay (Chongqing North Railway Station South Square)",
+   "reviews": 42
+  },
+  "1006233971": {
+   "name_zh": "武隆区望江宾馆(武隆站)",
+   "name_en": "Wulong Wangjiang Inn (Wulong Station)",
+   "reviews": 3
+  },
+  "1006233978": {
+   "name_zh": "创意商务宾馆(重庆江津实验中学东校区店)",
+   "name_en": "Creative Business Hotel (Chongqing Jiangjin Experimental Middle School East Campus Branch)",
+   "reviews": 6
+  },
+  "1006233985": {
+   "name_zh": "重庆前渝宾馆(烈士墓地铁站店)",
+   "name_en": "Chongqing Qianyu Hotel (Lieshi Mu Subway Station)",
+   "reviews": 5
+  },
+  "1006233992": {
+   "name_zh": "重庆昌权招待所",
+   "name_en": "Chongqing Changquan Guesthouse",
+   "reviews": 23
+  },
+  "1006233999": {
+   "name_zh": "重庆北都旅馆",
+   "name_en": "Chongqing Beidu Inn",
+   "reviews": 5
+  },
+  "1006234006": {
+   "name_zh": "重庆六六公寓",
+   "name_en": "Liuliu Apartment",
+   "reviews": 4
+  },
+  "1006234013": {
+   "name_zh": "江强宾馆(重庆江北店)",
+   "name_en": "Jiangqiang Hotel (Zhongqing Jiangbei)",
+   "reviews": 40
+  },
+  "1006234020": {
+   "name_zh": "瑞丰宾馆(重庆璧山店)",
+   "name_en": "Ruifeng Hostel (Chongqing Bishan)",
+   "reviews": 12
+  },
+  "1006234027": {
+   "name_zh": "重庆麦兜宾馆(石桥铺陈家坪汽车站店)",
+   "name_en": "Maidou Hotel",
+   "reviews": 139
+  },
+  "1006234034": {
+   "name_zh": "顺利快捷民宿(重庆北站店)",
+   "name_en": "Shunli Express Homestay (Chongqing North Railway Station)",
+   "reviews": 13
+  },
+  "1006234041": {
+   "name_zh": "重庆宏展招待所",
+   "name_en": "Chongqing Hongzhan Guest House",
+   "reviews": 1
+  },
+  "1006234048": {
+   "name_zh": "武隆仙乐客栈",
+   "name_en": "Wulong County Xianle Chinese Inn",
+   "reviews": 1
+  },
+  "1006234055": {
+   "name_zh": "雅聚商务宾馆(重庆江北国际机场店)",
+   "name_en": "Yaju Business Hotel (Chongqing Jiangbei International Airport)",
+   "reviews": 61
+  },
+  "1006234062": {
+   "name_zh": "重庆圆满公寓",
+   "name_en": "Chongqing Yuanman Apartment",
+   "reviews": 0
+  },
+  "1006234069": {
+   "name_zh": "重庆蔡淑宾馆",
+   "name_en": "Caishu Hostel",
+   "reviews": 3
+  },
+  "1006234076": {
+   "name_zh": "鸿阳宾馆(重庆长江师范学院店)",
+   "name_en": "Hongyang Hotel (Chongqing Changjiang Normal University)",
+   "reviews": 0
+  },
+  "1006234083": {
+   "name_zh": "重庆君悦来宾馆",
+   "name_en": "Junyuelai Hostel",
+   "reviews": 46
+  },
+  "1006234090": {
+   "name_zh": "重庆丽缘宾馆",
+   "name_en": "Chongqing Liyuan Hotel",
+   "reviews": 1
+  },
+  "1006234097": {
+   "name_zh": "重庆鑫宏宾馆",
+   "name_en": "Xinhong Hostel",
+   "reviews": 2
+  },
+  "1006234104": {
+   "name_zh": "鑫港宾馆(三峡广场店)",
+   "name_en": "Xingang Hostel",
+   "reviews": 14
+  },
+  "1006234111": {
+   "name_zh": "重庆好友民宿",
+   "name_en": "Haoyou Apartment Hotel",
+   "reviews": 46
+  },
+  "1006234118": {
+   "name_zh": "重庆祥乐宾馆",
+   "name_en": "Xiangle Hostel",
+   "reviews": 0
+  },
+  "1006234125": {
+   "name_zh": "重庆薪阳宾馆",
+   "name_en": "Chongqing Xinyang Hotel",
+   "reviews": 0
+  },
+  "1006234132": {
+   "name_zh": "重庆萍聚招待所",
+   "name_en": "Pingju Hostel",
+   "reviews": 0
+  },
+  "1006234139": {
+   "name_zh": "雅阁公寓(重庆涪陵店)",
+   "name_en": "Yage Apartment (Chongqing Fuling)",
+   "reviews": 1
+  },
+  "1006234146": {
+   "name_zh": "重庆泰安农庄",
+   "name_en": "Tai'an Hostel",
+   "reviews": 0
+  },
+  "1006234153": {
+   "name_zh": "重庆爱琴海公寓",
+   "name_en": "Aiqinhai Apartment",
+   "reviews": 36
+  },
+  "1006234160": {
+   "name_zh": "壹加壹公寓(南坪步行街店)",
+   "name_en": "One Plus One Apartment (Nanping Pedestrian Street)",
+   "reviews": 6
+  },
+  "1006234167": {
+   "name_zh": "武隆港城公寓",
+   "name_en": "Gangcheng Apartment",
+   "reviews": 22
+  },
+  "1006234174": {
+   "name_zh": "重庆怡欣招待所",
+   "name_en": "Chongqing Yixin Guesthouse",
+   "reviews": 0
+  },
+  "1006234181": {
+   "name_zh": "重庆梁兴宾馆",
+   "name_en": "Chongqing Liangxing Hotel",
+   "reviews": 16
+  },
+  "1006234188": {
+   "name_zh": "秋湾宾馆",
+   "name_en": "Qiuwan Hotel",
+   "reviews": 7
+  },
+  "1006234195": {
+   "name_zh": "重庆聚龙苑宾馆",
+   "name_en": "Julongyuan Hostel",
+   "reviews": 1
+  },
+  "1006234202": {
+   "name_zh": "懿美酒店式公寓(重庆西南政法大学店)",
+   "name_en": "99 Apartment Hotel",
+   "reviews": 3
+  },
+  "1006234209": {
+   "name_zh": "重庆德润宾馆",
+   "name_en": "Chongqing Derun Hotel",
+   "reviews": 1
+  },
+  "1006234216": {
+   "name_zh": "武隆桃禾公寓",
+   "name_en": "Wulong County Taohe Apartment",
+   "reviews": 8
+  },
+  "1006234223": {
+   "name_zh": "重庆金东升宾馆",
+   "name_en": "Jindongsheng Hostel",
+   "reviews": 0
+  },
+  "1006234230": {
+   "name_zh": "仙女山上的花园美墅",
+   "name_en": "Garden Villa on Fairy Mountain",
+   "reviews": 1
+  },
+  "1006234237": {
+   "name_zh": "重庆春霞电竞宾馆",
+   "name_en": "Chunxia Esports Hotel in Chongqing",
+   "reviews": 4
+  },
+  "1006234244": {
+   "name_zh": "重庆万久华招待所",
+   "name_en": "Wanjiuhua Hostel",
+   "reviews": 0
+  },
+  "1006234251": {
+   "name_zh": "重庆和谐苑宾馆",
+   "name_en": "Chongqing Harmony Garden Hotel",
+   "reviews": 44
+  },
+  "1006234258": {
+   "name_zh": "重庆德昌宾馆",
+   "name_en": "Chongqing Dechang Hotel",
+   "reviews": 0
+  },
+  "1006234265": {
+   "name_zh": "重庆莲云宾馆",
+   "name_en": "Lianyun Hostel",
+   "reviews": 11
+  },
+  "1006234272": {
+   "name_zh": "重庆岚钰招待所",
+   "name_en": "Lanyu Hostel",
+   "reviews": 0
+  },
+  "1006234279": {
+   "name_zh": "重庆万州书香宾馆",
+   "name_en": "Chongqing Wanzhou Shuxiang Hotel",
+   "reviews": 6
+  },
+  "1006234286": {
+   "name_zh": "重庆顺渝宾馆",
+   "name_en": "Shunyu Hostel",
+   "reviews": 4
+  },
+  "1006234293": {
+   "name_zh": "重庆康全宾馆",
+   "name_en": "Kangquan Hostel",
+   "reviews": 0
+  },
+  "1006234300": {
+   "name_zh": "世纪红酒店(铜梁西地铁站店)",
+   "name_en": "Century Red Hotel (Chongqing Tongliang Branch)",
+   "reviews": 87
+  },
+  "1006234307": {
+   "name_zh": "重庆瑞豪商务酒店",
+   "name_en": "Chongqing Ruihao Business Hotel",
+   "reviews": 10
+  },
+  "1006234314": {
+   "name_zh": "璧山芙源招待所",
+   "name_en": "Fuyuan Hostel",
+   "reviews": 0
+  },
+  "1006234321": {
+   "name_zh": "温馨宾馆(重庆南川店)",
+   "name_en": "Warm Hotel (Chongqing Nanchuan Branch)",
+   "reviews": 0
+  },
+  "1006234328": {
+   "name_zh": "重庆璧城供销合作社旅馆",
+   "name_en": "Bicheng Supply and Marketing Cooperative Hostel",
+   "reviews": 1
+  },
+  "1006234335": {
+   "name_zh": "重庆远林宾馆",
+   "name_en": "Bishan Yuanlin Hotel",
+   "reviews": 0
+  },
+  "1006234342": {
+   "name_zh": "重庆思家旅馆",
+   "name_en": "Chongqing Sijia Inn",
+   "reviews": 1
+  },
+  "1006234349": {
+   "name_zh": "重庆黄桷湾旅馆",
+   "name_en": "Huangjuewan Hostel",
+   "reviews": 2
+  },
+  "1006234356": {
+   "name_zh": "重庆攀渝酒店(西南政法大学店)",
+   "name_en": "Chongqing Panyu Hotel (Southwest University of Political Science and Law)",
+   "reviews": 23
+  },
+  "1006234363": {
+   "name_zh": "武隆碧水公寓",
+   "name_en": "Bishui Apartment",
+   "reviews": 19
+  },
+  "1006234370": {
+   "name_zh": "重庆皇爵宾馆",
+   "name_en": "Huangjue Hostel",
+   "reviews": 2
+  },
+  "1006234377": {
+   "name_zh": "重庆天怡宾馆",
+   "name_en": "Tianyi Hostel",
+   "reviews": 2
+  },
+  "1006234384": {
+   "name_zh": "重庆王格宾馆",
+   "name_en": "Chongqing Wangge Motel",
+   "reviews": 0
+  },
+  "1006234391": {
+   "name_zh": "重庆凤渝宾馆",
+   "name_en": "Fengyu Hotel",
+   "reviews": 2
+  },
+  "1006234398": {
+   "name_zh": "重庆博堡宾馆",
+   "name_en": "Chongqing Bobao Hotel",
+   "reviews": 0
+  },
+  "1006234405": {
+   "name_zh": "重庆浩禧宾馆",
+   "name_en": "Haoxi Hostel",
+   "reviews": 3
+  },
+  "1006234412": {
+   "name_zh": "红叶宾馆(重庆铜梁店)",
+   "name_en": "Hongye Hotel (Chongqing Tongliang)",
+   "reviews": 0
+  },
+  "1006234419": {
+   "name_zh": "重庆喜来宾馆",
+   "name_en": "Xilai Hostel",
+   "reviews": 0
+  },
+  "1006234426": {
+   "name_zh": "重庆会缘宾馆",
+   "name_en": "Huiyuan Hotel, Chongqing",
+   "reviews": 1
+  },
+  "1006234433": {
+   "name_zh": "重庆富豪宾馆",
+   "name_en": "Fuhao Hostel (Chongqing Fuling)",
+   "reviews": 11
+  },
+  "1006234440": {
+   "name_zh": "珍禄宾馆(重庆南川店)",
+   "name_en": "Zhenlu Hotel (Chongqing Nanchuan)",
+   "reviews": 0
+  },
+  "1006234447": {
+   "name_zh": "重庆豪杰宾馆",
+   "name_en": "Chongqing Haojie Hotel",
+   "reviews": 16
+  },
+  "1006234454": {
+   "name_zh": "重庆辰阳宾馆",
+   "name_en": "Chenyang Hostel",
+   "reviews": 6
+  },
+  "1006234461": {
+   "name_zh": "重庆君来商务酒店",
+   "name_en": "Chongqing Junlai Business Hotel",
+   "reviews": 12
+  },
+  "1006234468": {
+   "name_zh": "重庆紫晶宫宾馆",
+   "name_en": "Zijinggong Hostel",
+   "reviews": 1
+  },
+  "1006234475": {
+   "name_zh": "重庆润豪宾馆",
+   "name_en": "Chongqing Runhao Hotel",
+   "reviews": 0
+  },
+  "1006234482": {
+   "name_zh": "重庆喀秋莎公寓",
+   "name_en": "Kaqiusha Apartment",
+   "reviews": 0
+  },
+  "1006234489": {
+   "name_zh": "顺风宾馆(长寿汽车客运总站店)",
+   "name_en": "Shunfeng Hotel (Changshou Bus Terminal)",
+   "reviews": 6
+  },
+  "1006234496": {
+   "name_zh": "重庆忆家商务宾馆",
+   "name_en": "Yijia Business Hostel",
+   "reviews": 2
+  },
+  "1006234503": {
+   "name_zh": "重庆奇佳宾馆",
+   "name_en": "Qijia Hostel",
+   "reviews": 5
+  },
+  "1006234510": {
+   "name_zh": "金马宾馆",
+   "name_en": "Chongqing Jinma Hostel",
+   "reviews": 1
+  },
+  "1006234517": {
+   "name_zh": "重庆晶犇福宾馆",
+   "name_en": "Jingbenfu Hostel",
+   "reviews": 3
+  },
+  "1006234524": {
+   "name_zh": "重庆红源宾馆",
+   "name_en": "Chongqing Hongyuan Hotel",
+   "reviews": 40
+  },
+  "1006234531": {
+   "name_zh": "重庆润达宾馆",
+   "name_en": "Runda Hotel",
+   "reviews": 0
+  },
+  "1006234538": {
+   "name_zh": "重庆平鑫民宿",
+   "name_en": "Pingxin Hotel",
+   "reviews": 6
+  },
+  "1006234545": {
+   "name_zh": "重庆华丰宾馆",
+   "name_en": "Chongqing Huafeng Hotel",
+   "reviews": 1
+  },
+  "1006234552": {
+   "name_zh": "鸿阳宾馆(重庆涪陵马鞍店)",
+   "name_en": "Hongyang Hostel (Chongqing Fuling Ma'an)",
+   "reviews": 0
+  },
+  "1006234559": {
+   "name_zh": "重庆奇佳新区宾馆",
+   "name_en": "Chongqing Qijia Bengbu Binhu New District Hotel",
+   "reviews": 21
+  },
+  "1006234566": {
+   "name_zh": "重庆天池宾馆",
+   "name_en": "Chongqing Tianchi Hotel",
+   "reviews": 0
+  },
+  "1006234573": {
+   "name_zh": "重庆怡和精品短租公寓",
+   "name_en": "Yihe Boutique Short-term Rental Apartment",
+   "reviews": 4
+  },
+  "1006234580": {
+   "name_zh": "重庆新幸福宾馆",
+   "name_en": "Chongqing Xinxingfu Hotel",
+   "reviews": 6
+  },
+  "1006234587": {
+   "name_zh": "重庆琴琴招待所",
+   "name_en": "Chongqing Qinqin Guest House",
+   "reviews": 3
+  },
+  "1006234594": {
+   "name_zh": "重庆璟年酒店",
+   "name_en": "Chongqing Jingnian Hotel",
+   "reviews": 16
+  },
+  "1006234601": {
+   "name_zh": "武隆缘份宾馆",
+   "name_en": "Yuanfen Hostel",
+   "reviews": 8
+  },
+  "1006234608": {
+   "name_zh": "武隆惠宾宾馆",
+   "name_en": "Huibin Hostel",
+   "reviews": 5
+  },
+  "1006234615": {
+   "name_zh": "摩尔民宿",
+   "name_en": "Moer Homestay",
+   "reviews": 10
+  },
+  "1006234622": {
+   "name_zh": "武隆喜缘宾馆",
+   "name_en": "Wulong County Xiyuan Hotel",
+   "reviews": 7
+  },
+  "1006234629": {
+   "name_zh": "宜家商务宾馆(重庆大学城店)",
+   "name_en": "IKEA Business Hotel (Chongqing University Town Branch)",
+   "reviews": 29
+  },
+  "1006234636": {
+   "name_zh": "小桔子酒店(重庆理工大学花溪校区店)",
+   "name_en": "Xiaojuzi Hotel (Huaxi Campus of Chongqing University of Technology)",
+   "reviews": 45
+  },
+  "1006234643": {
+   "name_zh": "重庆迎宾旅馆",
+   "name_en": "Yingbin Hostel",
+   "reviews": 0
+  },
+  "1006234650": {
+   "name_zh": "重庆永康商务宾馆",
+   "name_en": "Chongqing Yongkang Business Hotel",
+   "reviews": 1
+  },
+  "1006234657": {
+   "name_zh": "潼南海龙宾馆",
+   "name_en": "Nanhai Long Hotel",
+   "reviews": 4
+  },
+  "1006234664": {
+   "name_zh": "重庆鸿梅宾馆(万州上海中学店)",
+   "name_en": "HongMei Hostel",
+   "reviews": 20
+  },
+  "1006234671": {
+   "name_zh": "重庆万友住宿公寓",
+   "name_en": "Chongqing Wanyou Accommodation Apartment",
+   "reviews": 3
+  },
+  "1006234678": {
+   "name_zh": "西大天天公寓",
+   "name_en": "Xida Tiantian Apartment",
+   "reviews": 0
+  },
+  "1006234685": {
+   "name_zh": "皓世酒店（江北国际机场店）",
+   "name_en": "Yuanshi Hotel (Jiangbei International Airport)",
+   "reviews": 16
+  },
+  "1006234692": {
+   "name_zh": "重庆瑞冉宾馆",
+   "name_en": "Chongqing Ruiran Hotel",
+   "reviews": 6
+  },
+  "1006234699": {
+   "name_zh": "重庆群林宾馆",
+   "name_en": "Qunlin Hostel",
+   "reviews": 1
+  },
+  "1006234706": {
+   "name_zh": "重庆朗廷商务宾馆",
+   "name_en": "Chongqing Langting Business Hotel",
+   "reviews": 2
+  },
+  "1006234713": {
+   "name_zh": "重庆龙腾宾馆",
+   "name_en": "Chongqing Longteng Hotel",
+   "reviews": 22
+  },
+  "1006234720": {
+   "name_zh": "重庆新城招待所",
+   "name_en": "Chongqing New Town Guest House",
+   "reviews": 5
+  },
+  "1006234727": {
+   "name_zh": "重庆滨江宾馆(潼南重百店)",
+   "name_en": "Chongqing Binjiang Hotel",
+   "reviews": 0
+  },
+  "1006234734": {
+   "name_zh": "重庆凯旋宾馆",
+   "name_en": "Kaixuan Hotel",
+   "reviews": 13
+  },
+  "1006234741": {
+   "name_zh": "重庆顺风宾馆",
+   "name_en": "Chongqing Shunfeng Hotel",
+   "reviews": 0
+  },
+  "1006234748": {
+   "name_zh": "央航.金鼎酒店(长寿客运站妇幼保健院店)",
+   "name_en": "Yanghang Jinding Hotel (Chongqing Changshou Passenger Terminal )",
+   "reviews": 310
+  },
+  "1006234755": {
+   "name_zh": "重庆嘉利宾馆",
+   "name_en": "Chongqing Jiali Hotel",
+   "reviews": 1
+  },
+  "1006234762": {
+   "name_zh": "重庆鑫河公寓",
+   "name_en": "Chongqing Xinhe Apartment",
+   "reviews": 1
+  },
+  "1006234769": {
+   "name_zh": "重庆潼城商务宾馆(潼南汽车客运总站店)",
+   "name_en": "Chongqing Tongcheng Business Hotel (Tongnan Bus Terminal)",
+   "reviews": 8
+  },
+  "1006234776": {
+   "name_zh": "重庆旺源公寓",
+   "name_en": "Wangyuan Apartment",
+   "reviews": 0
+  },
+  "1006234783": {
+   "name_zh": "重庆会友宾馆",
+   "name_en": "Huiyou Hostel",
+   "reviews": 2
+  },
+  "1006234790": {
+   "name_zh": "重庆教育宾馆",
+   "name_en": "Jiaoyu Hostel",
+   "reviews": 0
+  },
+  "1006234797": {
+   "name_zh": "重庆靓妆招待所",
+   "name_en": "Liangzhuang Hostel",
+   "reviews": 11
+  },
+  "1006234804": {
+   "name_zh": "重庆源茗宾馆",
+   "name_en": "Chongqing Yuanming Hotel",
+   "reviews": 8
+  },
+  "1006234811": {
+   "name_zh": "重庆濮福宾馆",
+   "name_en": "Pufu Hostel",
+   "reviews": 0
+  },
+  "1006234818": {
+   "name_zh": "重庆柯程宾馆",
+   "name_en": "Chongqing Kecheng Hotel",
+   "reviews": 30
+  },
+  "1006234825": {
+   "name_zh": "重庆平安宾馆",
+   "name_en": "Ping'an Hostel",
+   "reviews": 5
+  },
+  "1006234832": {
+   "name_zh": "重庆博伟旅馆",
+   "name_en": "Chongqing Bowei Inn",
+   "reviews": 0
+  },
+  "1006234839": {
+   "name_zh": "重庆七豪宾馆",
+   "name_en": "Chongqing Qihao Hotel",
+   "reviews": 5
+  },
+  "1006234846": {
+   "name_zh": "重庆龙园宾馆",
+   "name_en": "Longyuan Apartment",
+   "reviews": 35
+  },
+  "1006234853": {
+   "name_zh": "重庆春日花开商务酒店",
+   "name_en": "Chunri Huakai Business Hotel",
+   "reviews": 54
+  },
+  "1006234860": {
+   "name_zh": "重庆建渝宾馆",
+   "name_en": "Chongqing Jianyu Hotel",
+   "reviews": 11
+  },
+  "1006234867": {
+   "name_zh": "重庆美美商务宾馆",
+   "name_en": "Chongqing Meimei Business Hotel",
+   "reviews": 1
+  },
+  "1006234874": {
+   "name_zh": "重庆尚城商务宾馆",
+   "name_en": "Changqing Shangcheng Business Hotel",
+   "reviews": 46
+  },
+  "1006234881": {
+   "name_zh": "重庆裕阳宾馆",
+   "name_en": "Yu Yang Hotel",
+   "reviews": 0
+  },
+  "1006234888": {
+   "name_zh": "潼南巴渝宾馆",
+   "name_en": "South Bay Hotel",
+   "reviews": 2
+  },
+  "1006234895": {
+   "name_zh": "重庆渝发商务宾馆",
+   "name_en": "Yufa Business Hotel",
+   "reviews": 2
+  },
+  "1006234902": {
+   "name_zh": "重庆渝淮宾馆",
+   "name_en": "Yuhuai Hostel",
+   "reviews": 1
+  },
+  "1006234909": {
+   "name_zh": "潼南金诚旅馆",
+   "name_en": "Jincheng Hostel",
+   "reviews": 0
+  },
+  "1006234916": {
+   "name_zh": "潼南瑞丰宾馆",
+   "name_en": "Ruifeng Hostel",
+   "reviews": 1
+  },
+  "1006234923": {
+   "name_zh": "重庆艾尚城市客栈",
+   "name_en": "Aishang City Inn",
+   "reviews": 45
+  },
+  "1006234930": {
+   "name_zh": "重庆永顺宾馆",
+   "name_en": "yongshun hotel",
+   "reviews": 0
+  },
+  "1006234937": {
+   "name_zh": "重庆鞋都宾馆",
+   "name_en": "",
+   "reviews": 14
+  },
+  "1006234944": {
+   "name_zh": "重庆利美宾馆",
+   "name_en": "Limei Hotel",
+   "reviews": 4
+  },
+  "1006234951": {
+   "name_zh": "重庆天圆商务宾馆",
+   "name_en": "Chongqing Tianyuan Business Hotel",
+   "reviews": 1
+  },
+  "1006234958": {
+   "name_zh": "璧山万豪商务宾馆",
+   "name_en": "Bishan WanHao Business Hotel",
+   "reviews": 0
+  },
+  "1006234965": {
+   "name_zh": "重庆群才宾馆",
+   "name_en": "Quncai Hostel",
+   "reviews": 7
+  },
+  "1006234972": {
+   "name_zh": "重庆家缘宾馆",
+   "name_en": "Chongqing Jiayuan Hotel",
+   "reviews": 0
+  },
+  "1006234979": {
+   "name_zh": "重庆林乐商务宾馆",
+   "name_en": "Chongqing Linle Business Hotel",
+   "reviews": 8
+  },
+  "1006234986": {
+   "name_zh": "重庆园景宾馆(歇台子地铁站科园四路店)",
+   "name_en": "Chongqing Yuanjing Hotel (Xietaizi Metro Station Keyuan 4th Road Branch)",
+   "reviews": 17
+  },
+  "1006234993": {
+   "name_zh": "重庆福禄会宾馆",
+   "name_en": "Fuluhui Hostel",
+   "reviews": 0
+  },
+  "1006235000": {
+   "name_zh": "重庆国凤宾馆",
+   "name_en": "Guofeng Hostel",
+   "reviews": 2
+  },
+  "1006235007": {
+   "name_zh": "宏源宾馆(重庆解放碑洪崖洞店)",
+   "name_en": "Hongyuan Hotel (Jiefangbei hongyadongStore, Chongqing)",
+   "reviews": 740
+  },
+  "1006235014": {
+   "name_zh": "重庆中博宾馆",
+   "name_en": "Zhongbo Hotel",
+   "reviews": 178
+  },
+  "1006235021": {
+   "name_zh": "重庆锦怡旅馆",
+   "name_en": "Chongqing Jinyi Inn",
+   "reviews": 2
+  },
+  "1006235028": {
+   "name_zh": "重庆渝源宾馆(潼南红星美凯龙店)",
+   "name_en": "Chongqing Wuyuan Hotel (South Guinan Hongxing Meikailong Branch)",
+   "reviews": 20
+  },
+  "1006235035": {
+   "name_zh": "重庆玉婵宾馆",
+   "name_en": "Chongqing Yulin Hotel",
+   "reviews": 0
+  },
+  "1006235042": {
+   "name_zh": "时光·谦宝酒店(重百江津商场店)",
+   "name_en": "Shiguang · Qianbao Hotel (Chongbai Jiangjin Mall)",
+   "reviews": 149
+  },
+  "1006235049": {
+   "name_zh": "鑫鼎宾馆(荣昌人民路商业步行街店)",
+   "name_en": "Xinding Hotel (Rongchang Renmin Road Commercial Pedestrian Street)",
+   "reviews": 26
+  },
+  "1006235056": {
+   "name_zh": "重庆迪海宾馆",
+   "name_en": "Chongqing Dihai Hotel",
+   "reviews": 4
+  },
+  "1006235063": {
+   "name_zh": "重庆永兴宾馆",
+   "name_en": "Yongxing Hostel",
+   "reviews": 62
+  },
+  "1006235070": {
+   "name_zh": "重庆明顺宾馆",
+   "name_en": "Chongqing Mingshun Hotel",
+   "reviews": 0
+  },
+  "1006235077": {
+   "name_zh": "重庆丽君旅馆",
+   "name_en": "Chongqing lijun hotel",
+   "reviews": 1
+  },
+  "1006235084": {
+   "name_zh": "重庆吉顺商务宾馆",
+   "name_en": "Chongqing Jishun Business Hotel",
+   "reviews": 5
+  },
+  "1006235091": {
+   "name_zh": "重庆天平旅馆",
+   "name_en": "Chongqing Tianping Tavern",
+   "reviews": 0
+  },
+  "1006235098": {
+   "name_zh": "重庆艺蒙宾馆",
+   "name_en": "Chongqing Yimeng Hotel",
+   "reviews": 0
+  },
+  "1006235105": {
+   "name_zh": "重庆浪漫满屋网络公寓",
+   "name_en": "Chongqing romantic full house network apartment",
+   "reviews": 1
+  },
+  "1006235112": {
+   "name_zh": "鑫鑫宾馆(重庆黔江店)",
+   "name_en": "Xinxin Hostel (Chongqing Qianjiang)",
+   "reviews": 0
+  },
+  "1006235119": {
+   "name_zh": "重庆渝鸿源商务宾馆",
+   "name_en": "Yuhongyuan Business Hostel",
+   "reviews": 1
+  },
+  "1006235126": {
+   "name_zh": "凯旋商务宾馆(重庆黔江店)",
+   "name_en": "Kaixuan Business Hotel (Chongqing Lijiang Branch)",
+   "reviews": 14
+  },
+  "1006235133": {
+   "name_zh": "重庆旺角楼宾馆",
+   "name_en": "Chongqing Mongkok Tower Hotel",
+   "reviews": 0
+  },
+  "1006235140": {
+   "name_zh": "重庆CoCo时尚公寓",
+   "name_en": "Chongqing CoCo Trendy Apartment",
+   "reviews": 2
+  },
+  "1006235147": {
+   "name_zh": "爱琴海商务酒店(重庆汽博中心店)",
+   "name_en": "Aegean Business Hotel (Chongqing Auto Expo Center Branch)",
+   "reviews": 167
+  },
+  "1006235154": {
+   "name_zh": "重庆芳玉宾馆",
+   "name_en": "Fangyu Hostel",
+   "reviews": 0
+  },
+  "1006235161": {
+   "name_zh": "悦伴湾酒店(重庆东站长生桥地铁站店)",
+   "name_en": "Chongqing Zhongqiao Hotel",
+   "reviews": 7
+  },
+  "1006235168": {
+   "name_zh": "重庆聚雁快捷民宿",
+   "name_en": "Chongqing Juyan Express Homestay",
+   "reviews": 0
+  },
+  "1006235175": {
+   "name_zh": "云笺酒店(重庆花溪理工大学店)",
+   "name_en": "Chongqing Qijiasan Hotel",
+   "reviews": 102
+  },
+  "1006235182": {
+   "name_zh": "重庆朵锦商务宾馆",
+   "name_en": "Duojin Business Hostel",
+   "reviews": 0
+  },
+  "1006235189": {
+   "name_zh": "重庆红丰宾馆",
+   "name_en": "Chongqing Hongfeng Hotel",
+   "reviews": 1
+  },
+  "1006235196": {
+   "name_zh": "重庆昌隆宾馆",
+   "name_en": "Chongqing Changlong Hotel",
+   "reviews": 0
+  },
+  "1006235203": {
+   "name_zh": "重庆邦仕商务宾馆",
+   "name_en": "Bangshi Business Hostel",
+   "reviews": 11
+  },
+  "1006235210": {
+   "name_zh": "重庆龙庭商务宾馆",
+   "name_en": "Chongqing Longting Business Hotel",
+   "reviews": 1
+  },
+  "1006235217": {
+   "name_zh": "宏远民宿(重庆北站南广场店)",
+   "name_en": "Hongyuan Hostel",
+   "reviews": 6
+  },
+  "1006235224": {
+   "name_zh": "重庆豪凯商务宾馆",
+   "name_en": "Chongqing Haokei Business Hotel",
+   "reviews": 0
+  },
+  "1006235231": {
+   "name_zh": "重庆银都宾馆",
+   "name_en": "Yindu Hostel",
+   "reviews": 4
+  },
+  "1006235238": {
+   "name_zh": "重庆佩斯酒店(荣昌西南大学大润发店)",
+   "name_en": "Chongqing Pace Hotel (Rongchang Southwest University RT-Mart)",
+   "reviews": 60
+  },
+  "1006235245": {
+   "name_zh": "重庆得月楼宾馆",
+   "name_en": "Deyuelou hotel, chongqing",
+   "reviews": 13
+  },
+  "1006235252": {
+   "name_zh": "重庆君康商务宾馆",
+   "name_en": "Chongqing JunKang Business Hotel",
+   "reviews": 0
+  },
+  "1006235259": {
+   "name_zh": "重庆海梦宾馆",
+   "name_en": "Chongqing Haimeng Hotel",
+   "reviews": 9
+  },
+  "1006235266": {
+   "name_zh": "重庆燕洪橘子宾馆",
+   "name_en": "YanhongjuziHostel",
+   "reviews": 26
+  },
+  "1006235273": {
+   "name_zh": "燕艳商务宾馆",
+   "name_en": "Yanyan Business Hotel",
+   "reviews": 0
+  },
+  "1006235280": {
+   "name_zh": "重庆金苑公寓",
+   "name_en": "Chongqing Jinyuan Apartment",
+   "reviews": 6
+  },
+  "1006235287": {
+   "name_zh": "陶乐森林民宿",
+   "name_en": "Taole Forest Hostel",
+   "reviews": 15
+  },
+  "1006235294": {
+   "name_zh": "武隆瑗瑗宾馆",
+   "name_en": "Wulongxu Hotel",
+   "reviews": 4
+  },
+  "1006235301": {
+   "name_zh": "重庆秋豪商务宾馆(江津一中店)",
+   "name_en": "Chongqing Qiuhao Business Hotel (Jiangjin No. 1 High School)",
+   "reviews": 36
+  },
+  "1006235308": {
+   "name_zh": "重庆友林酒店(西南大学天生丽街店)",
+   "name_en": "Your name England",
+   "reviews": 1
+  },
+  "1006235315": {
+   "name_zh": "武隆强兴客栈",
+   "name_en": "Qiangxing Inn",
+   "reviews": 65
+  },
+  "1006235322": {
+   "name_zh": "重庆云江舍江景公寓",
+   "name_en": "Chongqing Shuiyunjian Apartment",
+   "reviews": 36
+  },
+  "1006235329": {
+   "name_zh": "重庆天天日租公寓",
+   "name_en": "Tiantian Daily Rental Apartment",
+   "reviews": 1
+  },
+  "1006235336": {
+   "name_zh": "皇陇酒店(重庆万州三峡科技大学店)",
+   "name_en": "Chongqing Huanglong Hotel",
+   "reviews": 45
+  },
+  "1006235343": {
+   "name_zh": "重庆宾客来招待所",
+   "name_en": "Chongqing Bingkelai Guesthouse",
+   "reviews": 1
+  },
+  "1006235350": {
+   "name_zh": "重庆驰诚宾馆",
+   "name_en": "Chongqing Chicheng Hotel",
+   "reviews": 0
+  },
+  "1006235357": {
+   "name_zh": "重庆金泉山庄",
+   "name_en": "Jinquan Hostel",
+   "reviews": 0
+  },
+  "1006235364": {
+   "name_zh": "重庆双燕农家乐",
+   "name_en": "",
+   "reviews": 0
+  },
+  "1006235371": {
+   "name_zh": "重庆玉群商务宾馆",
+   "name_en": "Chongqing Yuqun Business Hotel",
+   "reviews": 10
+  },
+  "1006235378": {
+   "name_zh": "重庆荣彬公寓",
+   "name_en": "Chongqing Rongbin Apartment",
+   "reviews": 2
+  },
+  "1006235385": {
+   "name_zh": "七月猫猫花园客栈",
+   "name_en": "Qiyue Maomao Garden Inn",
+   "reviews": 145
+  },
+  "1006235392": {
+   "name_zh": "重庆紫涵山庄",
+   "name_en": "Chongqing Zihan Hotel",
+   "reviews": 1
+  },
+  "1006235399": {
+   "name_zh": "川叶乡村鱼庄",
+   "name_en": "Chuanye Village Fish Farm",
+   "reviews": 14
+  },
+  "1006235406": {
+   "name_zh": "重庆胜洁民宿",
+   "name_en": "Chongqing Shengjie Homestay",
+   "reviews": 26
+  },
+  "1006235413": {
+   "name_zh": "重庆南桥旅社",
+   "name_en": "Nanqiao Hostel",
+   "reviews": 0
+  },
+  "1006235420": {
+   "name_zh": "重庆桥头宾馆",
+   "name_en": "Qiaotou Hotel",
+   "reviews": 0
+  },
+  "1006235427": {
+   "name_zh": "重庆伊家亲宾馆",
+   "name_en": "Yijiaqin Hostel",
+   "reviews": 15
+  },
+  "1006235434": {
+   "name_zh": "瑞曼酒店(西南医院重庆图书馆地铁站店)",
+   "name_en": "Ruiman Hotel (Southwest Hospital Chongqing Library Subway Station)",
+   "reviews": 21
+  },
+  "1006235441": {
+   "name_zh": "重庆渝蓉宾馆",
+   "name_en": "Chongqing Yu Hotel",
+   "reviews": 1
+  },
+  "1006235448": {
+   "name_zh": "重庆天圣宾馆",
+   "name_en": "Chongqing Tiansheng Inn",
+   "reviews": 0
+  },
+  "1006235455": {
+   "name_zh": "重庆福都心宾馆",
+   "name_en": "Fuduxin Hostel",
+   "reviews": 26
+  },
+  "1006235462": {
+   "name_zh": "重庆南江寓旅馆",
+   "name_en": "Chongqing Nanjiang Residence",
+   "reviews": 1
+  },
+  "1006235469": {
+   "name_zh": "重庆红桥宾馆",
+   "name_en": "Hongqiao Hostel",
+   "reviews": 0
+  },
+  "1006235476": {
+   "name_zh": "鑫汐精品酒店",
+   "name_en": "Xinxi Boutique Hotel",
+   "reviews": 6
+  },
+  "1006235483": {
+   "name_zh": "重庆兰亭阁商务宾馆",
+   "name_en": "Chongqing Lantingge Business Inn",
+   "reviews": 0
+  },
+  "1006235490": {
+   "name_zh": "重庆蜃庆商务宾馆",
+   "name_en": "Shenqing Business Hotel",
+   "reviews": 0
+  },
+  "1006235497": {
+   "name_zh": "爱情公寓(重庆南坪协信星光店)",
+   "name_en": "Love Apartment (Chongqing Nanping Xiexin Xingguang)",
+   "reviews": 39
+  },
+  "1006235504": {
+   "name_zh": "嘉悦酒店(荣昌体育馆店)",
+   "name_en": "Chongqing Rongchang Jiayue Hotel",
+   "reviews": 25
+  },
+  "1006235511": {
+   "name_zh": "新渝宾馆(綦江高铁东站店)",
+   "name_en": "Xinxu Hotel (Lijiang East High-speed Railway Station)",
+   "reviews": 29
+  },
+  "1006235518": {
+   "name_zh": "重庆金聚园商务宾馆",
+   "name_en": "Jinjuyuan Business Hostel",
+   "reviews": 6
+  },
+  "1006235525": {
+   "name_zh": "重庆畅想宾馆",
+   "name_en": "Chongqing Changxiang Hotel",
+   "reviews": 2
+  },
+  "1006235532": {
+   "name_zh": "海都宾馆(重庆第二师范学院店)",
+   "name_en": "Haidu Hotel (Chongqing Second Normal University)",
+   "reviews": 18
+  },
+  "1006235539": {
+   "name_zh": "重庆爱加公寓",
+   "name_en": "Chongqing Aijia Apartment",
+   "reviews": 32
+  },
+  "1006235546": {
+   "name_zh": "圣婴智能民宿(重庆医科大学附属儿童医院店)",
+   "name_en": "Shengying Smart Homestay (Chongqing Medical University Affiliated Children's Hospital)",
+   "reviews": 35
+  },
+  "1006235553": {
+   "name_zh": "重庆平云宾馆",
+   "name_en": "Pingyun Hotel",
+   "reviews": 9
+  },
+  "1006235560": {
+   "name_zh": "重庆心德旅馆",
+   "name_en": "Xinde Hostel",
+   "reviews": 1
+  },
+  "1006235567": {
+   "name_zh": "重庆家芳商务宾馆",
+   "name_en": "Jiafang Business Hotel",
+   "reviews": 21
+  },
+  "1006235574": {
+   "name_zh": "荣昌玉桥商务宾馆(重庆人民路商业步行街店)",
+   "name_en": "Yuqiao Business Hotel",
+   "reviews": 70
+  },
+  "1006235581": {
+   "name_zh": "重庆平安商务宾馆",
+   "name_en": "Chongqing Ping'an Business Hotel",
+   "reviews": 0
+  },
+  "1006235588": {
+   "name_zh": "重庆新桥旅社",
+   "name_en": "Xinqiao Hostel",
+   "reviews": 0
+  },
+  "1006235595": {
+   "name_zh": "统景临峡农家乐",
+   "name_en": "Tongjing Linxia Farm Stay",
+   "reviews": 2
+  },
+  "1006235602": {
+   "name_zh": "重庆兴泰商务宾馆",
+   "name_en": "Xingtai Business Hostel",
+   "reviews": 58
+  },
+  "1006235609": {
+   "name_zh": "重庆178宾馆",
+   "name_en": "178 Hostel",
+   "reviews": 9
+  },
+  "1006235616": {
+   "name_zh": "重庆浩洁商务宾馆",
+   "name_en": "Chongqing Haojie Business Hotel",
+   "reviews": 3
+  },
+  "1006235623": {
+   "name_zh": "重庆沱湾招待所",
+   "name_en": "Chongqing Tuowan Guesthouse",
+   "reviews": 15
+  },
+  "1006235630": {
+   "name_zh": "重庆利鑫商务宾馆",
+   "name_en": "Chongqing Lixin Business Hotel",
+   "reviews": 5
+  },
+  "1006235637": {
+   "name_zh": "重庆滨江时尚精品公寓",
+   "name_en": "Binjiang Fashion Boutique Hotel",
+   "reviews": 2
+  },
+  "1006235644": {
+   "name_zh": "重庆欣怡商务宾馆",
+   "name_en": "Chongqing Changqing Business Hotel",
+   "reviews": 4
+  },
+  "1006235651": {
+   "name_zh": "重庆农机公寓",
+   "name_en": "Nongji Apartment",
+   "reviews": 0
+  },
+  "1006235658": {
+   "name_zh": "岚悦精品酒店(南门桥步行街店)",
+   "name_en": "Lanyue Boutique Hotel (Nanmenqiao Pedestrian Street Store",
+   "reviews": 43
+  },
+  "1006235665": {
+   "name_zh": "重庆楚都宾馆",
+   "name_en": "Chudu Hotel",
+   "reviews": 37
+  },
+  "1006235672": {
+   "name_zh": "好来屋公寓(重庆朝天门店)",
+   "name_en": "Haolaiwu Apartment (Chongqing Chaotianmen)",
+   "reviews": 14
+  },
+  "1006235679": {
+   "name_zh": "重庆泰融宾馆",
+   "name_en": "Chongqing Tairong Hotel",
+   "reviews": 24
+  },
+  "1006235686": {
+   "name_zh": "怡悦电竞主题宾馆",
+   "name_en": "Yiyue Hostel",
+   "reviews": 14
+  },
+  "1006235693": {
+   "name_zh": "重庆南海宾馆",
+   "name_en": "Xiaonanhai Xuetangwan Inn",
+   "reviews": 2
+  },
+  "1006235700": {
+   "name_zh": "重庆诗雨酒店(华熙LIVE鱼洞金竹地铁站店)",
+   "name_en": "Shiyu Business Hotel",
+   "reviews": 53
+  },
+  "1006235707": {
+   "name_zh": "广营宾馆(重庆金凤店)",
+   "name_en": "Guangying Hotel (Chongqing Jinfeng Branch)",
+   "reviews": 20
+  },
+  "1006235714": {
+   "name_zh": "重庆兴泰民宿",
+   "name_en": "Xingtai Hotel",
+   "reviews": 2
+  },
+  "1006235721": {
+   "name_zh": "永川远洋宾馆(俊豪中央大街店)",
+   "name_en": "Yuanyang Hotel",
+   "reviews": 4
+  },
+  "1006235728": {
+   "name_zh": "重庆柴氏宾馆",
+   "name_en": "Chongqing Chaishi Hotel",
+   "reviews": 22
+  },
+  "1006235735": {
+   "name_zh": "重庆山川旅馆",
+   "name_en": "Shanchuan Hostel",
+   "reviews": 0
+  },
+  "1006235742": {
+   "name_zh": "重庆新平安宾馆",
+   "name_en": "OYO Chongqing Xinping'an Hotel",
+   "reviews": 2
+  },
+  "1006235749": {
+   "name_zh": "思晴宾馆",
+   "name_en": "Siqing Hotel",
+   "reviews": 2
+  },
+  "1006235756": {
+   "name_zh": "重庆名南宾馆",
+   "name_en": "Chongqing Mingnan Hotel",
+   "reviews": 22
+  },
+  "1006235763": {
+   "name_zh": "亿豪宾馆(重庆万州店)",
+   "name_en": "Yihao Hotel (Chongqing Wanzhou)",
+   "reviews": 1
+  },
+  "1006235770": {
+   "name_zh": "重庆缘梦宾馆",
+   "name_en": "Chongqing Yuanmeng Hotel",
+   "reviews": 2
+  },
+  "1006235777": {
+   "name_zh": "重庆金亿宾馆",
+   "name_en": "Jinyi Hostel",
+   "reviews": 14
+  },
+  "1006235784": {
+   "name_zh": "重庆悦发宾馆",
+   "name_en": "Chongqing Yuefa Hotel",
+   "reviews": 6
+  },
+  "1006235791": {
+   "name_zh": "重庆沙珑宾馆",
+   "name_en": "Shalong Hostel",
+   "reviews": 1
+  },
+  "1006235798": {
+   "name_zh": "重庆新友宾馆(万州高笋塘店)",
+   "name_en": "Chongqing Xinyou Hotel (Wanzhou Gaosuntang)",
+   "reviews": 15
+  },
+  "1006235805": {
+   "name_zh": "重庆来福招待所",
+   "name_en": "Chongqing Laifu Hostel",
+   "reviews": 1
+  },
+  "1006235812": {
+   "name_zh": "重庆桂佳智能酒店(观音桥步行街店)",
+   "name_en": "Chongqing Guijia Intelligent Hotel (Guanyinqiao Pedestrian Street)",
+   "reviews": 303
+  },
+  "1006235819": {
+   "name_zh": "重庆锦园宾馆",
+   "name_en": "Chongqing Jinyuan Hotel",
+   "reviews": 1
+  },
+  "1006235826": {
+   "name_zh": "富春酒店",
+   "name_en": "Chongqing Fuchun Hotel",
+   "reviews": 0
+  },
+  "1006235833": {
+   "name_zh": "重庆国鑫酒店",
+   "name_en": "Guoxin Hostel",
+   "reviews": 6
+  },
+  "1006235840": {
+   "name_zh": "雅豪宾馆",
+   "name_en": "Yahao Hotel",
+   "reviews": 2
+  },
+  "1006235847": {
+   "name_zh": "重庆福星来宾馆",
+   "name_en": "Chongqing Fuxinglai Hotel",
+   "reviews": 10
+  },
+  "1006235854": {
+   "name_zh": "重庆高峰宾馆",
+   "name_en": "Chongqing Gaofeng Hotel",
+   "reviews": 0
+  },
+  "1006235861": {
+   "name_zh": "重庆休依谷宾馆",
+   "name_en": "Chongqing Xieygu Hotel",
+   "reviews": 1
+  },
+  "1006235868": {
+   "name_zh": "重庆富鑫商务宾馆",
+   "name_en": "Chongqing Fuxin Business Hotel",
+   "reviews": 1
+  },
+  "1006235875": {
+   "name_zh": "昀土影视智能酒店(重庆三峡职业学院万州站店)",
+   "name_en": "Yuntu Business Hostel",
+   "reviews": 60
+  },
+  "1006235882": {
+   "name_zh": "亿凯智能酒店(重庆三峡职业学院万州站店)",
+   "name_en": "Chongqing Yikai Business Hotel",
+   "reviews": 20
+  },
+  "1006235889": {
+   "name_zh": "重庆茶花宾馆",
+   "name_en": "Chahua Hostel",
+   "reviews": 3
+  },
+  "1006235896": {
+   "name_zh": "重庆家财宾馆",
+   "name_en": "Jiacai Hostel",
+   "reviews": 3
+  },
+  "1006235903": {
+   "name_zh": "重庆乐都旅舍",
+   "name_en": "Ledu Hostel",
+   "reviews": 0
+  },
+  "1006235910": {
+   "name_zh": "重庆迎客来商务宾馆",
+   "name_en": "Yingkelai Business Hostel",
+   "reviews": 0
+  },
+  "1006235917": {
+   "name_zh": "重庆世纪缘宾馆",
+   "name_en": "Chongqing Shijiyuan Hotel",
+   "reviews": 1
+  },
+  "1006235924": {
+   "name_zh": "万州区雅艺宾馆(万州五桥机场店)",
+   "name_en": "Wanzhou Yayi Inn (Wanzhou Wuqiao Airport)",
+   "reviews": 12
+  },
+  "1006235931": {
+   "name_zh": "重庆华南酒店",
+   "name_en": "Huanan Hotel",
+   "reviews": 25
+  },
+  "1006235938": {
+   "name_zh": "重庆郦水江岸商务宾馆",
+   "name_en": "Chongqing Lishui Jiang'an Business Hotel",
+   "reviews": 0
+  },
+  "1006235945": {
+   "name_zh": "重庆方顺宾馆",
+   "name_en": "Fangshun Hostel",
+   "reviews": 1
+  },
+  "1006235952": {
+   "name_zh": "重庆晨星宾馆",
+   "name_en": "Chenxing Hostel",
+   "reviews": 19
+  },
+  "1006235959": {
+   "name_zh": "重庆兵丽景宾馆(三峡学院店)",
+   "name_en": "Binglijing Hostel",
+   "reviews": 29
+  },
+  "1006235966": {
+   "name_zh": "重庆华珍宾馆",
+   "name_en": "Huazhen Hotel",
+   "reviews": 0
+  },
+  "1006235973": {
+   "name_zh": "重庆斯迈尔快捷酒店",
+   "name_en": "Chongqing Smiley Express Hotel",
+   "reviews": 34
+  },
+  "1006235980": {
+   "name_zh": "怡郃酒店(三峡学院安职院店)",
+   "name_en": "Yihe Hotel",
+   "reviews": 11
+  },
+  "1006235987": {
+   "name_zh": "重庆祥发招待所",
+   "name_en": "Chongqing Xiangfa Guesthouse",
+   "reviews": 0
+  },
+  "1006235994": {
+   "name_zh": "重庆金恩宾馆",
+   "name_en": "Chongqing Jinen Hotel",
+   "reviews": 0
+  },
+  "1006236001": {
+   "name_zh": "重庆天禧宾馆",
+   "name_en": "Chongqing Tianxi Hotel",
+   "reviews": 11
+  },
+  "1006236008": {
+   "name_zh": "三尚苑酒店(万州北站店)",
+   "name_en": "Sanshangyuan Hotel (Wanzhou North Station)",
+   "reviews": 48
+  },
+  "1006236015": {
+   "name_zh": "名都宾馆(重庆万州店)",
+   "name_en": "Mingdu Hotel (Chongqing Wanzhou Branch)",
+   "reviews": 10
+  },
+  "1006236022": {
+   "name_zh": "大自然酒店(重庆璧山金三角农商行店)",
+   "name_en": "Daziran Business Hostel (Chongqing Jinsanjiao)",
+   "reviews": 111
+  },
+  "1006236029": {
+   "name_zh": "重庆兴黔商务宾馆",
+   "name_en": "Xingqian Business Hostel",
+   "reviews": 0
+  },
+  "1006236036": {
+   "name_zh": "重庆米虹公寓",
+   "name_en": "Mihong Apartment",
+   "reviews": 18
+  },
+  "1006236043": {
+   "name_zh": "重庆伊顿酒店",
+   "name_en": "Yidun Hotel",
+   "reviews": 9
+  },
+  "1006236050": {
+   "name_zh": "兴隆宾馆(重庆涪陵店)",
+   "name_en": "Xinglong Hotel (Chongqing Fuling)",
+   "reviews": 1
+  },
+  "1006236057": {
+   "name_zh": "重庆宏桂宾馆",
+   "name_en": "Chongqing Honggui Hotel",
+   "reviews": 6
+  },
+  "1006236064": {
+   "name_zh": "重庆心逸公寓(观音桥步行街店)",
+   "name_en": "Xinyi Family Apartment",
+   "reviews": 2
+  },
+  "1006236071": {
+   "name_zh": "重庆长鸿宾馆",
+   "name_en": "Chongqing Changhong Hotel",
+   "reviews": 186
+  },
+  "1006236078": {
+   "name_zh": "乐豪庭公寓(南坪地铁站万达广场店)",
+   "name_en": "Lehaoting Apartment (Nanping Subway Station Wanda Plaza)",
+   "reviews": 54
+  },
+  "1006236085": {
+   "name_zh": "重庆新逸源商务酒店",
+   "name_en": "Chongqing Xinyiyuan Business Hotel",
+   "reviews": 202
+  },
+  "1006236092": {
+   "name_zh": "重庆福地宾馆",
+   "name_en": "Fudi Inn",
+   "reviews": 5
+  },
+  "1006236099": {
+   "name_zh": "重庆阿蕾宾馆",
+   "name_en": "Alei Hotel",
+   "reviews": 2
+  },
+  "1006236106": {
+   "name_zh": "重庆凌安酒店公寓",
+   "name_en": "Chongqing Ling'an Hotel Apartment",
+   "reviews": 7
+  },
+  "1006236113": {
+   "name_zh": "重庆锦天宾馆",
+   "name_en": "Chongqing Jintian Hotel",
+   "reviews": 7
+  },
+  "1006236120": {
+   "name_zh": "迎客来宾馆(重庆綦江店)",
+   "name_en": "Times hotel (qijiang store, chongqing)",
+   "reviews": 4
+  },
+  "1006236127": {
+   "name_zh": "重庆艾雅斯宾馆",
+   "name_en": "Aiyasi Hotel",
+   "reviews": 0
+  },
+  "1006236134": {
+   "name_zh": "咚吧啦青年旅舍(观音桥步行街拓展大厦店)",
+   "name_en": "Dongba La Youth Hostel (Guanyinqiao Pedestrian Street Development Building)",
+   "reviews": 55
+  },
+  "1006236141": {
+   "name_zh": "重庆如归商务民宿",
+   "name_en": "Chongqing Ruguai Business Homestay",
+   "reviews": 3
+  },
+  "1006236148": {
+   "name_zh": "天隆时尚酒店(重庆江北国际机场店)",
+   "name_en": "Tianlong Fashion Hotel (Chongqing Jiangbei International Airport)",
+   "reviews": 125
+  },
+  "1006236155": {
+   "name_zh": "重庆万豪公寓",
+   "name_en": "Chongqing Marriott Apartment",
+   "reviews": 1
+  },
+  "1006236162": {
+   "name_zh": "重庆海源宾馆",
+   "name_en": "Chongqing Haiyuan hotel",
+   "reviews": 13
+  },
+  "1006236169": {
+   "name_zh": "曼亚酒店(大坪时代天街E馆店)",
+   "name_en": "Wanrong Hotel",
+   "reviews": 150
+  },
+  "1006236176": {
+   "name_zh": "重庆电科宾馆",
+   "name_en": "Chongqing Dianke Hotel",
+   "reviews": 24
+  },
+  "1006236183": {
+   "name_zh": "宏博宾馆(重庆民族医院店)",
+   "name_en": "Hongbo Hotel (Chongqing Minzheng Hospital)",
+   "reviews": 0
+  },
+  "1006236190": {
+   "name_zh": "重庆江顺商务公寓",
+   "name_en": "Chongqing Jiangshun Business Apartment",
+   "reviews": 3
+  },
+  "1006236197": {
+   "name_zh": "重庆凯亿零捌商务宾馆",
+   "name_en": "Kaiyi Lingba Business Hotel",
+   "reviews": 0
+  },
+  "1006236204": {
+   "name_zh": "月坛酒店(开州新世纪百货店)",
+   "name_en": "Yuetan Hotel (Kaizhou New Century Department Store)",
+   "reviews": 170
+  },
+  "1006236211": {
+   "name_zh": "重庆小金山商务酒店(开州区汉丰湖店)",
+   "name_en": "Chongqing Xiaojinshan Business Hotel",
+   "reviews": 38
+  },
+  "1006236218": {
+   "name_zh": "重庆夏威夷酒店(开州平桥车站店)",
+   "name_en": "Chongqing Hawaii Hotel (Kaizhou Pingqiao Station)",
+   "reviews": 43
+  },
+  "1006236225": {
+   "name_zh": "重庆宜松宾馆(长江师范学院店)",
+   "name_en": "Chongqing Yisong Hotel (Changjiang Normal University Branch)",
+   "reviews": 0
+  },
+  "1006236232": {
+   "name_zh": "重庆云来民宿",
+   "name_en": "Yunlai Hotel",
+   "reviews": 12
+  },
+  "1006236239": {
+   "name_zh": "佳馨宾馆(重庆火车北站龙头寺店)",
+   "name_en": "Jiaxin Hotel (Zhongqing North Railway Station Longtou Temple)",
+   "reviews": 6
+  },
+  "1006236246": {
+   "name_zh": "重庆欣源公寓",
+   "name_en": "Chongqing Xinyuan Apartment",
+   "reviews": 10
+  },
+  "1006236253": {
+   "name_zh": "时泠酒店(沙坪坝重庆大学店)",
+   "name_en": "8 Inns Chongqing Shapingba Branch",
+   "reviews": 43
+  },
+  "1006236260": {
+   "name_zh": "重庆丰盛宾馆",
+   "name_en": "Chongqing Fengsheng Hotel",
+   "reviews": 0
+  },
+  "1006236267": {
+   "name_zh": "重庆渝愉宾馆",
+   "name_en": "Yuyu Hotel",
+   "reviews": 0
+  },
+  "1006236274": {
+   "name_zh": "重庆平桥宾馆",
+   "name_en": "Pingqiao Hotel",
+   "reviews": 0
+  },
+  "1006236281": {
+   "name_zh": "重庆超群快捷酒店(开州实验中学店)",
+   "name_en": "Chongqing Chaoqun Express Hotel (Kaizhou Experimental Middle School)",
+   "reviews": 15
+  },
+  "1006236288": {
+   "name_zh": "重庆世新纪宾馆",
+   "name_en": "Chongqing Shixinji Hotel",
+   "reviews": 0
+  },
+  "1006236295": {
+   "name_zh": "重庆赛阁商务宾馆",
+   "name_en": "Chongqing Saige Business Hotel",
+   "reviews": 9
+  },
+  "1006236302": {
+   "name_zh": "重庆怡家快捷民宿(北站店)",
+   "name_en": "Chongqing Yijia Express Homestay (North Railway Station)",
+   "reviews": 41
+  },
+  "1006236309": {
+   "name_zh": "重庆宏展宾馆",
+   "name_en": "Chongqing Hongzhan Hotel",
+   "reviews": 12
+  },
+  "1006236316": {
+   "name_zh": "重庆金贝艺术酒店",
+   "name_en": "Golden Bay Art Hotel, Chongqing",
+   "reviews": 6
+  },
+  "1006236323": {
+   "name_zh": "重庆众诚商务宾馆",
+   "name_en": "ZCSWBG",
+   "reviews": 7
+  },
+  "1006236330": {
+   "name_zh": "重庆瑞鑫宾馆",
+   "name_en": "Chongqing Ruixin Hotel",
+   "reviews": 3
+  },
+  "1006236337": {
+   "name_zh": "重庆永兴招待所",
+   "name_en": "Yongxing Hostel",
+   "reviews": 0
+  },
+  "1006236344": {
+   "name_zh": "星期八连锁民宿(重庆北站店)",
+   "name_en": "Week Eight Chain Homestay (Chongqing North Railway Station)",
+   "reviews": 4
+  },
+  "1006236351": {
+   "name_zh": "重庆鼎佳豪商务宾馆",
+   "name_en": "Chongqing Dingjiahao Business Hotel",
+   "reviews": 1
+  },
+  "1006236358": {
+   "name_zh": "落脚点招待所",
+   "name_en": "Staying Guest House",
+   "reviews": 0
+  },
+  "1006236365": {
+   "name_zh": "重庆罗华宾馆",
+   "name_en": "Luohua Hotel Chongqing",
+   "reviews": 42
+  },
+  "1006236372": {
+   "name_zh": "重庆金韵宾馆",
+   "name_en": "Jinyun Hotel",
+   "reviews": 2
+  },
+  "1006236379": {
+   "name_zh": "莱往连锁酒店(重庆宜家店)",
+   "name_en": "Laixiang Chain Hotel (Chongqing IKEA Branch)",
+   "reviews": 12
+  },
+  "1006236386": {
+   "name_zh": "重庆美顺商务宾馆",
+   "name_en": "Meishun Business Hotel",
+   "reviews": 5
+  },
+  "1006236393": {
+   "name_zh": "重庆盛世峡城宾馆",
+   "name_en": "Shengshi Xiacheng Hotel",
+   "reviews": 4
+  },
+  "1006236400": {
+   "name_zh": "重庆四面山大酒店",
+   "name_en": "Simianshan Hotel",
+   "reviews": 155
+  },
+  "1006236407": {
+   "name_zh": "重庆昇珩酒店",
+   "name_en": "Shengheng Hotel",
+   "reviews": 47
+  },
+  "1006236414": {
+   "name_zh": "重庆富专宾馆",
+   "name_en": "Fuzhuan Hotel",
+   "reviews": 5
+  },
+  "1006236421": {
+   "name_zh": "重庆1314酒店(重庆北城天街店)",
+   "name_en": "Chongqing 1314 Hotel (Chongqing Beicheng Tianjie)",
+   "reviews": 353
+  },
+  "1006236428": {
+   "name_zh": "重庆珺丰商务酒店",
+   "name_en": "Junfeng Business Hotel",
+   "reviews": 4
+  },
+  "1006236435": {
+   "name_zh": "重庆巴厘岛商务宾馆",
+   "name_en": "Chongqing Bali Island Business Inn",
+   "reviews": 1
+  },
+  "1006236442": {
+   "name_zh": "重庆天豪酒店(观音桥北城天街店)",
+   "name_en": "Chongqing Tianhao Hotel (Guanyinqiao Beicheng Tianjie)",
+   "reviews": 133
+  },
+  "1006236449": {
+   "name_zh": "重庆休闲居宾馆",
+   "name_en": "Chongqing Leisure House Hotel",
+   "reviews": 0
+  },
+  "1006236456": {
+   "name_zh": "重庆金地宾馆",
+   "name_en": "Chongqing Jindi Hotel",
+   "reviews": 3
+  },
+  "1006236463": {
+   "name_zh": "真诚如家客栈(重庆北站店)",
+   "name_en": "Zhencheng Hostel",
+   "reviews": 137
+  },
+  "1006236470": {
+   "name_zh": "重庆全洲宾馆",
+   "name_en": "Chongqing Quanzhou Hotel",
+   "reviews": 7
+  },
+  "1006236477": {
+   "name_zh": "凯若酒店(西南大学状元碑地铁站店)",
+   "name_en": "Kairo Hotel (Chongqing Zhuangyuanbei Light Rail Station)",
+   "reviews": 286
+  },
+  "1006236484": {
+   "name_zh": "重庆俊弘商务宾馆",
+   "name_en": "Chongqing Junhui Business Hotel",
+   "reviews": 5
+  },
+  "1006236491": {
+   "name_zh": "重庆梅花苑公寓",
+   "name_en": "Chongqing Meihuayuan Apartment",
+   "reviews": 13
+  },
+  "1006236498": {
+   "name_zh": "逸家酒店(重庆儿童医院店)",
+   "name_en": "Yijia Guesthouse",
+   "reviews": 59
+  },
+  "1006236505": {
+   "name_zh": "重庆仙居阁商务宾馆",
+   "name_en": "Xianjuge Business Hotel",
+   "reviews": 12
+  },
+  "1006236512": {
+   "name_zh": "重庆仙和宾馆",
+   "name_en": "Xianhe Hotel",
+   "reviews": 0
+  },
+  "1006236519": {
+   "name_zh": "重庆庆荣酒店",
+   "name_en": "Chongqing Qingrong Hotel",
+   "reviews": 6
+  },
+  "1006236526": {
+   "name_zh": "重庆佳馨宾馆",
+   "name_en": "Chongqing Jiaxin Hotel",
+   "reviews": 2
+  },
+  "1006236533": {
+   "name_zh": "重庆荣丰宾馆",
+   "name_en": "Chongqing Rongfeng Hotel",
+   "reviews": 0
+  },
+  "1006236540": {
+   "name_zh": "铂澜尊酒店",
+   "name_en": "Shanghui Hotel",
+   "reviews": 15
+  },
+  "1006236547": {
+   "name_zh": "金领时代江景公寓(重庆南坪会展中心店)",
+   "name_en": "JINLING HOTEL CHONGQING",
+   "reviews": 3
+  },
+  "1006236554": {
+   "name_zh": "重庆伊甸园宾馆(三峡学院医专店)",
+   "name_en": "Yidianyuan Hotel",
+   "reviews": 2
+  },
+  "1006236561": {
+   "name_zh": "重庆壹家公寓",
+   "name_en": "Chongqing Yijia Apartment",
+   "reviews": 13
+  },
+  "1006236568": {
+   "name_zh": "重庆北站鑫源宾馆",
+   "name_en": "Chongqing North Railway Station Xinyuan Inn",
+   "reviews": 4
+  },
+  "1006236575": {
+   "name_zh": "流星宾馆",
+   "name_en": "Liuxing Hostel",
+   "reviews": 0
+  },
+  "1006236582": {
+   "name_zh": "重庆驿奥宾馆",
+   "name_en": "Yiao Hotel",
+   "reviews": 7
+  },
+  "1006236589": {
+   "name_zh": "重庆兴椿宾馆",
+   "name_en": "Xingchun Hotel",
+   "reviews": 19
+  },
+  "1006236596": {
+   "name_zh": "重庆雲来商务酒店",
+   "name_en": "Chongqing Yunlai Business Hotel",
+   "reviews": 1
+  },
+  "1006236603": {
+   "name_zh": "重庆玺瑞商务宾馆",
+   "name_en": "Chongqing Xirui Business Hotel",
+   "reviews": 0
+  },
+  "1006236610": {
+   "name_zh": "重庆天佑酒店公寓",
+   "name_en": "Tianyou Apartment Hotel",
+   "reviews": 0
+  },
+  "1006236617": {
+   "name_zh": "重庆龍珠商旅客栈",
+   "name_en": "Chongqing Longzhu Business Inn",
+   "reviews": 12
+  },
+  "1006236624": {
+   "name_zh": "新朋民宿",
+   "name_en": "Xinpeng Homestay",
+   "reviews": 69
+  },
+  "1006236631": {
+   "name_zh": "美辰酒店(重庆西南大学店)",
+   "name_en": "Meichen Hotel (Chongqing Southwest University Branch)",
+   "reviews": 70
+  },
+  "1006236638": {
+   "name_zh": "重庆中欧酒店(西南医院店)",
+   "name_en": "Chongqing Zhongou Hotel (Southwest Hospital)",
+   "reviews": 148
+  },
+  "1006236645": {
+   "name_zh": "重庆怡家公寓",
+   "name_en": "Chongqing Yijia Apartment",
+   "reviews": 1
+  },
+  "1006236652": {
+   "name_zh": "重庆星鑫公寓",
+   "name_en": "Xingxin Apartment",
+   "reviews": 18
+  },
+  "1006236659": {
+   "name_zh": "素舍宾馆(重庆南坪万达广场店)",
+   "name_en": "Sushe boutique hotel (nanping wanda plaza store, chongqing)",
+   "reviews": 320
+  },
+  "1006236666": {
+   "name_zh": "重庆天鹅之恋宾馆",
+   "name_en": "Chongqing Swanzhilian Hotel",
+   "reviews": 25
+  },
+  "1006236673": {
+   "name_zh": "常春藤轻缦酒店(重庆解放碑店)",
+   "name_en": "Ivy Light Veil Hotel (Chongqing Jiefangbei)",
+   "reviews": 327
+  },
+  "1006236680": {
+   "name_zh": "重庆梦芳缘商务宾馆",
+   "name_en": "Chongqing Mengfangyuan Business Hotel",
+   "reviews": 26
+  },
+  "1006236687": {
+   "name_zh": "重庆金竹苑住宿",
+   "name_en": "Chongqing Jinzhuyuan Accommodation",
+   "reviews": 1
+  },
+  "1006236694": {
+   "name_zh": "重庆江岸公寓",
+   "name_en": "Chongqing Jiang'an Apartment",
+   "reviews": 4
+  },
+  "1006236701": {
+   "name_zh": "重庆先洲旅馆",
+   "name_en": "Chongqing Xianzhou Hostel",
+   "reviews": 0
+  },
+  "1006236708": {
+   "name_zh": "重庆花店公寓",
+   "name_en": "Huadian Apartment",
+   "reviews": 8
+  },
+  "1006236715": {
+   "name_zh": "学都宾馆(重庆曾家店)",
+   "name_en": "Xuedu Hotel, Chongqing",
+   "reviews": 2
+  },
+  "1006236722": {
+   "name_zh": "五州酒店(涪陵泽胜中央广场南门山地下商城店)",
+   "name_en": "Wuzhou Hotel (Chongqing Guangchang Road)",
+   "reviews": 68
+  },
+  "1006236729": {
+   "name_zh": "重庆爱罗斯商务宾馆",
+   "name_en": "Chongqing Ailuosi Business Hotel",
+   "reviews": 0
+  },
+  "1006236736": {
+   "name_zh": "凯悦宾馆(重庆永川店)",
+   "name_en": "Hyatt Regency Chongqing Yongchuan Branch",
+   "reviews": 4
+  },
+  "1006236743": {
+   "name_zh": "重庆银河宾馆",
+   "name_en": "Yinhe Hostel",
+   "reviews": 3
+  },
+  "1006236750": {
+   "name_zh": "重庆茜茜公寓",
+   "name_en": "Chongqing Xixi Apartment",
+   "reviews": 1
+  },
+  "1006236757": {
+   "name_zh": "重庆如馨公寓",
+   "name_en": "Chongqing Ruxin Apartment",
+   "reviews": 46
+  },
+  "1006236764": {
+   "name_zh": "重庆松桥招待所",
+   "name_en": "Chongqing Songqiao Guesthouse",
+   "reviews": 1
+  },
+  "1006236771": {
+   "name_zh": "飞鸿精品酒店(重庆万象城杨家坪轻轨站店)",
+   "name_en": "Feihong Boutiqur Hotel",
+   "reviews": 121
+  },
+  "1006236778": {
+   "name_zh": "重庆福之源旅馆",
+   "name_en": "Chongqing Fuzhiyuan Inn",
+   "reviews": 3
+  },
+  "1006236785": {
+   "name_zh": "重庆凉爽旅馆",
+   "name_en": "Liangshuang Hostel",
+   "reviews": 3
+  },
+  "1006236792": {
+   "name_zh": "重庆兆丰商务宾馆",
+   "name_en": "Chongqing Zhaofeng Business Hotel",
+   "reviews": 0
+  },
+  "1006236799": {
+   "name_zh": "光荣宾馆(重庆南川店)",
+   "name_en": "Guangrong Hostel (Chongqing Nanchuan)",
+   "reviews": 1
+  },
+  "1006236806": {
+   "name_zh": "重庆汇陈龙宾馆",
+   "name_en": "Chongqing Huichenlong Hotel",
+   "reviews": 6
+  },
+  "1006236813": {
+   "name_zh": "重庆财达宾馆(渝中区大礼堂店)",
+   "name_en": "Chongqing Caida Hotel (Yuzhong District People's Square Area)",
+   "reviews": 44
+  },
+  "1006236820": {
+   "name_zh": "重庆鸿达宾馆(新桥医院店)",
+   "name_en": "Chongqing Hongda Hotel",
+   "reviews": 19
+  },
+  "1006236827": {
+   "name_zh": "重庆璧山均威商务宾馆",
+   "name_en": "Chongqing Lushan Junwei Business Hotel",
+   "reviews": 19
+  },
+  "1006236834": {
+   "name_zh": "重庆新三峡宾馆",
+   "name_en": "Xinsanxia Hotel",
+   "reviews": 1
+  },
+  "1006236841": {
+   "name_zh": "重庆飞天旅馆",
+   "name_en": "OYO Chongqing Feitian Inn",
+   "reviews": 1
+  },
+  "1006236848": {
+   "name_zh": "重庆和顺旅馆",
+   "name_en": "Heshun Hostel",
+   "reviews": 0
+  },
+  "1006236855": {
+   "name_zh": "重庆兴宇源宾馆",
+   "name_en": "Xingyuyuan Hostel",
+   "reviews": 2
+  },
+  "1006236862": {
+   "name_zh": "心怡招待所(重庆璧山店)",
+   "name_en": "Xinyi Guesthouse (Chongqing Bishan)",
+   "reviews": 1
+  },
+  "1006236869": {
+   "name_zh": "望平楼智能酒店",
+   "name_en": "Wangpinglou Smart Hotel",
+   "reviews": 4
+  },
+  "1006236876": {
+   "name_zh": "梁平云桂宾馆",
+   "name_en": "Liang pingyun GUI hotel",
+   "reviews": 1
+  },
+  "1006236883": {
+   "name_zh": "悦度江景公寓",
+   "name_en": "Yuedu River View Apartment",
+   "reviews": 10
+  },
+  "1006236890": {
+   "name_zh": "重庆汇丰宾馆",
+   "name_en": "Chongqing Huifeng Hotel",
+   "reviews": 2
+  },
+  "1006236897": {
+   "name_zh": "重庆锦绣旅馆",
+   "name_en": "Chongqing Jinxiu Hotel",
+   "reviews": 8
+  },
+  "1006236904": {
+   "name_zh": "重庆凯信宾馆",
+   "name_en": "Chongqing Kaixin Hotel",
+   "reviews": 7
+  },
+  "1006236911": {
+   "name_zh": "重庆美穗宾馆",
+   "name_en": "Meisui Hotel",
+   "reviews": 15
+  },
+  "1006236918": {
+   "name_zh": "重庆龙都宾馆",
+   "name_en": "Chongqing Longdu Hotel",
+   "reviews": 3
+  },
+  "1006236925": {
+   "name_zh": "重庆君君旅馆(烈士墓地铁站店)",
+   "name_en": "Chongqing Junjun Inn (Lieshi Tomb Subway Station)",
+   "reviews": 11
+  },
+  "1006236932": {
+   "name_zh": "OYO重庆和旺宾馆(西南政法大学店)",
+   "name_en": "OYO Chongqing Hewang Hotel (Southwest University of Political Science and Law)",
+   "reviews": 132
+  },
+  "1006236939": {
+   "name_zh": "重庆往来公寓",
+   "name_en": "Chongqing Tonglu Apartment",
+   "reviews": 0
+  },
+  "1006236946": {
+   "name_zh": "重庆瑞华公寓",
+   "name_en": "Ruihua Apartment",
+   "reviews": 0
+  },
+  "1006236953": {
+   "name_zh": "重庆威欧康公寓",
+   "name_en": "Weioukang Apartment",
+   "reviews": 2
+  },
+  "1006236960": {
+   "name_zh": "重庆乡间饭庄",
+   "name_en": "Chongqing Countryside Restaurant",
+   "reviews": 0
+  },
+  "1006236967": {
+   "name_zh": "新悦公寓(重庆中新城上城店)",
+   "name_en": "Xinyue Apartment (Chongqing Zhongxin Chengshangcheng)",
+   "reviews": 4
+  },
+  "1006236974": {
+   "name_zh": "重庆春春公寓",
+   "name_en": "Chunchun Apartment",
+   "reviews": 0
+  },
+  "1006236981": {
+   "name_zh": "重庆群枫商务宾馆",
+   "name_en": "Qunfeng Business Hotel",
+   "reviews": 3
+  },
+  "1006236988": {
+   "name_zh": "重庆清泉宾馆",
+   "name_en": "Qingquan Hotel",
+   "reviews": 0
+  },
+  "1006236995": {
+   "name_zh": "新兴宾馆(重庆黔江店)",
+   "name_en": "Xinxing Hotel (Chongqing Lijiang Branch)",
+   "reviews": 14
+  },
+  "1006237002": {
+   "name_zh": "重庆梁平富豪宾馆",
+   "name_en": "Chongqing Liangping Fuhao Hotel",
+   "reviews": 3
+  },
+  "1006237009": {
+   "name_zh": "重庆宏美山庄",
+   "name_en": "Hongmei Villa",
+   "reviews": 4
+  },
+  "1006237016": {
+   "name_zh": "重庆官东宾馆",
+   "name_en": "Chongqing Guandong Hotel",
+   "reviews": 5
+  },
+  "1006237023": {
+   "name_zh": "拙美民宿(重庆北站店)",
+   "name_en": "Chongqing Humble Beauty Hotel",
+   "reviews": 95
+  },
+  "1006237030": {
+   "name_zh": "重庆金源山庄",
+   "name_en": "Jinyuan Villa",
+   "reviews": 3
+  },
+  "1006237037": {
+   "name_zh": "重庆鸿鑫宾馆",
+   "name_en": "Chongqing Hongxin Hotel",
+   "reviews": 0
+  },
+  "1006237044": {
+   "name_zh": "重庆中兴宾馆",
+   "name_en": "Chongqing Zhongxing Hotel",
+   "reviews": 1
+  },
+  "1006237051": {
+   "name_zh": "九江酒店(重庆西站华龙地铁站店)",
+   "name_en": "Jiujiang Hotel (Baguo City Branch, Chongqing West Railway Station)",
+   "reviews": 115
+  },
+  "1006237058": {
+   "name_zh": "重庆鹏锦宾馆",
+   "name_en": "Pengjin Hotel",
+   "reviews": 63
+  },
+  "1006237065": {
+   "name_zh": "重庆常客宾馆",
+   "name_en": "Changke Hotel",
+   "reviews": 0
+  },
+  "1006237072": {
+   "name_zh": "重庆臻楼宾馆",
+   "name_en": "105 Hotel",
+   "reviews": 2
+  },
+  "1006237079": {
+   "name_zh": "重庆驴风客栈",
+   "name_en": "Chongqing Donkey Wind Inn",
+   "reviews": 1
+  },
+  "1006237086": {
+   "name_zh": "重庆佳家酒店(蔡家地铁站店)",
+   "name_en": "Chongqing Jiajia Hotel (Caijia Subway Station)",
+   "reviews": 34
+  },
+  "1006237093": {
+   "name_zh": "重庆明静山庄",
+   "name_en": "Mingjing Manor",
+   "reviews": 1
+  },
+  "1006237100": {
+   "name_zh": "重庆互佳宾馆",
+   "name_en": "Chongqing Hujiazhao Hotel",
+   "reviews": 2
+  },
+  "1006237107": {
+   "name_zh": "美华酒店（重庆儿童医院皇冠大扶梯店）",
+   "name_en": "Meihua Hotel (Chongqing Children's Hospital Crown Escalator)",
+   "reviews": 198
+  },
+  "1006237114": {
+   "name_zh": "重庆凯达宾馆",
+   "name_en": "Chongqing Kaida Hotel",
+   "reviews": 9
+  },
+  "1006237121": {
+   "name_zh": "重庆吉洪宾馆",
+   "name_en": "Chongqing Jihong Hotel",
+   "reviews": 0
+  },
+  "1006237128": {
+   "name_zh": "重庆友好宾馆",
+   "name_en": "Chongqing Friendship Hotel",
+   "reviews": 1
+  },
+  "1006237135": {
+   "name_zh": "重庆东泉泉之缘旅店",
+   "name_en": "Dongquan Quanzhiyuan Hostel",
+   "reviews": 6
+  },
+  "1006237142": {
+   "name_zh": "重庆盛腾精品酒店(巴南华熙体育中心)",
+   "name_en": "ShengTeng Hotel",
+   "reviews": 93
+  },
+  "1006237149": {
+   "name_zh": "雁海宾馆(重庆上清寺店)",
+   "name_en": "Yanhai Hotel (Chongqing People's Square Area)",
+   "reviews": 8
+  },
+  "1006237156": {
+   "name_zh": "重庆凯达民宿",
+   "name_en": "Jindi Apartment (Chongqing Jianmate)",
+   "reviews": 0
+  },
+  "1006237163": {
+   "name_zh": "重庆雅梦商务宾馆",
+   "name_en": "Yameng Business Hostel",
+   "reviews": 7
+  },
+  "1006237170": {
+   "name_zh": "南山福生庄园",
+   "name_en": "Fusheng Manor",
+   "reviews": 4
+  },
+  "1006237177": {
+   "name_zh": "重庆恒爱旅馆",
+   "name_en": "Chongqing Heng'ai Inn",
+   "reviews": 0
+  },
+  "1006237184": {
+   "name_zh": "重庆钓鱼城宾馆",
+   "name_en": "Diaoyucheng Hostel",
+   "reviews": 1
+  },
+  "1006237191": {
+   "name_zh": "重庆仪简酒店(合川文峰古街店)",
+   "name_en": "Chongqing Yijian Hotel (Hechuan Wenfeng Ancient Street)",
+   "reviews": 60
+  },
+  "1006237198": {
+   "name_zh": "重庆建秀客栈",
+   "name_en": "Chongqing Jianxiu Chinese Inn",
+   "reviews": 1
+  },
+  "1006237205": {
+   "name_zh": "重庆聚缘宾馆",
+   "name_en": "Juyuan Hostel",
+   "reviews": 1
+  },
+  "1006237212": {
+   "name_zh": "重庆竹海村山庄",
+   "name_en": "Zhuhaicun Manor",
+   "reviews": 0
+  },
+  "1006237219": {
+   "name_zh": "重庆综贸酒店",
+   "name_en": "Zongmao Hotel",
+   "reviews": 30
+  },
+  "1006237226": {
+   "name_zh": "漫悦酒店(重庆西南政法大学店)",
+   "name_en": "Manyue Hotel (Chongqing Southwest University of Political Science and Law)",
+   "reviews": 55
+  },
+  "1006237233": {
+   "name_zh": "重庆艾美佳宾馆",
+   "name_en": "Chongqing Aimeijia Hotel",
+   "reviews": 0
+  },
+  "1006237240": {
+   "name_zh": "重庆桂宾宾馆",
+   "name_en": "Chongqing Guibin Hotel",
+   "reviews": 0
+  },
+  "1006237247": {
+   "name_zh": "重庆民安宾馆",
+   "name_en": "Chongqing Min'an Hotel",
+   "reviews": 3
+  },
+  "1006237254": {
+   "name_zh": "骏怡连锁酒店(重庆荣昌区夏布小镇店)",
+   "name_en": "junchiliansuohcongqinglianhuaguangcangdian",
+   "reviews": 451
+  },
+  "1006237261": {
+   "name_zh": "重庆华盛宾馆",
+   "name_en": "Huasheng Hostel",
+   "reviews": 3
+  },
+  "1006237268": {
+   "name_zh": "重庆治国宾馆",
+   "name_en": "Chongqing Zhiguo Hotel",
+   "reviews": 19
+  },
+  "1006237275": {
+   "name_zh": "缘梦宾馆(重庆合川店)",
+   "name_en": "Yuanmeng Hotel (Hechuan Store, Chongqing)",
+   "reviews": 44
+  },
+  "1006237282": {
+   "name_zh": "重庆美棋宾馆",
+   "name_en": "MEIQIBINGUAN",
+   "reviews": 37
+  },
+  "1006237289": {
+   "name_zh": "重庆开元商务宾馆",
+   "name_en": "Chongqing kaiyuan business hotel",
+   "reviews": 15
+  },
+  "1006237296": {
+   "name_zh": "重庆锦豪宾馆",
+   "name_en": "jinhaohotel",
+   "reviews": 8
+  },
+  "1006237303": {
+   "name_zh": "重庆豪门商务宾馆",
+   "name_en": "Haomen Business Hostel",
+   "reviews": 3
+  },
+  "1006237310": {
+   "name_zh": "重庆佳丽旅馆",
+   "name_en": "OYO Chongqing Jiali Inn",
+   "reviews": 1
+  },
+  "1006237317": {
+   "name_zh": "重庆梦乡旅馆",
+   "name_en": "Mengxiang Hostel",
+   "reviews": 0
+  },
+  "1006237324": {
+   "name_zh": "重庆七·星胶囊青年旅舍(三峡广场店)",
+   "name_en": "Chongqing Qixing Capsule Youth Hostel (Sanxia Square)",
+   "reviews": 81
+  },
+  "1006237331": {
+   "name_zh": "铭兴酒店(重庆工商大学轻轨站店)",
+   "name_en": "Mingxing Hotel (Chongqing University of Business Light Rail Station)",
+   "reviews": 37
+  },
+  "1006237338": {
+   "name_zh": "重庆天翔宾馆",
+   "name_en": "Tianxiang Hostel",
+   "reviews": 1
+  },
+  "1006237345": {
+   "name_zh": "重庆九龙商务酒店(扬家坪轻轨站动物园店)",
+   "name_en": "Chongqing Jiulong Hotel",
+   "reviews": 70
+  },
+  "1006237352": {
+   "name_zh": "重庆汇龙商务宾馆",
+   "name_en": "Huilong Business Hostel",
+   "reviews": 8
+  },
+  "1006237359": {
+   "name_zh": "重庆唐氏旅馆",
+   "name_en": "Chongqing Tangshi Inn",
+   "reviews": 0
+  },
+  "1006237366": {
+   "name_zh": "重庆汽博宾馆",
+   "name_en": "Chongqing qibo hotel",
+   "reviews": 1
+  },
+  "1006237373": {
+   "name_zh": "重庆渝北佳豪宾馆",
+   "name_en": "Chongqing Yubei Jiahao Hotel",
+   "reviews": 11
+  },
+  "1006237380": {
+   "name_zh": "重庆红宝石酒店",
+   "name_en": "Ruby hotel",
+   "reviews": 63
+  },
+  "1006237387": {
+   "name_zh": "重庆亚太商务宾馆",
+   "name_en": "Chongqing Asia Pacific Business Hotel",
+   "reviews": 16
+  },
+  "1006237394": {
+   "name_zh": "重庆喜莱酒店（重庆工商大学六公里轻轨站店）",
+   "name_en": "Chongqing Xilai Hotel (Chongqing Business and Industry University 6 kilometers light rail station)",
+   "reviews": 33
+  },
+  "1006237401": {
+   "name_zh": "武隆雅苑宾馆",
+   "name_en": "Wulong Yayuan Hotel",
+   "reviews": 13
+  },
+  "1006237408": {
+   "name_zh": "重庆利佳宾馆",
+   "name_en": "Lijia Hostel",
+   "reviews": 1
+  },
+  "1006237415": {
+   "name_zh": "重庆渝佳宾馆",
+   "name_en": "Yujia Hostel",
+   "reviews": 12
+  },
+  "1006237422": {
+   "name_zh": "重庆朗豪宾馆",
+   "name_en": "Langhao Hostel",
+   "reviews": 9
+  },
+  "1006237429": {
+   "name_zh": "重庆机关招待所",
+   "name_en": "Chongqing Jiguan Guesthouse",
+   "reviews": 6
+  },
+  "1006237436": {
+   "name_zh": "重庆春富源宾馆",
+   "name_en": "Chunfuyuan Hostel",
+   "reviews": 1
+  },
+  "1006237443": {
+   "name_zh": "重庆惠昌宾馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "1006237450": {
+   "name_zh": "凌居旅馆(重庆冉家坝地铁站店)",
+   "name_en": "Lingju Inn (Chongqing Ranjiaba Subway Station)",
+   "reviews": 4
+  },
+  "1006237457": {
+   "name_zh": "艾斯AI智能酒店(西南大学天生丽街店)",
+   "name_en": "AIS AI Smart Hotel (Southwest University Tianshengli Street)",
+   "reviews": 20
+  },
+  "1006237464": {
+   "name_zh": "缘点语音智能酒店",
+   "name_en": "Edge Point Voice Intelligent Hotel",
+   "reviews": 10
+  },
+  "1006237471": {
+   "name_zh": "重庆逸馨商务宾馆",
+   "name_en": "Yixin Business Hostel",
+   "reviews": 7
+  },
+  "1006237478": {
+   "name_zh": "重庆鸿园旅社",
+   "name_en": "Chongqing Hongyuan Inn",
+   "reviews": 2
+  },
+  "1006237485": {
+   "name_zh": "重庆顺心旅社",
+   "name_en": "Chongqing Shunxin Hotel",
+   "reviews": 0
+  },
+  "1006237492": {
+   "name_zh": "七鹿行·星座宾馆(重庆大学城熙街店)",
+   "name_en": "Chongqing Zodiac Hotel",
+   "reviews": 95
+  },
+  "1006237499": {
+   "name_zh": "伴山酒店(重庆江北国际机场店)",
+   "name_en": "Banshan Hotel (Chongqing Jiangbei International Airport)",
+   "reviews": 8
+  },
+  "1006237506": {
+   "name_zh": "轻住·亚蒙酒店(重庆大学沙坪坝店)",
+   "name_en": "Qingzhu Yamon Hotel (Chongqing University Shapingba)",
+   "reviews": 35
+  },
+  "1006237513": {
+   "name_zh": "渝鹰酒店(重庆江北机场店)",
+   "name_en": "Yuying Hotel (Chongqing Jiangbei Airport)",
+   "reviews": 19
+  },
+  "1006237520": {
+   "name_zh": "智泉宾馆(重庆园区店)",
+   "name_en": "Zhiquan Hotel (Chongqing Park Branch)",
+   "reviews": 0
+  },
+  "1006237527": {
+   "name_zh": "重庆香格里拉宾馆",
+   "name_en": "Xiangge Lila Hotel",
+   "reviews": 15
+  },
+  "1006237534": {
+   "name_zh": "重庆曼廷酒店(杨家坪万象城店)",
+   "name_en": "Manting Hotel",
+   "reviews": 60
+  },
+  "1006237541": {
+   "name_zh": "重庆创业号旅馆(永川重庆财经职业学院店)",
+   "name_en": "Chuangyehao Hostel",
+   "reviews": 136
+  },
+  "1006237548": {
+   "name_zh": "重庆静居民宿",
+   "name_en": "Longtian Business Hostel",
+   "reviews": 7
+  },
+  "1006237555": {
+   "name_zh": "重庆长兴宾馆",
+   "name_en": "Changxing Hostel",
+   "reviews": 1
+  },
+  "1006237562": {
+   "name_zh": "重庆屈林旅馆",
+   "name_en": "Qu Lin Hostel",
+   "reviews": 3
+  },
+  "1006237569": {
+   "name_zh": "重庆亿豪宾馆",
+   "name_en": "Yihao Hotel",
+   "reviews": 5
+  },
+  "1006237576": {
+   "name_zh": "重庆江增宾馆",
+   "name_en": "Jiangzeng Hostel",
+   "reviews": 0
+  },
+  "1006237583": {
+   "name_zh": "武隆旭星公寓",
+   "name_en": "Xuxing Apartment",
+   "reviews": 1
+  },
+  "1006237590": {
+   "name_zh": "重庆开元民宿",
+   "name_en": "Chongqing Kaiyuan Homestay",
+   "reviews": 0
+  },
+  "1006237597": {
+   "name_zh": "重庆茗苑宾馆",
+   "name_en": "Mingyuan Hostel",
+   "reviews": 0
+  },
+  "1006237604": {
+   "name_zh": "清湾宾馆(重庆大坪地铁站店)",
+   "name_en": "Qingwan Hostel (Chongqing Daping Metro Station Store)",
+   "reviews": 25
+  },
+  "1006237611": {
+   "name_zh": "重庆望角宾馆",
+   "name_en": "Wangjiao Hotel",
+   "reviews": 1
+  },
+  "1006237618": {
+   "name_zh": "重庆陶瓷宾馆",
+   "name_en": "Chongqing Ceramics Hotel",
+   "reviews": 2
+  },
+  "1006237625": {
+   "name_zh": "重庆星城酒店(綦江汽车站店)",
+   "name_en": "Chongqing Xingcheng Hotel",
+   "reviews": 142
+  },
+  "1006237632": {
+   "name_zh": "重庆易荣旅店",
+   "name_en": "Chongqing Yirong Inn",
+   "reviews": 5
+  },
+  "1006237639": {
+   "name_zh": "重庆梦美宾馆",
+   "name_en": "Chongqing Mengmei Hotel",
+   "reviews": 0
+  },
+  "1006237646": {
+   "name_zh": "重庆琪雨宾馆",
+   "name_en": "Qiyu Hostel",
+   "reviews": 12
+  },
+  "1006237653": {
+   "name_zh": "重庆望松山庄",
+   "name_en": "Chongqing Wangsong Hotel",
+   "reviews": 0
+  },
+  "1006237660": {
+   "name_zh": "重庆派家酒店(万盛体育馆店)",
+   "name_en": "Chongqing Paijia Hotel (Ziru Plaza Wansheng Bus Station)",
+   "reviews": 106
+  },
+  "1006237667": {
+   "name_zh": "重庆猕园居农家乐",
+   "name_en": "Chongqing Miyuanju Farm Stay",
+   "reviews": 0
+  },
+  "1006237674": {
+   "name_zh": "重庆君来逸商务宾馆",
+   "name_en": "Junlaiyi Business Hotel",
+   "reviews": 29
+  },
+  "1006237681": {
+   "name_zh": "重庆荣昌昌洲宾馆",
+   "name_en": "Chongqing Rongchang County Changzhou Hotel",
+   "reviews": 7
+  },
+  "1006237688": {
+   "name_zh": "重庆佳豪宾馆",
+   "name_en": "Chongqing Jiahao Hotel",
+   "reviews": 12
+  },
+  "1006237695": {
+   "name_zh": "月旅宾馆",
+   "name_en": "Yuelv Hotel",
+   "reviews": 504
+  },
+  "1006237702": {
+   "name_zh": "重庆聆翔公寓",
+   "name_en": "Chongqing Lingxiang Apartment",
+   "reviews": 4
+  },
+  "1006237709": {
+   "name_zh": "维朵酒店(重庆北站郑家院子地铁站店)",
+   "name_en": "WE HOTEL",
+   "reviews": 237
+  },
+  "1006237716": {
+   "name_zh": "重庆景好酒店(沙坪坝高铁站三峡广场店)",
+   "name_en": "Jinghao Hotel",
+   "reviews": 175
+  },
+  "1006237723": {
+   "name_zh": "重庆嘉粮宾馆",
+   "name_en": "Jialiang Hostel",
+   "reviews": 3
+  },
+  "1006237730": {
+   "name_zh": "重庆潘阿姨de旅舍",
+   "name_en": "Chongqing Pan Ayi's Inn",
+   "reviews": 11
+  },
+  "1006237737": {
+   "name_zh": "统景朋来居农家乐",
+   "name_en": "Tongjing Penglaiju Farm Stay",
+   "reviews": 1
+  },
+  "1006237744": {
+   "name_zh": "艾梦熙·Ai智能美宿(五里店店)",
+   "name_en": "Aimengxi · Ai Smart Beautiful Stay (Wulidian)",
+   "reviews": 1
+  },
+  "1006237751": {
+   "name_zh": "重庆濠莱宾馆",
+   "name_en": "Chongqing Haolai Hotel",
+   "reviews": 17
+  },
+  "1006237758": {
+   "name_zh": "重庆天天宾馆",
+   "name_en": "Chongqing Tiantian Hotel",
+   "reviews": 8
+  },
+  "1006237765": {
+   "name_zh": "重庆琪慧公寓",
+   "name_en": "Chongqing Qihui Apartment",
+   "reviews": 6
+  },
+  "1006237772": {
+   "name_zh": "四面山碧海山庄",
+   "name_en": "Bihai Manor",
+   "reviews": 0
+  },
+  "1006237779": {
+   "name_zh": "重庆樱之澜酒店",
+   "name_en": "Chongqing Yingzhilan Hotel",
+   "reviews": 22
+  },
+  "1006237786": {
+   "name_zh": "宏源酒店(重庆沙坪坝三峡广场店)",
+   "name_en": "Hongyuan Hotel (Chongqing Shapingba Three Gorges Plaza)",
+   "reviews": 242
+  },
+  "1006237793": {
+   "name_zh": "仙女山缤纷民宿",
+   "name_en": "Fairy Mountain Colorful Homestay",
+   "reviews": 0
+  },
+  "1006237800": {
+   "name_zh": "武隆长乐公寓",
+   "name_en": "Wulong County Changle Apartment",
+   "reviews": 1
+  },
+  "1006237807": {
+   "name_zh": "瑞来宾馆(重庆沙坪坝店)",
+   "name_en": "Ruilai Hotel (Chongqing Shapingba)",
+   "reviews": 2
+  },
+  "1006237814": {
+   "name_zh": "重庆大洪海度假村",
+   "name_en": "Chongqing Dahonghai Resort",
+   "reviews": 0
+  },
+  "1006237821": {
+   "name_zh": "乐家花园酒店(观音桥店)",
+   "name_en": "Lejia Garden Hotel (Guanyinqiao)",
+   "reviews": 559
+  },
+  "1006237828": {
+   "name_zh": "重庆勋琴旅社",
+   "name_en": "Chongqing Xunqin Hotel",
+   "reviews": 0
+  },
+  "1006237835": {
+   "name_zh": "重庆便民旅馆",
+   "name_en": "Bianmin Hostel",
+   "reviews": 0
+  },
+  "1006237842": {
+   "name_zh": "君尚酒店(重庆五里店地铁站店)",
+   "name_en": "JunShang Hotel (Wulidian subway station, Chongqing)",
+   "reviews": 1
+  },
+  "1006237849": {
+   "name_zh": "重庆福帝宾馆",
+   "name_en": "Chongqing Fudi Hotel",
+   "reviews": 9
+  },
+  "1006237856": {
+   "name_zh": "重庆象鼻领庄园",
+   "name_en": "Xiangbiling Manor",
+   "reviews": 7
+  },
+  "1006237863": {
+   "name_zh": "森秋酒店(重庆永川东站文理学院店)",
+   "name_en": "Senqiu Fengqing Inn",
+   "reviews": 10
+  },
+  "1006237870": {
+   "name_zh": "南太酒店(重庆市中医院南桥寺院部店)",
+   "name_en": "Chongqing Nantai Hotel",
+   "reviews": 78
+  },
+  "1006237877": {
+   "name_zh": "LW.爱屋观景民宿(西南大学店)",
+   "name_en": "LW. Aiwu Scenic Homestay (Southwest University)",
+   "reviews": 22
+  },
+  "1006237884": {
+   "name_zh": "四面山同心山庄",
+   "name_en": "Simianshan Tongxin Manor",
+   "reviews": 6
+  },
+  "1006237891": {
+   "name_zh": "重庆有家客栈",
+   "name_en": "",
+   "reviews": 0
+  },
+  "1006237898": {
+   "name_zh": "重庆星期玖商务宾馆",
+   "name_en": "Chongqing xingqijiu Business Hotel",
+   "reviews": 8
+  },
+  "1006237905": {
+   "name_zh": "重庆四海家园山庄",
+   "name_en": "Chongqing Sihai Jiayuan Hotel",
+   "reviews": 1
+  },
+  "1006237912": {
+   "name_zh": "重庆山水田园山庄",
+   "name_en": "Shanshui Tianyuan Manor",
+   "reviews": 0
+  },
+  "1006237919": {
+   "name_zh": "重庆居园宾馆",
+   "name_en": "Juyuan Hostel",
+   "reviews": 10
+  },
+  "1006237926": {
+   "name_zh": "五斗丘亲子度假小院(重庆巴南区东温泉镇店)",
+   "name_en": "Wudouqiu Family-friendly Resort Courtyard (Chongqing Ba'nan District Dongwenquan Town)",
+   "reviews": 16
+  },
+  "1006237933": {
+   "name_zh": "重庆天生桥农家乐",
+   "name_en": "Tianshengqiao Farmhouse",
+   "reviews": 6
+  },
+  "1006237940": {
+   "name_zh": "重庆欧芳宾馆(偏岩古镇店)",
+   "name_en": "Chongqing Oufang Hotel (Pianyan Ancient Town)",
+   "reviews": 4
+  },
+  "1006237947": {
+   "name_zh": "重庆中港宾馆（大坪医院地铁站店）",
+   "name_en": "Chongqing Zhonggang Hotel (Daping Hospital Subway Station)",
+   "reviews": 57
+  },
+  "1006237954": {
+   "name_zh": "四面山响水滩度假酒店",
+   "name_en": "Jiangjin Xiangshui Shoal Holiday Village",
+   "reviews": 39
+  },
+  "1006237961": {
+   "name_zh": "重庆瓦尔那酒店",
+   "name_en": "Wa'erna Hotel",
+   "reviews": 130
+  },
+  "1006237968": {
+   "name_zh": "福抱酒店(重庆永川汽摩机电城店)",
+   "name_en": "Fubao Hotel (Chongqing Yongchuan Automotive Mechanical And Electrical City Branch)",
+   "reviews": 22
+  },
+  "1006237975": {
+   "name_zh": "金旭宾馆(大学城西永店)",
+   "name_en": "Jinxu Motel",
+   "reviews": 18
+  },
+  "1006237982": {
+   "name_zh": "武隆福久宾馆",
+   "name_en": "Wulong County Fujiu Hotel",
+   "reviews": 1
+  },
+  "1006237989": {
+   "name_zh": "武隆和平饭店",
+   "name_en": "Wulong Heping Inn",
+   "reviews": 0
+  },
+  "1006237996": {
+   "name_zh": "武隆丰华客栈",
+   "name_en": "Wulong Fenghua Chinese Inn",
+   "reviews": 3
+  },
+  "1006238003": {
+   "name_zh": "武隆柯德平客栈",
+   "name_en": "Wulong County KedePing Chinese Inn",
+   "reviews": 1
+  },
+  "1006238010": {
+   "name_zh": "武隆瑞隆公寓",
+   "name_en": "Ruilong Apartment",
+   "reviews": 1
+  },
+  "1006238017": {
+   "name_zh": "重庆鑫爽宾馆",
+   "name_en": "Chongqing Xinshuang Hotel",
+   "reviews": 154
+  },
+  "1006238024": {
+   "name_zh": "重庆彭姐民宿",
+   "name_en": "Chongqing Pengjie Homestay",
+   "reviews": 0
+  },
+  "1006238031": {
+   "name_zh": "重庆明玉日租房",
+   "name_en": "Mingjun Daily-rental House",
+   "reviews": 2
+  },
+  "1006238038": {
+   "name_zh": "重庆银田招待所",
+   "name_en": "Yintian Hostel",
+   "reviews": 0
+  },
+  "1006238045": {
+   "name_zh": "重庆沱江宾馆（綦江东站店）",
+   "name_en": "Tuojiang Hostel",
+   "reviews": 9
+  },
+  "1006238052": {
+   "name_zh": "四面山绍启香山农庄",
+   "name_en": "Fragrant Hill Farmstead on all sides",
+   "reviews": 14
+  },
+  "1006238059": {
+   "name_zh": "民豪轩民宿(重庆北站店)",
+   "name_en": "Minhaoxuan Homestay (Chongqing North Railway Station)",
+   "reviews": 193
+  },
+  "1006238066": {
+   "name_zh": "重庆友康宾馆",
+   "name_en": "Chongqing Youkang Guest House",
+   "reviews": 14
+  },
+  "1006238073": {
+   "name_zh": "重庆雅庭宾馆(解放碑步行街洪崖洞店)",
+   "name_en": "Chongqing Yating Hotel (Jiefangbei Pedestrian Street Hong Ya Dong)",
+   "reviews": 16
+  },
+  "1006238080": {
+   "name_zh": "重庆理想宾馆",
+   "name_en": "Chongqing Ideal Hotel",
+   "reviews": 3
+  },
+  "1006238087": {
+   "name_zh": "重庆家韵宾馆",
+   "name_en": "Chongqing Jiayun Hotel",
+   "reviews": 6
+  },
+  "1006238094": {
+   "name_zh": "重庆软卧民宿(大学城曾家店)",
+   "name_en": "Chongqing Soft Wool Hotel",
+   "reviews": 68
+  },
+  "1006238101": {
+   "name_zh": "鑫宇宾馆(重庆合川店)",
+   "name_en": "Xinyu Hostel (Chongqing Hechuan)",
+   "reviews": 2
+  },
+  "1006238108": {
+   "name_zh": "重庆荣盛旅馆",
+   "name_en": "Rongsheng Hostel",
+   "reviews": 1
+  },
+  "1006238115": {
+   "name_zh": "鑫奥酒店(重庆九滨路九龙外滩店)",
+   "name_en": "Xin Ao hotel",
+   "reviews": 31
+  },
+  "1006238122": {
+   "name_zh": "重庆东泉酒店(长寿客运总站店)",
+   "name_en": "Chongqing Dongquan Hotel (Changshou Bus Terminal)",
+   "reviews": 15
+  },
+  "1006238129": {
+   "name_zh": "重庆COCO公寓南坪会展中心店",
+   "name_en": "Chongqing COCO Apartment Nanping Exhibition Center",
+   "reviews": 12
+  },
+  "1006238136": {
+   "name_zh": "重庆君壹鸿商务宾馆",
+   "name_en": "Chongqing Jun Yihong Business Hotel",
+   "reviews": 14
+  },
+  "1006238143": {
+   "name_zh": "重庆祥华公寓",
+   "name_en": "Chongqing Xianghua Apartment",
+   "reviews": 1
+  },
+  "1006238150": {
+   "name_zh": "重庆往来宾馆",
+   "name_en": "Chongqing Wanglai Hotel",
+   "reviews": 1
+  },
+  "1006238157": {
+   "name_zh": "武隆顺琴客栈",
+   "name_en": "Shunqin Inn",
+   "reviews": 0
+  },
+  "1006238164": {
+   "name_zh": "铭鑫四季酒店（重庆观音桥步行街店）",
+   "name_en": "Mingxin Siji Hotel (Chongqing Guanyinqiao Pedestrian Street)",
+   "reviews": 30
+  },
+  "1006238171": {
+   "name_zh": "重庆千绮·蚂蚁·SOHO",
+   "name_en": "Chongqing Qianqi · Mayi · SOHO",
+   "reviews": 5
+  },
+  "1006238178": {
+   "name_zh": "重庆刘源商务宾馆",
+   "name_en": "Chongqing Liuyuan Business Hotel",
+   "reviews": 10
+  },
+  "1006238185": {
+   "name_zh": "重庆雨田宾馆",
+   "name_en": "Yutian Hotel",
+   "reviews": 8
+  },
+  "1006238192": {
+   "name_zh": "重庆刘姐住宿",
+   "name_en": "Liujie Hostel",
+   "reviews": 0
+  },
+  "1006238199": {
+   "name_zh": "重庆鸿运宾馆",
+   "name_en": "Chongqing Hongyun Hotel",
+   "reviews": 9
+  },
+  "1006238206": {
+   "name_zh": "重庆慕思宾馆",
+   "name_en": "Chongqing Musi Hotel",
+   "reviews": 0
+  },
+  "1006238213": {
+   "name_zh": "联谊酒店",
+   "name_en": "Friendship  Hotel",
+   "reviews": 9
+  },
+  "1006238220": {
+   "name_zh": "重庆丽都宾馆(巴南界石店)",
+   "name_en": "Lidu Hotel",
+   "reviews": 17
+  },
+  "1006238227": {
+   "name_zh": "重庆真丽宾馆",
+   "name_en": "Chongqing Zhenli Hotel",
+   "reviews": 0
+  },
+  "1006238234": {
+   "name_zh": "重庆静雅旅社",
+   "name_en": "Chongqing Jingya Inn",
+   "reviews": 0
+  },
+  "1006238241": {
+   "name_zh": "金龙酒店(重庆嘉州地铁站新光天地店)",
+   "name_en": "Jinlong Hotel (Chongqing Jiazhou Metro Station Xinguangtiandi Branch)",
+   "reviews": 11
+  },
+  "1006238248": {
+   "name_zh": "重庆正西公寓",
+   "name_en": "Zhengxi Apartment",
+   "reviews": 6
+  },
+  "1006238255": {
+   "name_zh": "重庆左岸旅馆",
+   "name_en": "Chongqing Zuoan Inn",
+   "reviews": 6
+  },
+  "1006238262": {
+   "name_zh": "重庆福甜宾馆",
+   "name_en": "Futian Hotel",
+   "reviews": 0
+  },
+  "1006238269": {
+   "name_zh": "远航宾馆(大学城曾家店)",
+   "name_en": "Yuanhang Hotel (Baicheng University Town Zengjia)",
+   "reviews": 93
+  },
+  "1006238276": {
+   "name_zh": "重庆凯亿宾馆",
+   "name_en": "Kaiyi Hotel",
+   "reviews": 3
+  },
+  "1006238283": {
+   "name_zh": "尚旬宾馆(重庆回兴店)",
+   "name_en": "Shangxun Hotel (Chongqing Huixing)",
+   "reviews": 0
+  },
+  "1006238290": {
+   "name_zh": "和美酒店(重庆石新路地铁站店)",
+   "name_en": "Hemei Hotel (Chongqing Shixin Road Subway Station)",
+   "reviews": 89
+  },
+  "1006238297": {
+   "name_zh": "重庆民信宾馆",
+   "name_en": "Minxin Hostel",
+   "reviews": 1
+  },
+  "1006238304": {
+   "name_zh": "重庆尚城公寓",
+   "name_en": "scgy",
+   "reviews": 48
+  },
+  "1006238311": {
+   "name_zh": "重庆静文招待所",
+   "name_en": "Chongqing Jingwen Guesthouse",
+   "reviews": 0
+  },
+  "1006238318": {
+   "name_zh": "重庆茶山竹海杉树山庄",
+   "name_en": "Chongqing Chashan Zhuhai Shanshu Hotel",
+   "reviews": 0
+  },
+  "1006238325": {
+   "name_zh": "重庆润地宾馆",
+   "name_en": "Chongqing Rundi Hotel",
+   "reviews": 6
+  },
+  "1006238332": {
+   "name_zh": "速8酒店（重庆火车北站南广场店）",
+   "name_en": "Super 8 Hotel (Chongqing North Railway Station South Square)",
+   "reviews": 282
+  },
+  "1006238339": {
+   "name_zh": "旭鑫酒店",
+   "name_en": "Xuxin Business Hotel",
+   "reviews": 11
+  },
+  "1006238346": {
+   "name_zh": "重庆滨岛快捷酒店",
+   "name_en": "Bindao Hotel",
+   "reviews": 15
+  },
+  "1006238353": {
+   "name_zh": "重庆鸿宾网络旅馆",
+   "name_en": "Hongbin Internet Hostel",
+   "reviews": 6
+  },
+  "1006238360": {
+   "name_zh": "重庆界石宏茂宾馆",
+   "name_en": "Hongmao Hotel",
+   "reviews": 22
+  },
+  "1006238367": {
+   "name_zh": "重庆旭蓝宾馆",
+   "name_en": "Chongqing Yulan Hotel",
+   "reviews": 6
+  },
+  "1006238374": {
+   "name_zh": "重庆东山商务宾馆",
+   "name_en": "Chongqing Dongshan Business Hotel",
+   "reviews": 21
+  },
+  "1006238381": {
+   "name_zh": "重庆青龙嘴旅馆",
+   "name_en": "Chongqing Qinglongzui Inn",
+   "reviews": 1
+  },
+  "1006238388": {
+   "name_zh": "重庆同业公寓",
+   "name_en": "Tongye Apartment",
+   "reviews": 0
+  },
+  "1006238395": {
+   "name_zh": "武隆旭月公寓",
+   "name_en": "Wulong Haoyue Apartment",
+   "reviews": 15
+  },
+  "1006238402": {
+   "name_zh": "重庆588商务宾馆",
+   "name_en": "588 Business Hotel",
+   "reviews": 2
+  },
+  "1006238409": {
+   "name_zh": "武隆祥瑞宾馆",
+   "name_en": "Xiangrui Hotel",
+   "reviews": 15
+  },
+  "1006238416": {
+   "name_zh": "武隆慧洁公寓",
+   "name_en": "Wulong Huijie Apartment",
+   "reviews": 26
+  },
+  "1006238423": {
+   "name_zh": "武隆怡美公寓",
+   "name_en": "Yimei Apartment",
+   "reviews": 1
+  },
+  "1006238430": {
+   "name_zh": "富豪商务宾馆（开州新世纪购物广场店）",
+   "name_en": "Chongqing Fuhao Business Hotel",
+   "reviews": 898
+  },
+  "1006238437": {
+   "name_zh": "重庆开州金龙宾馆",
+   "name_en": "Chongqing Kaizhou Jinlong Hotel",
+   "reviews": 2
+  },
+  "1006238444": {
+   "name_zh": "重庆东月溪酒店",
+   "name_en": "Chongqing Dongxi Hotel",
+   "reviews": 4
+  },
+  "1006238451": {
+   "name_zh": "重庆竹青宾馆(花卉园地铁站店)",
+   "name_en": "zhuqing hotel",
+   "reviews": 13
+  },
+  "1006238458": {
+   "name_zh": "重庆怡圆兴山庄",
+   "name_en": "Yiyuanxing Shanzhuang",
+   "reviews": 0
+  },
+  "1006238465": {
+   "name_zh": "武隆光荣公寓",
+   "name_en": "Wulong County Guangrong Apartment",
+   "reviews": 0
+  },
+  "1006238472": {
+   "name_zh": "重庆山隐民宿",
+   "name_en": "Shanyin Minsu",
+   "reviews": 12
+  },
+  "1006238479": {
+   "name_zh": "重庆锦源宾馆",
+   "name_en": "Jinyuan Hostel",
+   "reviews": 0
+  },
+  "1006238486": {
+   "name_zh": "重庆海龙宾馆",
+   "name_en": "Hailong Hotel",
+   "reviews": 3
+  },
+  "1006238493": {
+   "name_zh": "重庆好居客宾馆",
+   "name_en": "Chongqing Haoju Hotel",
+   "reviews": 22
+  },
+  "1006238500": {
+   "name_zh": "重庆虹懿宾馆",
+   "name_en": "Chongqing Hongyi Inn",
+   "reviews": 0
+  },
+  "1006238507": {
+   "name_zh": "重庆七点酒店",
+   "name_en": "Seven o‘clock Hotel",
+   "reviews": 37
+  },
+  "1006238514": {
+   "name_zh": "重庆锦鹤宾馆",
+   "name_en": "Chongqing Jinhe Hotel",
+   "reviews": 55
+  },
+  "1006238521": {
+   "name_zh": "重庆森林酒店(江津商业步行街店)",
+   "name_en": "Chongqing Senlin Hotel (Jiangjin Commercial Pedestrian Street)",
+   "reviews": 42
+  },
+  "1006238528": {
+   "name_zh": "重庆格致公寓",
+   "name_en": "Chongqing Gezhi Apartment",
+   "reviews": 29
+  },
+  "1006238535": {
+   "name_zh": "重庆富华宾馆",
+   "name_en": "Chongqing Fuhua Hotel",
+   "reviews": 8
+  },
+  "1006238542": {
+   "name_zh": "武隆颐家乐宾馆",
+   "name_en": "Meilinju Hotel",
+   "reviews": 1
+  },
+  "1006238549": {
+   "name_zh": "秦煌精品酒店(重庆永川客运中心渝西广场店)",
+   "name_en": "Qinhuang Boutique Hotel (Chongqing Yongchuan Passenger Transport Center Yuxi Plaza)",
+   "reviews": 199
+  },
+  "1006238556": {
+   "name_zh": "重庆时代宾馆",
+   "name_en": "Times Hotel",
+   "reviews": 2
+  },
+  "1006238563": {
+   "name_zh": "重庆雄厚酒店",
+   "name_en": "Chongqing Xionghou Hotel",
+   "reviews": 11
+  },
+  "1006238570": {
+   "name_zh": "重庆聚贤居宾馆",
+   "name_en": "Chongqing juxianju hotel",
+   "reviews": 0
+  },
+  "1006238577": {
+   "name_zh": "重庆银瑞都宾馆",
+   "name_en": "Chongqing Yinruidou Hotel",
+   "reviews": 3
+  },
+  "1006238584": {
+   "name_zh": "重庆开欣宾馆",
+   "name_en": "Kaixin Hotel",
+   "reviews": 2
+  },
+  "1006238591": {
+   "name_zh": "重庆国华宾馆",
+   "name_en": "Guohua Hotel",
+   "reviews": 0
+  },
+  "1006238598": {
+   "name_zh": "重庆友善宾馆(长江师范学院店)",
+   "name_en": "Chongqing YouShan Hotel (Changjiang Normal University)",
+   "reviews": 27
+  },
+  "1006238605": {
+   "name_zh": "重庆金秋宾馆",
+   "name_en": "Chongqing Jinqiu Hotel",
+   "reviews": 0
+  },
+  "1006238612": {
+   "name_zh": "重庆佳缘宾馆",
+   "name_en": "Jiayuan Hotel",
+   "reviews": 13
+  },
+  "1006238619": {
+   "name_zh": "重庆乾阳宾馆",
+   "name_en": "Chongqing Qianyang Hotel",
+   "reviews": 5
+  },
+  "1006238626": {
+   "name_zh": "重庆交通旅馆",
+   "name_en": "Chongqing Jiaotong Inn",
+   "reviews": 2
+  },
+  "1006238633": {
+   "name_zh": "重庆钱山山庄",
+   "name_en": "Chongqing Qianshan Hotel",
+   "reviews": 0
+  },
+  "1006238640": {
+   "name_zh": "重庆丰豪宾馆",
+   "name_en": "Fenghao Hotel",
+   "reviews": 0
+  },
+  "1006238647": {
+   "name_zh": "重庆黔朋宾馆",
+   "name_en": "Qianpeng Hotel",
+   "reviews": 3
+  },
+  "1006238654": {
+   "name_zh": "重庆山里人家住宿",
+   "name_en": "Shanli Renjia Hostel",
+   "reviews": 0
+  },
+  "1006238661": {
+   "name_zh": "重庆小京舟宾馆",
+   "name_en": "Chongqing Xiaojingzhou Hotel",
+   "reviews": 7
+  },
+  "1006238668": {
+   "name_zh": "重庆山里人家农家乐",
+   "name_en": "Chongqing Shanli Renjia Farm Stay",
+   "reviews": 6
+  },
+  "1006238675": {
+   "name_zh": "重庆桃园宾馆",
+   "name_en": "Taoyuan Hotel",
+   "reviews": 1
+  },
+  "1006238682": {
+   "name_zh": "重庆梦琳娜酒店",
+   "name_en": "Mingye Hotel",
+   "reviews": 29
+  },
+  "1006238689": {
+   "name_zh": "重庆福格大商务宾馆",
+   "name_en": "Fugeda Business Hotel",
+   "reviews": 0
+  },
+  "1006238696": {
+   "name_zh": "重庆豪帅商务宾馆",
+   "name_en": "Haoshuai Business Hotel",
+   "reviews": 7
+  },
+  "1006238703": {
+   "name_zh": "重庆天云宾馆",
+   "name_en": "Tianyun Hotel",
+   "reviews": 4
+  },
+  "1006238710": {
+   "name_zh": "武隆逸度宾馆",
+   "name_en": "Yidu the Me Hotel",
+   "reviews": 7
+  },
+  "1006238717": {
+   "name_zh": "重庆侨之家酒店(潼南区人民生态公园店)",
+   "name_en": "Chongqing Qiao Zhijia Hotel (Tongnan County People's Ecological Park)",
+   "reviews": 60
+  },
+  "1006238724": {
+   "name_zh": "国壕酒店",
+   "name_en": "Guohao Hotel",
+   "reviews": 9
+  },
+  "1006238731": {
+   "name_zh": "重庆江韵商务宾馆",
+   "name_en": "Jiangyun Business Hotel",
+   "reviews": 9
+  },
+  "1006238738": {
+   "name_zh": "重庆兴吉宾馆",
+   "name_en": "Xingji Hotel, Chongqing",
+   "reviews": 0
+  },
+  "1006238745": {
+   "name_zh": "重庆樱花温泉度假村",
+   "name_en": "Wansheng Yinghua Hot Spring Resort",
+   "reviews": 1
+  },
+  "1006238752": {
+   "name_zh": "重庆金锣度假村",
+   "name_en": "Jinluo Resort",
+   "reviews": 0
+  },
+  "1006238759": {
+   "name_zh": "重庆北航宾馆",
+   "name_en": "Chongqing Beihang Hotel",
+   "reviews": 4
+  },
+  "1006238766": {
+   "name_zh": "重庆雅莱仕宾馆",
+   "name_en": "Yalaishi Hotel",
+   "reviews": 5
+  },
+  "1006238773": {
+   "name_zh": "重庆居南宾馆(万州汽车南站店)",
+   "name_en": "Chongqing Junan Hotel",
+   "reviews": 38
+  },
+  "1006238780": {
+   "name_zh": "八禧商务酒店(重庆南坪万达广场万寿路地铁站店)",
+   "name_en": "Baxi Business Hotel (Chongqing Nanping Wanda Plaza Wanshou Road Subway Station)",
+   "reviews": 22
+  },
+  "1006238787": {
+   "name_zh": "重庆玖叁旅馆",
+   "name_en": "Jiusan Hostel",
+   "reviews": 5
+  },
+  "1006238794": {
+   "name_zh": "重庆淼森商务酒店",
+   "name_en": "Chongqing Yusen Business Hotel",
+   "reviews": 37
+  },
+  "1006238801": {
+   "name_zh": "重庆铁通宾馆",
+   "name_en": "Tietong Hotel",
+   "reviews": 219
+  },
+  "1006238808": {
+   "name_zh": "重庆云弘商务宾馆",
+   "name_en": "Chongqing Yunhong Business Hotel",
+   "reviews": 22
+  },
+  "1006238815": {
+   "name_zh": "重庆惠彦宾馆",
+   "name_en": "Huiyan Hotel",
+   "reviews": 10
+  },
+  "1006238822": {
+   "name_zh": "重庆富津商务宾馆",
+   "name_en": "Fujin Business Hotel",
+   "reviews": 1
+  },
+  "1006238829": {
+   "name_zh": "重庆美通宾馆",
+   "name_en": "Chongqing Meitong Hotel",
+   "reviews": 0
+  },
+  "1006238836": {
+   "name_zh": "重庆君宾招待所",
+   "name_en": "Chongqing Junbin Guesthouse",
+   "reviews": 0
+  },
+  "1006238843": {
+   "name_zh": "重庆鸿雁旅馆(华熙LIVE鱼洞金竹地铁站店)",
+   "name_en": "Chongqing Hongyan Inn (Huaxi LIVE Yudong Jinzhu Subway Station)",
+   "reviews": 7
+  },
+  "1006238850": {
+   "name_zh": "重庆长顺旅馆(金竹地铁站店)",
+   "name_en": "Chongqing Changshun Inn (Jinzhu Subway Station)",
+   "reviews": 3
+  },
+  "1006238857": {
+   "name_zh": "重庆好客来旅馆(华熙LIVE鱼洞店)",
+   "name_en": "Chongqing haokelai hotel",
+   "reviews": 30
+  },
+  "1006238864": {
+   "name_zh": "重庆新胜旅馆(华熙LIVE鱼洞金竹地铁站店)",
+   "name_en": "Chongqing Xinsheng Inn (Huaxi LIVE Yudong Jinzhu Subway Station)",
+   "reviews": 29
+  },
+  "1006238871": {
+   "name_zh": "尚美宾馆(重庆鱼洞金竹地铁站店)",
+   "name_en": "Shangmei Hotel (Chongqing Yudong)",
+   "reviews": 40
+  },
+  "1006238878": {
+   "name_zh": "重庆紫霖阁宾馆",
+   "name_en": "Chongqing Zilingge Hotel",
+   "reviews": 4
+  },
+  "1006238885": {
+   "name_zh": "重庆利群旅社",
+   "name_en": "Chongqing Liqun Hostel",
+   "reviews": 2
+  },
+  "1006238892": {
+   "name_zh": "重庆碚星民宿(三峡广场店)",
+   "name_en": "Chongqing Beixing Homestay (Sanxia Square)",
+   "reviews": 15
+  },
+  "1006238899": {
+   "name_zh": "重庆玮渝客栈(龙兴古镇店)",
+   "name_en": "Chongqing Yu Inn",
+   "reviews": 8
+  },
+  "1006238906": {
+   "name_zh": "重庆福瑞宾馆",
+   "name_en": "Chongqing Furui Hotel",
+   "reviews": 14
+  },
+  "1006238913": {
+   "name_zh": "重庆齐骏宾馆",
+   "name_en": "Chongqing Qiyi Hotel",
+   "reviews": 3
+  },
+  "1006238920": {
+   "name_zh": "重庆陶洪宾馆",
+   "name_en": "Chongqing Taohong Hotel",
+   "reviews": 32
+  },
+  "1006238927": {
+   "name_zh": "重庆贵华宾馆",
+   "name_en": "Chongqing Guihua Hotel",
+   "reviews": 1
+  },
+  "1006238934": {
+   "name_zh": "重庆源来招待所",
+   "name_en": "Laiyuan Hostel",
+   "reviews": 2
+  },
+  "1006238941": {
+   "name_zh": "万州区三毛民宿旅店",
+   "name_en": "Sanmao Hostel",
+   "reviews": 0
+  },
+  "1006238948": {
+   "name_zh": "重庆川汇商务宾馆",
+   "name_en": "Chuanhui Business Hotel",
+   "reviews": 5
+  },
+  "1006238955": {
+   "name_zh": "重庆好时光公寓",
+   "name_en": "Chongqing Haoshiguang Apartment",
+   "reviews": 1
+  },
+  "1006238962": {
+   "name_zh": "重庆李凤餐旅馆",
+   "name_en": "Chongqing Lifeng Food Hotel",
+   "reviews": 0
+  },
+  "1006238969": {
+   "name_zh": "重庆蔚翔度假山庄",
+   "name_en": "Chongqing Weixiang Holiday Resort",
+   "reviews": 2
+  },
+  "1006238976": {
+   "name_zh": "重庆帝达酒店(冉家坝玉带山地铁站店)",
+   "name_en": "Chongqing DiDa Hotel (Yudaishan Subway Station Store, Ranjiaba)",
+   "reviews": 78
+  },
+  "1006238983": {
+   "name_zh": "重庆明龙凯悦宾馆",
+   "name_en": "Chongqing Minglong Kaiyue Hotel",
+   "reviews": 0
+  },
+  "1006238990": {
+   "name_zh": "半岛酒店(重庆两路口儿童医院店)",
+   "name_en": "Peninsula Hotel",
+   "reviews": 25
+  },
+  "1006238997": {
+   "name_zh": "重庆黔江祥和商务宾馆",
+   "name_en": "Chongqing Lijiang Xianghe Business Hotel",
+   "reviews": 1
+  },
+  "1006239004": {
+   "name_zh": "重庆芳芳农庄",
+   "name_en": "Chongqing Fangfang Farm",
+   "reviews": 2
+  },
+  "1006239011": {
+   "name_zh": "伟伟宾馆",
+   "name_en": "Weiwei Hotel",
+   "reviews": 0
+  },
+  "1006239018": {
+   "name_zh": "重庆天娇商务酒店(重庆建筑科技职业学院店)",
+   "name_en": "Chongqing Tianjiao Business Hotel",
+   "reviews": 22
+  },
+  "1006239025": {
+   "name_zh": "小小宾馆(重庆永川店)",
+   "name_en": "Small Hotel (Chongqing Yongchuan Branch)",
+   "reviews": 3
+  },
+  "1006239032": {
+   "name_zh": "重庆悦君商务宾馆",
+   "name_en": "CQYJSWBG",
+   "reviews": 20
+  },
+  "1006239039": {
+   "name_zh": "重庆商通招待所",
+   "name_en": "Shangtong Hostel",
+   "reviews": 7
+  },
+  "1006239046": {
+   "name_zh": "重庆腾达公寓",
+   "name_en": "Tengda Apartment",
+   "reviews": 0
+  },
+  "1006239053": {
+   "name_zh": "重庆云香宾馆",
+   "name_en": "Chongqing Yunxiang Hotel",
+   "reviews": 28
+  },
+  "1006239060": {
+   "name_zh": "武隆仙山流云假日酒店",
+   "name_en": "Xianshan Liuyun Holiday Hotel",
+   "reviews": 64
+  },
+  "1006239067": {
+   "name_zh": "重庆渠江农家乐",
+   "name_en": "Chongqing Qujiang Farm Stay",
+   "reviews": 1
+  },
+  "1006239074": {
+   "name_zh": "重庆巴渝鼎尚宾馆",
+   "name_en": "Chongqing Bayu Dingshang Hotel",
+   "reviews": 10
+  },
+  "1006239081": {
+   "name_zh": "重庆香海宾馆",
+   "name_en": "Xianghai Hotel",
+   "reviews": 5
+  },
+  "1006239088": {
+   "name_zh": "重庆锦绣之星商务宾馆",
+   "name_en": "Jinxiu Zhixing Business Hotel",
+   "reviews": 51
+  },
+  "1006239095": {
+   "name_zh": "重庆金灿宾馆",
+   "name_en": "Chongqing Jincan Hotel",
+   "reviews": 11
+  },
+  "1006239102": {
+   "name_zh": "OYO重庆君安商务宾馆",
+   "name_en": "Jun'an business hotel (hechuan store, chongqing)",
+   "reviews": 12
+  },
+  "1006239109": {
+   "name_zh": "重庆莹西宾馆",
+   "name_en": "Yingxi Hotel",
+   "reviews": 0
+  },
+  "1006239116": {
+   "name_zh": "重庆武陵山森林公园酒店",
+   "name_en": "Wulingshan Forest Park Hotel, Chongqing",
+   "reviews": 148
+  },
+  "1006239123": {
+   "name_zh": "涪陵遇见你酒店",
+   "name_en": "Fuling Meet You Hotel",
+   "reviews": 40
+  },
+  "1006239130": {
+   "name_zh": "重庆云盛宾馆",
+   "name_en": "Yunsheng Hotel",
+   "reviews": 0
+  },
+  "1006239137": {
+   "name_zh": "潼南好友宾馆",
+   "name_en": "Tongnan County Haoyou Hotel",
+   "reviews": 43
+  },
+  "1006239144": {
+   "name_zh": "重庆良友宾馆",
+   "name_en": "Chongqing Liangyou Hotel",
+   "reviews": 2
+  },
+  "1006239151": {
+   "name_zh": "808酒店",
+   "name_en": "808 business hotel",
+   "reviews": 4
+  },
+  "1006239158": {
+   "name_zh": "重庆新体宾馆",
+   "name_en": "Chongqing Xinti Hotel",
+   "reviews": 10
+  },
+  "1006239165": {
+   "name_zh": "重庆美泉宾馆",
+   "name_en": "Meiquan Hotel",
+   "reviews": 0
+  },
+  "1006239172": {
+   "name_zh": "南滨时光·碧琉Beryl江景度假民宿(长江索道南站店)",
+   "name_en": "Chongqing NAanbin Shiguang Jiangjing Apartment",
+   "reviews": 114
+  },
+  "1006239179": {
+   "name_zh": "重庆紫瑶宾馆",
+   "name_en": "Ziyao Hotel",
+   "reviews": 5
+  },
+  "1006239186": {
+   "name_zh": "丰裕宾馆(重庆观音桥北城天街店)",
+   "name_en": "Fengyu Hotel (Chongqing Guanyinqiao Beicheng Tianjie Branch)",
+   "reviews": 19
+  },
+  "1006239193": {
+   "name_zh": "重庆望江阁宾馆",
+   "name_en": "Wangjiangge Hotel",
+   "reviews": 1
+  },
+  "1006239200": {
+   "name_zh": "重庆博友宾馆",
+   "name_en": "Chongqing Boyou Hotel",
+   "reviews": 1
+  },
+  "1006239207": {
+   "name_zh": "重庆五七宾馆",
+   "name_en": "Chongqing Wuqibinguan Hotel",
+   "reviews": 1
+  },
+  "1006239214": {
+   "name_zh": "重庆涪陵媛缘宾馆",
+   "name_en": "Chongqing Yuanyuan Hotel",
+   "reviews": 5
+  },
+  "1006239221": {
+   "name_zh": "重庆沁园春宾馆",
+   "name_en": "Chongqing Qinyuanchun Inn",
+   "reviews": 0
+  },
+  "1006239228": {
+   "name_zh": "重庆御座宾馆",
+   "name_en": "Chongqing Yuzuo Hotel",
+   "reviews": 3
+  },
+  "1006239235": {
+   "name_zh": "重庆雅旺商务宾馆",
+   "name_en": "Chongqing Yawang Business Hotel",
+   "reviews": 10
+  },
+  "1006239242": {
+   "name_zh": "重庆宝石宾馆",
+   "name_en": "Chongqing Gem Hotel",
+   "reviews": 1
+  },
+  "1006239249": {
+   "name_zh": "重庆鑫豪宾馆",
+   "name_en": "Chongqing Xinhao Hotel",
+   "reviews": 24
+  },
+  "1006239256": {
+   "name_zh": "锦尚酒店(重庆仙女山店)",
+   "name_en": "Jinshang Hotel (Chongqing Fairy Mountain)",
+   "reviews": 5
+  },
+  "1006239263": {
+   "name_zh": "重庆双星宾馆(璧山双星大道店)",
+   "name_en": "Chongqing Double Star Hotel (Lushan Double Star Avenue)",
+   "reviews": 95
+  },
+  "1006239270": {
+   "name_zh": "阳光快捷酒店(重庆杨家坪店)",
+   "name_en": "Sunshine Express Hotel (Yangjiaping, Chongqing)",
+   "reviews": 0
+  },
+  "1006239277": {
+   "name_zh": "重庆新家园宾馆",
+   "name_en": "Xinjiayuan Hotel",
+   "reviews": 31
+  },
+  "1006239284": {
+   "name_zh": "重庆伟加招待所",
+   "name_en": "Chongqing Weijia Guesthouse",
+   "reviews": 0
+  },
+  "1006239291": {
+   "name_zh": "幸福公寓(重庆沙坪坝店)",
+   "name_en": "Xingfu Apartment (Chongqing Shapingba)",
+   "reviews": 0
+  },
+  "1006239298": {
+   "name_zh": "江南旅馆(重庆弹子石老街店)",
+   "name_en": "Jiangnan Inn (Chongqing Danzishi Old Street)",
+   "reviews": 3
+  },
+  "1006239305": {
+   "name_zh": "重庆惠泽宾馆",
+   "name_en": "OYO Chongqing Huize Hotel",
+   "reviews": 3
+  },
+  "1006239312": {
+   "name_zh": "重庆开盛招待所",
+   "name_en": "Kaisheng Hostel",
+   "reviews": 0
+  },
+  "1006239319": {
+   "name_zh": "重庆建渝小宾馆",
+   "name_en": "Jianyu Hotel",
+   "reviews": 0
+  },
+  "1006239326": {
+   "name_zh": "重庆阿奇客栈",
+   "name_en": "Chongqing Aqi Inn",
+   "reviews": 0
+  },
+  "1006239333": {
+   "name_zh": "重庆良荣宾馆(观音桥店)",
+   "name_en": "Chongqing Liangrong Hotel (Guanyinqiao Store)",
+   "reviews": 0
+  },
+  "1006239340": {
+   "name_zh": "佳洲宾馆(重庆逸园店)",
+   "name_en": "Jiazhou Hotel (Chongqing Yiyuan)",
+   "reviews": 1
+  },
+  "1006239347": {
+   "name_zh": "重庆加洲宾馆",
+   "name_en": "Chongqing Jiazou Hotel",
+   "reviews": 9
+  },
+  "1006239354": {
+   "name_zh": "涪陵比家美宾馆",
+   "name_en": "Fuling Bijia Mei Hotel",
+   "reviews": 16
+  },
+  "1006239361": {
+   "name_zh": "重庆铁山坪星月宾馆",
+   "name_en": "Chongqing Tieshanping Xingyue Hotel",
+   "reviews": 6
+  },
+  "1006239368": {
+   "name_zh": "重庆好梦来宾馆",
+   "name_en": "Haomenglai Hotel",
+   "reviews": 0
+  },
+  "1006239375": {
+   "name_zh": "重庆洁利宾馆",
+   "name_en": "Jieli Hotel",
+   "reviews": 0
+  },
+  "1006239382": {
+   "name_zh": "重庆菊洋招待所",
+   "name_en": "Juyang Hostel",
+   "reviews": 0
+  },
+  "1006239389": {
+   "name_zh": "重庆畅通宾馆(重庆西站新桥医院店)",
+   "name_en": "Changtong Hotel",
+   "reviews": 1
+  },
+  "1006239396": {
+   "name_zh": "柏悦·臻品酒店(重庆西南医院店)",
+   "name_en": "gaotanyanBusiness Hotel （chongqingSouthwest Hospitalstore）",
+   "reviews": 31
+  },
+  "1006239403": {
+   "name_zh": "重庆红春旅馆(都市花园店)",
+   "name_en": "Hongchun Hostel",
+   "reviews": 3
+  },
+  "1006239410": {
+   "name_zh": "重庆金沙酒店(西南医院店)",
+   "name_en": "Sands Hotel",
+   "reviews": 22
+  },
+  "1006239417": {
+   "name_zh": "重庆达渠旅馆",
+   "name_en": "Chongqing Daqu Inn",
+   "reviews": 2
+  },
+  "1006239424": {
+   "name_zh": "吉缘宾馆(重庆沙坪坝西南医院店)",
+   "name_en": "Jiyuan Hotel (Southwest Hospital)",
+   "reviews": 62
+  },
+  "1006239431": {
+   "name_zh": "心旅民宿(重庆北站南广场店)",
+   "name_en": "Xinlu Homestay (Chongqing North Railway Station South Square)",
+   "reviews": 8
+  },
+  "1006239438": {
+   "name_zh": "君豪商务宾馆(西南医院店)",
+   "name_en": "Junhao Business Hotel",
+   "reviews": 13
+  },
+  "1006239445": {
+   "name_zh": "重庆上栩招待所",
+   "name_en": "Chongqing Shangyu Hostel",
+   "reviews": 32
+  },
+  "1006239452": {
+   "name_zh": "重庆洋悦宾馆",
+   "name_en": "Chongqing Yangyue Hotel",
+   "reviews": 0
+  },
+  "1006239459": {
+   "name_zh": "重庆丰平旅馆(观音桥北城天街店)",
+   "name_en": "Chongqing Fengping Hotel (Guanyinqiao Beicheng Tianjie)",
+   "reviews": 22
+  },
+  "1006239466": {
+   "name_zh": "重庆汇好宾馆(西南医院店)",
+   "name_en": "Huihao Hotel",
+   "reviews": 3
+  },
+  "1006239473": {
+   "name_zh": "重庆金枫公寓(观音桥步行街店)",
+   "name_en": "Chongqing Jinfeng Apartment (Guanyinqiao Pedestrian Street)",
+   "reviews": 15
+  },
+  "1006239480": {
+   "name_zh": "OYO重庆涛涛民宿",
+   "name_en": "OYO Chongqing Taotao Homestay",
+   "reviews": 3
+  },
+  "1006239487": {
+   "name_zh": "逸家公寓(重庆大坪医院店)",
+   "name_en": "Yijia Apartment",
+   "reviews": 4
+  },
+  "1006239494": {
+   "name_zh": "重庆吉源客栈",
+   "name_en": "Chongqing Jiyuan Chinese Inn",
+   "reviews": 1
+  },
+  "1006239501": {
+   "name_zh": "重庆琦强住宿",
+   "name_en": "Chongqing Qiqiang Accommodation",
+   "reviews": 3
+  },
+  "1006239508": {
+   "name_zh": "重庆聚客来农家乐",
+   "name_en": "Chongqing Jukelai Farm Stay",
+   "reviews": 5
+  },
+  "1006239515": {
+   "name_zh": "重庆华丰旅馆",
+   "name_en": "Chongqing Huafeng Inn",
+   "reviews": 0
+  },
+  "1006239522": {
+   "name_zh": "重庆微家公寓",
+   "name_en": "Weijia Apartment",
+   "reviews": 23
+  },
+  "1006239529": {
+   "name_zh": "重庆嘉联宾馆",
+   "name_en": "Jialian Hotel",
+   "reviews": 3
+  },
+  "1006239536": {
+   "name_zh": "重庆渝锦酒店(西南政法大学店)",
+   "name_en": "Chongqing Yujin Hotel (Southwest University of Political Science and Law Branch)",
+   "reviews": 11
+  },
+  "1006239543": {
+   "name_zh": "重庆兴桥宾馆",
+   "name_en": "Xingqiao Hotel",
+   "reviews": 0
+  },
+  "1006239550": {
+   "name_zh": "仙女山光明酒店",
+   "name_en": "Fairy Mountain Guangming Hotel",
+   "reviews": 2
+  },
+  "1006239557": {
+   "name_zh": "曼多啦酒店(重庆花卉园店)",
+   "name_en": "Junyue Hotel (Chongqing Flowers Garden)",
+   "reviews": 0
+  },
+  "1006239564": {
+   "name_zh": "重庆悦鸿宾馆",
+   "name_en": "Chongqing Yuehong Hotel",
+   "reviews": 12
+  },
+  "1006239571": {
+   "name_zh": "重庆世宇招待所",
+   "name_en": "Chongqing Shiyu Guesthouse",
+   "reviews": 15
+  },
+  "1006239578": {
+   "name_zh": "重庆渝新旅馆",
+   "name_en": "Chongqing Yuxin Inn",
+   "reviews": 12
+  },
+  "1006239585": {
+   "name_zh": "舒之心宾馆(重庆石桥铺店)",
+   "name_en": "Shuzhixin Hotel (Chongqing Shiqiaopu Branch)",
+   "reviews": 36
+  },
+  "1006239592": {
+   "name_zh": "旭东酒店(重庆冉家坝花卉园地铁站店)",
+   "name_en": "Xudong Hotel (Chongqing Ranjiaba Huahuiyuan Subway Station)",
+   "reviews": 143
+  },
+  "1006239599": {
+   "name_zh": "重庆良美宾馆",
+   "name_en": "Liangmei Hostel",
+   "reviews": 8
+  },
+  "1006239606": {
+   "name_zh": "重庆又一家住宿",
+   "name_en": "Youyijia Hostel",
+   "reviews": 0
+  },
+  "1006239613": {
+   "name_zh": "重庆鸿雁宾馆",
+   "name_en": "Chongqing Hongyan Hotel",
+   "reviews": 10
+  },
+  "1006239620": {
+   "name_zh": "重庆巨绅宾馆",
+   "name_en": "Jushen Hotel",
+   "reviews": 5
+  },
+  "1006239627": {
+   "name_zh": "重庆四合院旅馆",
+   "name_en": "Chongqing Chinese Siheyuan Inn",
+   "reviews": 3
+  },
+  "1006239634": {
+   "name_zh": "重庆咸旺宾馆",
+   "name_en": "Xianwang Hotel",
+   "reviews": 0
+  },
+  "1006239641": {
+   "name_zh": "重庆凯圣佳园家庭公寓",
+   "name_en": "Chongqing Kaisheng Jiayuan Family Apartment",
+   "reviews": 2
+  },
+  "1006239648": {
+   "name_zh": "重庆城市公寓",
+   "name_en": "Chongqing City Apartment",
+   "reviews": 61
+  },
+  "1006239655": {
+   "name_zh": "东日宾馆(重庆南桥寺社区店)",
+   "name_en": "Dongri Hotel (Chongqing Nanqiaoshi Community)",
+   "reviews": 86
+  },
+  "1006239662": {
+   "name_zh": "重庆会琴宾馆",
+   "name_en": "Huiqin Hotel",
+   "reviews": 6
+  },
+  "1006239669": {
+   "name_zh": "重庆雅致宾馆",
+   "name_en": "Chongqing Yashi Hotel",
+   "reviews": 1
+  },
+  "1006239676": {
+   "name_zh": "重庆豪宾招待所",
+   "name_en": "Chongqing Haobin Guesthouse",
+   "reviews": 3
+  },
+  "1006239683": {
+   "name_zh": "重庆七运宾馆",
+   "name_en": "Qiyun Hostel",
+   "reviews": 6
+  },
+  "1006239690": {
+   "name_zh": "重庆梨园民宿",
+   "name_en": "Liyuan Hostel",
+   "reviews": 1
+  },
+  "1006239697": {
+   "name_zh": "开州区保长饭店",
+   "name_en": "Chongqing Baochang Hotel",
+   "reviews": 23
+  },
+  "1006239704": {
+   "name_zh": "重庆泰宏旅馆",
+   "name_en": "Taihong Hostel",
+   "reviews": 1
+  },
+  "1006239711": {
+   "name_zh": "重庆吉豪精选酒店",
+   "name_en": "Chongqing Jihao Collection Hotel",
+   "reviews": 0
+  },
+  "1006239718": {
+   "name_zh": "重庆三山宾馆",
+   "name_en": "Sanshan Hotel",
+   "reviews": 10
+  },
+  "1006239725": {
+   "name_zh": "重庆朋来商务宾馆",
+   "name_en": "Chongqing Penglai Business Hotel",
+   "reviews": 1
+  },
+  "1006239732": {
+   "name_zh": "重庆鼎江宾馆(江津步行街店)",
+   "name_en": "Dingjiang Hotel",
+   "reviews": 13
+  },
+  "1006239739": {
+   "name_zh": "重庆佳怡宾馆",
+   "name_en": "Chongqing Jiayi Hotel",
+   "reviews": 0
+  },
+  "1006239746": {
+   "name_zh": "重庆金桂源主题公寓",
+   "name_en": "Chongqing Jinguiyuan Theme Apartment",
+   "reviews": 3
+  },
+  "1006239753": {
+   "name_zh": "重庆江汶公寓",
+   "name_en": "Jiangwen Apartment",
+   "reviews": 0
+  },
+  "1006239760": {
+   "name_zh": "重庆心悦公寓",
+   "name_en": "Chongqing Xinyue Apartment",
+   "reviews": 0
+  },
+  "1006239767": {
+   "name_zh": "重庆闲云公寓",
+   "name_en": "Xianyun Apartment",
+   "reviews": 2
+  },
+  "1006239774": {
+   "name_zh": "重庆广渝招待所",
+   "name_en": "Chongqing Guangyu Guesthouse",
+   "reviews": 7
+  },
+  "1006239781": {
+   "name_zh": "妙享酒店",
+   "name_en": "Miaoxiang Hotel",
+   "reviews": 13
+  },
+  "1006239788": {
+   "name_zh": "重庆金素招待所",
+   "name_en": "Chongqing Jinsu Guesthouse",
+   "reviews": 0
+  },
+  "1006239795": {
+   "name_zh": "重庆鑫巢公寓",
+   "name_en": "Chongqing Xinchao Apartment",
+   "reviews": 23
+  },
+  "1006239802": {
+   "name_zh": "时代宾馆(重庆解放碑店)",
+   "name_en": "Times Hotel (Chongqing Jiefangbei Branch)",
+   "reviews": 11
+  },
+  "1006239809": {
+   "name_zh": "重庆恒瑞宾馆",
+   "name_en": "Hengrui Hotel",
+   "reviews": 1
+  },
+  "1006239816": {
+   "name_zh": "重庆翔鹏商务宾馆",
+   "name_en": "Xiangpeng Business Hotel",
+   "reviews": 0
+  },
+  "1006239823": {
+   "name_zh": "重庆三峡行客栈",
+   "name_en": "Sanxiaxing Inn",
+   "reviews": 14
+  },
+  "1006239830": {
+   "name_zh": "重庆友爱酒店(观音桥步行街店)",
+   "name_en": "Chongqing Youai Hotel (Guanyinqiao Pedestrian Street)",
+   "reviews": 5
+  },
+  "1006239837": {
+   "name_zh": "重庆友蓬商务宾馆",
+   "name_en": "Chongqing Youpeng Business Hotel",
+   "reviews": 3
+  },
+  "1006239844": {
+   "name_zh": "兴通宾馆(万州火车站店)",
+   "name_en": "Xingtong Hotel (Wanzhou Railway Station)",
+   "reviews": 6
+  },
+  "1006239851": {
+   "name_zh": "永先酒店(重庆开州区中医院店)",
+   "name_en": "Yongxian Hotel",
+   "reviews": 83
+  },
+  "1006239858": {
+   "name_zh": "林丰酒店(重庆三峡职业学院万州站店)",
+   "name_en": "Linfeng Hotel (Wanzhou Railway Station)",
+   "reviews": 50
+  },
+  "1006239865": {
+   "name_zh": "重庆如玉宾馆",
+   "name_en": "Chongqing Ruyu Hotel",
+   "reviews": 1
+  },
+  "1006239872": {
+   "name_zh": "重庆民安99商务酒店(华宇锦绣广场店)",
+   "name_en": "99 Business Hotel Chongqing Min'an",
+   "reviews": 68
+  },
+  "1006239879": {
+   "name_zh": "重庆旭峰商务宾馆",
+   "name_en": "Xufeng Business Hostel",
+   "reviews": 6
+  },
+  "1006239886": {
+   "name_zh": "源派酒店(重庆江北机场长福路轻轨站店)",
+   "name_en": "yuanPai Hotel (Chongqing Jiangbei Airport Changfu Road Light Rail Station)",
+   "reviews": 52
+  },
+  "1006239893": {
+   "name_zh": "武隆静梦圆公寓",
+   "name_en": "Jingmengyuan Apartment",
+   "reviews": 3
+  },
+  "1006239900": {
+   "name_zh": "重庆馨怡宾馆",
+   "name_en": "Chongqing Xinyi Hotel",
+   "reviews": 21
+  },
+  "1006239907": {
+   "name_zh": "重庆雅轩商务宾馆(江北机场空港广场地铁站店)",
+   "name_en": "Yaxuan Business Hostel",
+   "reviews": 146
+  },
+  "1006239914": {
+   "name_zh": "重庆如意短租民宿(鎏嘉码头店)",
+   "name_en": "Chongqing Ruyi Short-term Rental Homestay (Liujia Wharf Store)",
+   "reviews": 73
+  },
+  "1006239921": {
+   "name_zh": "朗庭商务酒店(大学城建筑科技职业学院店)",
+   "name_en": "Langting Business Hostel",
+   "reviews": 69
+  },
+  "1006239928": {
+   "name_zh": "重庆永川鸿达宾馆",
+   "name_en": "Hongda Hostel",
+   "reviews": 6
+  },
+  "1006239935": {
+   "name_zh": "OYO重庆新一家宾馆",
+   "name_en": "OYO Chongqing Xinyijia Hotel",
+   "reviews": 2
+  },
+  "1006239942": {
+   "name_zh": "南山仙然居休闲庄",
+   "name_en": "Xianranju Leisure Villa",
+   "reviews": 1
+  },
+  "1006239949": {
+   "name_zh": "古特莱主题宾馆(重庆理工大学2号中门店)",
+   "name_en": "Gutlai Theme Hotel (Chongqing University of Technology No. 2 Middle Gate Store)",
+   "reviews": 51
+  },
+  "1006239956": {
+   "name_zh": "客乐得房车营地(重庆玉峰山店)",
+   "name_en": "Kelede RV Campground (Chongqing Yufengshan)",
+   "reviews": 7
+  },
+  "1006239963": {
+   "name_zh": "重庆兰亭宾馆(鱼嘴地铁站店)",
+   "name_en": "Chongqing Lanting Hotel (Yuzui Subway Station)",
+   "reviews": 99
+  },
+  "1006239970": {
+   "name_zh": "重庆丰盈酒店式公寓",
+   "name_en": "Fengying Apartment Hotel",
+   "reviews": 11
+  },
+  "1006239977": {
+   "name_zh": "重庆兴宇宾馆",
+   "name_en": "Chongqing Xingyu Hotel",
+   "reviews": 5
+  },
+  "1006239984": {
+   "name_zh": "重庆暄麟宾馆",
+   "name_en": "Chongqing Xuanlin Hotel",
+   "reviews": 39
+  },
+  "1006239991": {
+   "name_zh": "重庆金福客栈",
+   "name_en": "Chongqing Jinfu Chinese Inn",
+   "reviews": 37
+  },
+  "1006239998": {
+   "name_zh": "重庆永久花园家庭旅馆",
+   "name_en": "Yongjiu Huayuan Family Hostel",
+   "reviews": 2
+  },
+  "1006240005": {
+   "name_zh": "重庆温馨酒店公寓",
+   "name_en": "Wenxin Apartment Hotel",
+   "reviews": 0
+  },
+  "1006240012": {
+   "name_zh": "重庆双狮园农家乐",
+   "name_en": "Shuangshiyuan Farm House",
+   "reviews": 0
+  },
+  "1006240019": {
+   "name_zh": "四面山渝粤人家农家乐",
+   "name_en": "Yuyue Renjia Farmhouse",
+   "reviews": 19
+  },
+  "1006240026": {
+   "name_zh": "四面山水口苑度假村",
+   "name_en": "Simian Mountain Shuikouyuan Resort",
+   "reviews": 4
+  },
+  "1006240033": {
+   "name_zh": "重庆洪湖农庄",
+   "name_en": "Lake Hong Farm",
+   "reviews": 6
+  },
+  "1006240040": {
+   "name_zh": "重庆兰风酒店",
+   "name_en": "Chongqing Lanfeng Hotel",
+   "reviews": 18
+  },
+  "1006240047": {
+   "name_zh": "重庆乐乐酒店式公寓",
+   "name_en": "Chongqing Lele Serviced Apartment",
+   "reviews": 1
+  },
+  "1006240054": {
+   "name_zh": "重庆琪琳公寓",
+   "name_en": "Chongqing Qilin Apartment",
+   "reviews": 18
+  },
+  "1006240061": {
+   "name_zh": "雅苑宾馆(西南大学3号门店)",
+   "name_en": "Ya Yuan Hotel, Southwest University, Gate 3",
+   "reviews": 58
+  },
+  "1006240068": {
+   "name_zh": "重庆沁霄旅社",
+   "name_en": "Fuli Hotel Changshou District",
+   "reviews": 1
+  },
+  "1006240075": {
+   "name_zh": "佳驿家宾馆",
+   "name_en": "Jiayijia Hotel",
+   "reviews": 5
+  },
+  "1006240082": {
+   "name_zh": "重庆万州迎暇宾馆",
+   "name_en": "Chongqing Wanzhou Yingxia Hotel",
+   "reviews": 0
+  },
+  "1006240089": {
+   "name_zh": "重庆周嬢嬢的小窝",
+   "name_en": "Zhoudaoyu Apartment",
+   "reviews": 1
+  },
+  "1006240096": {
+   "name_zh": "重庆米兰阳光酒店公寓",
+   "name_en": "Chongqing Milan Sunshine Serviced Apartment",
+   "reviews": 2
+  },
+  "1006240103": {
+   "name_zh": "重庆裕佳公寓",
+   "name_en": "Chongqing Yujia Apartment",
+   "reviews": 0
+  },
+  "1006240110": {
+   "name_zh": "重庆鑫晨宾馆",
+   "name_en": "Chongqing Xinchen Hotel",
+   "reviews": 0
+  },
+  "1006240117": {
+   "name_zh": "重庆万盛黑山谷一盛山庄",
+   "name_en": "Chongqing Wansheng Hei Valley Yisheng Mountain Villa",
+   "reviews": 0
+  },
+  "1006240124": {
+   "name_zh": "重庆万州友好宾馆",
+   "name_en": "Chongqing Wanzhou Youhao Hotel",
+   "reviews": 2
+  },
+  "1006240131": {
+   "name_zh": "环幕江景公寓",
+   "name_en": "Kaixuan Riverview Apartment",
+   "reviews": 282
+  },
+  "1006240138": {
+   "name_zh": "鑫悦宾馆(重庆江北国际机场长福路轻轨站店)",
+   "name_en": "Xinyue Hostel",
+   "reviews": 25
+  },
+  "1006240145": {
+   "name_zh": "重庆天骏宾馆",
+   "name_en": "Chongqing Tianjun Hotel",
+   "reviews": 0
+  },
+  "1006240152": {
+   "name_zh": "财源酒店 (重庆解放碑洪崖洞店)",
+   "name_en": "Caiyuan Hotel (Jiefangbei Hongyadong, Chongqing)",
+   "reviews": 122
+  },
+  "1006240159": {
+   "name_zh": "重庆黔江西山家园酒店",
+   "name_en": "Chongqing Xishan Homeland Business Hotel",
+   "reviews": 13
+  },
+  "1006240166": {
+   "name_zh": "Mina妙纳·轻奢酒店(黔江大十字购物广场店)",
+   "name_en": "Chongqing Miaona Theme Hotel",
+   "reviews": 135
+  },
+  "1006240173": {
+   "name_zh": "重庆木洞爱佳宾馆",
+   "name_en": "Chongqing Mudong Aijia Hotel",
+   "reviews": 2
+  },
+  "1006240180": {
+   "name_zh": "重庆北碚歇马圣堡宾馆",
+   "name_en": "Shengbao Hotel",
+   "reviews": 23
+  },
+  "1006240187": {
+   "name_zh": "重庆蓝月亮时尚宾馆",
+   "name_en": "Lanyueliang Fashion Hotel",
+   "reviews": 32
+  },
+  "1006240194": {
+   "name_zh": "仙女山木里小镇公寓",
+   "name_en": "Fairy Mountain Mulitown Apartment",
+   "reviews": 0
+  },
+  "1006240201": {
+   "name_zh": "重庆怡都宾馆",
+   "name_en": "Chongqing Yidu Hotel",
+   "reviews": 5
+  },
+  "1006240208": {
+   "name_zh": "尚品宾馆",
+   "name_en": "Wantong Hostel (Chongqing Cancer Hospital Store)",
+   "reviews": 2
+  },
+  "1006240215": {
+   "name_zh": "学院宾馆(重庆医科大学重医附一院店)",
+   "name_en": "Xueyuan Hotel",
+   "reviews": 13
+  },
+  "1006240222": {
+   "name_zh": "江溯源酒店式公寓(重庆南滨路店)",
+   "name_en": "Jiang Suyuan Hotel",
+   "reviews": 57
+  },
+  "1006240229": {
+   "name_zh": "雅蔓酒店(重庆南滨路店)",
+   "name_en": "Yaman Hotel (Chongqing Nanbin Road)",
+   "reviews": 48
+  },
+  "1006240236": {
+   "name_zh": "重庆天凤招待所",
+   "name_en": "Tianfeng Hostel",
+   "reviews": 7
+  },
+  "1006240243": {
+   "name_zh": "YE酒店",
+   "name_en": "YEHotel",
+   "reviews": 243
+  },
+  "1006240250": {
+   "name_zh": "重庆合川君悦宾馆",
+   "name_en": "Chongqing Hechuan Junyue Hotel",
+   "reviews": 3
+  },
+  "1006240257": {
+   "name_zh": "重庆阿兴宾馆",
+   "name_en": "Chongqing Axing Hotel",
+   "reviews": 42
+  },
+  "1006240264": {
+   "name_zh": "重庆盈信酒店(龙湖时代天街石油路地铁站店)",
+   "name_en": "Chongqing Yingxin Hotel (Longhu Times Tianjie Shiyou Road Subway Station)",
+   "reviews": 286
+  },
+  "1006240271": {
+   "name_zh": "重庆斯维登服务公寓(星耀天地)",
+   "name_en": "Sweetome Vacation Apartment (Galaxy)",
+   "reviews": 122
+  },
+  "1006240278": {
+   "name_zh": "君梦酒店(重庆江北国际机场店)",
+   "name_en": "Junmeng Hotel (Chongqing Jiangbei International Airport)",
+   "reviews": 15
+  },
+  "1006240285": {
+   "name_zh": "重庆泰禾宾馆",
+   "name_en": "Chongqing Taihe Hotel",
+   "reviews": 3
+  },
+  "1006240292": {
+   "name_zh": "佳洲宾馆(重庆西彭店)",
+   "name_en": "Jiazhou Hotel (Chongqing Xipeng)",
+   "reviews": 19
+  },
+  "1006240299": {
+   "name_zh": "富生青年旅社",
+   "name_en": "Fu Sheng Youth Hostel",
+   "reviews": 61
+  },
+  "1006240306": {
+   "name_zh": "重庆龙泰酒店",
+   "name_en": "Longtime Inn",
+   "reviews": 17
+  },
+  "1006240313": {
+   "name_zh": "重庆缘梦居公寓",
+   "name_en": "Chongqing Yuanmengju Apartment",
+   "reviews": 6
+  },
+  "1006240320": {
+   "name_zh": "满天星精品公寓式酒店(重庆渝北西政店)",
+   "name_en": "Mantianxing Boutique Apartment Hotel (Chongqing Yubei West Zhengdian)",
+   "reviews": 1
+  },
+  "1006240327": {
+   "name_zh": "重庆红盛源宾馆(巴南东南亚商场店)",
+   "name_en": "Chongqing Hongshengyuan Inn (Ba'nan Southeast Asia Mall)",
+   "reviews": 17
+  },
+  "1006240334": {
+   "name_zh": "重庆三园宾馆",
+   "name_en": "Sanyuan Hotel",
+   "reviews": 11
+  },
+  "1006240341": {
+   "name_zh": "重庆新朋宾馆",
+   "name_en": "Chongqing Xinpeng Hotel",
+   "reviews": 4
+  },
+  "1006240348": {
+   "name_zh": "重庆米微酒店",
+   "name_en": "Chongqing Miwei Light Hotel",
+   "reviews": 7
+  },
+  "1006240355": {
+   "name_zh": "重庆旅之家民宿",
+   "name_en": "Chongqing Lvzhijia Homestay",
+   "reviews": 0
+  },
+  "1006240362": {
+   "name_zh": "重庆光中温泉山庄",
+   "name_en": "Guangzhong Resort & Spa",
+   "reviews": 7
+  },
+  "1006240369": {
+   "name_zh": "重庆琦盛商务宾馆",
+   "name_en": "Qi Sheng Business Hotel",
+   "reviews": 5
+  },
+  "1006240376": {
+   "name_zh": "重庆卓兴主题酒店",
+   "name_en": "Zhuoxing Theme Hotel",
+   "reviews": 0
+  },
+  "1006240383": {
+   "name_zh": "重庆柠濛酒店(江津鼎山公园店)",
+   "name_en": "Chongqing Ningmeng Hotel",
+   "reviews": 41
+  },
+  "1006240390": {
+   "name_zh": "重庆青果儿民宿",
+   "name_en": "Olive Homestay",
+   "reviews": 64
+  },
+  "1006240397": {
+   "name_zh": "重庆宝典宾馆(茶园桃花桥地铁站店)",
+   "name_en": "Baodian Hotel",
+   "reviews": 12
+  },
+  "1006240404": {
+   "name_zh": "福运民宿(重庆两路口儿童医院店)",
+   "name_en": "Fuyun Homestay (Chongqing Lianglukou Children's Hospital)",
+   "reviews": 17
+  },
+  "1006240411": {
+   "name_zh": "重庆铭星公寓",
+   "name_en": "Mingxing Apartment",
+   "reviews": 0
+  },
+  "1006240418": {
+   "name_zh": "重庆福佳宾馆",
+   "name_en": "Fujia Hotel",
+   "reviews": 0
+  },
+  "1006240425": {
+   "name_zh": "斯维登·家蜓公寓(重庆南坪翡翠明珠店)",
+   "name_en": "Sweetome Jiating Apartment (Chongqing Nanping Feicui Mingzhu)",
+   "reviews": 807
+  },
+  "1006240432": {
+   "name_zh": "重庆真心公寓",
+   "name_en": "Zhenxin Apartment",
+   "reviews": 2
+  },
+  "1006240439": {
+   "name_zh": "重庆途途公寓(重庆动物园店)",
+   "name_en": "Chongqing Tutu Apartment (Chongqing Zoo)",
+   "reviews": 11
+  },
+  "1006240446": {
+   "name_zh": "重庆南丰华苑酒店(长寿汽车客运总站店)",
+   "name_en": "Nanfeng Huayuan Hotel",
+   "reviews": 29
+  },
+  "1006240453": {
+   "name_zh": "重庆力鸿宾馆",
+   "name_en": "Lihong Hotel",
+   "reviews": 12
+  },
+  "1006240460": {
+   "name_zh": "武隆田园山庄",
+   "name_en": "Wulong County Tianyuan Hotel",
+   "reviews": 0
+  },
+  "1006240467": {
+   "name_zh": "重庆常来招待所",
+   "name_en": "Chongqing Changlai Guest House",
+   "reviews": 3
+  },
+  "1006240474": {
+   "name_zh": "重庆山野间酒店",
+   "name_en": "Shanyejian Mountain Resort",
+   "reviews": 14
+  },
+  "1006240481": {
+   "name_zh": "重庆龙腾酒店",
+   "name_en": "Longteng Hotel",
+   "reviews": 6
+  },
+  "1006240488": {
+   "name_zh": "武隆区悦途宾馆",
+   "name_en": "Wulong County Yuetu Hotel",
+   "reviews": 40
+  },
+  "1006240495": {
+   "name_zh": "重庆金阳时代酒店(图书馆地铁站西南医院店)",
+   "name_en": "Chongqing Jinyang Times Apartment",
+   "reviews": 21
+  },
+  "1006240502": {
+   "name_zh": "重庆万云奉客栈",
+   "name_en": "Chongqing Wanyun Feng Chinese Inn",
+   "reviews": 0
+  },
+  "1006240509": {
+   "name_zh": "栖悦尚品酒店公寓(观音桥店)",
+   "name_en": "Qiyue Shangpin Cinema Hotel Apartment (Guanyinqiao Branch)",
+   "reviews": 86
+  },
+  "1006240516": {
+   "name_zh": "佳家佳宾馆",
+   "name_en": "Jiajiaja Hotel",
+   "reviews": 16
+  },
+  "1006240523": {
+   "name_zh": "重庆锦鸿客栈",
+   "name_en": "Chongqing Jinhong Chinese Inn",
+   "reviews": 3
+  },
+  "1006240530": {
+   "name_zh": "重庆顺发公寓(万达广场店)",
+   "name_en": "Chongqing Shunfa Apartment (Wanda Plaza)",
+   "reviews": 29
+  },
+  "1006240537": {
+   "name_zh": "重庆明都宾馆",
+   "name_en": "Chongqing Mingdu Hotel",
+   "reviews": 2
+  },
+  "1006240544": {
+   "name_zh": "平价公寓(袁家岗附属一院店)",
+   "name_en": "Fair Price Apartment (Yuanjiagang Affiliated No.1 Hospital Branch)",
+   "reviews": 8
+  },
+  "1006240551": {
+   "name_zh": "武隆聚香阁农家乐",
+   "name_en": "J  X  G",
+   "reviews": 0
+  },
+  "1006240558": {
+   "name_zh": "重庆四季民宿",
+   "name_en": "Chongqing Siji Homestay",
+   "reviews": 4
+  },
+  "1006240565": {
+   "name_zh": "重庆月满楼快捷酒店",
+   "name_en": "Chongqing Yuemanlou Express Hotel",
+   "reviews": 5
+  },
+  "1006240572": {
+   "name_zh": "重庆亲亲家园青年公寓",
+   "name_en": "Qinqin Jiayuan Youth Apartment",
+   "reviews": 1
+  },
+  "1006240579": {
+   "name_zh": "重庆连丰酒店",
+   "name_en": "Chongqing Lianfeng Hotel",
+   "reviews": 0
+  },
+  "1006240586": {
+   "name_zh": "重庆日月海精品短租公寓",
+   "name_en": "Chongqing Riyuehai Boutique Short-term Rental Apartment",
+   "reviews": 5
+  },
+  "1006240593": {
+   "name_zh": "美涵酒店(重庆幸福广场地铁站店)",
+   "name_en": "Meihan Hotel",
+   "reviews": 89
+  },
+  "1006240600": {
+   "name_zh": "君晖酒店(重庆观音桥步行街中心店)",
+   "name_en": "Junhui Hotel (Zhongqing Guanyinqiao Pedestrian Street Center)",
+   "reviews": 312
+  },
+  "1006240607": {
+   "name_zh": "赫拉精选酒店（涪陵奥体店）",
+   "name_en": "Hela Theme Hotel (Fuling Olympic Sports Shop)",
+   "reviews": 188
+  },
+  "1006240614": {
+   "name_zh": "重庆喜相逢公寓",
+   "name_en": "Chongqing Xixiangfeng Apartment",
+   "reviews": 11
+  },
+  "1006240621": {
+   "name_zh": "重庆锦怡豪生酒店(动物园地铁站店)",
+   "name_en": "Howard Johnson Jinyi Hotel Chongqing",
+   "reviews": 1968
+  },
+  "1006240628": {
+   "name_zh": "重庆致祥商务宾馆",
+   "name_en": "Chongqing Zhixiang Business Hotel",
+   "reviews": 7
+  },
+  "1006240635": {
+   "name_zh": "重庆骆绎酒店(万州区鸿鸥广场店)",
+   "name_en": "Luoyi Hotel",
+   "reviews": 37
+  },
+  "1006240642": {
+   "name_zh": "重庆众星宾馆",
+   "name_en": "Chongqing Zhongxing Hotel",
+   "reviews": 2
+  },
+  "1006240649": {
+   "name_zh": "HongGuan 芸上酒店(重庆西彭店)",
+   "name_en": "hongguan  Boutique Hotel (Xipeng store, Chongqing)",
+   "reviews": 239
+  },
+  "1006240656": {
+   "name_zh": "永川津永宾馆",
+   "name_en": "Yongchuan Jinyong Hotel",
+   "reviews": 1
+  },
+  "1006240663": {
+   "name_zh": "重庆帝宇酒店(花卉园地铁站店)",
+   "name_en": "DiYu hotel",
+   "reviews": 15
+  },
+  "1006240670": {
+   "name_zh": "永安民宿",
+   "name_en": "Yong'an Homestay",
+   "reviews": 14
+  },
+  "1006240677": {
+   "name_zh": "重庆浩煌酒店",
+   "name_en": "Chongqing Haohuang Hotel",
+   "reviews": 66
+  },
+  "1006240684": {
+   "name_zh": "重庆仙超宾馆",
+   "name_en": "Chongqing Xianchao Hotel",
+   "reviews": 0
+  },
+  "1006240691": {
+   "name_zh": "重庆拾忆精品民宿(两江新区西南政法大学店)",
+   "name_en": "Shiyi Boutique Apartment",
+   "reviews": 89
+  },
+  "1006240698": {
+   "name_zh": "重庆龙星宾馆(龙兴古镇店)",
+   "name_en": "Chongqing Longxing Hotel (Longxing Ancient Town)",
+   "reviews": 11
+  },
+  "1006240705": {
+   "name_zh": "重庆明月公寓",
+   "name_en": "Chongqing Mingyue Apartment",
+   "reviews": 3
+  },
+  "1006240712": {
+   "name_zh": "重庆裕丰公寓",
+   "name_en": "Chongqing Yufeng Apartment",
+   "reviews": 1
+  },
+  "1006240719": {
+   "name_zh": "隆门驿酒店(重庆江北国际机场空港广场轻轨站店)",
+   "name_en": "Longmenxuan Hotel (Chongqing Jiangbei International Airport Airport Plaza Light Rail Station)",
+   "reviews": 14
+  },
+  "1006240726": {
+   "name_zh": "重庆柚子国际私家公寓",
+   "name_en": "Youzi International Private Apartment",
+   "reviews": 2
+  },
+  "1006240733": {
+   "name_zh": "重庆鑫隆商务宾馆",
+   "name_en": "Chongqing Xinlong Business Hotel",
+   "reviews": 18
+  },
+  "1006240740": {
+   "name_zh": "重庆市黔江区七0七酒店",
+   "name_en": "Qi07 Business Hotel Lijiang",
+   "reviews": 79
+  },
+  "1006240747": {
+   "name_zh": "鹏鹏商务酒店",
+   "name_en": "Peng Peng Business hotel",
+   "reviews": 9
+  },
+  "1006240754": {
+   "name_zh": "重庆金鹏商务宾馆",
+   "name_en": "Liang ping jinpeng business hotel",
+   "reviews": 3
+  },
+  "1006240761": {
+   "name_zh": "歌乐山佳宾旅馆",
+   "name_en": "Gelesan Jiabin Inn",
+   "reviews": 1
+  },
+  "1006240768": {
+   "name_zh": "重庆北站爱情公寓",
+   "name_en": "Chongqing North Railway Station Love Apartment",
+   "reviews": 3
+  },
+  "1006240775": {
+   "name_zh": "重庆古典酒店(万州五桥机场店)",
+   "name_en": "Chongqing Classic Hotel (Wanzhou Wuqiao Airport)",
+   "reviews": 15
+  },
+  "1006240782": {
+   "name_zh": "7天优品酒店(重庆沙坪坝三峡广场高铁站店)",
+   "name_en": "7 Days Premium ·Chongqing Shapingba Sanxia plaza High Speed Railway Station Store",
+   "reviews": 747
+  },
+  "1006240789": {
+   "name_zh": "重庆博奥商务宾馆",
+   "name_en": "Bo'ao Business Hotel",
+   "reviews": 101
+  },
+  "1006240796": {
+   "name_zh": "盈树酒店(重庆龙湖源著北区石子山体育公园店)",
+   "name_en": "Ying Shu Hotel, Longhu District, Chongqing",
+   "reviews": 15
+  },
+  "1006240803": {
+   "name_zh": "永利酒店(重庆北站南广场店)",
+   "name_en": "Yongli Hotel (Chongqing North Railway Station South Square)",
+   "reviews": 8
+  },
+  "1006240810": {
+   "name_zh": "重庆双星时尚酒店(双福时代广场晶彩城店)",
+   "name_en": "Chongqing Double Star Fashion Hotel",
+   "reviews": 32
+  },
+  "1006240817": {
+   "name_zh": "重庆来轩宾馆",
+   "name_en": "Chongqing Laixuan Hotel",
+   "reviews": 0
+  },
+  "1006240824": {
+   "name_zh": "重庆朋来民宿",
+   "name_en": "Chongqing Penglai Homestay",
+   "reviews": 2
+  },
+  "1006240831": {
+   "name_zh": "重庆红豆杉山庄",
+   "name_en": "Hongdoushan Manor",
+   "reviews": 2
+  },
+  "1006240838": {
+   "name_zh": "重庆长利旅馆",
+   "name_en": "Chongqing Changli Inn",
+   "reviews": 5
+  },
+  "1006240845": {
+   "name_zh": "重庆星期六酒店",
+   "name_en": "Saturday Inn",
+   "reviews": 21
+  },
+  "1006240852": {
+   "name_zh": "重庆菲尔公寓",
+   "name_en": "Feier Apartment",
+   "reviews": 11
+  },
+  "1006240859": {
+   "name_zh": "重庆怡家主题式民宿",
+   "name_en": "Chongqing Yijia Themed Homestay",
+   "reviews": 0
+  },
+  "1006240866": {
+   "name_zh": "重庆涪陵华丰宾馆",
+   "name_en": "Chongqing Fuling Huafeng Hotel",
+   "reviews": 27
+  },
+  "1006240873": {
+   "name_zh": "重庆豪泰公寓",
+   "name_en": "Chongqing Haotai Apartment",
+   "reviews": 19
+  },
+  "1006240880": {
+   "name_zh": "重庆师大苑公寓",
+   "name_en": "Chongqing Shidayuan Apartment",
+   "reviews": 3
+  },
+  "1006240887": {
+   "name_zh": "重庆暮然回首青年旅舍(观音桥步行街店)",
+   "name_en": "Chongqing Twilight Looking Back Youth Hostel (Guanyinqiao Pedestrian Street)",
+   "reviews": 69
+  },
+  "1006240894": {
+   "name_zh": "重庆华都宾馆",
+   "name_en": "Huadu Hotel",
+   "reviews": 0
+  },
+  "1006240901": {
+   "name_zh": "重庆乾元酒店(铜梁区政府步行街店)",
+   "name_en": "Chongqing Qianyuan Hotel (Tongliang District Government Branch)",
+   "reviews": 36
+  },
+  "1006240908": {
+   "name_zh": "江北机场附近豪爵民宿",
+   "name_en": "Haojue Apartment Hotel",
+   "reviews": 1
+  },
+  "1006240915": {
+   "name_zh": "重庆紫云轩家庭旅馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "1006240922": {
+   "name_zh": "重庆爱美爱家宾馆",
+   "name_en": "aimeiaijia hotel",
+   "reviews": 0
+  },
+  "1006240929": {
+   "name_zh": "重庆江南第一城商务会所",
+   "name_en": "Chongqing Jiangnan First City Business Club",
+   "reviews": 4
+  },
+  "1006240936": {
+   "name_zh": "重庆悦来商务宾馆",
+   "name_en": "chongqing yuelai business inn",
+   "reviews": 3
+  },
+  "1006240943": {
+   "name_zh": "重庆国富宾馆",
+   "name_en": "Chongqing Guofu Hotel",
+   "reviews": 2
+  },
+  "1006240950": {
+   "name_zh": "重庆金都商务宾馆",
+   "name_en": "Chongqing Jindu Business Hotel",
+   "reviews": 1
+  },
+  "1006240957": {
+   "name_zh": "重庆祥云宾馆(大坪医院地铁站店)",
+   "name_en": "Xiangyun  hotel",
+   "reviews": 59
+  },
+  "1006240964": {
+   "name_zh": "重庆福居客栈",
+   "name_en": "Chongqing Fuju Chinese Inn",
+   "reviews": 0
+  },
+  "1006240971": {
+   "name_zh": "重庆星青年宾馆",
+   "name_en": "Chongqing star youth hotel",
+   "reviews": 7
+  },
+  "1006240978": {
+   "name_zh": "重庆市开州区凯亚酒店(新世纪百货店)",
+   "name_en": "Chongqing Kaizhou Kaiya Hotel (New Century Department Store)",
+   "reviews": 42
+  },
+  "1006240985": {
+   "name_zh": "重庆富悦宾馆",
+   "name_en": "Fu Yue Hotel",
+   "reviews": 8
+  },
+  "1006240992": {
+   "name_zh": "重庆恋佳宾馆",
+   "name_en": "Chongqing Lianjia Hotel",
+   "reviews": 5
+  },
+  "1006240999": {
+   "name_zh": "万年福酒店(万盛汽车站店)",
+   "name_en": "Wannian Fu Hotel (Wansheng Guoneng Outlet Store)",
+   "reviews": 151
+  },
+  "1006241006": {
+   "name_zh": "新世纪宾馆",
+   "name_en": "Chongqing New Century Hotel",
+   "reviews": 6
+  },
+  "1006241013": {
+   "name_zh": "重庆英伦时尚公寓(南坪万达广场店)",
+   "name_en": "Chongqing English Style Trendy Apartment (Nanping Wanda Plaza)",
+   "reviews": 9
+  },
+  "1006241020": {
+   "name_zh": "重庆鑫馨园宾馆",
+   "name_en": "xxyhotel",
+   "reviews": 15
+  },
+  "1006241027": {
+   "name_zh": "重庆嘉泰公寓",
+   "name_en": "Chongqing Jiatai Apartment",
+   "reviews": 2
+  },
+  "1006241034": {
+   "name_zh": "重庆可心主题公寓(三峡广场沙坪坝地铁站店)",
+   "name_en": "Chongqing Kexin Theme Apartment",
+   "reviews": 29
+  },
+  "1006241041": {
+   "name_zh": "四面山龙腾客栈",
+   "name_en": "Simian Mountain Longteng Chinese Inn",
+   "reviews": 6
+  },
+  "1006241048": {
+   "name_zh": "客来福公寓(重庆杨家坪店)",
+   "name_en": "Kelai Fu Apartment (Chongqing Yangjiaping)",
+   "reviews": 4
+  },
+  "1006241055": {
+   "name_zh": "重庆梁平宏福宾馆",
+   "name_en": "Chongqing Liangping Hongfu Hotel",
+   "reviews": 1
+  },
+  "1006241062": {
+   "name_zh": "重庆陈桥一梦宾馆",
+   "name_en": "Chongqing Chenqiao Yimeng Hotel",
+   "reviews": 13
+  },
+  "1006241069": {
+   "name_zh": "重庆馨悦民宿",
+   "name_en": "Chongqing Xinyue Hotel",
+   "reviews": 1
+  },
+  "1006241076": {
+   "name_zh": "重庆邻丰公寓",
+   "name_en": "Chongqing Linfeng Apartment",
+   "reviews": 0
+  },
+  "1006241083": {
+   "name_zh": "1314情侣度假屋(重庆观音桥朗晴广场店)",
+   "name_en": "1314 Couples' Holiday Hotel (Chongqing Guanyinqiao)",
+   "reviews": 60
+  },
+  "1006241090": {
+   "name_zh": "重庆诺维亚酒店",
+   "name_en": "Novia Hotel Chongqing",
+   "reviews": 27
+  },
+  "1006241097": {
+   "name_zh": "重庆峰谷酒店(璧山青杠店)",
+   "name_en": "Chongqing Fenggu Hotel (Qishan Qinggang Branch)",
+   "reviews": 101
+  },
+  "1006241104": {
+   "name_zh": "重庆森隆山庄",
+   "name_en": "Chongqing Senlong Hotel",
+   "reviews": 0
+  },
+  "1006241111": {
+   "name_zh": "重庆宏圣园宾馆",
+   "name_en": "Chongqing Hongshengyuan Hotel",
+   "reviews": 7
+  },
+  "1006241118": {
+   "name_zh": "全洲宾馆(重庆金凤店)",
+   "name_en": "Quanzhou Hotel (Chongqing Jinfeng)",
+   "reviews": 3
+  },
+  "1006241125": {
+   "name_zh": "佳洲宾馆(重庆含谷店)",
+   "name_en": "Jiazhou Hotel (Chongqing Hangu store)",
+   "reviews": 8
+  },
+  "1006241132": {
+   "name_zh": "佳洲酒店(含谷广场店)",
+   "name_en": "Chongqing Longxiang Jiazhou Business Hotel",
+   "reviews": 26
+  },
+  "1006241139": {
+   "name_zh": "重庆蕊言时尚宾馆",
+   "name_en": "Chongqing Yuyan Fashion Hotel",
+   "reviews": 0
+  },
+  "1006241146": {
+   "name_zh": "重庆金华梁姐公寓",
+   "name_en": "Chongqing Jinhua Liangjie Apartment",
+   "reviews": 13
+  },
+  "1006241153": {
+   "name_zh": "重庆鸿珊瑚旅馆",
+   "name_en": "Chongqing Hongshanhu Inn",
+   "reviews": 0
+  },
+  "1006241160": {
+   "name_zh": "鑫源宾馆(重庆木洞镇店)",
+   "name_en": "XINYUAN HOTEL",
+   "reviews": 1
+  },
+  "1006241167": {
+   "name_zh": "重庆金典阳光青年旅社",
+   "name_en": "Chongqing Jindian Sunshine Youth Hostel",
+   "reviews": 0
+  },
+  "1006241174": {
+   "name_zh": "舒馨快捷公寓(重庆北站店)",
+   "name_en": "Shuxin Express Apartment (Chongqing North Railway Station)",
+   "reviews": 1
+  },
+  "1006241181": {
+   "name_zh": "重庆楚悦宾馆",
+   "name_en": "cybg",
+   "reviews": 29
+  },
+  "1006241188": {
+   "name_zh": "重庆江津旭涵农家乐",
+   "name_en": "Chongqing Jiangjin Xuhan Farm Stay",
+   "reviews": 10
+  },
+  "1006241195": {
+   "name_zh": "长寿聚鑫乐宾馆",
+   "name_en": "Changshou Juxinle Hotel",
+   "reviews": 12
+  },
+  "1006241202": {
+   "name_zh": "长寿重庆长寿迎洲宾馆",
+   "name_en": "Changshou Chongqing Changshou Yingzhou Hotel",
+   "reviews": 0
+  },
+  "1006241209": {
+   "name_zh": "康年民宿(西南医院店)",
+   "name_en": "Kangnian Homestay (Southwest Hospital)",
+   "reviews": 1
+  },
+  "1006241216": {
+   "name_zh": "群林公寓(重庆南坪店)",
+   "name_en": "Qunlin Apartment (Chongqing Nanping)",
+   "reviews": 3
+  },
+  "1006241223": {
+   "name_zh": "鑫龙时尚公寓(重庆解放碑店)",
+   "name_en": "Xinlong Trendy Apartment (Chongqing Jiefangbei)",
+   "reviews": 14
+  },
+  "1006241230": {
+   "name_zh": "重庆君悦商务宾馆",
+   "name_en": "Junyueshangwubinguan",
+   "reviews": 4
+  },
+  "1006241237": {
+   "name_zh": "小时代影视民宿(重庆大学城熙街店)",
+   "name_en": "Xiaoshidai TV Home stay",
+   "reviews": 69
+  },
+  "1006241244": {
+   "name_zh": "江津重庆凯悦旅舍",
+   "name_en": "Jiangjin Chongqing Hyatt Hostel",
+   "reviews": 0
+  },
+  "1006241251": {
+   "name_zh": "重庆尚层酒店",
+   "name_en": "Chongqing Shangceng Hotel",
+   "reviews": 3
+  },
+  "1006241258": {
+   "name_zh": "重庆金鼎8号宾馆",
+   "name_en": "Chongqing Jinding 8 Hotel",
+   "reviews": 1
+  },
+  "1006241265": {
+   "name_zh": "重庆旺角紫都公寓",
+   "name_en": "Chongqing Mong Kok Zidu Apartment",
+   "reviews": 1
+  },
+  "1006241272": {
+   "name_zh": "金禾商务酒店(重庆解放碑十八梯店)",
+   "name_en": "Jinhe Business Hotel (Chongqing Jiefangbei Shiba Ti Store)",
+   "reviews": 68
+  },
+  "1006241279": {
+   "name_zh": "重庆棠城宾馆",
+   "name_en": "Chongqing Tangcheng Hotel",
+   "reviews": 1
+  },
+  "1006241286": {
+   "name_zh": "凯帝宾馆（重庆上新街店）",
+   "name_en": "Kaidi Hotel (Chongqing Shangxin Street)",
+   "reviews": 33
+  },
+  "1006241293": {
+   "name_zh": "重庆同聚楼宾馆(渝西广场店)",
+   "name_en": "Chongqing Tongju hotel",
+   "reviews": 2
+  },
+  "1006241300": {
+   "name_zh": "重庆江强宾馆",
+   "name_en": "Chongqing Jiangqiang Hotel",
+   "reviews": 6
+  },
+  "1006241307": {
+   "name_zh": "能仁客栈(重庆解放碑步行街洪涯洞店)",
+   "name_en": "Nengren Inn",
+   "reviews": 124
+  },
+  "1006241314": {
+   "name_zh": "荣顺宾馆(重庆民心佳园店)",
+   "name_en": "Rongshun Hotel",
+   "reviews": 10
+  },
+  "1006241321": {
+   "name_zh": "重庆关爱招待所",
+   "name_en": "Chongqing Guan'ai Hostel",
+   "reviews": 5
+  },
+  "1006241328": {
+   "name_zh": "重庆贵客之家公寓",
+   "name_en": "Chongqing Guike Home Apartment",
+   "reviews": 22
+  },
+  "1006241335": {
+   "name_zh": "重庆诺曼商务宾馆",
+   "name_en": "Chongqing Noman Business Hotel",
+   "reviews": 9
+  },
+  "1006241342": {
+   "name_zh": "源茂酒店(重庆北站人和地铁站店)",
+   "name_en": "Chongqing Yuanmao Hotel (Renhe Branch)",
+   "reviews": 48
+  },
+  "1006241349": {
+   "name_zh": "重庆俊霖宾馆",
+   "name_en": "Chongqing Junlin Hotel",
+   "reviews": 5
+  },
+  "1006241356": {
+   "name_zh": "重庆沙坪坝富悦宾馆",
+   "name_en": "Chongqing Shapingba Fuyue Hotel",
+   "reviews": 4
+  },
+  "1006241363": {
+   "name_zh": "银泰宾馆(重庆杨家坪店)",
+   "name_en": "Yintai Hotel (Chongqing Yangjiaping)",
+   "reviews": 9
+  },
+  "1006241370": {
+   "name_zh": "望乡别苑民宿",
+   "name_en": "Wangxiang Chinese Inn Homestay",
+   "reviews": 6
+  },
+  "1006241377": {
+   "name_zh": "凯君公寓(重庆医科大学附属第一医院店)",
+   "name_en": "Kaijun Apartment (Chongqing Medical University Affiliated First Hospital Branch)",
+   "reviews": 7
+  },
+  "1006241384": {
+   "name_zh": "重庆远福商务宾馆",
+   "name_en": "Chongqing Yuanfu Business Hotel",
+   "reviews": 5
+  },
+  "1006241391": {
+   "name_zh": "重庆立茂招待所",
+   "name_en": "Chongqing Limao Guesthouse",
+   "reviews": 9
+  },
+  "1006241398": {
+   "name_zh": "采旅宾馆",
+   "name_en": "：Color‑Travel Hotel",
+   "reviews": 343
+  },
+  "1006241405": {
+   "name_zh": "重庆裕客发宾馆(南坪万寿路地铁站店)",
+   "name_en": "Chongqing Yukefa Hotel",
+   "reviews": 14
+  },
+  "1006241412": {
+   "name_zh": "重庆鑫万家公寓",
+   "name_en": "",
+   "reviews": 0
+  },
+  "1006241419": {
+   "name_zh": "君豪酒店(重庆万象城杨家坪步行街店)",
+   "name_en": "Junhao Hotel (Chongqing MixC Yangjiaping Pedestrian Street)",
+   "reviews": 54
+  },
+  "1006241426": {
+   "name_zh": "重庆雅轩客栈",
+   "name_en": "Chongqing Yaxuan Inn",
+   "reviews": 3
+  },
+  "1006241433": {
+   "name_zh": "重庆武隆藏拙乡村雅舍住宿",
+   "name_en": "Chongqing Wulong County Cangzhuo Village Elegant Residence Accommodation",
+   "reviews": 0
+  },
+  "1006241440": {
+   "name_zh": "重庆山谷人家农家乐",
+   "name_en": "Shangu Family Farmhouse",
+   "reviews": 1
+  },
+  "1006241447": {
+   "name_zh": "重庆德协宾馆",
+   "name_en": "Chongqing Dexie Hotel",
+   "reviews": 0
+  },
+  "1006241454": {
+   "name_zh": "重庆广泉宾馆",
+   "name_en": "Chongqing Guangquan Hotel",
+   "reviews": 60
+  },
+  "1006241461": {
+   "name_zh": "重庆家福柯迪山庄",
+   "name_en": "Chongqing Jiafu Kedi Villa",
+   "reviews": 1
+  },
+  "1006241468": {
+   "name_zh": "重庆明皓商务宾馆",
+   "name_en": "Chongqing Minghao Business Hotel",
+   "reviews": 15
+  },
+  "1006241475": {
+   "name_zh": "自由岭酒店(重庆渝航路店)",
+   "name_en": "Liberty Ridge Hotel (Chongqing Yuhang Road store)",
+   "reviews": 7
+  },
+  "1006241482": {
+   "name_zh": "重庆双湖宾馆",
+   "name_en": "Chongqing Shuanghu Hotel",
+   "reviews": 3
+  },
+  "1006241489": {
+   "name_zh": "青风酒店(重庆悦来国际中心店)",
+   "name_en": "Qingfeng Inn (Chongqing Yuelai Guobo Center)",
+   "reviews": 107
+  },
+  "1006241496": {
+   "name_zh": "京都祥云宾馆(重庆大坪英利店)",
+   "name_en": "Jingdu Xiangyun Hotel (Chongqing Daping Yingli Store)",
+   "reviews": 52
+  },
+  "1006241503": {
+   "name_zh": "重庆金韵时尚宾馆",
+   "name_en": "Chongqing Jinyun Fashion Hotel",
+   "reviews": 114
+  },
+  "1006241510": {
+   "name_zh": "鑫小住六店公寓(钢花路分店)",
+   "name_en": "Xinxiaozhu Sixth Apartment (Ganghua Road)",
+   "reviews": 0
+  },
+  "1006241517": {
+   "name_zh": "娟卷卷公寓(千厮门隧道分店)",
+   "name_en": "Juanjuanjuan Apartment (Qiansimen Tunnel)",
+   "reviews": 0
+  },
+  "1006241524": {
+   "name_zh": "梦山居公寓(野猫溪正街分店)",
+   "name_en": "Mengshanju Apartment (Yemao Creek Main Street)",
+   "reviews": 0
+  },
+  "1006241531": {
+   "name_zh": "爱屋生活公寓(鸿恩路分店)",
+   "name_en": "Aiwu Life Apartment (Hong'en Road)",
+   "reviews": 0
+  },
+  "1006241538": {
+   "name_zh": "春娇小姐姐品质民宿(谢小路分店)",
+   "name_en": "Chunjiao Miss Quality Homestay (Xiexiaolu Branch)",
+   "reviews": 0
+  },
+  "1006241545": {
+   "name_zh": "梦山居公寓(南铜路分店)",
+   "name_en": "Mengshanju Apartment (Nantong Road)",
+   "reviews": 0
+  },
+  "1006241552": {
+   "name_zh": "福源居民宿(桂和二路分店)",
+   "name_en": "Fuyuanju Homestay (Guihe Second Road)",
+   "reviews": 0
+  },
+  "1006241559": {
+   "name_zh": "云眠小筑(大坪正街二巷分店)",
+   "name_en": "Yunmian Homestay (Daping Zhengjie Second Alley)",
+   "reviews": 0
+  },
+  "1006241566": {
+   "name_zh": "二更名宿公寓(凯旋路分店)",
+   "name_en": "Ergeng Apartment (Kaixuan Road)",
+   "reviews": 0
+  },
+  "1006241573": {
+   "name_zh": "Yenta77公寓(下石溪路分店)",
+   "name_en": "Yenta77 Apartment (Xia Shixi Road)",
+   "reviews": 0
+  },
+  "1006241580": {
+   "name_zh": "雅铭公寓(下回水沟分店)",
+   "name_en": "Yaming Apartment (Xiahui Shuigou)",
+   "reviews": 1
+  },
+  "1006241587": {
+   "name_zh": "笠泊家公寓(民生路分店)",
+   "name_en": "Libojia Apartment (Minsheng Road)",
+   "reviews": 0
+  },
+  "1006241594": {
+   "name_zh": "椿下美舍公寓(金磁路分店)",
+   "name_en": "Chunxia Meishe Apartment (Jinci Road)",
+   "reviews": 0
+  },
+  "1006241601": {
+   "name_zh": "笠泊家公寓(中兴路分店)",
+   "name_en": "Libojia Apartment (Zhongxing Road)",
+   "reviews": 0
+  },
+  "1006241608": {
+   "name_zh": "笠泊家公寓(凯旋路分店)",
+   "name_en": "Libojia Apartment (Kaixuan Road)",
+   "reviews": 0
+  },
+  "1006241615": {
+   "name_zh": "栖牛振渝民宿(永祥路分店)",
+   "name_en": "Qiniu Zhenyu Homestay (Yongxiang Road)",
+   "reviews": 0
+  },
+  "1006241622": {
+   "name_zh": "栖牛振渝民宿(巨成龙湾商业街分店)",
+   "name_en": "Qiniu Zhenyu Homestay (Jucheng Longwan Commercial Street)",
+   "reviews": 1
+  },
+  "1006241629": {
+   "name_zh": "栖牛振渝民宿(云武路分店)",
+   "name_en": "Qiniu Zhenyu Homestay (Yunwu Road)",
+   "reviews": 0
+  },
+  "1006241636": {
+   "name_zh": "好客管家公寓(华岩寺路2号分店)",
+   "name_en": "Haoke Butler Serviced Apartment (Huayan Temple Road No. 2)",
+   "reviews": 0
+  },
+  "1006241643": {
+   "name_zh": "栖牛振渝民宿(九建支路分店)",
+   "name_en": "Qiniu Zhenyu Homestay (Jiujian Branch Road)",
+   "reviews": 0
+  },
+  "1006241650": {
+   "name_zh": "栖牛振渝民宿(永长路1号分店)",
+   "name_en": "Qiniu Zhenyu Homestay (Yongchang Road No.1)",
+   "reviews": 0
+  },
+  "1006241657": {
+   "name_zh": "栖牛振渝民宿(兴隆路分店)",
+   "name_en": "Qiniu Zhenyu Homestay (Xinglong Road)",
+   "reviews": 0
+  },
+  "1006241664": {
+   "name_zh": "栖牛振渝民宿(黄龙路分店)",
+   "name_en": "Qiniu Zhenyu Homestay (Huanglong Road)",
+   "reviews": 1
+  },
+  "1006241671": {
+   "name_zh": "栖牛振渝民宿(博才路分店)",
+   "name_en": "Qiniu Zhenyu Homestay (Bocai Road)",
+   "reviews": 1
+  },
+  "1006241678": {
+   "name_zh": "栖牛振渝民宿(永长路分店)",
+   "name_en": "Qiniu Zhenyu Homestay (Yongchang Road)",
+   "reviews": 1
+  },
+  "1006241685": {
+   "name_zh": "拾光旅行人民宿(中山一路分店)",
+   "name_en": "Shiguang Travel Homestay (Zhongshan First Road)",
+   "reviews": 0
+  },
+  "1006241692": {
+   "name_zh": "开州君壕宾馆",
+   "name_en": "Kaizhou Junhao Hotel",
+   "reviews": 32
+  },
+  "1006241699": {
+   "name_zh": "房东巧克莉公寓(开泰路分店)",
+   "name_en": "Fangdong Qiaokeli Apartment (Kaitai Road)",
+   "reviews": 0
+  },
+  "1006241706": {
+   "name_zh": "南川花晨月夕民宿(城西路分店)",
+   "name_en": "Nanchuan Huachen Yuexi Homestay (Chengxi Road)",
+   "reviews": 0
+  },
+  "1006241713": {
+   "name_zh": "别居一阁公寓(瑞天路5号分店)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "1006241720": {
+   "name_zh": "有间房民宿(磁器口隧道分店)",
+   "name_en": "Youjianfang Homestay (Ciqikou Tunnel)",
+   "reviews": 0
+  },
+  "1006241727": {
+   "name_zh": "小栖民宿(金开大道分店)",
+   "name_en": "Xiaoqi Homestay (Jinkai Avenue)",
+   "reviews": 0
+  },
+  "1006241734": {
+   "name_zh": "欢乐谷欧辰公寓(嘉康路2号分店)",
+   "name_en": "Happy Valley Ouchen Apartment (Jiakang Road No. 2)",
+   "reviews": 0
+  },
+  "1006241741": {
+   "name_zh": "是我呀公寓(北区路分店)",
+   "name_en": "Shiwoya Apartment (Beiqu Road)",
+   "reviews": 0
+  },
+  "1006241748": {
+   "name_zh": "怡佳江景民宿(新华路分店)",
+   "name_en": "Yijia River View Homestay (Xinhua Road)",
+   "reviews": 0
+  },
+  "1006241755": {
+   "name_zh": "青语客栈民宿(渝南大道分店)",
+   "name_en": "Qingyu Inn (Yunan Avenue)",
+   "reviews": 0
+  },
+  "1006241762": {
+   "name_zh": "好室多摩公寓(大学城中路分店)",
+   "name_en": "Haoshiduo Apartment (University Town Middle Road)",
+   "reviews": 0
+  },
+  "1006241769": {
+   "name_zh": "怡佳江景民宿(嘉陵江滨江路4号分店)",
+   "name_en": "Yijia River View Homestay (Jialing River Binjiang Road No. 4)",
+   "reviews": 0
+  },
+  "1006241776": {
+   "name_zh": "怡佳江景民宿(棉花街分店)",
+   "name_en": "Yijia River View Homestay (Mianhua Street)",
+   "reviews": 0
+  },
+  "1006241783": {
+   "name_zh": "静雅栖苑公寓(景阳路分店)",
+   "name_en": "Jingya Qiyuan Apartment (Jingyang Road)",
+   "reviews": 0
+  },
+  "1006241790": {
+   "name_zh": "懒洋洋公寓(仁济路分店)",
+   "name_en": "Lazy Apartment (Renji Road)",
+   "reviews": 0
+  },
+  "1006241797": {
+   "name_zh": "璧山康乃馨农家院(祥润街1号分店)",
+   "name_en": "Bishan Carnation Farm Stay (Xiangrun Street No. 1)",
+   "reviews": 0
+  },
+  "1006241804": {
+   "name_zh": "妙馨园民宿(中山一路分店)",
+   "name_en": "Miaoxinyuan Homestay (Zhongshan First Road)",
+   "reviews": 0
+  },
+  "1006241811": {
+   "name_zh": "妙馨园民宿(石黄隧道分店)",
+   "name_en": "Miaoxinyuan Homestay (Shihuang Tunnel)",
+   "reviews": 0
+  },
+  "1006241818": {
+   "name_zh": "机场附近温馨蜜月民宿(羽裳路分店)",
+   "name_en": "Cozy Honeymoon Homestay Near the Airport (Yushang Road)",
+   "reviews": 0
+  },
+  "1006241825": {
+   "name_zh": "机场附近温馨蜜月民宿(羽裳路1号分店)",
+   "name_en": "Cozy Honeymoon Homestay Near the Airport (Yushang Road No. 1)",
+   "reviews": 0
+  },
+  "1006241832": {
+   "name_zh": "机场附近温馨蜜月民宿(服装城大道分店)",
+   "name_en": "Cozy Honeymoon Homestay Near the Airport (Garment City Avenue)",
+   "reviews": 0
+  }
+ }
 }
