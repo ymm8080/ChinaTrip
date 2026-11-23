@@ -1418,8 +1418,39 @@ function amapWalkUrl(to) {
       "&title=" + encodeURIComponent(to.name) + "&content=" + encodeURIComponent(to.name) +
       "&output=html&coord_type=gcj02&src=chinatrip";
   }
+  // callnative=1（2026-11-23 用户令「步行去下一站点击自动启动高德步行导航」）：
+  // 手机已装高德=打开即自动拉起 App 步行导航；未装/桌面=高德网页路线页。
+  // 起点缺省=高德侧自动定位「我的位置」，终点=下一站坐标。
   return "https://uri.amap.com/navigation?to=" + p.lon + "," + p.lat +
-    "," + encodeURIComponent(to.name) + "&mode=walk&src=chinatrip&coordinate=gaode&callnative=0";
+    "," + encodeURIComponent(to.name) + "&mode=walk&src=chinatrip&coordinate=gaode&callnative=1";
+}
+
+// 交通桥卡（leg-bridge-*）点击导航的目的地（2026-11-23 用户令「乘车去下一站点击
+// 应自动启动高德打车、步行去下一站自动启动高德步行导航」）：同日其后首个有坐标
+// 且不与前一站同址的真卡——跳过交通/酒店腿；锚在前一站的占位餐卡（同址 ~0 公里）
+// 不是真目的地，也跳过，让目的地落到真正的下一景点/真餐馆（与腿行 walkSeg 的
+// 同址跳过同口径）。
+function bridgeDestAt(items, idx) {
+  let prevPt = null;
+  for (let j = idx - 1; j >= 0; j--) {
+    const c = items[j];
+    if (c.from_city) continue;
+    const cat = c.category || "";
+    if (cat === "transfer" || cat === "hotel" || cat === "transport") continue;
+    prevPt = legPoint(c);
+    break;
+  }
+  for (let j = idx + 1; j < items.length; j++) {
+    const c = items[j];
+    if (c.from_city) continue;
+    const cat = c.category || "";
+    if (cat === "transfer" || cat === "hotel" || cat === "transport") continue;
+    const p = legPoint(c);
+    if (!p) continue;
+    if (prevPt && Math.abs(prevPt.lon - p.lon) < 0.005 && Math.abs(prevPt.lat - p.lat) < 0.005) continue;
+    return { name: I18N.pick(c, "name", "name_en"), lon: p.lon, lat: p.lat };
+  }
+  return null;
 }
 
 // 驾车导航（打车模型 2026-10-31）：起点=当前站点，终点=下一站；高德 mode=car、百度 mode=driving
@@ -2097,7 +2128,22 @@ function planCard(plan) {
                 '<button class="btn mini ghost alt-swap" data-action="altswap" data-item-id="' + esc(it.item_id) + '" data-name="' + esc(a.name) + '" data-city="' + esc(it.city) + '" data-bits="' + esc(bits.join(" · ")) + '">↺ ' + esc(I18N.pick(a, "name", "name_en")) + (lv ? " <b>" + esc(lv) + "</b>" : "") + '</button></span>';
             }).join("") + "</span>"
           : "";
-        const blk = el('<div class="visit-block" data-id="' + esc(it.item_id) + '"><div class="row">' + handle + timeCell + '<span style="flex:1 1 auto;min-width:170px">' + (it.category === "hotel" ? esc(I18N.pick(it, "name", "name_en")) : '<a class="site-link" data-action="brief" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '" data-addr="' + esc(it.address || "") + '" data-hours="' + esc(it.opening_hours || "") + '">' + esc(I18N.pick(it, "name", "name_en")) + "</a>") + I18N.tf("card.paren.pre","（") + esc(I18N.city(it.city)) + I18N.tf("card.paren.suf","）") + (isNight ? hotelStayLabel(plan, it) : isMorning ? "" : (it.duration_minutes || 0) + I18N.t("card.minutes")) + tail + "</span>" + altChips + "</div></div>");
+        // 乘车/步行腿卡（leg-bridge-*）整卡可点（2026-11-23）：点击发起高德打车/
+        // 步行导航，起点=当前位置，终点=bridgeDestAt 取到的下一景点；交通腿名是
+        // 渲染文案不是 POI——不出 site-link 简介链（点击不再弹「暂无更多简介」）。
+        const isTransferLeg = (it.category || "") === "transfer";
+        const isBridgeLeg = isTransferLeg && (it.item_id || "").indexOf("leg-bridge-") === 0;
+        const bDest = isBridgeLeg ? bridgeDestAt(d.items, idx) : null;
+        const bTaxi = !!(bDest && /乘车|打车|🚕|🚞|🚄|🚈|🚌/.test(it.name || ""));
+        const bridgeAttrs = bDest
+          ? ' data-bridge="' + (bTaxi ? "taxi" : "walk") + '" data-dest-name="' + esc(bDest.name) +
+            '" data-dest-lon="' + bDest.lon + '" data-dest-lat="' + bDest.lat + '" style="cursor:pointer" title="' +
+            (bTaxi
+              ? I18N.tf("card.bridge.taxiTitle", "点击发起高德打车（起点=当前位置，终点=")
+              : I18N.tf("card.bridge.walkTitle", "点击发起高德步行导航（起点=当前位置，终点=")) +
+            esc(bDest.name) + I18N.tf("card.walk.titleClose", "）") + '"'
+          : "";
+        const blk = el('<div class="visit-block" data-id="' + esc(it.item_id) + '"' + bridgeAttrs + '><div class="row">' + handle + timeCell + '<span style="flex:1 1 auto;min-width:170px">' + ((isTransferLeg || it.category === "hotel") ? esc(I18N.pick(it, "name", "name_en")) : '<a class="site-link" data-action="brief" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '" data-addr="' + esc(it.address || "") + '" data-hours="' + esc(it.opening_hours || "") + '">' + esc(I18N.pick(it, "name", "name_en")) + "</a>") + I18N.tf("card.paren.pre","（") + esc(I18N.city(it.city)) + I18N.tf("card.paren.suf","）") + (isNight ? hotelStayLabel(plan, it) : isMorning ? "" : (it.duration_minutes || 0) + I18N.t("card.minutes")) + tail + "</span>" + altChips + "</div></div>");
         // 同街族并卡（2026-11-07 拍板「同街族合成一卡，时长取最大」）：
         // 子站折在主卡名下只读展示（删除/换点作用于整卡），主卡时长已
         // 是族内最长一站，不再叠加。二拍（并卡不消失案）：每子站独立
@@ -2315,8 +2361,11 @@ function planCard(plan) {
         }
         if (it.reservation_hint) blk.appendChild(el('<div style="margin:0 2px 6px ' + ind + ';color:#b26a00">🎫 ' + esc(it.reservation_hint) + ' <a class="fb-btn" data-kind="book" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '"' + (it.booking_url ? ' data-url="' + esc(it.booking_url) + '"' : "") + '>' + I18N.t("card.grab") + "</a></div>"));
         else if (it.booking_url || it.category === "entertainment" || it.best_visit_time === "show") blk.appendChild(el('<div style="margin:0 2px 6px ' + ind + ';color:#0b6e3d">🎭 ' + I18N.tf("card.showPref","演出票务") + ' <a class="fb-btn" data-kind="book" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '"' + (it.booking_url ? ' data-url="' + esc(it.booking_url) + '"' : "") + ' data-show="1">' + I18N.tf("card.showGo","订票直达 →") + "</a></div>"));
-        else if (!isSynth && it.category !== "food" && it.category !== "hotel") blk.appendChild(el('<div class="muted" style="margin:0 2px 6px ' + ind + '">🎫 ' + I18N.tf("card.resv.none","预约信息无") + "</div>"));
-        blk.appendChild(el('<div class="muted" style="margin:0 2px 2px ' + ind + ';font-size:12px">' +
+        else if (!isSynth && it.category !== "food" && it.category !== "hotel" && it.category !== "transfer") blk.appendChild(el('<div class="muted" style="margin:0 2px 6px ' + ind + '">🎫 ' + I18N.tf("card.resv.none","预约信息无") + "</div>"));
+        // 乘车/步行腿不做点赞/好评（2026-11-23 用户令「乘车或者步行腿不需要点赞、
+        // 打卡、好评功能等」）：腿是转场渲染件不是可评价 POI（「✅ 到了」打卡按钮
+        // v41 已全站移除）。
+        if ((it.category || "") !== "transfer") blk.appendChild(el('<div class="muted" style="margin:0 2px 2px ' + ind + ';font-size:12px">' +
           '<a class="fb-btn" data-kind="up" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '">👍</a> ' +
           '<a class="fb-btn" data-kind="down" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '">👎</a> ' +
           '<a class="fb-btn" data-kind="review" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '">' + I18N.tf("card.review","✍️ 点评") + "</a></div>"));
@@ -2409,6 +2458,16 @@ function planCard(plan) {
     const ct = ev.target.closest ? ev.target.closest('button[data-action="calltaxi"]') : null;
     if (ct && box.contains(ct)) { // CALL TAXI：一键转导航页打车（起点=当前位置，终点=下一站），会话外也可用
       callTaxiTo(ct.getAttribute("data-name"), parseFloat(ct.getAttribute("data-lon")), parseFloat(ct.getAttribute("data-lat")));
+      return;
+    }
+    const brg = ev.target.closest ? ev.target.closest(".visit-block[data-bridge]") : null;
+    if (brg && box.contains(brg)) { // 乘车/步行腿卡整卡点击（2026-11-23）：乘车卡→高德打车，步行卡→高德步行导航
+      const blon = parseFloat(brg.getAttribute("data-dest-lon")), blat = parseFloat(brg.getAttribute("data-dest-lat"));
+      const bnm = brg.getAttribute("data-dest-name");
+      if (isFinite(blon) && isFinite(blat)) {
+        if (brg.getAttribute("data-bridge") === "taxi") callTaxiTo(bnm, blon, blat);
+        else window.open(amapWalkUrl({ name: bnm, location: { lon: blon, lat: blat } }), "_blank", "noopener");
+      }
       return;
     }
     const mb = ev.target.closest ? ev.target.closest('button[data-action="mtbook"]') : null;

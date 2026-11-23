@@ -122,6 +122,8 @@
       "card.hop.reco": "Best", "card.hop.lBoard": "Boarding", "card.hop.noTT": "Check official timetable", "card.hop.xfers": "{n} transfer(s)",
       "card.hop.mode.train": "Train", "card.hop.mode.shuttle": "Shuttle", "card.hop.mode.bus": "Bus", "card.hop.mode.ferry": "Ferry", "card.hop.mode.metro": "Metro",
       "card.callTaxi": "🚕 TAXI", "card.callTaxi.title": "Open Amap taxi directly: origin = current location, destination = next stop", "card.callTaxi.noCoord": "No coordinates for this stop — search the destination on the Navigation tab",
+      "card.bridge.taxiTitle": "Tap to open Amap taxi (origin = current location, destination = ",
+      "card.bridge.walkTitle": "Tap to open Amap walking directions (origin = current location, destination = ",
       "card.mt": "Meituan", "card.mt.title": "Open Meituan dining channel for table booking / ordering; your registered traveler profile is attached and status is checked every 2 minutes until complete",
       "card.hotel.book": "Book hotel", "card.hotel.book.title": "Pull Ctrip / Meituan / Fliggy channel cards for tonight's hotel; falls back to the day's last located sight when the hotel isn't verified yet",
       "card.hotel.book.title.morning": "This morning card points at last night's stay — pull Ctrip / Meituan / Fliggy channel cards for the previous night; falls back to the previous day's last located sight when the hotel isn't verified yet",
