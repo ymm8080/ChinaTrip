@@ -98,6 +98,10 @@ PARITY_DOMAINS: tuple[tuple[str, str, str, str], ...] = (
 )
 CORPUS_TARGET = 12
 CONVERGENCE_TARGET = 0.99
+# R26: a host so slow that the wall cap fires for most scenarios cannot
+# measure the engine at all — the gate must fail loudly instead of silently
+# hiding behind the pollution exclusion.
+POLLUTED_TARGET = 0.20
 
 
 def acceptance_metrics(reports: Iterable[dict[str, Any]]) -> dict[str, Any]:
@@ -113,10 +117,18 @@ def acceptance_metrics(reports: Iterable[dict[str, Any]]) -> dict[str, Any]:
         for cls, n in (legacy_block.get("violation_counts") or {}).items():
             legacy_violations[cls] = legacy_violations.get(cls, 0) + int(n)
 
+    # R26（满载抖动根治）：墙帽先于确定性时间触发（host_polluted）的跑次
+    # =宿主太慢，不是引擎结论——分子分母同时剔除（墙帽但 within 仍 True
+    # 的解也不得放大比率：value 必须 ≤ 1.0），并在门禁加污染率护栏
+    # （>20% 视为宿主不可测，门禁照红，绝不借剔除掩盖回归）。
+    def _conv_of(r):
+        return r.get("new", {}).get("convergence") or {}
+
+    host_polluted = sum(1 for r in corpus if _conv_of(r).get("host_polluted"))
     converged = sum(
         1
         for r in corpus
-        if (r.get("new", {}).get("convergence") or {}).get("within_budget")
+        if _conv_of(r).get("within_budget") and not _conv_of(r).get("host_polluted")
     )
     deterministic = sum(1 for r in corpus if r.get("new", {}).get("deterministic"))
     recorded = [r for r in corpus if r.get("legacy")]
@@ -151,7 +163,9 @@ def acceptance_metrics(reports: Iterable[dict[str, Any]]) -> dict[str, Any]:
     parity_pending = [d[0] for d in PARITY_DOMAINS if d[2] != "covered"]
 
     corpus_ok = len(corpus) >= CORPUS_TARGET
-    conv_rate = (converged / len(corpus)) if corpus else 0.0
+    measurable = max(0, len(corpus) - host_polluted)
+    conv_rate = (converged / measurable) if measurable else 0.0
+    polluted_rate = (host_polluted / len(corpus)) if corpus else 0.0
     det_rate = (deterministic / len(corpus)) if corpus else 0.0
     (len(not_worse) / len(recorded)) if recorded else None
 
@@ -168,7 +182,11 @@ def acceptance_metrics(reports: Iterable[dict[str, Any]]) -> dict[str, Any]:
         "convergence_rate_new": {
             "value": round(conv_rate, 3),
             "threshold": CONVERGENCE_TARGET,
-            "pass": conv_rate >= CONVERGENCE_TARGET,
+            "pass": conv_rate >= CONVERGENCE_TARGET
+            and polluted_rate <= POLLUTED_TARGET,
+            "note": "host-polluted runs (wall cap before the deterministic "
+            "budget) are excluded from the denominator: %d/%d; pollution "
+            "guard %.0f%%" % (host_polluted, len(corpus), POLLUTED_TARGET * 100),
         },
         "determinism_rate": {
             "value": round(det_rate, 3),

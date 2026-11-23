@@ -171,13 +171,27 @@ def _convergence(runs: EngineRun, deterministic: bool, budget_s: float) -> dict:
     engine_ms = getattr(view, "engine_ms", None) or wall_ms
     status = view.status or "unknown"
     budget_ms = getattr(view, "budget_ms", None) or int(budget_s * 1000)
+    # R26（2026-11-23 夜，满载抖动根治）：搜索量由确定性时间
+    # （max_deterministic_time）约束，机器负载只拉长同一段搜索的墙钟。
+    # 未被墙帽截断（wall_capped=False）的解=搜索量机器无关——墙钟超
+    # 1.10× 只说明宿主慢，不得判「未收敛」（实测：同树单跑 46s 绿、
+    # 并发 pytest 下同一验收用例红）。只有真被墙帽截断的解（墙钟先于
+    # det-time 触发=R13g 污染账）继续按墙钟比。
+    wall_capped = bool(getattr(view, "wall_capped", False))
+    within = status in ("OPTIMAL", "FEASIBLE") and (
+        not wall_capped or engine_ms <= budget_ms * 1.10
+    )
     return {
         "status": status,
         "wall_ms": wall_ms,
         "engine_ms": engine_ms,
         "budget_ms": budget_ms,
-        "within_budget": engine_ms <= budget_ms * 1.10
-        and status in ("OPTIMAL", "FEASIBLE"),
+        "wall_capped": wall_capped,
+        # R26: wall cap fired before the deterministic budget => the host was
+        # too slow to measure the engine (g11 UNKNOWN under concurrent
+        # pytest). Metrics exclude these runs from the convergence denominator.
+        "host_polluted": wall_capped,
+        "within_budget": within,
         "deterministic": deterministic,
         "unplaced_count": len(view.unplaced),
         "fill_count": sum(1 for c in view.cards if c.requested is False and c.timed),
