@@ -122,3 +122,28 @@ def test_missing_detail_is_silent():
 def test_none_plan_or_store_is_noop():
     assert _fill_detail_from_store(None, FakeStore()) == 0
     assert _fill_detail_from_store(_plan(_item()), None) == 0
+
+
+# --- 接线回归锁（2026-11-23 用户质问「你说测过其实没修好」后补） -----------
+# 上面 6 项测的是 helper 语义：把 helper 从调用点删掉，它们照样全绿。
+# 地址不显示的真因正是「helper 不存在 / 没接上」，所以必须单独锁接线本身。
+
+
+def test_generate_path_is_wired_to_fill():
+    """首生成出口必须调用补链——删掉调用即失败。"""
+    import inspect
+
+    from app.services.trip_solver import live
+
+    src = inspect.getsource(live.generate_session_via_trip_solver)
+    assert "_fill_detail_from_store(session.plan, store)" in src
+
+
+def test_replan_path_is_wired_to_fill():
+    """重排出口必须调用补链——删掉调用即失败。"""
+    import inspect
+
+    from app.services.trip_solver import live
+
+    src = inspect.getsource(live.replan_session_via_trip_solver)
+    assert "_fill_detail_from_store(session.plan, store)" in src
