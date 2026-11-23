@@ -3703,6 +3703,8 @@ def _twin_site_gate(cand_a: dict, cand_b: dict) -> bool:
         )
         <= _CONTENT_TWIN_GATE_KM
     )
+
+
 # 同馆家族闸（2026-11-01 用户拍板沿革：先 5km，同日二拍「距离可以放宽
 # 到10公里」）：陵寝类同一票制院区两园区实测 2.2-2.4km；石窟北山+宝顶
 # ~8km 也收进同馆半径。同名异地 >10km 不并。

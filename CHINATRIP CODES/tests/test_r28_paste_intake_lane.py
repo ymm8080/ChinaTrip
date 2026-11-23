@@ -83,8 +83,7 @@ class StubTranslate:
 
 _KNOW_KEYS = ("天安门广场", "故宫博物院", "慕田峪长城")
 _KNOWN = {
-    ("北京", n): {"name": n, "city": "北京", "category": "风景名胜"}
-    for n in _KNOW_KEYS
+    ("北京", n): {"name": n, "city": "北京", "category": "风景名胜"} for n in _KNOW_KEYS
 }
 
 
