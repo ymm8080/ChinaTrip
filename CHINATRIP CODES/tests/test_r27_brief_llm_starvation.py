@@ -15,6 +15,8 @@ routinely 点名 10-14 处，帽 8 必静默丢点名；确认卡点选/避开�
 兜底）。合并层 LLM 行在前、底库行只补差额（既有口径，锚住）。
 """
 
+import json
+
 from test_brief_text_input import (
     ScriptedLLM,
     SitesStore,
@@ -168,3 +170,84 @@ def test_no_cap_all_named_sites_enter():
     assert session.site_days["颐和园"] == 4
     assert session.site_days["圆明园"] == 4
     assert session.site_days["北海公园"] == 5
+
+
+def _reply_with_subsites(sites, subsites) -> str:
+    return json.dumps(
+        {
+            "sites": [
+                {"name": n, "kind": "sight", "city": "北京", "day": d} for n, d in sites
+            ],
+            "subsites": subsites,
+        },
+        ensure_ascii=False,
+    )
+
+
+def test_parent_present_suppresses_library_subsite_rows():
+    """父节点（已点名大景点）在场：模型点名的底库内部子点行不再垫卡
+    （2026-11-24 用户拍板「如果父节点出现，散文子点行不应该出现」）。"""
+    known = _known_for(["天坛", "什刹海", "故宫博物院"])
+    store = SitesStore(rows_by_city={"北京": _POISON_LIBRARY}, known=known)
+    reply = _reply_with_subsites(
+        [("天坛", 2), ("什刹海", 2), ("故宫博物院", 1)],
+        ["中和殿", "圜丘", "太和殿"],
+    )
+    agent = _agent(store, ScriptedLLM([reply]))
+    session = _session()
+
+    added, notes = run(agent._mine_brief_sites(session))
+
+    assert notes == []
+    names = set(added)
+    # LLM 行在前；三个殿/坛子点行被撤，不再垫卡
+    assert added[:3] == ["天坛", "什刹海", "故宫博物院"]
+    assert not ({"中和殿", "圜丘", "太和殿"} & names)
+    # 非子点的底库行照旧补差
+    assert "鸟巢(国家体育场)" in names
+    assert "慕田峪长城" in names
+
+
+def test_user_named_subsite_survives_via_llm_row():
+    """模型/用户单独点名的子点走 LLM 行，不受底库垫行撤除影响。"""
+    known = _known_for(["故宫博物院", "太和殿"])
+    store = SitesStore(rows_by_city={"北京": _POISON_LIBRARY}, known=known)
+    reply = _reply_with_subsites(
+        [("故宫博物院", 1), ("太和殿", 1)],
+        ["太和殿"],
+    )
+    agent = _agent(store, ScriptedLLM([reply]))
+    session = _session()
+
+    added, _ = run(agent._mine_brief_sites(session))
+
+    assert added[:2] == ["故宫博物院", "太和殿"]
+
+
+def test_missing_subsites_key_is_noop():
+    """模型没回 subsites 键=零过滤（fail-open，与无 LLM 行为一致）。"""
+    known = _known_for(["天坛", "什刹海", "故宫博物院"])
+    store = SitesStore(rows_by_city={"北京": _POISON_LIBRARY}, known=known)
+    agent = _agent(store, ScriptedLLM([_sites_reply("天坛", "什刹海", "故宫博物院")]))
+    session = _session()
+
+    added, _ = run(agent._mine_brief_sites(session))
+
+    assert len(added) == 3 + len(_POISON_LIBRARY)
+
+
+def test_subsites_outside_library_rows_ignored():
+    """subsites 名单只撤底库行——不在底库命中里的名字不产生任何效果。"""
+    known = _known_for(["天坛", "什刹海", "故宫博物院"])
+    store = SitesStore(rows_by_city={"北京": _POISON_LIBRARY}, known=known)
+    reply = _reply_with_subsites(
+        [("故宫博物院", 1)],
+        ["外滩", "不存在的殿"],
+    )
+    agent = _agent(store, ScriptedLLM([reply]))
+    session = _session()
+
+    added, _ = run(agent._mine_brief_sites(session))
+
+    assert added[:1] == ["故宫博物院"]
+    assert len(added) == 1 + len(_POISON_LIBRARY)
