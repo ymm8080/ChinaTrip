@@ -1055,6 +1055,24 @@ async def start_plan(
                 "days": stated_days,
             },
             "form_route": {"cities": request.cities, "days": request.days},
+            # 行前卡回显（2026-11-23 用户实报「卡→差异确认→选完又弹卡」）：
+            # 确认卡选边后客户端要重发一枪 /plan/start，但行前卡值只存在客户端
+            # 快照里——快照丢了日期，重发就缺必填出发日期，后端只好再弹一次空
+            # 卡。把本轮收到的日期/班次原样回显，客户端补齐后重发即可直达生成。
+            # 纯回显，不参与任何判定。
+            "intake": {
+                k: v
+                for k, v in (
+                    ("start_date", request.start_date),
+                    ("arrival_date", request.arrival_date),
+                    ("arrival_time", request.arrival_time),
+                    ("arrival_no", request.arrival_no),
+                    ("departure_date", request.departure_date),
+                    ("departure_time", request.departure_time),
+                    ("departure_no", request.departure_no),
+                )
+                if v
+            },
         }
     # 用户在确认卡上选了边：brief=按文字路线（表单参数作废，路线全从文字解析）；
     # form=按表单参数（文字只当偏好文本，不再当简报改写路线）。

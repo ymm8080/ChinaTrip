@@ -122,6 +122,56 @@ checkStartDate("开始日期：行前卡优先", "2026-12-01", "2026-11-26", tru
 checkStartDate("开始日期：表单开局带表单日期", "", "2026-11-26", true, "2026-11-26");
 checkStartDate("开始日期：纯文字开局不注默认值", "", "2026-11-26", false, "");
 
+/* 8. 行前卡值回写规划快照（2026-11-23 用户实报「行前卡 → 文字/窗口差异确认
+ *    → 选完又弹行前卡」）：确认卡重发只读 planLastStart，卡值没落快照 →
+ *    重发缺必填出发日期 → 后端再弹一张空卡，用户永远出不来行程。 */
+function checkIntakeSnapshot(label, snapshot, vals, expect) {
+  const fn = new Function("planLastStart", loadFn("planMergeIntake") + "\nreturn planMergeIntake;")(snapshot);
+  fn(vals);
+  const got = snapshot.intake || {};
+  const problems = [];
+  Object.keys(expect.intake || {}).forEach(k => {
+    if (got[k] !== expect.intake[k]) problems.push("intake." + k + "=" + JSON.stringify(got[k]) + " 期望 " + JSON.stringify(expect.intake[k]));
+  });
+  if (expect.absent) expect.absent.forEach(k => {
+    if (got[k] !== undefined) problems.push("intake." + k + " 不该被空值覆盖");
+  });
+  if (expect.startDate !== undefined && snapshot.startDate !== expect.startDate) {
+    problems.push("startDate=" + JSON.stringify(snapshot.startDate) + " 期望 " + JSON.stringify(expect.startDate));
+  }
+  if (problems.length) fail(label + " → " + problems.join("; "));
+  else ok(label);
+}
+checkIntakeSnapshot(
+  "行前卡值：开局 {skipped} 快照写入卡值",
+  { intake: { skipped: true }, startDate: "" },
+  { start_date: "2026-11-20", arrival_date: "2026-11-20", arrival_no: "MU5101", departure_date: "2026-11-21", arrival_time: "" },
+  { intake: { start_date: "2026-11-20", arrival_date: "2026-11-20", arrival_no: "MU5101", departure_date: "2026-11-21" }, absent: ["arrival_time"], startDate: "2026-11-20" }
+);
+checkIntakeSnapshot(
+  "行前卡值：服务端回显补齐不覆盖已有卡值",
+  { intake: { start_date: "2026-11-20", arrival_no: "MU5101" }, startDate: "2026-11-20" },
+  { start_date: "2026-11-20", arrival_date: "2026-11-20", departure_date: "2026-11-21" },
+  { intake: { arrival_no: "MU5101", arrival_date: "2026-11-20", departure_date: "2026-11-21" }, startDate: "2026-11-20" }
+);
+checkIntakeSnapshot(
+  "行前卡值：空回显不动快照",
+  { intake: { start_date: "2026-11-20" }, startDate: "2026-11-20" },
+  {},
+  { intake: { start_date: "2026-11-20" }, startDate: "2026-11-20" }
+);
+
+/* 8b. 调用点守门：快照写入必须挂在两条真实路径上（写好了函数却没调用 =
+ *     同一 bug 复现）。删掉任一调用本守门即红。 */
+const htmlSrc = fs.readFileSync(HTML, "utf8");
+[
+  ["state=intake 提交后落快照", /if \(ov\.intakeValues\) planMergeIntake\(ov\.intakeValues\);/],
+  ["confirm_route 回显并入快照", /planMergeIntake\(body\.intake\);/],
+].forEach(([label, re]) => {
+  if (re.test(htmlSrc)) ok(label + "：调用点在");
+  else fail(label + "：调用点丢失（行前卡值会再次丢，确认卡选边后又弹卡）");
+});
+
 if (failed) {
   console.error("\n规划表单守门失败 " + failed + " 项");
   process.exit(1);

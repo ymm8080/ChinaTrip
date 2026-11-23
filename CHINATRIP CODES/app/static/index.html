@@ -3678,6 +3678,9 @@ function planRenderReply(holder, body, opts) {
   } else if (body.state === "confirm_route") {
     // 差异确认（2026-11-14 用户拍板三条）：文字/表单/行前卡不一致的每一处
     // 都摆出来，用户逐条选边，✅ 一次提交。
+    // 服务端回显本轮收到的行前卡值（2026-11-23「选完又弹行前卡」）：客户端
+    // 快照丢了日期时用它补齐，选完边重发才有日期可带。
+    planMergeIntake(body.intake);
     const diffs = body.diffs || [];
     const picks = {};
     const fmtRoute = (r) => (r.cities || []).map(c => I18N.city(c)).join("→") + (r.days ? " · " + r.days + I18N.tf("plan.echo.totalSuf"," 天") : "");
@@ -3911,11 +3914,28 @@ async function planIntakeFromState(stateBody) {
   await planStartConfirmed(null, { intakeValues: intake });
 }
 
+// 行前卡值必须写回开规划快照（2026-11-23 用户实报「行前卡→差异确认→选完
+// 又弹行前卡」的根因）：确认卡重发只读 planLastStart，而快照还停在开局的
+// {skipped:true}——用户在卡上选的开始/结束日期、班次全丢 → 后端按「出发
+// 日期必填」再弹一次空卡，用户重填永远出不来行程。凡拿到卡值（用户提交、
+// 或服务端在 confirm_route 上回显）一律并入快照，后续任何重发都带得上。
+function planMergeIntake(vals) {
+  if (!planLastStart || !vals) return;
+  const merged = Object.assign({}, planLastStart.intake || {});
+  Object.keys(vals).forEach(k => {
+    const v = vals[k];
+    if (v !== undefined && v !== null && v !== "") merged[k] = v;
+  });
+  planLastStart.intake = merged;
+  if (merged.start_date) planLastStart.startDate = merged.start_date;
+}
+
 async function planStartConfirmed(routeSource, overrides) {
   const s = planLastStart;
   if (!s) return;
   const ov = overrides || {};
-  const iv = ov.intakeValues || s.intake; // 行前卡提交值优先（state=intake 重发）
+  if (ov.intakeValues) planMergeIntake(ov.intakeValues); // 卡值落快照（重发不再丢）
+  const iv = (ov.intakeValues || s.intake) || {}; // 行前卡提交值优先（state=intake 重发）
   planTouch();
   planWorking = true;
   PLAN.startDate = iv.start_date || s.startDate || "";

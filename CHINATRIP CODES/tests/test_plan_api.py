@@ -3793,6 +3793,79 @@ def test_card_days_pick_form_side_resolved_diffs_suppress_reask():
     assert len(second.json()["plan"]["days"]) == 3
 
 
+def test_confirm_route_echoes_intake_values():
+    """confirm_route 必须回显本轮的行前卡日期（2026-11-23 用户实报「卡→
+    差异确认→选完又弹卡」）：客户端选边后要重发一枪，卡的日期只在本地快照
+    里，快照一丢重发就缺必填出发日期 → 又弹空卡。回显给客户端补齐用。"""
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    client = client_for(agent)
+    resp = start(
+        client,
+        {
+            "cities": [],
+            "days": 0,
+            "brief": "杭州 3 天：西湖、灵隐寺、雷峰塔",
+            "preferences": "杭州 3 天：西湖、灵隐寺、雷峰塔",
+            "start_date": "2026-11-20",
+            "arrival_date": "2026-11-20",
+            "arrival_no": "MU5101",
+            "departure_date": "2026-11-21",
+        },
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["state"] == "confirm_route"
+    echo = body["intake"]
+    assert echo["start_date"] == "2026-11-20"
+    assert echo["arrival_date"] == "2026-11-20"
+    assert echo["departure_date"] == "2026-11-21"
+    assert echo["arrival_no"] == "MU5101"
+
+
+def test_intake_popup_then_confirm_pick_carries_dates_no_reask():
+    """用户实报全链路（2026-11-23）：文字缺日期 → state=intake 弹卡 → 卡上
+    填开始/结束 → 文字天数与卡跨度不同 → confirm_route → 选边后重发（带卡
+    值 + 覆写 + resolved_diffs）→ 必须直接生成，不得再弹行前卡。
+    重发时把 confirm 回显的 intake 带回去，就是 H5 修复后的发法。"""
+    agent = PlanningAgent(StubAdapter([V0_JSON, V0_JSON, V0_JSON]))
+    client = client_for(agent)
+    text = "杭州 3 天：西湖、灵隐寺、雷峰塔"
+    base = {"cities": [], "days": 0, "brief": text, "preferences": text}
+    # ① 首轮：文字没日期 → 行前卡
+    first = start(client, dict(base))
+    assert first.status_code == 200
+    assert first.json()["state"] == "intake"
+    # ② 卡上填 11-20 → 11-21（2 天），文字说 3 天 → 差异确认
+    second = start(
+        client,
+        {
+            **base,
+            "start_date": "2026-11-20",
+            "arrival_date": "2026-11-20",
+            "departure_date": "2026-11-21",
+        },
+    )
+    assert second.status_code == 200
+    body2 = second.json()
+    assert body2["state"] == "confirm_route"
+    assert {d["what"] for d in body2["diffs"]} == {"days"}
+    echo = body2["intake"]
+    # ③ 选「✍️ 用文字天数」：days_override + 已答标记 + 回显的卡值一并重发
+    third = start(
+        client,
+        {
+            **base,
+            **echo,
+            "days_override": 3,
+            "resolved_diffs": ["days"],
+        },
+    )
+    assert third.status_code == 200
+    body3 = third.json()
+    assert body3["state"] == "ready", body3
+    assert len(body3["plan"]["days"]) == 3
+
+
 def _departure_session_app():
     """造一个带「晨卡→慕田峪班次点」的 ready 会话 + 假班次库（点选班次端点用）。"""
     from datetime import time as dtime
@@ -6100,6 +6173,50 @@ def test_engine_seam_resolved_diffs_suppress_reask(monkeypatch):
     assert body2["state"] == "ready"
     assert body2["session_id"].startswith("ts-")
     assert body2["plan"]["days"]
+
+
+def test_engine_seam_intake_confirm_resend_with_echo_generates(monkeypatch):
+    """引擎缝全链路（2026-11-23 用户实报「行前卡 → 差异确认 → 选完又弹
+    行前卡」）：confirm_route 回显本轮卡值 → 客户端选边后连同回显重发 →
+    引擎缝直接出 ts- 行程，不得再返回 state=intake。"""
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    app = make_app(agent)
+    client = TestClient(app)
+    monkeypatch.setattr("app.api.plan.get_poi_detail_store", _engine_seam_store)
+    resp1 = start(
+        client,
+        {
+            "cities": ["上海"],
+            "days": 3,
+            "brief": "乘MU5101去上海玩2天",
+            "arrival_date": "2026-12-05",
+            "departure_date": "2026-12-07",
+        },
+    )
+    assert resp1.status_code == 200
+    body1 = resp1.json()
+    assert body1["state"] == "confirm_route"
+    echo = body1["intake"]
+    assert echo["arrival_date"] == "2026-12-05"
+    assert echo["departure_date"] == "2026-12-07"
+    diff_keys = {d.get("what") for d in body1.get("diffs") or []}
+    # 选「📋 用表单」：brief 落、卡值随回显带回
+    resp2 = start(
+        client,
+        {
+            "cities": ["上海"],
+            "days": 3,
+            **echo,
+            "route_source": "form",
+            "resolved_diffs": sorted(diff_keys),
+        },
+    )
+    assert resp2.status_code == 200
+    body2 = resp2.json()
+    assert body2["state"] == "ready", body2
+    assert body2["session_id"].startswith("ts-")
+    assert len(body2["plan"]["days"]) == 3
 
 
 def test_long_text_sites_without_date_asks_intake_card():
