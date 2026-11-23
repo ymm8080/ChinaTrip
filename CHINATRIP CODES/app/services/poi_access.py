@@ -365,16 +365,18 @@ def summarize(
     }
 
 
-def _attach_service_window(item: VisitItem) -> None:
+def _attach_service_window(item: VisitItem, *, poi_name: str | None = None) -> None:
     """把远郊专线时刻表挂到卡上（2026-11-16 用户拍板「显示班次/票价/预约」）。
 
     选「到乘车点后最快到景区」的一条（fastest_service，参考 09:00 到站），
     并把乘车点/下车站/首末班/发车时刻/票价/预约与官网 URL 一起挂上。
+    poi_name：R28 近邻档案回退时传档案 POI 名——班次库按 POI 名建键，
+    合名卡按自己的名字永远查不到官方行。
     """
     from app.services import access_services
 
     service = access_services.fastest_service(
-        item.city, item.name, arrive_boarding=9 * 60
+        item.city, poi_name or item.name, arrive_boarding=9 * 60
     )
     if service is None:
         return
@@ -401,6 +403,76 @@ def _attach_service_window(item: VisitItem) -> None:
         item.access_last_mile_minutes = service.last_mile_minutes
 
 
+#: R28(2026-11-23)近邻档案回退门:合名/并卡卡(「八达岭慕田峪长城旅游区」)
+#: 名下无合格档案——自己的档案是 bus 估算(baidu-transit)、班次库无合名官方
+#: 行,三闸全拦,远郊腿蒸发。并卡成员的真档案(八达岭/慕田峪官方专线)就在
+#: 同城档案表里:卡有坐标时按 POI 本体坐标继承 10km 内最近的合格档案
+#: (与 heritage 家族「同名异地 >10km 不并」同款口径)。找不到 = 维持打车链,
+#: 绝不挂 50km 外的错档班次。
+_NEARBY_PROFILE_GATE_KM = 10.0
+
+
+def _profile_serves(item: Any, prof: dict[str, Any], prof_name: str) -> bool:
+    """attach_access 三闸谓词(回退前后同一套闸,口径不漂移)。"""
+    mode = prof.get("access_mode")
+    if mode not in ("train", "shuttle", "ferry"):
+        return False
+    from app.services import access_services as _svc
+
+    if _svc.STRICT_OFFICIAL and _svc._STORE is not None:
+        if not _svc.is_official_poi(item.city, prof_name):
+            return False
+    if prof.get("access_service_minutes") is None:
+        return False
+    if (
+        prof.get("access_boarding_lon") is None
+        or prof.get("access_boarding_lat") is None
+    ):
+        return False
+    return True
+
+
+def _nearby_official_profile(
+    item: Any, profiles: dict[tuple[str, str], dict[str, Any]]
+) -> tuple[dict[str, Any], str] | None:
+    """卡坐标 _NEARBY_PROFILE_GATE_KM 内最近的合格档案(跳过与本卡同名行)。"""
+    loc = getattr(item, "location", None)
+    if (
+        loc is None
+        or getattr(loc, "lon", None) is None
+        or getattr(loc, "lat", None) is None
+    ):
+        return None
+    item_name = str(getattr(item, "name", "") or "")
+    item_city = str(getattr(item, "city", "") or "")
+    best: tuple[float, dict[str, Any], str] | None = None
+    seen_names: set[str] = set()
+    for (city, name), prof in profiles.items():
+        if not name or name == item_name or name in seen_names:
+            continue
+        seen_names.add(name)
+        key_city = str(city or "")
+        if key_city and key_city != item_city:
+            continue
+        p_lon = prof.get("poi_lon")
+        p_lat = prof.get("poi_lat")
+        if p_lon is None or p_lat is None:
+            continue
+        if not _profile_serves(item, prof, name):
+            continue
+        km = haversine_km(
+            GeoPoint(lon=float(loc.lon), lat=float(loc.lat)),
+            GeoPoint(lon=float(p_lon), lat=float(p_lat)),
+        )
+        if km > _NEARBY_PROFILE_GATE_KM:
+            continue
+        if best is None or km < best[0]:
+            best = (km, prof, name)
+    if best is None:
+        return None
+    return best[1], best[2]
+
+
 def attach_access(
     plan: ItineraryPlan, profiles: dict[tuple[str, str], dict[str, Any]]
 ) -> int:
@@ -415,29 +487,23 @@ def attach_access(
             if not isinstance(item, VisitItem) or item.access_mode:
                 continue
             prof = profiles.get((item.city, item.name)) or profiles.get(("", item.name))
-            if not prof:
+            prof_name = item.name
+            if prof is None or not _profile_serves(item, prof, prof_name):
+                # R28：合名/并卡卡名下档案不合格（bus 估算/无官方行）时，
+                # 沿 POI 本体坐标继承近邻成员合格档案；找不到维持打车链。
+                alt = _nearby_official_profile(item, profiles)
+                if alt is not None:
+                    prof, prof_name = alt
+            if prof is None or not _profile_serves(item, prof, prof_name):
                 continue
             mode = prof.get("access_mode")
-            if mode not in ("train", "shuttle", "ferry"):
-                continue
-            # 官方严格模式（2026-11-16 用户拍板）：没有官方核实的班次时刻，
-            # 就当这站没有班次——按纯打车模型排，不吃地图商估的接驳链。
-            from app.services import access_services as _svc
-
-            if _svc.STRICT_OFFICIAL and _svc._STORE is not None:
-                if not _svc.is_official_poi(item.city, item.name):
-                    continue
-            if prof.get("access_service_minutes") is None:
-                continue
-            lon, lat = prof.get("access_boarding_lon"), prof.get("access_boarding_lat")
-            if lon is None or lat is None:
-                continue
             item.access_mode = mode
+            lon, lat = prof.get("access_boarding_lon"), prof.get("access_boarding_lat")
             item.access_boarding = GeoPoint(lon=float(lon), lat=float(lat))
             item.access_service_minutes = prof.get("access_service_minutes")
             item.access_wait_minutes = prof.get("access_wait_minutes") or 0
             item.access_last_mile_minutes = prof.get("access_last_mile_minutes") or 0
-            _attach_service_window(item)
+            _attach_service_window(item, poi_name=prof_name)
             filled += 1
     return filled
 

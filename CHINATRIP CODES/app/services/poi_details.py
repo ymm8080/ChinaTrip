@@ -17,6 +17,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
+from geoalchemy2 import Geometry
 from sqlalchemy import String, and_, cast, func, or_
 
 from app.models import Poi
@@ -41,6 +42,12 @@ from app.services.source_tier import (
 )
 
 logger = logging.getLogger(__name__)
+
+#: geography → geometry 强转(ST_X/ST_Y 只接 geometry;直接上
+#: geography 会报 function st_x(geography) does not exist)。
+#: R28(2026-11-23)档案行带 POI 本体坐标——attach_access 沿坐标
+#: 给合名/并卡卡继承近邻成员合格档案时用。
+_GEOM_POINT = Geometry("POINT", srid=4326)
 
 
 def _token_span(positions: dict[str, list[int]], tokens: list[str]) -> int | None:
@@ -413,6 +420,9 @@ class PoiDetailStore:
                     Poi.access_service_minutes,
                     Poi.access_wait_minutes,
                     Poi.access_last_mile_minutes,
+                    # R28:POI 本体坐标(geography → geometry 强转后取 XY)
+                    func.ST_X(cast(Poi.location, _GEOM_POINT)).label("poi_lon"),
+                    func.ST_Y(cast(Poi.location, _GEOM_POINT)).label("poi_lat"),
                 ).filter(Poi.access_mode.isnot(None))
                 if cities:
                     variants: list[str] = []
@@ -435,6 +445,9 @@ class PoiDetailStore:
                 "access_service_minutes": row[6],
                 "access_wait_minutes": row[7],
                 "access_last_mile_minutes": row[8],
+                # R28:POI 本体坐标(NULL 防护同乘车点坐标口径)
+                "poi_lon": float(row[9]) if row[9] is not None else None,
+                "poi_lat": float(row[10]) if row[10] is not None else None,
             }
             name = (row[1] or "").strip()
             if not name:
