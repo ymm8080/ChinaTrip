@@ -163,6 +163,13 @@ def _name_hits(name: str, other: str) -> bool:
 #: app.services.access_services.DEFAULT_HEADWAY_MINUTES 同口径（景区专线常见 15 分档）。
 DEFAULT_HEADWAY_MINUTES = 15
 
+#: 2026-11-23 用户拍板「any bus should be replaced by taxi」：常规公交
+#: （mode=bus）不进引擎档案——该点若无其它方式，C-08 无班可排，接驳卡不
+#: 物化，腿链自然回落打车（hotel → 景点整段出租车）。shuttle（景区直通车/
+#: 旅游专线）、train（城际铁路）、ferry（轮渡）照旧保留。
+#: 与 app.services.access_services.BUS_MODES 保持同步（规则层同一口径）。
+BUS_MODES = frozenset({"bus", "city_bus", "public_bus"})
+
 
 def _row_hhmm(v) -> Optional[str]:
     """班次值归一成 HH:MM（两种真库形态：int 分钟 / '07:30' 字符串）。
@@ -225,6 +232,11 @@ def _access_profiles_for(
     by_name = {str(r.get("name") or ""): r for r in pool}
     out: list[AccessProfile] = []
     for row in service_rows:
+        # 2026-11-23 用户拍板「any bus should be replaced by taxi」：常规公交
+        # 不进引擎档案——该点若无 shuttle/train/ferry，本函数返回空列表，
+        # 接驳卡不物化，腿链回落打车直连（绝不把公交当备选）。
+        if str(row.get("mode") or "").strip().lower() in BUS_MODES:
+            continue
         poi_name = str(row.get("poi_name") or "")
         target = next(
             (r for n, r in by_name.items() if n and _name_hits(poi_name, n)), None

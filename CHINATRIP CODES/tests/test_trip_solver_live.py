@@ -225,6 +225,29 @@ def test_access_profiles_explicit_times_take_precedence():
     assert p.departures == ("08:00", "09:00")
 
 
+def test_access_profiles_drop_bus_rows_in_favour_of_taxi():
+    """2026-11-23 用户拍板「any bus should be replaced by taxi」：mode=bus 的
+    档案行不进引擎——同点只剩公交时本函数返回空列表，C-08 无班可排，接驳卡
+    不物化，腿链回落打车直连；shuttle（景区直通车）/train（城际铁路）保留。
+    """
+    from app.services.trip_solver.live import _access_profiles_for
+
+    pool = [{"name": "八达岭长城", "source_poi_id": "ct_北京_8"}]
+    bus = {
+        "poi_name": "八达岭长城",
+        "mode": "bus",
+        "boarding_stop": "北土城地铁站",
+        "outbound_times": ["08:00", "09:00"],
+        "ride_minutes": 110,
+    }
+    assert _access_profiles_for(pool, [bus]) == [], "只有公交 → 无档案（改打车）"
+
+    shuttle = dict(bus, mode="shuttle", service_name="前门旅游专线")
+    train = dict(bus, mode="train", service_name="市郊铁路 S2 线")
+    profiles = _access_profiles_for(pool, [bus, shuttle, train])
+    assert [p.mode for p in profiles] == ["shuttle", "train"]
+
+
 def test_edit_session_not_ready_returns_disclosed_fallback(monkeypatch):
     """R13h：编辑缝与 generate/replan 同口径——cpsat 旗下未就绪返回
     披露型 fallback outcome，绝不裸 (None, None) 静默落 legacy 修复

@@ -129,7 +129,7 @@ def test_taxi_card_between_morning_and_outbound():
 def test_engine_outbound_detail_emits_multi_option_block(monkeypatch):
     """R20②（展示平权）：引擎去程卡 br 补齐 service_options 后，detail 必须
     走 _options_detail 多候选块——同站多种方式并排、推荐项平铺、全量进
-    options。此前手工构造的 br 无 options 键，八达岭只出单一 877 路块。"""
+    options。此前手工构造的 br 无 options 键，八达岭只出单一班次块。"""
     import app.services.access_services as access_services
 
     def _fake_options(city, name, **kwargs):
@@ -152,9 +152,11 @@ def test_engine_outbound_detail_emits_multi_option_block(monkeypatch):
                 "booking_url": "https://example.com/line1",
             },
             {
-                "mode": "bus",
-                "service_name": "877路",
-                "boarding_stop": "北土城地铁站",
+                # 2026-11-23 用户拍板「any bus should be replaced by taxi」后，
+                # 公交不再进候选——这里用市郊铁路 S2 线验证多方式并排渲染。
+                "mode": "train",
+                "service_name": "市郊铁路S2线",
+                "boarding_stop": "黄土店站",
                 "boarding_lon": 116.392,
                 "boarding_lat": 40.0,
                 "depart": "08:45",
@@ -172,7 +174,7 @@ def test_engine_outbound_detail_emits_multi_option_block(monkeypatch):
     detail = out.next_leg_detail or {}
     opts = detail.get("options") or []
     assert len(opts) == 2, detail
-    assert {o["service_name"] for o in opts} == {"前门旅游专线", "877路"}
+    assert {o["service_name"] for o in opts} == {"前门旅游专线", "市郊铁路S2线"}
     # 推荐项（第一个）平铺为顶层字段，兼容旧读法
     assert detail["service_name"] == "前门旅游专线"
     assert detail["gateway"] == "前门大街北口"
