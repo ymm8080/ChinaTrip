@@ -501,6 +501,7 @@
       "card.pinned.badge": "Pinned",
       "card.retime.title": "Click to change start time",
       "card.hopedit.title": "Click to change departure time",
+      "card.time.invalid": "Please enter a time, e.g. 9:30 or 1530",
       "card.review": "✍️ Review",
       "card.walk.titleClose": ")",
       "card.drive.titleClose": ")",

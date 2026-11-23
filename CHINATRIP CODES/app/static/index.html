@@ -2080,6 +2080,53 @@ function hopPickRow(it, legD, dir) {
 }
 
 
+// 卡片时间编辑（2026-11-23 用户实报两条：「改完时间按 Enter 不生效」
+// 「原生时钟控件只能点选不能直接敲」）：统一改成可直输文本框——接受
+// 9:30 / 09:30 / 930 / 2130，Enter 提交、Esc 取消、失焦还原；非法值留在
+// 编辑态并提示。桥卡 hopedit 与观光卡 retime 共用本控件。
+function parseHmInput(raw) {
+  const s = String(raw || "").trim().replace(/[：]/g, ":").replace(/\s+/g, "");
+  let m = s.match(/^(\d{1,2}):(\d{1,2})$/);
+  if (!m) m = s.match(/^(\d{1,2})(\d{2})$/);
+  if (!m) return null;
+  const h = Number(m[1]), mi = Number(m[2]);
+  if (!(h <= 23 && mi <= 59)) return null;
+  return (h < 10 ? "0" + h : String(h)) + ":" + (mi < 10 ? "0" + mi : String(mi));
+}
+
+function startTimeEdit(btn, box, plan, submit) {
+  if (btn.querySelector("input")) return;
+  const input = document.createElement("input");
+  input.type = "text";
+  input.inputMode = "numeric";
+  input.autocomplete = "off";
+  input.spellcheck = false;
+  input.placeholder = "HH:MM";
+  input.value = btn.getAttribute("data-cur") || "";
+  input.style.cssText = "width:76px;font:inherit;color:inherit;border:1px solid var(--muted);border-radius:4px;padding:0 4px;background:#fff;text-align:center";
+  btn.textContent = "";
+  btn.appendChild(input);
+  input.focus();
+  input.select();
+  let done = false;
+  const restore = function () { if (!done) { done = true; box.replaceWith(planCard(plan)); } };
+  const commit = function () {
+    if (done) return;
+    const v = parseHmInput(input.value);
+    if (!v) { toast(I18N.tf("card.time.invalid", "请输入时间，如 9:30 或 1530")); input.select(); return; }
+    done = true;
+    input.disabled = true;
+    submit(v);
+  };
+  input.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") { e.preventDefault(); commit(); }
+    else if (e.key === "Escape") { e.preventDefault(); restore(); }
+  });
+  input.addEventListener("change", commit);
+  input.addEventListener("blur", restore);
+}
+
+
 function planCard(plan) {
   const box = el('<div class="card"><h4>' + I18N.tf("card.itinId","🧳 行程编号 ") + "<code>" + esc(plan.itinerary_id) + "</code> · " + esc((plan.cities || []).map(c => I18N.city(c)).join(" → ")) + "</h4></div>");
   (plan.days || []).forEach(d => {
@@ -2611,27 +2658,12 @@ function planCard(plan) {
         return;
       }
       if (action === "retime") {
-        // 时间戳原地换成原生 time 输入：change 提交、blur 还原（防双触发）
-        if (btn.querySelector("input")) return;
-        const input = document.createElement("input");
-        input.type = "time";
-        input.value = btn.getAttribute("data-cur") || "";
-        btn.textContent = "";
-        btn.appendChild(input);
-        input.focus();
-        let done = false;
-        input.addEventListener("change", () => {
-          if (done) return;
-          done = true;
-          const v = input.value;
-          if (!v) { box.replaceWith(planCard(plan)); return; }
-          input.disabled = true;
+        // 时间戳原地直输（Enter 提交 / Esc 取消 / 失焦还原）：原生 time 控件
+        // 只能点时钟选、Enter 不提交（2026-11-23 用户实报），见 startTimeEdit。
+        startTimeEdit(btn, box, plan, function (v) {
           api("/api/v1/plan/" + sid + "/items/" + encodeURIComponent(id) + "/retime", { start_time: v }, "POST")
             .then(body => box.replaceWith(planCard(body.plan)))
             .catch(err => { failToast(err); box.replaceWith(planCard(plan)); });
-        });
-        input.addEventListener("blur", () => {
-          if (!done) { done = true; box.replaceWith(planCard(plan)); }
         });
       } else if (action === "hopdepart") {
         // 接驳卡点选班次（2026-11-16）：点哪班就按那班回算离店/离场并重排当天
@@ -2647,27 +2679,12 @@ function planCard(plan) {
       } else if (action === "hopedit") {
         // 桥卡改出发时刻（2026-11-23 用户令「乘车去下一站的时间应该也可以编辑」）：
         // 桥卡出发=上一站结束——POST /departure direction=out，后端把上一站
-        // 调成「结束于所选时刻」（普通站时长伸缩；占位餐/酒店骨架卡平移）。
-        if (btn.querySelector("input")) return;
-        const input = document.createElement("input");
-        input.type = "time";
-        input.value = btn.getAttribute("data-cur") || "";
-        btn.textContent = "";
-        btn.appendChild(input);
-        input.focus();
-        let done = false;
-        input.addEventListener("change", () => {
-          if (done) return;
-          done = true;
-          const v = input.value;
-          if (!v) { box.replaceWith(planCard(plan)); return; }
-          input.disabled = true;
+        // 调成「结束于所选时刻」（普通站时长伸缩；占位餐/酒店骨架卡平移）；
+        // 直输控件同 retime（Enter 提交 / Esc 取消 / 失焦还原）。
+        startTimeEdit(btn, box, plan, function (v) {
           api("/api/v1/plan/" + sid + "/departure", { item_id: id, direction: "out", depart: v }, "POST")
             .then(body => box.replaceWith(planCard(body.plan)))
             .catch(err => { failToast(err); box.replaceWith(planCard(plan)); });
-        });
-        input.addEventListener("blur", () => {
-          if (!done) { done = true; box.replaceWith(planCard(plan)); }
         });
       } else if (action === "pin") {
         const cur = btn.getAttribute("data-pinned") === "1";
