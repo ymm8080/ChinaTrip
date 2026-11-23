@@ -429,7 +429,12 @@ def test_c11_show_uses_declared_session_and_allows_only_one_per_day():
     assert sol.items[0].start_min in {19 * 60 + 30, 20 * 60 + 30}
 
 
-def test_c11_sessionless_show_is_excluded_not_silently_timetabled():
+def test_c11_sessionless_show_placeable_afternoon_evening_not_early():
+    # R22 重祝福（2026-11-23）：对齐 2026-11-11 拍板「无场次 SHOW 下午或
+    # 晚上」与 fallback 权威 legacy 的现行语义（solver lo≥12:00；11-14
+    # sweep 只撤非必去卡且必去显式豁免）。旧断言 lit==0 对必去生效会整单
+    # INFEASIBLE 回落 legacy——引擎永远无法服务这类行程，属切换缺口。
+    # 「不被乱排」的关切保留：硬窗 start≥12:00 + SHOW_EARLY_PENALTY ≥15:00。
     show = _cand(
         "show",
         rid="r-show",
@@ -440,8 +445,10 @@ def test_c11_sessionless_show_is_excluded_not_silently_timetabled():
     )
     sol = _solve(_snap([show], musts=("r-show",)))
     _ok(sol)
-    assert sol.items == []
-    assert [u["rid"] for u in sol.unplaced] == ["r-show"]
+    assert len(sol.items) == 1
+    assert sol.items[0].cid == "show"
+    assert sol.items[0].start_min >= 12 * 60
+    assert sol.unplaced == []
 
 
 def test_c11_off_season_show_is_excluded_but_in_season_uses_session():

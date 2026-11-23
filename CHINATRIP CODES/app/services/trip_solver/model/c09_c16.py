@@ -22,6 +22,7 @@ from app.services.itinerary.rules import (
     TAXI_HAIL_MINUTES,
 )
 from app.services.itinerary.solver import (
+    SHOW_AFTERNOON_START_MINUTES,
     effective_show_sessions,
     is_sessionless_show,
 )
@@ -682,12 +683,26 @@ def add_c11_shows(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
         off_season = _show_off_season(cand.opening_hours, months)
         for day in bundle.days:
             lit = bundle.presence[(cand.cid, day)]
-            if sessionless or off_season:
+            start = bundle.start[(cand.cid, day)]
+            if off_season:
+                # 冬季停演/演出季外=真不可演 → 禁排（legacy 同口径）。
                 bundle.model.Add(lit == 0)
             elif sessions:
                 bundle.model.AddAllowedAssignments(
                     [bundle.start[(cand.cid, day)]], [(s,) for s in sessions]
                 ).OnlyEnforceIf(lit)
+            elif sessionless:
+                # R22（2026-11-23 挂账清账）：无场次 SHOW 引擎此前整卡禁排
+                # （lit==0，b4f3411 初版移植把 2026-11-14「重排提案层撤下」
+                # 错并进 2026-11-11 放置层）——必去组合直接 INFEASIBLE 整单
+                # 回落 legacy（合成探针实锤：必去被丢且伪 reason
+                # 「day_capacity_conflict」）。对齐 11-11 拍板「无场次 SHOW 下午或
+                # 晚上」（legacy solver._visit_spec 同口径 lo=max(lo,
+                # SHOW_AFTERNOON_START_MINUTES)）：放置域自中午起开，偏好层
+                # SHOW_EARLY_PENALTY 自然压 ≥15:00。
+                bundle.model.Add(start >= SHOW_AFTERNOON_START_MINUTES).OnlyEnforceIf(
+                    lit
+                )
     for day in bundle.days:
         if shows:
             bundle.model.Add(sum(bundle.presence[(c.cid, day)] for c in shows) <= 1)
