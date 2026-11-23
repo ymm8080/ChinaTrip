@@ -64,6 +64,8 @@ class ConversationMixin:
         urls = find_urls(text)
         if not urls:
             return False
+        # 新链接进来先撤旧提示：成功读到时不能让上一轮的「请粘贴」残留。
+        session.clarify_override = []
         digests: list[LinkDigest] = []
         for url in urls:
             try:
@@ -102,6 +104,50 @@ class ConversationMixin:
             )
             return True
         if len(sites) < 2:
+            if (
+                not sites
+                and session.plan is None
+                and session.state not in ("site_confirm", "resto_confirm")
+                and any(d.error for d in digests)
+            ):
+                # 2026-11-23 用户拍板：读不到链接就明确回复并请用户粘贴
+                # 内容，绝不能装作读完再问城市/天数。Trip.com 的 AI 行程
+                # 页只渲染产品壳（startChat 对非创建者会话回
+                # NOT_YOUR_CHAT），营销壳页也在这里一并拦截。
+                share_shell = next(
+                    (d for d in digests if d.reason == "share_shell"), None
+                )
+                if share_shell is not None:
+                    reply = L(
+                        "这个 Trip.com 行程链接我这边读不到行程内容：打开只看到"
+                        "产品介绍页，拿不到你那条 AI 行程。请把行程内容直接粘贴"
+                        "过来（在 Trip.com 行程页全选复制即可），我按文字给你排。",
+                        "I can't read the itinerary behind this Trip.com link: "
+                        "the page only renders the product intro, not your AI "
+                        "trip. Paste the itinerary text here (select-all and "
+                        "copy from the Trip.com plan page) and I'll build the "
+                        "plan from it.",
+                    )
+                else:
+                    reasons = "；".join(
+                        dict.fromkeys(str(d.error) for d in digests if d.error)
+                    )
+                    reply = L(
+                        f"这个链接我没读到内容（{reasons}）。"
+                        "请把链接里的行程/攻略文字直接粘贴过来，我按文字给你排。",
+                        "I couldn't read this link (it may be private, broken, "
+                        "or a page that doesn't expose its text). Paste the "
+                        "itinerary/guide text from it here and I'll plan from "
+                        "that.",
+                    )
+                session.state = "clarify"
+                session.clarify_override = [reply]
+                session.history.append(ChatMessage(role="assistant", content=reply))
+                logger.info(
+                    "plan: unreadable link answered with paste request: %s",
+                    [d.url for d in digests],
+                )
+                return True
             return False
         session.pending_sites = [name for name, _, _ in sites]
         session.site_kinds.update({name: kind for name, kind, _ in sites})

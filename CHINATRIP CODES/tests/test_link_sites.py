@@ -846,6 +846,80 @@ def test_off_trip_amap_truth_not_scheduled():
     assert wishlist["十八梯"]["city"] == "兰州"  # 真城留档
 
 
+# --- unreadable link: reply + ask user to paste contents -------------------
+# 2026-11-23 用户拍板：链接读不到就明确回复并请用户粘贴内容，不得装作
+# 读完再问城市/天数（Trip.com AI 行程页在网页端只渲染产品介绍）。
+
+_PLANNER_CHAT_URL = "https://www.trip.com/webapp/tripmap/tripplanner?source=t_online_homepage&locale=en-XX&curr=USD&chatId=108839657713713202&signature=AAEAAQAHcm91ZGVpZE-JuZTIjtCWXsyNum4jV9MMUoFouMt2SBHcmUCnCesr-tripsign"
+
+
+def test_planner_chat_link_on_new_session_asks_to_paste_not_city_days():
+    reader = StubReader(
+        LinkDigest(
+            url=_PLANNER_CHAT_URL,
+            reason="share_shell",
+            error="Trip.com 行程页在网页端只返回产品介绍",
+        )
+    )
+    trip_items = TripItemService()
+    # 不喂 LLM 回复：这一轮必须零 LLM 直接收口（不生成、不追问城市）。
+    llm, agent = _ready_agent([], reader, trip_items)
+    session = run(
+        agent.start(
+            device_id="d",
+            cities=[],
+            days=0,
+            preferences=f"按这个行程排 {_PLANNER_CHAT_URL}",
+        )
+    )
+    assert session.state == "clarify"
+    assert session.clarify_override
+    reply = session.clarify_override[0]
+    assert "粘贴" in reply
+    assert "几天" not in reply and "哪个城市" not in reply
+    assert session.plan is None
+    assert llm.calls == 0
+
+
+def test_generic_unreadable_link_on_new_session_asks_to_paste():
+    reader = StubReader(LinkDigest(url="https://example.com/gone", error="HTTP 404"))
+    trip_items = TripItemService()
+    llm, agent = _ready_agent([], reader, trip_items)
+    session = run(
+        agent.start(
+            device_id="d",
+            cities=[],
+            days=0,
+            preferences="看这个 https://example.com/gone",
+        )
+    )
+    assert session.state == "clarify"
+    reply = session.clarify_override[0]
+    assert "粘贴" in reply and "HTTP 404" in reply
+    assert llm.calls == 0
+
+
+def test_paste_answer_clears_link_clarify_override():
+    reader = StubReader(
+        LinkDigest(url=_PLANNER_CHAT_URL, reason="share_shell", error="分享壳页")
+    )
+    trip_items = TripItemService()
+    llm, agent = _ready_agent([_v0_reply()], reader, trip_items)
+    session = run(
+        agent.start(
+            device_id="d",
+            cities=[],
+            days=0,
+            preferences=f"按这个排 {_PLANNER_CHAT_URL}",
+        )
+    )
+    assert session.clarify_override
+    session, reply, _ = run(agent.message(session, "南京 2 天"))
+    assert session.state == "ready"
+    assert session.clarify_override == []
+    assert session.cities == ["南京"] and session.days == 2
+
+
 # --- variant-name dedupe (plan already holds the site) ---------------------
 
 

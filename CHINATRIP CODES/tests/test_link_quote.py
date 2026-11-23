@@ -18,6 +18,7 @@ from app.services.web_reader import (
     _host_blocked,
     find_urls,
     format_digest_block,
+    trip_planner_share_link,
 )
 
 
@@ -350,6 +351,38 @@ def test_read_empty_page_is_error_digest():
     digest = run(reader.read("https://example.com/blank"))
     assert not digest.ok
     assert digest.error == "未能从页面提取到正文"
+
+
+# --- Trip.com AI 行程分享页：网页端只有产品壳，不抓营销文案 ------------
+
+_PLANNER_CHAT_URL = "https://www.trip.com/webapp/tripmap/tripplanner?source=t_online_homepage&locale=en-XX&curr=USD&chatId=108839657713713202&signature=AAEAAQAHcm91ZGVpZE-JuZTIjtCWXsyNum4jV9MMUoFouMt2SBHcmUCnCesr-tripsign"
+
+
+def test_trip_planner_share_link_detected():
+    assert trip_planner_share_link(_PLANNER_CHAT_URL)
+    assert trip_planner_share_link(
+        _PLANNER_CHAT_URL.replace("www.trip.com", "m.ctrip.com")
+    )
+    # 普通行程路线页/没有 chatId 的页面仍是普通链接，交给通用抓取。
+    assert not trip_planner_share_link(
+        "https://www.trip.com/travelRoute/routeList?source=x"
+    )
+
+
+def test_read_trip_planner_share_link_marks_shell_without_fetch():
+    fetched: list[str] = []
+
+    def handler(request):
+        fetched.append(str(request.url))
+        return httpx.Response(200, text="<html><body>Trip.Planner</body></html>")
+
+    digest = run(
+        HttpLinkReader(transport=httpx.MockTransport(handler)).read(_PLANNER_CHAT_URL)
+    )
+    assert not digest.ok
+    assert digest.reason == "share_shell"
+    assert "读不到行程内容" in (digest.error or "")
+    assert fetched == []  # 不把产品介绍页当正文抓回来
 
 
 # --- digest block -------------------------------------------------------

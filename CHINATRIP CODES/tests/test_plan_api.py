@@ -532,6 +532,37 @@ def test_message_food_link_far_returns_resto_confirm_payload():
     assert "李记锅贴" not in names
 
 
+# --- unreadable Trip.com share link: reply + ask paste (R26) -------------
+
+_PLANNER_SHARE_URL = "https://www.trip.com/webapp/tripmap/tripplanner?source=t_online_homepage&locale=en-XX&curr=USD&chatId=108839657713713202&signature=AAEAAQAHcm91ZGVpZE-JuZTIjtCWXsyNum4jV9MMUoFouMt2SBHcmUCnCesr-tripsign"
+
+
+def test_start_unreadable_planner_link_replies_paste_request():
+    """2026-11-23 用户拍板：链接读不到就回复并请用户粘贴内容，不得
+    装作读完再弹城市/天数追问。"""
+    from app.services.web_reader import LinkDigest
+
+    agent = PlanningAgent(
+        StubAdapter([]),
+        link_reader=_Reader(
+            LinkDigest(
+                url=_PLANNER_SHARE_URL,
+                reason="share_shell",
+                error="Trip.com 行程页在网页端只返回产品介绍",
+            )
+        ),
+    )
+    client = client_for(agent)
+    body = start(client, {"preferences": f"按这个行程排 {_PLANNER_SHARE_URL}"}).json()
+    assert body["state"] == "clarify"
+    assert body["clarify"] == [
+        "这个 Trip.com 行程链接我这边读不到行程内容：打开只看到产品介绍页，"
+        "拿不到你那条 AI 行程。请把行程内容直接粘贴过来（在 Trip.com 行程页"
+        "全选复制即可），我按文字给你排。"
+    ]
+    assert "plan" not in body
+
+
 # --- product rule 2026-10-20: sites/confirm endpoint --------------------
 
 
