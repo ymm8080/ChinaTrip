@@ -502,10 +502,7 @@
       "card.retime.title": "Click to change start time",
       "card.hopedit.title": "Click to change departure time",
       "card.time.invalid": "Please enter a time, e.g. 9:30 or 1530",
-<<<<<<< Updated upstream
       "card.time.clock": "Pick a time with the clock",
-=======
->>>>>>> Stashed changes
       "card.time.gone": "Itinerary changed — refresh the page and try again",
       "card.time.noTT": "No timetable on this day — the departure time follows the shuttle",
       "card.time.locked": "This card's time is fixed by the itinerary structure",

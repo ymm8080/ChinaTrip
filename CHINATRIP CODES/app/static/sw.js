@@ -45,7 +45,7 @@
 // v128 2026-11-23: 乘车/步行腿卡（「前往下一站」）整卡可点——乘车卡直唤高德打车（起点=当前位置，终点=下一景点），步行/自由安排卡直唤高德步行导航（callnative=1 打开即拉起 App）；交通腿卡不再显示点赞/点评行（用户令「乘车或者步行腿不需要点赞、打卡、好评功能等」）。必须 bump 拉新缓存壳。
 // v133 2026-11-23: 时间编辑失败码转人话+时钟选择器加回（用户实报「there is error msg」「时钟选、点击保存要保留」）——已知失败码转明确文案（行程已更新请刷新/当天无班次表/结构锁定）；编辑态双控件=直输框（9:30/0930，Enter 提交）+右侧时钟选择器（选完即存）；餐卡双家族 id（meal-lunch-N ↔ food-lunch-ph-dN）后端按别名解析不再 404（后端随下次重启生效）。必须 bump 拉新缓存壳。
 // v132 2026-11-23: 确认卡必须逐行选完才能点 ✅（用户实报「选了一行点 ✅ 又弹卡」）——带文字开局差异卡有多行（days/numbers/card_days），只答部分行点 ✅ → 未答行不在 resolved_diffs → 后端重新检出再弹卡；✅ 未选完置灰+剩余行数提示，选完即亮。必须 bump 拉新缓存壳。
-const VERSION = 'v133';
+const VERSION = 'v134';
 const CACHE = 'chinatrip-h5-' + VERSION;
 const SHELL = [
   './', './index.html', './i18n.js', './qrcode.min.js', './sortable.min.js', './manifest.webmanifest', './agent.html',

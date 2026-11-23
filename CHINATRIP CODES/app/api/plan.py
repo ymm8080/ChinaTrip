@@ -1719,7 +1719,12 @@ async def message_plan(
             body["lane"] = {"lane": "fast", "intent": decision.intent}
             return body
         # 快车道答不出（宁缺毋错）：落主车道继续，不虚构。
-    elif decision.lane is Lane.slow:
+    # R28（2026-11-24 用户实报「贴文确认卡变纯文本」）：慢车道的语义是
+    # 「重排已有行程」——无盘会话（clarify/intake 阶段）没有任何可重排的
+    # 盘，贴入的完整行程文字是读点确认轮的输入，必须落主车道
+    # （7089d612 在 _answer_clarification 的开卡挂点），不能被慢车道
+    # 吸成后台重排任务后只剩一句纯文本回复。
+    elif decision.lane is Lane.slow and session.plan is not None:
         # R20③ 异步重排基线：入队瞬间固化会话修订号。快车道用户操作会
         # 经 store.save 推进 rev；后台执行时若 rev 已前进，说明盘面被用户
         # 改过，旧快照的重排必须丢弃，不能覆盖用户最新手排状态。
