@@ -174,6 +174,57 @@ def test_access_profiles_for_real_store_shapes():
     assert p.ride_minutes == 90
 
 
+def test_access_profiles_expand_first_last_window():
+    """R20④（2026-11-23 八达岭去程卡不物化）：真库存在「只给首末班窗、
+    outbound_times 为 null」的档案行（八达岭前门线 06:30–11:00）。此前 live
+    只读 outbound_times 数组、不展开窗 → 该行被判无班次整行丢弃
+    （``if not departures: continue``）→ 引擎去程卡不物化、回退打车直连
+    （晨卡 → 景区三十分钟直连）。修后应与 legacy
+    AccessService.departures()/returns() 同口径展开首末班窗。
+    """
+    from app.services.trip_solver.live import _access_profiles_for
+
+    pool = [{"name": "八达岭长城", "source_poi_id": "ct_北京_8"}]
+    svc = {
+        "poi_name": "八达岭长城",
+        "boarding_stop": "前门站",
+        "outbound_times": None,  # 窗式档案：没有显式班次数组
+        "outbound_first": "06:30",
+        "outbound_last": "07:30",
+        "outbound_frequency_minutes": 30,
+        "return_times": None,
+        "return_first": "13:30",
+        "return_last": "14:30",
+        "return_frequency_minutes": 60,
+        "ride_minutes": 91,
+        "last_mile_minutes": 3,
+    }
+    profiles = _access_profiles_for(pool, [svc])
+    assert len(profiles) == 1, "窗式档案不得因 outbound_times 为空被整行丢弃"
+    p = profiles[0]
+    assert p.departures == ("06:30", "07:00", "07:30")
+    assert p.returns == ("13:30", "14:30")
+    assert p.ride_minutes == 91
+
+
+def test_access_profiles_explicit_times_take_precedence():
+    """显式数组优先于首末班窗：两者并存时不得用窗覆盖显式班次。"""
+    from app.services.trip_solver.live import _access_profiles_for
+
+    pool = [{"name": "八达岭长城", "source_poi_id": "ct_北京_8"}]
+    svc = {
+        "poi_name": "八达岭长城",
+        "boarding_stop": "前门站",
+        "outbound_times": ["08:00", "09:00"],
+        "outbound_first": "06:30",
+        "outbound_last": "11:00",
+        "ride_minutes": 91,
+        "last_mile_minutes": 3,
+    }
+    p = _access_profiles_for(pool, [svc])[0]
+    assert p.departures == ("08:00", "09:00")
+
+
 def test_edit_session_not_ready_returns_disclosed_fallback(monkeypatch):
     """R13h：编辑缝与 generate/replan 同口径——cpsat 旗下未就绪返回
     披露型 fallback outcome，绝不裸 (None, None) 静默落 legacy 修复

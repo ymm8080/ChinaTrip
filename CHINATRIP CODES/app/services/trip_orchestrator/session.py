@@ -135,6 +135,11 @@ class PlanSession(BaseModel):
     # 规划期间建的心愿不再落库——名字 → {source, note, city, dropped}，
     # 保存行程时 materialize_wish_rows 按它物化成正式行。
     wish_sources: dict[str, dict] = Field(default_factory=dict)
+    # 会话修订号（2026-11-23 R20③ 异步重排基线竞态）：每次 PlanSessionStore.save
+    # 单调 +1。慢车道重排入队时把它作 baseline_rev 记进 payload，执行时/落盘前
+    # 重读会话比对——用户在此期间的手排操作会让 rev 前进，据此丢弃过期重排，
+    # 杜绝后台盘面盖掉用户最新手排状态（R13q「回复 07:23 vs 实际 06:30」漂移）。
+    rev: int = 0
 
 
 def heal_item_ids(session: PlanSession) -> list[str]:
@@ -166,6 +171,9 @@ class PlanSessionStore:
         self._sessions: dict[str, PlanSession] = {}
 
     def save(self, session: PlanSession) -> None:
+        # R20③：每次落盘单调推进修订号。所有写库点（主车道消息、拖卡、
+        # 点选、confirm、异步重排）都经本口，故 rev 是会话盘面的权威基线。
+        session.rev += 1
         self._sessions[session.session_id] = session
 
     def get(self, session_id: str, *, device_id: str) -> PlanSession | None:

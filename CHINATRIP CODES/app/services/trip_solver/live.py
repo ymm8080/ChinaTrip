@@ -159,6 +159,65 @@ def _name_hits(name: str, other: str) -> bool:
     return name == other or name in other or other in name
 
 
+#: 流水发车但只给首末班时的默认发车间隔——与
+#: app.services.access_services.DEFAULT_HEADWAY_MINUTES 同口径（景区专线常见 15 分档）。
+DEFAULT_HEADWAY_MINUTES = 15
+
+
+def _row_hhmm(v) -> Optional[str]:
+    """班次值归一成 HH:MM（两种真库形态：int 分钟 / '07:30' 字符串）。
+
+    R13c2（2026-11-19）：AccessServiceStore 真库行班次是 '07:30' 字符串；
+    此前 live 只认 int 分钟，档案恒空。两种形态都归一。
+    """
+    if isinstance(v, int):
+        return "%02d:%02d" % (v // 60, v % 60)
+    s = str(v or "").strip()
+    return s if ":" in s else None
+
+
+def _hhmm_to_min(text) -> Optional[int]:
+    try:
+        hh, mm = str(text).split(":", 1)
+        h, m = int(hh), int(mm)
+    except (TypeError, ValueError):
+        return None
+    if not (0 <= h <= 24 and 0 <= m < 60):
+        return None
+    return h * 60 + m
+
+
+def _expand_hhmm_window(times, first, last, freq) -> list[str]:
+    """去程/返程班次派生（引擎侧单一真源）。
+
+    R20④（2026-11-23 八达岭去程卡不物化）：与 legacy
+    ``app.services.access_services.AccessService.departures()/returns()``
+    同口径——显式时刻列表优先；缺则按首末班窗 + 间隔展开成 HH:MM 序列。
+    此前引擎只读 ``outbound_times`` 数组、不展开首末班窗，导致
+    「只给 06:30–11:00 窗、times 为 null」的档案行被判无班次整行丢弃
+    （``_access_profiles_for`` 的 ``if not departures: continue``），
+    去程卡不物化、回退打车直连（晨卡 → 景区三十分钟直连，而 legacy
+    同数据有班次块）。这里补齐窗展开，让引擎与 legacy 吃同一份班次真值。
+    """
+    explicit = [d for d in (_row_hhmm(v) for v in (times or [])) if d]
+    if explicit:
+        return explicit
+    f = _row_hhmm(first)
+    l = _row_hhmm(last)
+    if not f or not l:
+        return []
+    fm, lm = _hhmm_to_min(f), _hhmm_to_min(l)
+    if fm is None or lm is None or lm < fm:
+        return []
+    step = max(5, int(freq or DEFAULT_HEADWAY_MINUTES))
+    out: list[str] = []
+    cur = fm
+    while cur <= lm:
+        out.append("%02d:%02d" % (cur // 60, cur % 60))
+        cur += step
+    return out
+
+
 def _access_profiles_for(
     pool: list[dict], service_rows: list[dict]
 ) -> list[AccessProfile]:
@@ -176,22 +235,26 @@ def _access_profiles_for(
         if target is None or not (target.get("id") or target.get("source_poi_id")):
             continue
 
-        def _hhmm(v):
-            # R13c2（2026-11-19）：AccessServiceStore 真库行班次是 '07:30'
-            # 字符串（此前只认 int 分钟——live 档案恒空=C-08 空转的另一半
-            # 根因）；两种形态都归一成 HH:MM。
-            if isinstance(v, int):
-                return "%02d:%02d" % (v // 60, v % 60)
-            s = str(v or "").strip()
-            return s if ":" in s else None
-
         try:
-            departures = [
-                d for d in (_hhmm(m) for m in (row.get("outbound_times") or [])) if d
-            ]
-            returns = [
-                d for d in (_hhmm(m) for m in (row.get("return_times") or [])) if d
-            ]
+            # R20④（2026-11-23）：班次派生改用窗展开——显式 outbound_times/
+            # return_times 优先，缺则按首末班 + 间隔展开（与 legacy
+            # app.services.access_services.AccessService.departures() 同口径，
+            # 见模块级 _expand_hhmm_window）。此前只读显式数组、不展开窗：
+            # 八达岭前门线这类「只给 06:30–11:00、outbound_times 为 null」
+            # 的行被判无班次整行丢弃（下方 not departures: continue），引擎
+            # 去程卡不物化、回退打车直连。
+            departures = _expand_hhmm_window(
+                row.get("outbound_times"),
+                row.get("outbound_first"),
+                row.get("outbound_last"),
+                row.get("outbound_frequency_minutes"),
+            )
+            returns = _expand_hhmm_window(
+                row.get("return_times"),
+                row.get("return_first"),
+                row.get("return_last"),
+                row.get("return_frequency_minutes"),
+            )
             ride = int(row.get("ride_minutes") or 0)
             if ride <= 0 or not departures:
                 continue

@@ -1538,12 +1538,16 @@ async def message_plan(
             return body
         # 快车道答不出（宁缺毋错）：落主车道继续，不虚构。
     elif decision.lane is Lane.slow:
+        # R20③ 异步重排基线：入队瞬间固化会话修订号。快车道用户操作会
+        # 经 store.save 推进 rev；后台执行时若 rev 已前进，说明盘面被用户
+        # 改过，旧快照的重排必须丢弃，不能覆盖用户最新手排状态。
         task = tasks.enqueue(
             "replan",
             {
                 "session_id": session.session_id,
                 "device_id": x_device_id,
                 "text": request.text,
+                "baseline_rev": session.rev,
             },
             device_id=x_device_id,
         )

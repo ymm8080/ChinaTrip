@@ -126,6 +126,76 @@ def test_taxi_card_between_morning_and_outbound():
     assert d2["depart_time"] == d["depart_time"]
 
 
+def test_engine_outbound_detail_emits_multi_option_block(monkeypatch):
+    """R20②（展示平权）：引擎去程卡 br 补齐 service_options 后，detail 必须
+    走 _options_detail 多候选块——同站多种方式并排、推荐项平铺、全量进
+    options。此前手工构造的 br 无 options 键，八达岭只出单一 877 路块。"""
+    import app.services.access_services as access_services
+
+    def _fake_options(city, name, **kwargs):
+        assert name == "慕田峪长城"
+        # board 锚必须是求解器选定的去程卡发车时刻 08:30
+        assert kwargs["board_minutes"] == 8 * 60 + 30
+        return [
+            {
+                "mode": "shuttle",
+                "service_name": "前门旅游专线",
+                "operator": "北京旅游集散中心",
+                "boarding_stop": "前门大街北口",
+                "boarding_lon": 116.3982,
+                "boarding_lat": 39.8988,
+                "depart": "08:30",
+                "ride_minutes": 98,
+                "last_mile_minutes": 8,
+                "wait_minutes": 15,
+                "recommended": True,
+                "booking_url": "https://example.com/line1",
+            },
+            {
+                "mode": "bus",
+                "service_name": "877路",
+                "boarding_stop": "北土城地铁站",
+                "boarding_lon": 116.392,
+                "boarding_lat": 40.0,
+                "depart": "08:45",
+                "ride_minutes": 110,
+                "last_mile_minutes": 10,
+                "wait_minutes": 10,
+            },
+        ]
+
+    monkeypatch.setattr(access_services, "service_options", _fake_options)
+    items, out, mt, ret = _remote_day()
+    plan = _plan(items)
+    annotate_legs(plan)
+
+    detail = out.next_leg_detail or {}
+    opts = detail.get("options") or []
+    assert len(opts) == 2, detail
+    assert {o["service_name"] for o in opts} == {"前门旅游专线", "877路"}
+    # 推荐项（第一个）平铺为顶层字段，兼容旧读法
+    assert detail["service_name"] == "前门旅游专线"
+    assert detail["gateway"] == "前门大街北口"
+    # options 块被 _options_detail 补全打车估算/购票链接
+    assert all("taxi_km" in o and "access_cost" in o and "booking_url" in o for o in opts)
+
+
+def test_engine_outbound_detail_survives_service_options_failure(monkeypatch):
+    """班次库异常时静默降级回单服务块，去程卡详情仍可用。"""
+    import app.services.access_services as access_services
+
+    def _boom(*args, **kwargs):
+        raise RuntimeError("access_services down")
+
+    monkeypatch.setattr(access_services, "service_options", _boom)
+    items, out, mt, ret = _remote_day()
+    plan = _plan(items)
+    annotate_legs(plan)
+    detail = out.next_leg_detail or {}
+    assert detail.get("mode") == "access"
+    assert not detail.get("options")
+
+
 def test_taxi_card_idempotent():
     items, out, mt, ret = _remote_day()
     plan = _plan(items)

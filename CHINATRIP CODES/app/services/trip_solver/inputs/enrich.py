@@ -7,7 +7,7 @@ conditions (F-13), access intervals (F-14). Pure — no I/O.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from .duration import duration_tier
 from .hours_caps import entry_cap_minutes, parse_first_window
@@ -33,6 +33,47 @@ class EnrichedSnapshot:
 
     def cap(self, cid: str) -> int | None:
         return self.caps.get(cid, (None, "unknown"))[0]
+
+
+def _access_profile_rank(p) -> tuple:
+    """同 POI 多行择优序（越大越优）。
+
+    R20⑤（2026-11-23）：核心是**有返程班次最优先**——回程卡 / 回城三段 /
+    班次 chips 都读 returns；此前盲目后写覆盖，若「只有去程」的行排在
+    「去程+返程」的行之后，会把返程班次盖掉。其次按班次数（更接近真实
+    排班）、车程有效排序，保证与 DB 返回顺序无关的确定性。
+    """
+    return (
+        bool(p.returns),
+        len(p.returns),
+        len(p.departures),
+        p.ride_minutes > 0,
+        p.last_mile_minutes,
+    )
+
+
+def _better_access_profile(a, b):
+    """同 to_poi 两行择一（R20⑤）。
+
+    - 同一服务被拆两行（乘车点 gateway 与车程一致）：合并班次——去程/返程
+      取并集排序，显示字段取信息更全者；同乘车点/同车程下拼接无口径冲突。
+    - 不同服务（gateway/ride 不同）：按 _access_profile_rank 择优，**绝不**
+      跨服务拼接口径（去程 A 的乘车点 + 返程 B 的时刻＝不可执行的组合）。
+    """
+    if (
+        a.gateway == b.gateway
+        and a.ride_minutes == b.ride_minutes
+        and a.ride_minutes > 0
+    ):
+        merged_departures = tuple(sorted(set(a.departures) | set(b.departures)))
+        merged_returns = tuple(sorted(set(a.returns) | set(b.returns)))
+        richer = a if _access_profile_rank(a) >= _access_profile_rank(b) else b
+        return replace(
+            richer,
+            departures=merged_departures or richer.departures,
+            returns=merged_returns or richer.returns,
+        )
+    return a if _access_profile_rank(a) >= _access_profile_rank(b) else b
 
 
 def enrich(
@@ -110,9 +151,14 @@ def enrich(
 
     matrix, coverage = build_matrix(keyed, [_Leg(t) for t in snapshot.travel])
 
+    # R20⑤（2026-11-23）：同 POI 多行不再盲目后写覆盖——顺带修正「有返程
+    # 的行被无返程的行盖掉 → 回程卡/回城三段丢失」的 DB 返回顺序依赖。
     access_by_poi: dict[str, object] = {}
     for prof in snapshot.access_profiles:
-        access_by_poi[prof.to_poi] = prof
+        prev = access_by_poi.get(prof.to_poi)
+        access_by_poi[prof.to_poi] = (
+            prof if prev is None else _better_access_profile(prev, prof)
+        )
 
     weather_all = tuple(weather_days) or snapshot.weather
     weather = weather_conditions(weather_all, snapshot.candidates)

@@ -31,6 +31,11 @@ STATUS_RUNNING = "running"
 STATUS_DONE = "done"
 STATUS_FAILED = "failed"
 
+# R20③ 异步重排基线：连续因盘面漂移而丢弃重投的次数上限。用户连续拖卡时
+# 每次都会让 rev 前进，无上限会造成重排任务风暴；超上限即放弃本次重排并
+# 明确告知用户（盘面已被手排改动，重排意图不丢失但需用户稍后重试）。
+_REPLAN_MAX_REBASE = 3
+
 # 批量解析上限（§6.12 慢车道「批量任务」是有界的，不是无限吞吐承诺）
 BULK_EXTRACT_MAX_TEXTS = 10
 
@@ -336,7 +341,16 @@ async def _bulk_extract_handler(payload: dict, _task: TaskRecord) -> dict:
 async def _replan_handler(payload: dict, _task: TaskRecord) -> dict:
     """结构性重排：后台跑完整 agent.message 管线并落库；H5 轮询任务
     结果拿 reply/change。懒加载——task_queue 被 app.api.plan 导入，
-    反向 import 只能在函数体内。"""
+    反向 import 只能在函数体内。
+
+    R20③ 基线锁（乐观锁、无阻塞、handler 内 bounded 重跑）：
+    - 窗口 A（排队期）：执行前重读会话，rev 已前进 → 盘面被用户改过，
+      对齐到最新基线再跑（还没花 LLM 成本，不消耗重跑额度）；
+    - 窗口 B（执行期）：agent.message 是深拷贝+异步，期间用户手排推进
+      rev，落盘前再读比对，变了就丢弃这张过期快照、按最新基线重跑。
+    重跑用同一 task_id——H5 轮询不变、无需改前端；次数封顶防重投风暴。
+    无 baseline_rev 的旧 payload 跳过全部校验，向后兼容存量任务/测试。
+    """
     from app.api.plan import get_plan_sessions, get_planning_agent
     from app.services.agent.plan import current_violations
 
@@ -345,17 +359,59 @@ async def _replan_handler(payload: dict, _task: TaskRecord) -> dict:
     text = payload.get("text") or ""
     if not (session_id and device_id and text):
         raise ValueError("missing_payload_fields")
+    baseline_rev = payload.get("baseline_rev")
+
     sessions = get_plan_sessions()
-    session = sessions.get(session_id, device_id=device_id)
-    if session is None:
-        raise ValueError("session_not_found")
     agent = get_planning_agent()
-    session, reply, change = await agent.message(session, text)
-    # 2026-10-30 用户拍板「加入/减少 SITE，距离/步数重新从 API 算」：慢车道
-    # 后台重排与主车道同款——变更后实测腿刷新（缓存对零网络回放，新对走
-    # 图商链，配额死降级估算）。
-    if session.plan is not None:
-        await agent.refresh_legs(session)
+    # 从 payload 起算，避免旧的手动重投 payload 绕过次数上限。
+    rebase_count = int(payload.get("rebase_count") or 0)
+
+    for _ in range(_REPLAN_MAX_REBASE + 1 - rebase_count):
+        session = sessions.get(session_id, device_id=device_id)
+        if session is None:
+            raise ValueError("session_not_found")
+
+        # 窗口 A：排队期间用户已操作 → 当前 rev 即最新基线，就地对齐。
+        if baseline_rev is not None and session.rev != baseline_rev:
+            logger.warning(
+                "replan %s: baseline drift before start (%s -> %s), re-running on latest",
+                _task.task_id,
+                baseline_rev,
+                session.rev,
+            )
+            baseline_rev = session.rev
+
+        start_rev = session.rev
+        session, reply, change = await agent.message(session, text)
+        # 2026-10-30 用户拍板「加入/减少 SITE，距离/步数重新从 API 算」：慢车道
+        # 后台重排与主车道同款——变更后实测腿刷新（缓存对零网络回放，新对走
+        # 图商链，配额死降级估算）。
+        if session.plan is not None:
+            await agent.refresh_legs(session)
+
+        # 窗口 B：异步管线跑完后重读权威会话——期间用户若拖卡/点选，rev 前进，
+        # 本张快照已过期，丢弃、按最新基线重跑，绝不覆盖用户最新手排状态。
+        if baseline_rev is not None:
+            latest = sessions.get(session_id, device_id=device_id)
+            if latest is None or latest.rev != start_rev:
+                rebase_count += 1
+                baseline_rev = latest.rev if latest is not None else start_rev
+                logger.warning(
+                    "replan %s: baseline drift during execution (%s -> %s), re-run %d/%d",
+                    _task.task_id,
+                    start_rev,
+                    latest.rev if latest is not None else "?",
+                    rebase_count,
+                    _REPLAN_MAX_REBASE,
+                )
+                continue
+        break
+    else:
+        raise ValueError(
+            f"replan_rebase_exhausted after {_REPLAN_MAX_REBASE} re-runs "
+            "(session kept changing)"
+        )
+
     sessions.save(session)
     change_payload = (
         change.model_dump(mode="json")

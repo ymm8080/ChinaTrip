@@ -1090,6 +1090,26 @@ def _attach_engine_outbound_legs(plan: ItineraryPlan) -> None:
                 "board": depart_min,
                 "depart": depart_min,
             }
+            # R20②（2026-11-23 展示平权）：legacy 的 access_breakdown 会调
+            # service_options 把「同站接驳车/火车等多种方式」填进 br["options"]，
+            # _access_detail 据此出多候选并排块。引擎去程卡此前手工构造 br 漏了
+            # 这一步 → 只走单服务分支（八达岭只有 877 路一块）。这里补齐同一
+            # 构造链：以求解器选定的发车时刻（depart_min）为 board 锚，各候选
+            # 乘车点坐标交给 _options_detail 重算 taxi 段，口径与 legacy 一致。
+            try:
+                from app.services import access_services
+
+                br["options"] = access_services.service_options(
+                    site.city or item.city,
+                    site.name,
+                    board_minutes=depart_min,
+                    ride_fallback=ride,
+                    last_fallback=last,
+                    wait_fallback=SHUTTLE_BOARD_BUFFER_MINUTES,
+                    taxi_minutes=lambda coords: 0,  # 打车段已拆独立卡，不叠加
+                )
+            except Exception:  # noqa: BLE001 - 班次库不可用=保留单服务块
+                pass
             detail = _access_detail(item, site, br)
             # 引擎口径：班次=求解器选定的那班（到点即发车）；owner=去程卡
             # （点选重排），返程行按景区卡（detail.next_item_id=景区卡）。
