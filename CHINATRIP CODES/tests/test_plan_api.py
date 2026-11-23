@@ -269,11 +269,20 @@ def test_start_missing_device_id_returns_400():
     assert resp.json() == {"detail": "missing_device_id"}
 
 
-def test_start_form_without_date_returns_intake():
-    """R18（2026-11-22 拍板「date is mandatory field」）：纯表单提交（城市+
-    天数、日期空、无 brief/preferences 文字）不再直接生成——回行前卡收日
-    期，不开会话。此前这条缝绕过行前卡闸，行程没有出发日期（升旗回落
-    06:30 且无披露、天气/订票预热全失去锚）。"""
+def test_start_form_without_date_defaults_next_monday_without_intake(monkeypatch):
+    """2026-11-23 三拍（用户原话「IF I INPUT ENOUGH INFORMATION, THERE
+    SHOULD BE NO POP UP WINDOW」）：纯表单提交（城市+天数齐、没写任何自由
+    文字）但请求没带出发日期——H5 老壳缓存把表单日期丢了、或用机 webview
+    的 date 控件没落值。R18 的「日期必填」此前把这种已填好的表单弹回行前
+    卡；现在按表单默认（下周一，2026-11-03 拍板）补齐并披露，不再弹卡。
+
+    R18 的原意（行程必须有出发日期锚）仍然成立：补出来的日期照样进 plan，
+    只是不再拦人。conftest 为其它用例把偏好轮打开，这里按生产口径关掉。
+    """
+    import app.services.agent.plan as _plan_mod
+    from app.api.plan import _next_monday_beijing_iso
+
+    monkeypatch.setattr(_plan_mod, "_PREF_ROUND_ENABLED", False)
     agent = PlanningAgent(StubAdapter([V0_JSON]))
     resp = client_for(agent).post(
         "/api/v1/plan/start",
@@ -282,8 +291,38 @@ def test_start_form_without_date_returns_intake():
     )
     assert resp.status_code == 200
     body = resp.json()
-    assert body["state"] == "intake"
-    assert "session_id" not in body
+    assert body["state"] != "intake"
+    assert body.get("session_id")
+    expect = _next_monday_beijing_iso()
+    assert (body.get("plan") or {}).get("start_date") == expect
+    assert any("下周一" in str(a) or "next Monday" in str(a)
+               for a in body.get("assumptions") or [])
+
+
+def test_start_form_plus_chitchat_without_date_still_no_intake(monkeypatch):
+    """表单已给路线（城市+天数），额外在输入框写一句带娃/慢节奏，但请求没带
+    出发日期（老壳缓存丢字段）：仍不能弹行前卡——多写一句话不改变路线，不能
+    因此把已填好的表单当「信息不足」。"""
+    import app.services.agent.plan as _plan_mod
+    from app.api.plan import _next_monday_beijing_iso
+
+    monkeypatch.setattr(_plan_mod, "_PREF_ROUND_ENABLED", False)
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    resp = client_for(agent).post(
+        "/api/v1/plan/start",
+        json={
+            "cities": ["上海", "北京"],
+            "city_days": {"北京": 2},
+            "days": 2,
+            "preferences": "带孩子，节奏慢一点",
+            "brief": "带孩子，节奏慢一点",
+        },
+        headers=DEVICE_HEADERS,
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["state"] != "intake"
+    assert (body.get("plan") or {}).get("start_date") == _next_monday_beijing_iso()
 
 
 def test_start_card_arrival_date_fills_missing_start_date():

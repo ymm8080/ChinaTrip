@@ -696,6 +696,17 @@ async def get_plan_session(
     return _plan_turn_body(session, None, None)
 
 
+def _next_monday_beijing_iso() -> str:
+    """下一个周一（ISO，东八区墙钟）——与 H5 nextMondayBeijingIso 同口径。
+
+    2026-11-03 拍板：开始日期默认下周一（当天出发来不及订票/预约）。这里给
+    后端补齐用，保证与表单上显示的那一天一致。
+    """
+    today = (datetime.now(timezone.utc) + timedelta(hours=8)).date()
+    ahead = (7 - today.weekday()) or 7  # 周一 0 → 7 天后；周日 6 → 1 天后
+    return (today + timedelta(days=ahead)).isoformat()
+
+
 @router.post("/plan/start")
 async def start_plan(
     request: PlanStartRequest,
@@ -706,6 +717,23 @@ async def start_plan(
 ) -> dict:
     if not x_device_id:
         raise HTTPException(status_code=400, detail="missing_device_id")
+    # 行前卡闸门取证（2026-11-23 用户第三次实报「信息给足仍弹窗」）：把进线
+    # 报文与判定依据打成一行 INFO——此前只有 usage 日志（path/status），
+    # 无法从日志判断弹窗到底由哪个字段缺失触发，修一次猜一次。
+    logger.info(
+        "plan/start req: dev=%s cities=%s days=%s start=%s arr_date=%s "
+        "dep_date=%s route_src=%s intake=%s brief=%r pref=%r",
+        x_device_id,
+        request.cities,
+        request.days,
+        request.start_date,
+        request.arrival_date,
+        request.departure_date,
+        request.route_source,
+        request.intake,
+        (request.brief or "")[:120],
+        (request.preferences or "")[:120],
+    )
     # 行前卡只在「文字输入且信息不足」时弹出（2026-11-15 用户拍板）：文字里
     # 读得出出发日期=信息足够，直接生成；读不出且行前卡信息也没给 → 先弹卡
     # （state=intake，不开会话）。
@@ -765,6 +793,36 @@ async def start_plan(
         and _count_text_dates(date_text) <= 1
     ):
         text_days = 1
+    # 2026-11-23 三拍（用户原话「IF I INPUT ENOUGH INFORMATION, THERE SHOULD
+    # BE NO POP UP WINDOW」，实报「弹的是行前卡」）：表单已经把路线给定（城市
+    # +天数）却没带出发日期——H5 老壳缓存仍按 v123 的
+    # `PLAN.startDate = intake.start_date || ""` 发请求，或用机 webview 的
+    # date 控件没落值，表单上明明有日期，后端只收到城市/天数 → 两道闸都会把
+    # 它弹回行前卡。表单本身默认下周一（2026-11-03 拍板），后端按同一口径
+    # 补齐并在 assumptions 披露，不再弹卡。
+    # 判据只看「路线是否已由表单给定」：城市+天数齐就是够——brief/preferences
+    # 里多写一句（带娃、慢节奏）不改变路线，不能因此把已填好的表单当信息不
+    # 足。纯文字开局（cities/days 都空）不适用：那种情况日期只能从文字里读，
+    # 读不出该问。必须放在两道闸之前，否则第一道闸已经把 start_date 当缺失。
+    _has_link = find_urls(f"{brief_text} {pref_raw}")
+    _defaulted_start = False
+    if (
+        not request.start_date
+        and not request.arrival_date
+        and request.cities
+        and (request.days or request.city_days)
+        and not request.images
+        and not _has_link
+    ):
+        request = request.model_copy(
+            update={"start_date": _next_monday_beijing_iso()}
+        )
+        _defaulted_start = True
+        logger.info(
+            "plan/start: 表单开局缺出发日期，按下周一 %s 起排（dev=%s）",
+            request.start_date,
+            x_device_id,
+        )
     # 信息不足=缺「任何必填项」（2026-11-15 用户拍板二拍「不止是出发日期」）：
     # 文字读不出出发日期、或读得出日期却读不出天数/结束日 → 都弹行前卡
     # （响应带 start_date_hint，卡上的开始日期用文字日期预填）。
@@ -798,6 +856,16 @@ async def start_plan(
             text_days = 1
         insufficient = text_date is None or (text_days is None and not request.days)
         if insufficient:
+            logger.info(
+                "plan/start gate=intake: dev=%s date_text=%r text_date=%s "
+                "text_days=%s req_days=%s req_start=%s",
+                x_device_id,
+                date_text[:120],
+                text_date,
+                text_days,
+                request.days,
+                request.start_date,
+            )
             return {"state": "intake", "start_date_hint": text_date}
         if facts.get("city") and not request.cities:
             # LLM 读出的城市一并预填——agent.start 不再二次读句（一次 LLM
@@ -956,7 +1024,6 @@ async def start_plan(
     # start 开，日期随读点/行前卡补齐；2026-11-15 拍板「链接流不走行前卡」）。
     if not request.start_date and request.arrival_date:
         request = request.model_copy(update={"start_date": request.arrival_date})
-    _has_link = find_urls((request.brief or "") + " " + (request.preferences or ""))
     # 连路线信息都没有的空开局（{}）仍走 legacy clarify（它会连城市/天数
     # 一起问，2026-11-15 口径）；有路线信息才轮到「日期必填」闸。
     _no_route_info = not (
@@ -1270,6 +1337,21 @@ async def start_plan(
         if session.history and session.history[-1].role == "assistant":
             body["reply"] = session.history[-1].content
     body["plan"] = _plan_for_response(session.plan)
+    # 缺日期补齐的披露（2026-11-23）：默认下周一不是用户给的日期，必须写在
+    # assumptions 里，不能让「下周一」悄悄成为行程起点。
+    if _defaulted_start:
+        _note = L(
+            f"表单未提供出发日期，已按下周一 {request.start_date} 起排；"
+            "要换日期，改表单「开始日期」重新规划即可。",
+            f"No start date was supplied, so the trip starts "
+            f"{request.start_date} (next Monday) by default — change the "
+            "start date in the form to re-plan.",
+        )
+        if session.plan is not None and _note not in session.plan.assumptions:
+            session.plan.assumptions.append(_note)
+        if _note not in session.assumptions:
+            session.assumptions.append(_note)
+        body["plan"] = _plan_for_response(session.plan)
     body["assumptions"] = session.assumptions
     body["violations"] = current_violations(session)
     return body
