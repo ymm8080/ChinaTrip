@@ -32,3 +32,12 @@ def _pref_round_enabled_for_tests(monkeypatch):
 @pytest.fixture()
 def client() -> TestClient:
     return TestClient(create_app())
+
+
+@pytest.fixture(autouse=True)
+def _default_engine_legacy_for_tests(monkeypatch):
+    """R29（2026-11-24 用户令「ALWAYS USE CP-SAT」）：产品缺省引擎改为 CP-SAT；
+    老回归用例多数是按 legacy 服务形状写的断言，这里显式钉 legacy 作测试基线——
+    要引擎的用例自己 setenv(TRIP_SOLVER, cpsat)，代码缺省（cpsat）由
+    tests/test_trip_solver_entry.py 的 flag 测覆盖。"""
+    monkeypatch.setenv("TRIP_SOLVER", "legacy")

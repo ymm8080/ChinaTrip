@@ -20,7 +20,7 @@ from uuid import uuid4
 from geoalchemy2 import Geometry
 from sqlalchemy import String, and_, cast, func, or_
 
-from app.models import Poi
+from app.models import Poi, Restaurant, TripadvisorLocation
 from app.services.coords import gcj02_to_wgs84, make_point
 from app.services.poi_classify import duration_upgradable
 from app.services.poi_names import (
@@ -1570,6 +1570,105 @@ class PoiDetailStore:
             reverse=True,
         )
         return hits[:limit]
+
+    def restaurant_rows_in_city(self, city: str) -> list[dict]:
+        """R29：「评分 × 地理」选餐的独立餐厅库行（2026-11-24 用户令
+        「WE HV RESTRANTS IN BOTH POIS AND RESTRANT TABLES」）。
+
+        `restaurants` 表（北京 550 行，267 行有 TripAdvisor 评分，米其林 67
+        + 黑珍珠 22）此前只被读营业时间/菜系，从不进候选——选餐只能看见
+        pois 里带荐点标的 4 条北京行。本方法把同城餐厅行投影成
+        top_pois_in_city 同形状（category="food"），下游
+        candidate_from_poi_dict / live._row_to_candidate / meals 零改动。
+
+        评分口径：主 rating 优先；缺则折 ta_rating（rating_source="ta"——
+        引擎 _quality 只对 baidu 评分 ×0.9），评分人数同取 TA 镜像。
+        location 用 GCJ-02 列（与 pois.location 同一坐标系，测距不串味）。
+        无库/失败 → []（调用方保持旧池，零行为变化）。
+        """
+        c = (city or "").strip().removesuffix("市")
+        if not c:
+            return []
+        city_names = {c, f"{c}市"} - {""}
+        if not self._db_available():
+            return []
+        try:
+            with self._factory() as session:
+                # ta_location_id 是 varchar、TA 表 location_id 是 bigint ——
+                # 显式 cast（审计 SQL 同口径 t.location_id::text = r.ta_location_id）
+                ta_count = (
+                    session.query(func.max(TripadvisorLocation.rating_count))
+                    .filter(
+                        cast(TripadvisorLocation.location_id, String)
+                        == Restaurant.ta_location_id
+                    )
+                    .scalar_subquery()
+                )
+                rows = (
+                    session.query(
+                        Restaurant,
+                        func.ST_AsText(Restaurant.location).label("loc_txt"),
+                        ta_count.label("ta_count"),
+                    )
+                    .filter(
+                        Restaurant.city.in_(city_names),
+                        (Restaurant.status.is_(None)) | (Restaurant.status == "active"),
+                    )
+                    .limit(2000)
+                    .all()
+                )
+        except Exception:
+            self._note_db_failure()
+            logger.warning(
+                "poi_details: restaurant rows query failed for %s",
+                city,
+                exc_info=True,
+            )
+            return []
+        out: list[dict] = []
+        for row, loc_txt, ta_count in rows:
+            name = row.name_zh or row.name_en
+            if not name:
+                continue
+            rating = row.rating
+            rating_source = row.rating_source
+            count = row.rating_count
+            if rating is None and row.ta_rating is not None:
+                rating = row.ta_rating
+                rating_source = "ta"
+                count = ta_count
+            try:
+                rating_f = float(rating) if rating is not None else None
+            except (TypeError, ValueError):
+                rating_f = None
+            m = _POINT_WKT_RE.match(loc_txt or "")
+            out.append(
+                {
+                    "source_poi_id": row.source_poi_id,
+                    "name": name,
+                    "name_en": row.name_en,
+                    "city": row.city,
+                    "category": "food",
+                    "address": row.address,
+                    "address_en": row.address_en,
+                    "opening_hours": row.opening_hours,
+                    "opening_hours_en": row.opening_hours_en,
+                    "source": row.source,
+                    "rating": rating_f,
+                    "rating_count": count,
+                    "rating_source": rating_source,
+                    "tags": list(row.tags or []),
+                    "cuisine": row.cuisine,
+                    "cuisine_group": row.cuisine_group,
+                    "intro": (row.intro or "")[:60] or None,
+                    "best_visit_time": None,
+                    # 一餐 1h 起底：引擎 C-09 绑定槽时 dur 取 MEAL_DURATIONS
+                    # 域（午 60/45/30、晚 90/60/45），默认 90 会把午餐收窄。
+                    "suggested_duration_min": 60,
+                    "location": ((float(m.group(1)), float(m.group(2))) if m else None),
+                }
+            )
+        return out
 
     def alternatives_pool(self, city: str) -> list[dict]:
         """同城全量候选池（备选功能 2026-11-05 专用，与 top_pois_in_city

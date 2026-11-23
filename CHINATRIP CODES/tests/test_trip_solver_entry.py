@@ -71,10 +71,15 @@ def _g02_snapshot() -> FactSnapshot:
 
 
 def test_flag_resolution_default_env_and_invalid():
-    assert entry.engine_flag({}) == ENGINE_LEGACY
+    # R29（2026-11-24 用户令「ALWAYS USE CP-SAT」）：缺省引擎改为 CP-SAT；
+    # 旧断言「缺省=legacy」是被用户令取代的行为，显式回滚仍可 ENV=legacy。
+    assert entry.engine_flag({}) == ENGINE_CPSAT
+    assert entry.engine_flag({ENV_FLAG: "legacy"}) == ENGINE_LEGACY
     assert entry.engine_flag({ENV_FLAG: "cpsat"}) == ENGINE_CPSAT
     assert entry.engine_flag({ENV_FLAG: "SHADOW"}) == ENGINE_SHADOW
-    assert entry.engine_flag({ENV_FLAG: "bogus"}) == ENGINE_LEGACY  # typo degrades
+    assert (
+        entry.engine_flag({ENV_FLAG: "bogus"}) == ENGINE_CPSAT
+    )  # typo degrades to default
     assert entry.engine_flag({ENV_FLAG: " cpsat "}) == ENGINE_CPSAT
 
 

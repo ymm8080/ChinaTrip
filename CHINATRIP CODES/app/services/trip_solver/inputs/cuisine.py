@@ -32,7 +32,16 @@ def cuisine_key(row: dict[str, Any]) -> Optional[str]:
     """池行 → 菜系键（None=识别不出）。只对 food 品类行调用。"""
     if (row.get("category") or "") != "food":
         return None
-    text = "%s %s" % (row.get("name") or "", row.get("intro") or "")
+    # R29：库内声明菜系也进关键词扫描——restaurants 表行名多不含菜系词
+    # （「北京新青海喜来登酒店·青海餐厅」），cuisine/cuisine_group 才是
+    # 它的菜系真值；引擎同菜系不重样与午/晚槽时段闸都靠这个键。
+    text = "%s %s %s %s %s" % (
+        row.get("name") or "",
+        row.get("intro") or "",
+        row.get("cuisine") or "",
+        row.get("cuisine_group") or "",
+        row.get("cuisine_en") or "",
+    )
     for key, marks in _CUISINE_KEYWORDS:
         if any(m in text for m in marks):
             return key

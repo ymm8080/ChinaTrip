@@ -524,6 +524,14 @@ def _r12d_hard_gates(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
         for c in enriched.snapshot.candidates
         if (c.category or "") == "food" and not c.rid and getattr(c, "cuisine", None)
     ]
+    # R29：槽位时段闸（午槽<15:00 / 晚槽≥15:00）不依赖菜系键——两表新候选里
+    # 菜系识别不出的行（北京菜/酒店餐厅名）此前整条绕过闸，出过 17:37 落
+    # lunch 卡的倒挂；闸只禁错标，不损覆盖（占位卡永远兜底）。
+    bound_foods = [
+        c
+        for c in enriched.snapshot.candidates
+        if (c.category or "") == "food" and not c.rid and getattr(c, "meal_slot", None)
+    ]
     for day in bundle.days:
         for i, c1 in enumerate(fill_foods):
             for c2 in fill_foods[i + 1 :]:
@@ -532,7 +540,7 @@ def _r12d_hard_gates(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
                 model.Add(
                     bundle.presence[(c1.cid, day)] + bundle.presence[(c2.cid, day)] <= 1
                 )
-        for c in fill_foods:
+        for c in bound_foods:
             ms = getattr(c, "meal_slot", None)
             for slot in ("lunch", "dinner"):
                 if ms == slot:

@@ -14,6 +14,7 @@ so both the legacy 雨 scan and F-13 ``rain`` matching work.
 from __future__ import annotations
 
 import datetime
+import logging
 from dataclasses import replace
 from typing import Any, Callable, Optional
 
@@ -25,6 +26,8 @@ from .types import (
     RequestedItem,
     TripRequest,
 )
+
+logger = logging.getLogger(__name__)
 
 POOL_LIMIT_PER_CITY = 30
 WEATHER_MARKS_RAIN = "雨"
@@ -534,11 +537,38 @@ def snapshot_from_request(
             seen_names.add(name)
             pool.append(row)
 
+    # R29（2026-11-24 用户令「WHY RESTAURANTS ARE NOT PROPOSED BY RATING AND
+    # GEO INFORMATION」+「WE HV RESTRANTS IN BOTH POIS AND RESTRANT TABLES」）：
+    # 餐候选按「评分 × 地理」补池——独立餐厅库 restaurants（北京 550 行、
+    # 267 行有 TA 评分）此前从不进候选，引擎只看得见 pois 里带荐点标的 4 条。
+    # 锚=本池已选景点（当天动线在哪就在哪吃）；纯库读零外呼；任何失败
+    # 降级空池（旧行为零变化；影子语料/假 store 无此方法自动跳过）。
+    geo_food_rows: list[dict] = []
+    try:
+        from app.services.meal_geo import select_geo_rated
+
+        _rows_fn = getattr(store, "restaurant_rows_in_city", None)
+        if callable(_rows_fn):
+            _raw: list[dict] = []
+            for _city in city_list:
+                _raw.extend(_rows_fn(_city) or [])
+            geo_food_rows = select_geo_rated(
+                _raw,
+                [
+                    (row["location"][0], row["location"][1])
+                    for row in (must_rows + pool)
+                    if isinstance(row.get("location"), (tuple, list))
+                    and len(row["location"]) >= 2
+                ],
+            )
+    except Exception:  # noqa: BLE001 - 加料失败零影响（旧池原样）
+        logger.warning("trip_solver: geo rated food pool failed", exc_info=True)
+        geo_food_rows = []
     # R13q（gap #1）：餐饮候选搜索入池。async 调用方预取的 DB 荐点 + amap
     # 检索行在此并池（legacy _rec_food/recommend_restaurants 同源），与
     # top_pois  food 行同一 seen_names 去重 + 同一 any-槽标注。无 food_rows
     # 时零行为变化（影子语料/旧测试形状完全不动）。
-    for row in food_rows or []:
+    for row in list(food_rows or []) + geo_food_rows:
         name = str(row.get("name") or "")
         if not name or name in seen_names:
             continue

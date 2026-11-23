@@ -59,6 +59,14 @@ MEAL_SLOT_BAND_REWARD = 25
 # （「尽量」=软罚：池内无替代时不阻断）。
 MEAL_SAME_CUISINE_DAY_PENALTY = 150
 MEAL_SAME_CUISINE_TRIP_PENALTY = 60
+# R29（2026-11-24 用户令「WHY RESTAURANTS ARE NOT PROPOSED BY RATING AND GEO
+# INFORMATION」）：餐卡按天就近——落在当天最近景点都 >MEAL_NEAR_SIGHT_KM 的
+# 一天＝为吃饭横穿城市（实盘：长城日晚餐落 54km 外市区店、42km 外酒吧）。
+# 软罚 400 压过 QUALITY 上限 200 与同菜系日罚 150：宁可留「自由安排」占位卡。
+# 刻意不用硬闸：硬 implication 在 3-5.5s 词法预算下会让搜索停在「只剩必去」
+# 的差解（实测 5 景点/0 餐卡 vs 9-10 景点）。
+MEAL_NEAR_SIGHT_KM = 2.5
+MEAL_FAR_DAY_PENALTY = 400
 # R12-F（2026-11-19 用户拍板「尽量把重要的时间长的大景点放一天比较
 # 早的时间」）：必去大点（requested 且时长>80）每分钟提早拉力——
 # 天安门后故宫先于天坛（距离相近时优先级+时长破平局），填充大点
@@ -206,6 +214,60 @@ def _same_cuisine_penalty(bundle, enriched) -> list:
     return negative
 
 
+def _meal_far_penalty(bundle, enriched) -> list:
+    """R29：餐候选落在「附近无景点在场」的天的软罚（纯 presence 读）。
+
+    只约束非用户点名的餐馆（rid 空）；附近 MEAL_NEAR_SIGHT_KM 内根本没有
+    池内景点的候选不罚（无从就近，宁缺勿错）。软罚——绝不造成不可行。
+    """
+    from ..inputs.travel import haversine_km
+
+    snapshot = enriched.snapshot
+    model = bundle.model
+    sights = [
+        c
+        for c in snapshot.candidates
+        if (c.category or "") not in ("food", "hotel", "transport", "transfer")
+        and not getattr(c, "meal_slot", None)
+        and c.lon is not None
+        and c.lat is not None
+    ]
+    if not sights:
+        return []
+    negative: list = []
+    for cand in snapshot.candidates:
+        if (cand.category or "") != "food" or not getattr(cand, "meal_slot", None):
+            continue
+        if cand.rid:  # 用户点名的餐馆＝用户选择，不做就近约束
+            continue
+        if cand.lon is None or cand.lat is None:
+            continue
+        near = [
+            s
+            for s in sights
+            if haversine_km(cand.lon, cand.lat, s.lon, s.lat) <= MEAL_NEAR_SIGHT_KM
+        ]
+        if not near:
+            # 附近 MEAL_NEAR_SIGHT_KM 内根本没有池内景点：它离哪天的动线都远
+            # ——落在任意一天都按远店罚（实盘：白家大院 10.7km 顶上晚餐卡）。
+            for day in bundle.days:
+                negative.append(MEAL_FAR_DAY_PENALTY * bundle.presence[(cand.cid, day)])
+            continue
+        for day in bundle.days:
+            lit = bundle.presence[(cand.cid, day)]
+            present = [bundle.presence[(s.cid, day)] for s in near]
+            if len(present) == 1:
+                near_any = present[0]
+            else:
+                near_any = model.NewBoolVar("mnear_%s_%d" % (cand.cid, day))
+                model.AddMaxEquality(near_any, present)
+            far = model.NewBoolVar("mfar_%s_%d" % (cand.cid, day))
+            model.AddBoolAnd([lit, near_any.Not()]).OnlyEnforceIf(far)
+            model.AddBoolOr([lit.Not(), near_any]).OnlyEnforceIf(far.Not())
+            negative.append(MEAL_FAR_DAY_PENALTY * far)
+    return negative
+
+
 def _preference(
     bundle: "VarBundle",
     enriched: "EnrichedSnapshot",
@@ -220,6 +282,8 @@ def _preference(
     weather_by_key = {(poi, day): cond for poi, day, cond in snapshot.weather}
     # R12-D 同菜系不重样（软罚，见 _same_cuisine_penalty）
     negative += _same_cuisine_penalty(bundle, enriched)
+    # R29：餐卡按天就近（「评分 × 地理」的地理半边）
+    negative += _meal_far_penalty(bundle, enriched)
 
     # R8：偏好解析一次（同源 legacy _preference_tokens）
     pref_tokens: tuple = ()

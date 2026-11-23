@@ -326,7 +326,10 @@ def test_weather_bilingualised():
     assert bilingual_weather("晴") == "晴"
 
 
-def test_generator_flag_gates():
+def test_generator_flag_gates(monkeypatch):
+    # R29：缺省引擎改为 CP-SAT（用户令 ALWAYS USE CP-SAT）——本测验「legacy 旗
+    # 显式亮起时缝休眠」，故显式钉 legacy（旧形态是缺省即 legacy）。
+    monkeypatch.setenv("TRIP_SOLVER", "legacy")
     store = _store()
     out = generate_session_via_trip_solver(
         device_id="t",
@@ -336,7 +339,7 @@ def test_generator_flag_gates():
         musts=["外滩"],
         store=store,
     )
-    assert out == (None, None)  # default flag = legacy → seam dormant
+    assert out == (None, None)  # TRIP_SOLVER=legacy → seam dormant
 
 
 def test_generator_serves_when_cpsat(monkeypatch):
@@ -449,6 +452,9 @@ def test_pool_boost_pulls_preferred_category_into_pool():
 
 
 def test_replan_session_via_trip_solver_mutates_in_place(monkeypatch):
+    # R29：缺省引擎=CP-SAT（用户令 ALWAYS USE CP-SAT）；本测验 legacy 旗
+    # 显式亮起时钩子静默，故显式钉 legacy。
+    monkeypatch.setenv("TRIP_SOLVER", "legacy")
     """R8：会话级重解——session_id/history 保留、plan 就位、偏好文本
     进快照；旗关 = None（legacy 零变化）。"""
     from app.services.agent.plan import PlanSession

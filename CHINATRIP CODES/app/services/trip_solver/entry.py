@@ -66,17 +66,25 @@ class ServingNotReady(TripSolverError):
 
 
 def engine_flag(env: Optional[dict] = None) -> str:
-    """Resolved engine flag. Unknown values degrade to legacy with a
-    warning — a typo in the env var must never half-switch the engine."""
+    """Resolved engine flag. R29: default = CP-SAT (user ruling 2026-11-24
+    "always CP-SAT, never legacy"); TRIP_SOLVER=legacy is an explicit
+    emergency rollback. Unknown values degrade to the default engine with
+    a warning — a typo in the env var must never half-switch the engine."""
     source = env if env is not None else os.environ
     value = str(source.get(ENV_FLAG, "") or "").strip().lower()
     if value in ENGINES:
         return value
     if value:
         logger.warning(
-            "trip_solver: unknown %s=%r — degrading to legacy", ENV_FLAG, value
+            "trip_solver: unknown %s=%r — degrading to the default engine",
+            ENV_FLAG,
+            value,
         )
-    return ENGINE_LEGACY
+    # R29（2026-11-24 用户令「WE SHOULD NOT USE LEGACY, WE SHOULD
+    # ALWAYS USE CP-SAT」）：缺省引擎=CP-SAT——未设环境变量时不再静默
+    # 回落 legacy（生产实测 263/263 全 cpsat；旧缺省语义会让漏配 env
+    # 的实例悄悄走老管线）。TRIP_SOLVER=legacy 仍可显式应急回滚。
+    return ENGINE_CPSAT
 
 
 def serving_ready() -> tuple[bool, str]:

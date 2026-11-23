@@ -286,7 +286,7 @@ def test_plan_start_does_not_autopersist_and_save_persists():
 
 
 def test_plan_message_then_save_freezes_latest_plan(monkeypatch):
-    # R26：显式钉死服务路径。缺省 engine_flag()=legacy，但环境里一旦有
+    # R26/R29：显式钉死服务路径（R29 起缺省=CP-SAT，pin 仍保持确定性）
     # TRIP_SOLVER=cpsat，编辑回合就走 800ms 引擎信封，负载下变成
     # 「重排中」延后——同一份测试在两种环境里语义漂移。引擎面由
     # plan_api 的缝测试覆盖，这里要的是确定性。
