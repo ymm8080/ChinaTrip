@@ -9,9 +9,8 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import time
-
-import pytest
 
 from app.services.itinerary.models import DayPlan, ItineraryPlan, TransferItem
 from app.services.trip_solver.enrich_food import prefetch_food_rows
@@ -68,20 +67,24 @@ class _FakeTrain:
         ]
 
 
-@pytest.mark.asyncio
-async def test_prefetch_food_rows_db_only_no_amap():
-    rows = await prefetch_food_rows(
-        cities=["北京"], amap_client=None, store=_FakeStore(), enabled=True
+def test_prefetch_food_rows_db_only_no_amap():
+    """同步外壳 + asyncio.run：与仓库其余用例同口径（不依赖 pytest-asyncio
+    插件——CI 的安装行是硬编码清单，dev 组里的 plugin 不会到场）。"""
+    rows = asyncio.run(
+        prefetch_food_rows(
+            cities=["北京"], amap_client=None, store=_FakeStore(), enabled=True
+        )
     )
     assert len(rows) == 1
     assert rows[0]["name"] == "四季民福烤鸭店"
     assert rows[0]["meal_slot"] == "any"
 
 
-@pytest.mark.asyncio
-async def test_prefetch_food_rows_disabled_is_zero_io():
-    rows = await prefetch_food_rows(
-        cities=["北京"], amap_client=object(), store=_FakeStore(), enabled=False
+def test_prefetch_food_rows_disabled_is_zero_io():
+    rows = asyncio.run(
+        prefetch_food_rows(
+            cities=["北京"], amap_client=object(), store=_FakeStore(), enabled=False
+        )
     )
     assert rows == []
 
@@ -129,11 +132,12 @@ def _plan_with_legs():
     )
 
 
-@pytest.mark.asyncio
-async def test_structural_leg_gets_real_train_number():
+def test_structural_leg_gets_real_train_number():
     plan = _plan_with_legs()
-    notes = await fill_structural_leg_numbers(
-        plan, start_date="2026-11-24", trains=_FakeTrain(), flights=None
+    notes = asyncio.run(
+        fill_structural_leg_numbers(
+            plan, start_date="2026-11-24", trains=_FakeTrain(), flights=None
+        )
     )
     leg = plan.days[0].items[0]
     assert leg.train_no == "G9"
@@ -143,18 +147,18 @@ async def test_structural_leg_gets_real_train_number():
     assert any("G9" in n for n in notes)
 
 
-@pytest.mark.asyncio
-async def test_user_filled_number_never_overwritten():
+def test_user_filled_number_never_overwritten():
     plan = _plan_with_legs()
     plan.days[0].items[0].train_no = "G1"
-    await fill_structural_leg_numbers(
-        plan, start_date="2026-11-24", trains=_FakeTrain(), flights=None
+    asyncio.run(
+        fill_structural_leg_numbers(
+            plan, start_date="2026-11-24", trains=_FakeTrain(), flights=None
+        )
     )
     assert plan.days[0].items[0].train_no == "G1"
 
 
-@pytest.mark.asyncio
-async def test_measured_leg_enrich_opt_in_default_off(monkeypatch):
+def test_measured_leg_enrich_opt_in_default_off(monkeypatch):
     """默认关 → 生成期零外呼，读侧 refresh_legs 仍兜（现状不变）。"""
     from app.config import get_settings
     from app.services.trip_solver.leg_numbers import enrich_measured_legs_if_enabled
@@ -172,11 +176,10 @@ async def test_measured_leg_enrich_opt_in_default_off(monkeypatch):
     monkeypatch.setattr(
         settings, "plan_measured_legs_at_generation_enabled", False, raising=False
     )
-    await enrich_measured_legs_if_enabled(_Agent(), _plan_with_legs())
+    asyncio.run(enrich_measured_legs_if_enabled(_Agent(), _plan_with_legs()))
 
 
-@pytest.mark.asyncio
-async def test_measured_leg_enrich_opt_in_on_calls_bounded(monkeypatch):
+def test_measured_leg_enrich_opt_in_on_calls_bounded(monkeypatch):
     from app.config import get_settings
     from app.services.trip_solver.leg_numbers import enrich_measured_legs_if_enabled
 
@@ -196,5 +199,5 @@ async def test_measured_leg_enrich_opt_in_on_calls_bounded(monkeypatch):
         settings, "plan_measured_legs_at_generation_enabled", True, raising=False
     )
     plan = _plan_with_legs()
-    await enrich_measured_legs_if_enabled(_Agent(), plan)
+    asyncio.run(enrich_measured_legs_if_enabled(_Agent(), plan))
     assert calls == [plan]
