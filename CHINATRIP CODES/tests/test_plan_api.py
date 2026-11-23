@@ -5628,3 +5628,130 @@ def test_departure_engine_return_click_lands_return_card_on_schedule():
             assert ret["start_time"][:5] in ["14:30", "15:30", "16:30"]
     finally:
         access_services.configure_store(None)
+
+
+def test_start_seam_fallback_folds_named_musts(monkeypatch):
+    """R19（2026-11-23 兵马俑案）：引擎缝回落 legacy 时点名必去并进会话。
+
+    引擎缝从 preferences 收「必去」类短语（live/message 换局缝同源
+    _restart_named_musts），回落路径此前不带——回落会话 must_visits 空、
+    必去只剩软偏好，覆盖审计整链盲（隔离实例探针实锤：陕历博被 geo 闸
+    移出后无横幅、无想去 chip、无审计披露）。"""
+    from app.services.trip_solver import live as _live
+    from app.services.trip_solver.entry import SolveOutcome
+
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+
+    def _fake_generate(**kwargs):
+        return None, SolveOutcome(
+            engine="cpsat",
+            requested="cpsat",
+            fallback=True,
+            disclosures=[
+                {
+                    "zh": (
+                        "行程由现行引擎生成（新求解引擎未就绪/已回滚，"
+                        "TRIP_SOLVER=legacy 语义）"
+                    ),
+                    "en": "legacy semantics",
+                }
+            ],
+        )
+
+    monkeypatch.setattr(_live, "generate_session_via_trip_solver", _fake_generate)
+    monkeypatch.setattr("app.api.plan.get_poi_detail_store", _seam_fake_store)
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    client = client_for(agent)
+    resp = start(
+        client,
+        {
+            "cities": ["上海"],
+            "days": 1,
+            "start_date": "2026-11-25",
+            "preferences": "必去外滩",
+        },
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    # 缝回落 → legacy 会话（非 ts-），回落披露随附
+    assert not body["session_id"].startswith("ts-")
+    assert any("行程由现行引擎生成" in a for a in body["assumptions"])
+    # 点名必去并进会话（键供覆盖审计使用；若 legacy 盘面没排上，横幅照报）
+    sess = _session(client, agent, body["session_id"])
+    assert any("外滩" in (m or "") for m in (sess.must_visits or []))
+
+
+def test_start_seam_served_engine_does_not_double_fold(monkeypatch):
+    """反向锚：缝成功（引擎服务）时不得把点名必去重复折叠/重复披露——
+    引擎快照绑定链自己管 musts，fallback 折叠只属于回落分支。"""
+    from app.services.trip_solver import live as _live
+    from app.services.trip_solver.assembly import assemble
+    from app.services.trip_solver.types import Solution, SolutionItem
+
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+
+    def _fake_generate(**kwargs):
+        from app.services.trip_solver.snapshot import FactSnapshot
+        from app.services.trip_solver.types import (
+            CandidateItem,
+            RequestedItem,
+            TripRequest,
+        )
+
+        snap = FactSnapshot(
+            schema_version=2,
+            request=TripRequest(
+                days=1,
+                cities=("上海",),
+                musts=(RequestedItem(rid="r1", name="外滩", poi_id="ct_上海_20"),),
+            ),
+            candidates=(
+                CandidateItem(
+                    cid="c1",
+                    name="外滩",
+                    poi_id="ct_上海_20",
+                    kind="requested",
+                    rid="r1",
+                    category="sight",
+                    lon=121.4903,
+                    lat=31.2335,
+                    opening_hours="09:00-21:00",
+                    suggested_duration_min=90,
+                ),
+            ),
+            source="synthetic",
+        )
+        plan = assemble(
+            Solution(
+                status="OPTIMAL",
+                items=[SolutionItem(cid="c1", day=1, start_min=540, end_min=630)],
+            ),
+            snap,
+        )
+        s = PlanSession(
+            session_id="ts-r19-served", device_id="device-1", cities=["上海"], days=1
+        )
+        s.plan = plan
+        s.state = "ready"
+        s.assumptions = list(plan.assumptions)
+        return s, None
+
+    monkeypatch.setattr(_live, "generate_session_via_trip_solver", _fake_generate)
+    monkeypatch.setattr("app.api.plan.get_poi_detail_store", _seam_fake_store)
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    client = client_for(agent)
+    resp = start(
+        client,
+        {
+            "cities": ["上海"],
+            "days": 1,
+            "start_date": "2026-11-25",
+            "preferences": "必去外滩",
+        },
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["session_id"].startswith("ts-")
+    assert not any("行程由现行引擎生成" in a for a in body["assumptions"])
+    # 必去已由引擎绑定排卡：无「未排上」横幅（键匹配链路）
+    assert body["plan"].get("unarranged_musts") in (None, [])

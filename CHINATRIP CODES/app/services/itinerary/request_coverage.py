@@ -257,23 +257,38 @@ def missing_must_visits(
     must_names: list[str] | None,
     *,
     disclosed: list[str] | None = None,
+    must_poi_ids: dict[str, str | None] | None = None,
 ) -> list[str]:
     """返回既没排上、也不在 unplaced、也无任何披露的必去名（静默丢失集）。
 
     disclosed：行程 assumptions 之外的会话级披露文案（如 session.assumptions）。
     披露只认「个别披露」（_dedicated_mentions）——罗列行不算。
+
+    2026-11-23 兵马俑案：must_poi_ids（点名必去 → POI 行键，api 层按
+    引擎绑定同源解析）命中已排卡/想去 chip 的 poi_id 即算已覆盖——
+    别名必去（兵马俑 ↔ 秦始皇帝陵博物院）名匹配恒 miss，不补键会把
+    已排上的必去误报成静默丢失。
     """
     if not must_names:
         return []
     scheduled = _scheduled_names(plan)
+    pids = _scheduled_poi_ids(plan)
     unplaced = [(u.name, getattr(u, "name_en", None)) for u in (plan.unplaced or [])]
+    unplaced_pids = {
+        str(u.poi_id) for u in (plan.unplaced or []) if getattr(u, "poi_id", None)
+    }
     texts = [t for t in list(plan.assumptions or []) + list(disclosed or []) if t]
     needles = _distinct_must_needles(must_names)
     missing: list[str] = []
     for req in must_names:
         if any(_name_matches(req, n, e) for n, e in scheduled):
             continue
+        pid = (must_poi_ids or {}).get(req)
+        if pid and str(pid) in pids:
+            continue
         if any(_name_matches(req, n, e) for n, e in unplaced):
+            continue
+        if pid and str(pid) in unplaced_pids:
             continue
         if _dedicated_mentions(req, texts, needles):
             continue
@@ -281,21 +296,45 @@ def missing_must_visits(
     return missing
 
 
+def _scheduled_poi_ids(plan: ItineraryPlan) -> set[str]:
+    """已排卡的 POI 行键集合（别名必去键匹配用，2026-11-23 兵马俑案）。"""
+    out: set[str] = set()
+    for day in plan.days:
+        for item in day.items:
+            pid = getattr(item, "poi_id", None)
+            if pid:
+                out.add(str(pid))
+    return out
+
+
 def unarranged_must_visits(
-    plan: ItineraryPlan, must_names: list[str] | None
+    plan: ItineraryPlan,
+    must_names: list[str] | None,
+    *,
+    must_poi_ids: dict[str, str | None] | None = None,
 ) -> list[str]:
     """未排上必去名册（2026-11-17 一日游案）：点名必去里没有任何天卡承载
     的名字——含已落 unplaced（想去 chip）与静默丢失的。H5 拿它出非折叠
     横幅：assumptions 是折叠块用户看不见，「必去未排上」必须有一眼可见
-    的告知面。纯函数；名字匹配与覆盖审计同源（双胞胎容忍）。"""
+    的告知面。纯函数；名字匹配与覆盖审计同源（双胞胎容忍）。
+
+    2026-11-23 兵马俑案：别名必去（兵马俑 ↔ 秦始皇帝陵博物院）名匹配
+    恒 miss——引擎把必去绑定到真库行（poi_id），天卡带同一行键；
+    must_poi_ids（点名必去 → 行键，api 层按引擎绑定同源解析）命中已排
+    卡的 poi_id 即视为已排，别名必去不再误报「未排上」。"""
     if not must_names:
         return []
     scheduled = _scheduled_names(plan)
-    return [
-        req
-        for req in must_names
-        if not any(_name_matches(req, n, e) for n, e in scheduled)
-    ]
+    pids = _scheduled_poi_ids(plan)
+    out = []
+    for req in must_names:
+        if any(_name_matches(req, n, e) for n, e in scheduled):
+            continue
+        pid = (must_poi_ids or {}).get(req)
+        if pid and str(pid) in pids:
+            continue
+        out.append(req)
+    return out
 
 
 def ensure_must_disclosure(
@@ -304,12 +343,17 @@ def ensure_must_disclosure(
     *,
     disclosed: list[str] | None = None,
     lang: str = "zh",
+    must_poi_ids: dict[str, str | None] | None = None,
 ) -> list[str]:
     """对静默丢失的必去补披露行；幂等（补过的行本身就是披露，二次不补）。
 
     返回本次新增的披露行（空列表 = 覆盖契约满足，无事发生）。
+    must_poi_ids：点名必去 → POI 行键（2026-11-23 兵马俑案，别名必去
+    名匹配恒 miss——键命中已排卡/想去 chip 即算覆盖，不再误补披露）。
     """
-    missing = missing_must_visits(plan, must_names, disclosed=disclosed)
+    missing = missing_must_visits(
+        plan, must_names, disclosed=disclosed, must_poi_ids=must_poi_ids
+    )
     if not missing:
         return []
     lines = [

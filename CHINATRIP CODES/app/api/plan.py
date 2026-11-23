@@ -1162,6 +1162,29 @@ async def start_plan(
         ):
             # R12：legacy 营救的披露随附（绝不静默换引擎）
             session.assumptions.append(trip_outcome.disclosures[0].get("zh", ""))
+            # R19（2026-11-23 兵马俑案）：缝回落 legacy 时点名必去不丢。
+            # 引擎缝从 preferences 收「必去」类短语（live 与 message 换局
+            # 缝同源 _restart_named_musts），legacy 回落路径此前不带——
+            # 回落会话 must_visits 空、必去只剩软偏好，覆盖审计整链盲
+            # （隔离实例 C3 探针实锤：陕历博被 geo 闸移出后无横幅、无
+            # 想去 chip）。同源抽取并进会话 must_visits，紧随其后的
+            # _audit_must_coverage 营救/让位/披露链照常兜底；缝未尝试
+            # （形状闸/旗未开）不折叠——纯 legacy 口径不变。
+            try:
+                _fb_musts = _restart_named_musts(
+                    request.preferences or "",
+                    store=get_poi_detail_store(),
+                    cities=list(start_cities or []),
+                )
+            except Exception:
+                logger.warning(
+                    "plan/start fallback named-must parse failed", exc_info=True
+                )
+                _fb_musts = []
+            if _fb_musts:
+                session.must_visits = list(
+                    dict.fromkeys([*(session.must_visits or []), *_fb_musts])
+                )
     # 2026-11-14（用户拍板「心愿单/已排期按 USER ID 出内容」）：会话记住
     # 登录账号——会话里建的心愿行落 owner_account_id
     session.account_id = account or session.account_id
@@ -1450,6 +1473,25 @@ async def message_plan(
         ):
             # R12：legacy 营救的披露随附
             session.assumptions.append(trip_outcome.disclosures[0].get("zh", ""))
+            # R19（2026-11-23 兵马俑案）：换局缝回落 legacy 时点名必去
+            # 同样不丢——restart_with_brief 走 self.start(preferences=text)，
+            # 必去短语只剩软偏好、审计盲。同源抽取并进 must_visits，
+            # _plan_turn_body 里的覆盖审计照常兜底。
+            try:
+                _fb_musts = _restart_named_musts(
+                    request.text,
+                    store=get_poi_detail_store(),
+                    cities=list(session.cities or []),
+                )
+            except Exception:
+                logger.warning(
+                    "plan/message fallback named-must parse failed", exc_info=True
+                )
+                _fb_musts = []
+            if _fb_musts:
+                session.must_visits = list(
+                    dict.fromkeys([*(session.must_visits or []), *_fb_musts])
+                )
         store.save(session)
         body = _plan_turn_body(session, reply, None)
         body["new_trip"] = True
@@ -1742,6 +1784,43 @@ def _plan_with_alternatives(plan):
         return plan
 
 
+def _resolve_must_poi_ids(
+    must_names: list[str], cities: list[str] | None
+) -> dict[str, str | None]:
+    """点名必去 → POI 行键（2026-11-23 兵马俑案）。
+
+    覆盖审计的名字匹配只认全等/双胞胎互含——别名必去（兵马俑 ↔
+    秦始皇帝陵博物院）恒 miss：引擎明明把它排成了天卡，unarranged_musts
+    横幅却报「必去未排上」、ensure_must_disclosure 还误补「未排入行程」。
+    按引擎快照绑定同源（snapshot_from_request 的两步口径：
+    candidate_by_name → match_text_names 兜底）解析行键；poi_id 命中
+    已排卡即视为已排。解析失败/无库 → None（回落纯名匹配，行为与旧版
+    一致）。纯内存查表，无 DB IO。
+    """
+    if not must_names:
+        return {}
+    try:
+        store = get_poi_detail_store()
+    except Exception:  # noqa: BLE001 - 键解析失败回落名匹配（审计不因库降级而炸）
+        logger.warning("must poi-id resolve: store unavailable", exc_info=True)
+        return {}
+    out: dict[str, str | None] = {}
+    for name in must_names:
+        row = None
+        for city in cities or []:
+            row = store.candidate_by_name(city, name)
+            if row:
+                break
+        if row is None:
+            for city in cities or []:
+                hits = store.match_text_names(city, name, limit=1)
+                if hits:
+                    row = hits[0]
+                    break
+        out[name] = str(row.get("id") or row.get("source_poi_id")) if row else None
+    return out
+
+
 def _audit_must_coverage(session: PlanSession) -> None:
     """必去覆盖审计（2026-11-17 豫园/外滩静默丢失案）：出站闸最后一道。
 
@@ -1755,6 +1834,9 @@ def _audit_must_coverage(session: PlanSession) -> None:
     # 2026-11-17 事故热修（会话 24379abd）：必去优先三闸 + 灰卡降级。
     lang = getattr(session, "lang", "zh") or "zh"
     must_names = getattr(session, "must_visits", None) or []
+    # 2026-11-23 兵马俑案：别名必去键解析（见 _resolve_must_poi_ids）——
+    # 兵马俑已被引擎排为「秦始皇帝陵博物院」卡，纯名匹配恒报「未排上」。
+    must_poi_ids = _resolve_must_poi_ids(must_names, getattr(session, "cities", None))
     # R12-E（2026-11-19 用户令「指定的天坛为什么漏了，没指定的景山
     # 插进去了」）：先营救——被入场闸剥掉的必去顶进让出的填充窗口；
     # 营救不了再走必让位清场。
@@ -1831,6 +1913,7 @@ def _audit_must_coverage(session: PlanSession) -> None:
         getattr(session, "must_visits", None) or [],
         disclosed=session.assumptions or [],
         lang=lang,
+        must_poi_ids=must_poi_ids,
     ):
         logger.warning(
             "plan/session %s must-visit silent drop: %s", session.session_id, line
@@ -1849,7 +1932,9 @@ def _audit_must_coverage(session: PlanSession) -> None:
     # 未排上必去名册（2026-11-17 一日游案）：H5 非折叠横幅的数据面——
     # 假设块折叠着用户不看，「必去未排上」必须一眼可见（想去 chip 只是
     # 次要面，无宿主卡时连 chip 都没有）。每次过闸重算，编辑后自愈。
-    session.plan.unarranged_musts = unarranged_must_visits(session.plan, must_names)
+    session.plan.unarranged_musts = unarranged_must_visits(
+        session.plan, must_names, must_poi_ids=must_poi_ids
+    )
 
 
 def _plan_turn_body(session, reply: str, change, *, alternatives: bool = True) -> dict:

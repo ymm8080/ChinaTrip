@@ -314,19 +314,32 @@ def add_c08_access(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
                 lo = bundle.presence[(other.cid, day)]
                 # R12-H5 析取：他卡要么在出发前（dep ≥ end + taxi），要么
                 # 在返程到城后（≥ 最早返程行+回程——C-06 的「时间多余才
-                # 插一个」由此可排）；after 自由布尔，求解器按形状挑支
-                after = bundle.model.NewBoolVar(
-                    "aft_%s_%s_%d" % (cand.cid, other.cid, day)
-                )
-                bundle.model.Add(
-                    dep
-                    >= bundle.start[(other.cid, day)]
-                    + bundle.dur[other.cid]
-                    + board_chain
-                ).OnlyEnforceIf([lit, lo, after.Not()])
-                bundle.model.Add(
-                    bundle.start[(other.cid, day)] >= min(rets) + ride + last_mile
-                ).OnlyEnforceIf([lit, lo, after])
+                # 插一个」由此可排）；after 自由布尔，求解器按形状挑支。
+                # 2026-11-23 兵马俑案：真库 poi_access_services 存在
+                # outbound 有班、return 为空的行（北京 居庸关长城/八奇洞/
+                # 古北口镇，上海 东林寺/州桥老街…）——ret 空时 min(rets)
+                # 直接 ValueError，引擎整缝崩、回落 legacy（兵马俑未排根
+                # 因链）。「返程后」支不存在：他卡只可能在发车前收尾。
+                if rets:
+                    after = bundle.model.NewBoolVar(
+                        "aft_%s_%s_%d" % (cand.cid, other.cid, day)
+                    )
+                    bundle.model.Add(
+                        dep
+                        >= bundle.start[(other.cid, day)]
+                        + bundle.dur[other.cid]
+                        + board_chain
+                    ).OnlyEnforceIf([lit, lo, after.Not()])
+                    bundle.model.Add(
+                        bundle.start[(other.cid, day)] >= min(rets) + ride + last_mile
+                    ).OnlyEnforceIf([lit, lo, after])
+                else:
+                    bundle.model.Add(
+                        dep
+                        >= bundle.start[(other.cid, day)]
+                        + bundle.dur[other.cid]
+                        + board_chain
+                    ).OnlyEnforceIf([lit, lo])
             bundle.travel_terms.append(lit * (2 * (ride + last_mile) + taxi))
             if not rets:
                 continue
