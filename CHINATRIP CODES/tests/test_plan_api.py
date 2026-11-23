@@ -626,7 +626,7 @@ def test_message_paste_answer_opens_sequence_ask_after_unreadable_link():
     ]
     body = message(client, sid, answer).json()
     assert body["state"] == "site_confirm"
-    assert body["sequence_ask"]["options"] == ["keep", "replan"]
+    assert body["sequence_ask"]["options"] == ["keep", "replan", "both"]  # R25c 加 both
     assert body["sequence_ask"]["days"] == {
         "天安门广场": 1,
         "故宫博物院": 1,
@@ -6100,3 +6100,56 @@ def test_engine_seam_resolved_diffs_suppress_reask(monkeypatch):
     assert body2["state"] == "ready"
     assert body2["session_id"].startswith("ts-")
     assert body2["plan"]["days"]
+
+
+def test_long_text_sites_without_date_asks_intake_card():
+    """2026-11-23 用户实报「贴文字让 LLM 读点，必填的日期没问」：长文本
+    （≥ _MIN_BRIEF_TEXT，会进 LLM 读点/site_confirm 流程）+表单城市天数齐
+    但请求没带日期 → 不得被「默认下周一」静默吞掉，必须弹行前卡收日期。
+    直发 client.post 绕过 start() 的自动补日期。"""
+    import app.services.agent.plan as _plan_mod
+
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(_plan_mod, "_PREF_ROUND_ENABLED", False)
+    try:
+        agent = PlanningAgent(StubAdapter([V0_JSON]))
+        resp = client_for(agent).post(
+            "/api/v1/plan/start",
+            json={
+                "cities": ["杭州"],
+                "days": 3,
+                "preferences": "喜欢走路",
+                # ≥ _MIN_BRIEF_TEXT(24) 的读点文本，全文无任何日期
+                "brief": "Day1 西湖断桥雷峰塔，Day2 灵隐寺飞来峰，Day3 西溪湿地",
+            },
+            headers=DEVICE_HEADERS,
+        )
+        assert resp.status_code == 200
+        assert resp.json()["state"] == "intake"
+    finally:
+        monkeypatch.undo()
+
+
+def test_long_text_sites_with_date_no_intake_card():
+    """同上但请求带了出发日期：信息给足，不再弹卡（日期从请求直读）。"""
+    import app.services.agent.plan as _plan_mod
+
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(_plan_mod, "_PREF_ROUND_ENABLED", False)
+    try:
+        agent = PlanningAgent(StubAdapter([V0_JSON, V0_JSON, V0_JSON]))
+        resp = client_for(agent).post(
+            "/api/v1/plan/start",
+            json={
+                "cities": ["杭州"],
+                "days": 3,
+                "preferences": "喜欢走路",
+                "brief": "Day1 西湖断桥雷峰塔，Day2 灵隐寺飞来峰，Day3 西溪湿地",
+                "start_date": "2026-12-07",
+            },
+            headers=DEVICE_HEADERS,
+        )
+        assert resp.status_code == 200
+        assert resp.json()["state"] != "intake"
+    finally:
+        monkeypatch.undo()
