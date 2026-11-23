@@ -2915,10 +2915,46 @@ def _cn_number(token: str) -> int | None:
     return None
 
 
+# 行程骨架日标（2026-11-23「4 天行程贴文被认成 1 天」案）：贴进来的整份
+# 行程自带 Day1..DayN / 第1天..第N天 骨架——标记是「第几」的结构，不是
+# 总天数陈述。≥2 个不同编号才认定骨架，天数=最大编号；单个引用（「第2天
+# 加个景点」）既不是骨架也不是天数。
+_DAY_MARKER_RES = (
+    re.compile(r"第\s*(\d{1,2}|[一二两三四五六七八九十]{1,3})\s*[天日]"),
+    re.compile(r"\bday\s*(\d{1,2})\b", re.IGNORECASE),
+)
+
+
+def _max_day_marker(text: str) -> int | None:
+    """Itinerary skeleton markers (Day1..DayN) -> trip days; None when absent.
+
+    天数=最大骨架号，仅当出现 ≥2 个不同编号；单个标记返回 None（不是天数）。
+    """
+    found: set[int] = set()
+    for _rex in _DAY_MARKER_RES:
+        for _m in _rex.finditer(text or ""):
+            _tok = _m.group(1)
+            _n = int(_tok) if _tok.isdigit() else _cn_number(_tok)
+            if _n is not None and 1 <= _n <= 30:
+                found.add(_n)
+    if len(found) >= 2:
+        return max(found)
+    return None
+
+
 def _parse_days(text: str) -> int | None:
-    """Days-of-trip out of a free-text answer (“3天”“三日游”“就 5 个人玩”)."""
+    """Days-of-trip out of a free-text answer (“3天”“三日游”“5”)。
+    长文本不吃裸整数（“就 5 个人玩”不是 5 天）——整句就是一个数才是短答天数。
+    """
     # 日期串里的数字不是天数（2026-11-15「11月20日去北京 2 天」被读成 20 天）：
     # 先把 YYYY-MM-DD / N月N日(号) 掩掉再匹配（ clarify 答案同理不吃日期数字）。
+    # 行程骨架优先（2026-11-23「4 天行程贴文被认成 1 天」案）：≥2 个不同
+    # DayN/第N天 标记 ⇒ 天数=最大编号；单个标记也掩掉——「Day1」的裸 1 曾被下方
+    # 裸整数兜底读成 1 天，「第1天」的 1 曾被 N天 族读成 1 天（同一类病灶两处根）。
+    marker_days = _max_day_marker(text)
+    if marker_days is not None:
+        return marker_days
+    text = _DAY_TARGET_MASK_RE.sub("□", text)
     # 时刻也不是天数（2026-11-17「LEAVE HOTEL ON 11AM」裸数字兜底读成 11 天）。
     text = _TEXT_TIME_MASK_RE.sub("□", _TEXT_DATE_MASK_RE.sub("□", text))
     for match in _ARABIC_DAYS_RE.finditer(text):
@@ -2944,9 +2980,11 @@ def _parse_days(text: str) -> int | None:
         n = _EN_DAY_WORDS.get(match.group(1).lower())
         if n is not None and 1 <= n <= 30:
             return n
-    bare = _BARE_INT_RE.search(text)  # whole answer like "5"
-    if bare is not None:
-        n = int(bare.group())
+    # 裸整数只认「整句就是一个数」的短答（docstring 本意）；长文本里的任何
+    # 数字串（贴文编号、时刻、小时数）不再当天数。
+    bare = (text or "").strip()
+    if bare.isdigit():
+        n = int(bare)
         if 1 <= n <= 30:
             return n
     return None

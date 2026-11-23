@@ -166,6 +166,23 @@ _ALLOWED_IMAGE_MIME = {
 }
 
 
+# 区间第二端点裸日号（2026-11-23 审计补）：「12月10日到13号」「Dec 10 to
+# 13」——第二端点省略月份/「日」字。裸号后跟「月」或数字的不匹配
+# （「11月30号-12月7号」由完整日期族处理，防 \d{1,2} 回溯吃「1」）。
+_CN_RANGE_BARE_RE = re.compile(
+    r"(\d{1,2})月(\d{1,2})[日号]\s*[到至~～\-–—]{1,2}\s*"
+    r"(\d{1,2})(?![\d月年])(?:[日号])?"
+)
+_EN_RANGE_BARE_RE = re.compile(
+    r"\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|"
+    r"jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|"
+    r"dec(?:ember)?)[.\s/]*(\d{1,2})(?:st|nd|rd|th)?\s*"
+    r"(?:to|till|until|through|[~–—-])\s*"
+    r"(\d{1,2})(?:st|nd|rd|th)?(?!\d)",
+    re.IGNORECASE,
+)
+
+
 def _text_date_span_days(text: str) -> int | None:
     """文内起止日期区间 → 天数（2026-11-23 用户拍板「IF I INPUT ENOUGH
     INFORMATION, THERE SHOULD BE NO POP UP WINDOW」）。
@@ -182,6 +199,34 @@ def _text_date_span_days(text: str) -> int | None:
         return None
     today = (datetime.now(timezone.utc) + timedelta(hours=8)).date()
     days: list[date] = []
+    # 区间第二端点裸日号先扫、命中即掩（2026-11-23 审计）：
+    # 首端点按既有滚年规则；末端裸号 <首日 → 次月（「11月30号到2号」）。
+    for _rex in (_CN_RANGE_BARE_RE, _EN_RANGE_BARE_RE):
+        _hit = False
+        for _m in _rex.finditer(t):
+            try:
+                if _rex is _CN_RANGE_BARE_RE:
+                    _mon = int(_m.group(1))
+                    _d1, _d2 = int(_m.group(2)), int(_m.group(3))
+                else:
+                    _mon = _EN_MONTHS.get(_m.group(1).lower()[:3])
+                    if _mon is None:
+                        continue
+                    _d1, _d2 = int(_m.group(2)), int(_m.group(3))
+                _first = date(today.year, _mon, _d1)
+                if _first < today:
+                    _first = date(today.year + 1, _mon, _d1)
+                _mon2 = _mon + 1 if _d2 < _d1 else _mon
+                _yr2 = _first.year + 1 if _mon2 > 12 else _first.year
+                if _mon2 > 12:
+                    _mon2 -= 12
+                days.append(_first)
+                days.append(date(_yr2, _mon2, _d2))
+                _hit = True
+            except ValueError:
+                continue
+        if _hit:
+            t = _rex.sub("□", t)
     # 逐族扫描、命中即掩：防「2026年11月30号」被 YMD+MD 各计一次。
     for m in _TEXT_YMD_RE.finditer(t):
         try:
@@ -831,7 +876,13 @@ async def start_plan(
     # （响应带 start_date_hint，卡上的开始日期用文字日期预填）。
     # 表单已给 days（H5 常规开局）时天数不缺——不再因为读不出原句天数
     # 就白弹卡；唯一还要补的是出发日期。
-    insufficient = text_date is None or (text_days is None and not request.days)
+    # 出发日期三源（2026-11-23「4 天贴文仍被弹卡」案）：文字读出、
+    # 请求自带（H5 常规携带/上一程会话回填 start_date）、卡上到达日——
+    # 任一在即不算缺日期；缺的只剩天数且文字/表单都读不出才弹卡。
+    _req_has_date = bool(request.start_date) or bool(request.arrival_date)
+    insufficient = (text_date is None and not _req_has_date) or (
+        text_days is None and not request.days
+    )
     if (
         request.route_source is None
         and date_text
@@ -857,7 +908,9 @@ async def start_plan(
             and _count_text_dates(date_text) <= 1
         ):
             text_days = 1
-        insufficient = text_date is None or (text_days is None and not request.days)
+        insufficient = (text_date is None and not _req_has_date) or (
+            text_days is None and not request.days
+        )
         if insufficient:
             logger.info(
                 "plan/start gate=intake: dev=%s date_text=%r text_date=%s "
@@ -986,7 +1039,9 @@ async def start_plan(
         # 作废（city_days=None），文字天数才能生效。起始城天数同作废
         # （文字路线暂无「出发城玩几天」语法，2026-11-22）。
         start_cities = request.cities
-        start_days = request.days or range_days or 0
+        # 文字路线：文字明说天数（词句/骨架）优先，区间次之——与
+        # 本分支注释「表单参数作废，文字天数才能生效」对齐（2026-11-23）。
+        start_days = stated_days or range_days or request.days or 0
         start_brief = request.brief
         start_city_days = None
         start_origin_days = None
@@ -998,7 +1053,10 @@ async def start_plan(
         start_origin_days = request.origin_days
     else:
         start_cities = request.cities or []
-        start_days = request.days or range_days or 0
+        # 文字明说的天数（词句/行程骨架）在表单/区间都缺省时兜底进生成
+        # （2026-11-23「Day1..Day4 贴文塌 1 天」案：此前在此处被丢弃，
+        # 只剩 legacy 二次解析救援）。
+        start_days = request.days or range_days or stated_days or 0
         start_brief = request.brief
         start_city_days = request.city_days
         start_origin_days = request.origin_days
