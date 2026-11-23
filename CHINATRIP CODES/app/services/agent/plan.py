@@ -12655,6 +12655,28 @@ def _align_engine_shuttle_day(
     return notes
 
 
+_MEAL_ID_SIBLINGS = (
+    ("meal-lunch-", "food-lunch-ph-d"),
+    ("food-lunch-ph-d", "meal-lunch-"),
+    ("meal-dinner-", "food-dinner-ph-d"),
+    ("food-dinner-ph-d", "meal-dinner-"),
+)
+
+
+def _meal_id_siblings(item_id: str) -> list[str]:
+    """餐卡双家族别名（R27 2026-11-23）：meal-lunch-2 ↔ food-lunch-ph-d2。
+
+    引擎物化用 meal-*，legacy/heal 用 food-*-ph-d*；异步重建会换族，前端
+    渲染的 id 与会话真身可能不同族——编辑按别名解析到真身，绝不 404。
+    """
+    out: list[str] = []
+    for prefix, other in _MEAL_ID_SIBLINGS:
+        rest = (item_id or "")[len(prefix) :]
+        if (item_id or "").startswith(prefix) and rest.isdigit():
+            out.append(other + rest)
+    return out
+
+
 def _fallback_sequence_times(
     plan: ItineraryPlan, *, keep_list_order: bool = False
 ) -> None:
@@ -33414,6 +33436,23 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
             None,
         )
         if visit is None:
+            # R27（2026-11-23 用户实报「点时间改，报错误」）：餐卡在响应/会话
+            # 两侧有双家族 id（meal-lunch-N ↔ food-lunch-ph-dN），异步重建会
+            # 换族——按别名解析到会话真身，绝不 404（20:35 点午餐卡两连崩）。
+            for alt in _meal_id_siblings(item_id):
+                visit = next(
+                    (
+                        i
+                        for d in plan.days
+                        for i in d.items
+                        if isinstance(i, VisitItem) and i.item_id == alt
+                    ),
+                    None,
+                )
+                if visit is not None:
+                    item_id = alt
+                    break
+        if visit is None:
             raise ValueError("item_not_found")
 
         # R21（2026-11-23 用户拍板「酒店卡也要像景点卡一样，时间，名字都
@@ -33541,6 +33580,21 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
             ),
             None,
         )
+        if visit is None:
+            # R27：同 retime_item——餐卡双家族 id 按别名解析，绝不 404。
+            for alt in _meal_id_siblings(item_id):
+                visit = next(
+                    (
+                        i
+                        for d in plan.days
+                        for i in d.items
+                        if isinstance(i, VisitItem) and i.item_id == alt
+                    ),
+                    None,
+                )
+                if visit is not None:
+                    item_id = alt
+                    break
         if visit is None:
             raise ValueError("item_not_found")
         if (

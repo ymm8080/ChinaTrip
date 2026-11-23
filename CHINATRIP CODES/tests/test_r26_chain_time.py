@@ -189,3 +189,78 @@ def test_chain_time_api_mode_leave_plumbs_through():
         assert r.status_code == 200, r.text
         items = {i["item_id"]: i for i in r.json()["plan"]["days"][0]["items"]}
         assert items["hotel-morning-d1"]["start_time"].startswith("09:00")
+
+
+def _engine_lunch():
+    return VisitItem(
+        item_id="meal-lunch-2",
+        name="午餐",
+        category="food",
+        city="北京",
+        day=1,
+        start_time=dtime(12, 0),
+        end_time=dtime(13, 0),
+        duration_minutes=60,
+        soft_pin=True,
+    )
+
+
+def _engine_lunch():
+    return VisitItem(
+        item_id="meal-lunch-2",
+        name="午餐",
+        category="food",
+        city="北京",
+        day=1,
+        start_time=dtime(12, 0),
+        end_time=dtime(13, 0),
+        duration_minutes=60,
+        soft_pin=True,
+    )
+
+
+def test_retime_accepts_meal_sibling_id():
+    """R27：餐卡换族不再 404（meal-lunch-2 ↔ food-lunch-ph-d2）。"""
+    agent, _app, store = _session(
+        items=[_morning(), _engine_lunch(), _site(), _night()]
+    )
+    session = store.get("s-chain", device_id="device-1")
+    _, summary, _notes = agent.retime_item(
+        session, "food-lunch-ph-d2", start=dtime(12, 30)
+    )
+    items = {i.item_id: i for i in session.plan.days[0].items}
+    card = items["meal-lunch-2"]
+    # 验收契约：不 404、编辑被接受落盘（起点离开原 12:00）、摘要带所输时刻；
+    # 餐槽/游标可能再微调落位，不锚死绝对时刻。
+    assert "meal-lunch-2" in items
+    assert _start_min(card) != 12 * 60
+    assert "12:30" in str(summary.change_summary[0])
+
+
+def _legacy_lunch():
+    return VisitItem(
+        item_id="food-lunch-ph-d2",
+        name="午饭（自由安排）",
+        category="food",
+        city="北京",
+        day=1,
+        start_time=dtime(12, 0),
+        end_time=dtime(13, 0),
+        duration_minutes=60,
+        soft_pin=True,
+        anchor_location=GeoPoint(lon=116.40, lat=39.90),
+    )
+
+
+def test_retime_accepts_engine_id_for_legacy_card():
+    """反向：legacy 家族卡用 engine id 点名同样解析。"""
+    agent, _app, store = _session(
+        items=[_morning(), _legacy_lunch(), _site(), _night()]
+    )
+    session = store.get("s-chain", device_id="device-1")
+    _, summary, _notes = agent.retime_item(session, "meal-lunch-2", start=dtime(12, 30))
+    items = {i.item_id: i for i in session.plan.days[0].items}
+    card = items["food-lunch-ph-d2"]
+    assert "food-lunch-ph-d2" in items
+    assert _start_min(card) != 12 * 60
+    assert "12:30" in str(summary.change_summary[0])

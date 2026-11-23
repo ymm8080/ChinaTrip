@@ -2096,34 +2096,70 @@ function parseHmInput(raw) {
 
 function startTimeEdit(btn, box, plan, submit) {
   if (btn.querySelector("input")) return;
-  const input = document.createElement("input");
-  input.type = "text";
-  input.inputMode = "numeric";
-  input.autocomplete = "off";
-  input.spellcheck = false;
-  input.placeholder = "HH:MM";
-  input.value = btn.getAttribute("data-cur") || "";
-  input.style.cssText = "width:76px;font:inherit;color:inherit;border:1px solid var(--muted);border-radius:4px;padding:0 4px;background:#fff;text-align:center";
+  const cur = btn.getAttribute("data-cur") || "";
+  const text = document.createElement("input");
+  text.type = "text";
+  text.inputMode = "numeric";
+  text.autocomplete = "off";
+  text.spellcheck = false;
+  text.placeholder = "HH:MM";
+  text.value = cur;
+  text.style.cssText = "width:60px;font:inherit;color:inherit;border:1px solid var(--muted);border-radius:4px;padding:0 4px;background:#fff;text-align:center";
+  // 时钟选择器加回右侧（2026-11-23 用户令「时钟选、点击保存」要保留）：
+  // 选完 change 即提交，与直输框共用同一提交/取消/还原状态机。
+  const clock = document.createElement("input");
+  clock.type = "time";
+  clock.value = cur;
+  clock.title = I18N.tf("card.time.clock", "点时钟选时刻");
+  clock.style.cssText = "width:88px;font:inherit;color:inherit;border:1px solid var(--muted);border-radius:4px;padding:0 2px;background:#fff;margin-left:4px";
   btn.textContent = "";
-  btn.appendChild(input);
-  input.focus();
-  input.select();
+  btn.appendChild(text);
+  btn.appendChild(clock);
+  text.focus();
+  text.select();
   let done = false;
   const restore = function () { if (!done) { done = true; box.replaceWith(planCard(plan)); } };
-  const commit = function () {
+  const commit = function (raw) {
     if (done) return;
-    const v = parseHmInput(input.value);
-    if (!v) { toast(I18N.tf("card.time.invalid", "请输入时间，如 9:30 或 1530")); input.select(); return; }
+    const v = parseHmInput(raw);
+    if (!v) { toast(I18N.tf("card.time.invalid", "请输入时间，如 9:30 或 1530")); text.select(); return; }
     done = true;
-    input.disabled = true;
+    text.disabled = true; clock.disabled = true;
     submit(v);
   };
-  input.addEventListener("keydown", function (e) {
-    if (e.key === "Enter") { e.preventDefault(); commit(); }
+  const onKey = function (e) {
+    if (e.key === "Enter") { e.preventDefault(); commit(e.target === clock ? clock.value : text.value); }
     else if (e.key === "Escape") { e.preventDefault(); restore(); }
-  });
-  input.addEventListener("change", commit);
-  input.addEventListener("blur", restore);
+  };
+  const onBlur = function () {
+    // 焦点在两个输入框之间移动不算离开；都离开才还原
+    setTimeout(function () {
+      if (done) return;
+      const ae = document.activeElement;
+      if (ae === text || ae === clock) return;
+      restore();
+    }, 0);
+  };
+  text.addEventListener("keydown", onKey);
+  text.addEventListener("change", function () { commit(text.value); });
+  text.addEventListener("blur", onBlur);
+  clock.addEventListener("keydown", onKey);
+  clock.addEventListener("change", function () { commit(clock.value); });
+  clock.addEventListener("blur", onBlur);
+}
+
+
+// 时间编辑的已知失败码转人话（2026-11-23 用户实报「there is error msg」）：
+// 裸错误码（HTTP 422 · no_timetable）对用户没有信息量；未知码仍走 failToast。
+function timeEditFail(err, box, plan) {
+  const code = err && err.detail;
+  const known = code && {
+    item_not_found: I18N.tf("card.time.gone", "行程已更新——刷新页面后再改一次"),
+    no_timetable: I18N.tf("card.time.noTT", "这一天没有可改的班次表，出发时刻随班次固定"),
+    duration_locked: I18N.tf("card.time.locked", "这张卡的时刻由行程结构决定"),
+  }[code];
+  if (known) { toast(known); box.replaceWith(planCard(plan)); }
+  else { failToast(err); box.replaceWith(planCard(plan)); }
 }
 
 
@@ -2668,7 +2704,7 @@ function planCard(plan) {
         startTimeEdit(btn, box, plan, function (v) {
           api("/api/v1/plan/" + sid + "/items/" + encodeURIComponent(id) + "/retime", { start_time: v }, "POST")
             .then(body => box.replaceWith(planCard(body.plan)))
-            .catch(err => { failToast(err); box.replaceWith(planCard(plan)); });
+            .catch(err => timeEditFail(err, box, plan));
         });
       } else if (action === "hopdepart") {
         // 接驳卡点选班次（2026-11-16）：点哪班就按那班回算离店/离场并重排当天
@@ -2689,7 +2725,7 @@ function planCard(plan) {
         startTimeEdit(btn, box, plan, function (v) {
           api("/api/v1/plan/" + sid + "/departure", { item_id: id, direction: "out", depart: v }, "POST")
             .then(body => box.replaceWith(planCard(body.plan)))
-            .catch(err => { failToast(err); box.replaceWith(planCard(plan)); });
+            .catch(err => timeEditFail(err, box, plan));
         });
       } else if (action === "leaveedit") {
         // 打车卡/班次日晨卡改出发时刻（2026-11-23 用户令「打车、酒店时间也
@@ -2697,7 +2733,7 @@ function planCard(plan) {
         startTimeEdit(btn, box, plan, function (v) {
           api("/api/v1/plan/" + sid + "/departure", { item_id: id, direction: "out", depart: v, mode: "leave" }, "POST")
             .then(body => box.replaceWith(planCard(body.plan)))
-            .catch(err => { failToast(err); box.replaceWith(planCard(plan)); });
+            .catch(err => timeEditFail(err, box, plan));
         });
       } else if (action === "pin") {
         const cur = btn.getAttribute("data-pinned") === "1";
