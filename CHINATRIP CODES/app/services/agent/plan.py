@@ -33720,10 +33720,11 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
             # 非钉时刻再游标重排」会把其余已锚定的卡搬去天板（R20 实测：
             # A 卡被搬去 08:30、下一站被搬进饭前）。外科手术：只动本卡 +
             # 顺延真被压住的后续件（同 set_item_duration 的权威路径纪律）。
+            # 开始直接按「所选−时长」绝对定位（R20 live 实证：编辑间隙的
+            # 异步重排会挪占位餐窗口，基线+delta 公式会把漂移带进结果——
+            # 绝对定位与 duration 分支同性质，end 恒==所选时刻）。
             dur = int(prev.duration_minutes or DEFAULT_VISIT_MINUTES)
-            old_end = prev.end_time or prev.start_time
-            delta = dep_min - (old_end.hour * 60 + old_end.minute)
-            start_min = base_min + delta
+            start_min = dep_min - dur
             if start_min < 0:
                 raise ValueError("bridge_depart_too_early")
             candidate = plan.model_copy(deep=True)
