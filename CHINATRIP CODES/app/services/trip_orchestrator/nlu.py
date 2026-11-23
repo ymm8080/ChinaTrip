@@ -477,8 +477,6 @@ def _restart_named_musts(text: str, store=None, cities=None) -> list[str]:
                 if whole not in seen:
                     seen.add(whole)
                     out.append(whole)
-                    if len(out) >= 8:  # 同 agent.MAX_BRIEF_SITES 口径
-                        return out
             continue
         for part in _re.split(r"还有|以及|[和与跟及、]", seg[:cut]):
             p = _clean_phrase(part.strip(" ：:、，,；;。.！!？?\"'「」【】（）()·\t"))
@@ -490,6 +488,4 @@ def _restart_named_musts(text: str, store=None, cities=None) -> list[str]:
                 continue
             seen.add(p)
             out.append(p)
-            if len(out) >= 8:  # 同 agent.MAX_BRIEF_SITES 口径
-                return out
     return out
