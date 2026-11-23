@@ -5837,3 +5837,164 @@ def test_restart_named_musts_priority_rank():
     assert f("博物馆不是最高优先级") == []
     assert f("不必去西湖") == []
     assert f("喜欢博物馆和美食") == []
+
+
+# ---------------------------------------------------------------------------
+# 引擎缝（cpsat）路径集成回归——2026-11-23 三连返工守门。
+
+
+# ---------------------------------------------------------------------------
+# 引擎缝（cpsat）路径集成回归——2026-11-23 三连返工守门。
+# origin_days 功能三次「线上坏、测试绿」的根因都是 legacy/stub 测试没覆盖
+# 引擎态：materialize 漏传回显（恒 0）、SW 旧壳掩盖。以下用例必须跑在
+# TRIP_SOLVER=cpsat 下，钉死引擎缝全链路行为。
+
+
+def _engine_seam_store():
+    """_seam_fake_store 加厚版：上海 4 个候选。origin_days=2 要起始城两天
+    都有货——2 个候选第二天排空 → 退化闸回落 legacy，测不到引擎回显。"""
+    from app.services.trip_solver.shadow.replay import SnapshotStore
+    from app.services.trip_solver.types import CandidateItem
+
+    def cand(cid, name, city, cat, tier, lon, lat, hours, pid):
+        return CandidateItem(
+            cid=cid,
+            name=name,
+            poi_id=pid,
+            city=city,
+            category=cat,
+            tier=tier,
+            lon=lon,
+            lat=lat,
+            opening_hours=hours,
+            suggested_duration_min=90,
+        )
+
+    return SnapshotStore(
+        [
+            cand(
+                "c1",
+                "外滩",
+                "上海",
+                "sight",
+                1,
+                121.4903,
+                31.2335,
+                "09:00-21:00",
+                "ct_上海_20",
+            ),
+            cand(
+                "c2",
+                "豫园",
+                "上海",
+                "sight",
+                2,
+                121.4921,
+                31.2273,
+                "09:00-18:00",
+                "ct_上海_21",
+            ),
+            cand(
+                "c5",
+                "南京东路",
+                "上海",
+                "sight",
+                1,
+                121.4800,
+                31.2360,
+                "09:00-22:00",
+                "ct_上海_22",
+            ),
+            cand(
+                "c6",
+                "田子坊",
+                "上海",
+                "sight",
+                2,
+                121.4660,
+                31.2100,
+                "10:00-22:00",
+                "ct_上海_23",
+            ),
+            cand(
+                "c3", "西湖", "杭州", "sight", 1, 120.1494, 30.2459, "全天", "ct_杭州_1"
+            ),
+            cand(
+                "c4",
+                "灵隐寺",
+                "杭州",
+                "sight",
+                2,
+                120.1000,
+                30.2400,
+                "07:00-18:00",
+                "ct_杭州_2",
+            ),
+        ]
+    )
+
+
+def test_engine_seam_echoes_origin_days(monkeypatch):
+    """引擎缝下 origin_days 回显不得再丢（materialize 曾漏传 → 线上恒 0）。"""
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    app = make_app(agent)
+    client = TestClient(app)
+    monkeypatch.setattr("app.api.plan.get_poi_detail_store", _engine_seam_store)
+    resp = start(
+        client,
+        {"cities": ["上海"], "days": 3, "origin_days": 2, "start_date": "2026-11-25"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["state"] == "ready"
+    assert body["session_id"].startswith("ts-")
+    plan = body["plan"]
+    # 回显本体：起始城天数必须原样回来（这是被抹 0 的那处）
+    assert plan.get("origin_days") == 2
+    days = plan["days"]
+    assert len(days) == 3
+
+
+def test_engine_seam_resolved_diffs_suppress_reask(monkeypatch):
+    """引擎缝下确认卡选保留侧不再二次弹卡：route_source=form（brief 落）+
+    resolved_diffs=[card_days] → 直接进引擎缝出 ts- 行程。"""
+    monkeypatch.setenv("TRIP_SOLVER", "cpsat")
+    agent = PlanningAgent(StubAdapter([V0_JSON]))
+    app = make_app(agent)
+    client = TestClient(app)
+    monkeypatch.setattr("app.api.plan.get_poi_detail_store", _engine_seam_store)
+    # 第一轮：文字路线（玩2天+班次号）vs 表单 3 天 → confirm_route（days 等差异）
+    resp1 = start(
+        client,
+        {
+            "cities": ["上海"],
+            "days": 3,
+            "brief": "乘MU5101去上海玩2天",
+            "arrival_date": "2026-12-05",
+            "departure_date": "2026-12-07",
+        },
+    )
+    assert resp1.status_code == 200
+    body1 = resp1.json()
+    assert body1["state"] == "confirm_route"
+    diff_keys = {d.get("what") for d in body1.get("diffs") or []}
+    assert {"route", "days"} <= diff_keys
+    # 第二轮：按表单（brief 不再随发）+ 三条差异全部已答 → ready，
+    # 不再二次弹卡，直接进引擎缝出 ts- 行程
+    resp2 = start(
+        client,
+        {
+            "cities": ["上海"],
+            "days": 3,
+            "arrival_date": "2026-12-05",
+            "departure_date": "2026-12-07",
+            "route_source": "form",
+            "resolved_diffs": sorted(diff_keys),
+        },
+    )
+    assert resp2.status_code == 200
+    body2 = resp2.json()
+    assert body2["state"] == "ready"
+    assert body2["session_id"].startswith("ts-")
+    assert body2["plan"]["days"]
