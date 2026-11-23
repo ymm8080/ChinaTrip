@@ -116,10 +116,14 @@ def test_evening_must_with_big_rivals_lands_in_evening():
     assert _street_start(sol, cid) >= 17 * 60
 
 
-def test_sunset_wish_gets_evening_bands():
+def test_sunset_wish_lands_in_dusk_window():
+    # R23 重祝福：sunset 从晚排带移交 C-01 黄昏窗 [16:00,19:00]（legacy
+    # _BEST_VISIT_WINDOWS 镜像）——end 须落在窗内，不再被晚排带拉进夜里。
     sol, cid = _snapshot(2, 90, "sunset", _light_rivals())
     assert sol.status == "OPTIMAL"
-    assert _street_start(sol, cid) >= 17 * 60
+    s = _street_start(sol, cid)
+    assert 16 * 60 <= s
+    assert s + 90 <= 19 * 60
 
 
 def test_evening_street_covering_dinner_core_solves():

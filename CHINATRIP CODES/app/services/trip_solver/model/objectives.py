@@ -365,8 +365,8 @@ def _preference(
                 )
                 negative.append(SHOW_EARLY_PENALTY * early)
             bvt = (cand.best_visit_time or "").lower()
-            if bvt in ("evening", "sunset") and not relax_tod:
-                # R20 晚排带（见 EVENING_LATE_BANDS 注）：evening/sunset 卡偏好
+            if bvt == "evening" and not relax_tod:  # R23：sunset 移交 C-01 黄昏窗
+                # R20 晚排带（见 EVENING_LATE_BANDS 注）：evening 卡偏好
                 # 晚间开场；带值只在场时计（late<=lit），不在场不白送。
                 start = bundle.start[(cand.cid, day)]
                 for _threshold, _weight in EVENING_LATE_BANDS:

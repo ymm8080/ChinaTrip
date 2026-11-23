@@ -78,6 +78,18 @@ def _pinned_cids(request, snapshot) -> set[tuple[str, int]]:
     return out
 
 
+#: R23：bvt 槽位窗（start 须在窗内且 end=窗上界−dur；镜像 legacy
+#: itinerary/solver.py:_BEST_VISIT_WINDOWS 的 morning/afternoon/sunset
+#: 三槽——engine 专属机制已覆盖 evening（R20 软阶梯，fail-open 有意差异）/
+#: sunrise（旗时等式，更强）/show（C-11 场次钉），三者刻意不入表）。
+#: 放不下 → presence=0 弃卡，与 legacy unplaced 同形。
+_BVT_SLOT_WINDOWS = {
+    "morning": (DAY_START_MINUTES, 12 * 60),
+    "afternoon": (12 * 60, 17 * 60),
+    "sunset": (16 * 60, 19 * 60),
+}
+
+
 def add_c01_windows(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
     snapshot = enriched.snapshot
     model = bundle.model
@@ -115,6 +127,11 @@ def add_c01_windows(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
             if window is not None:
                 lo = max(lo, window[0])
                 hi = min(hi, window[1])
+            _slot = _BVT_SLOT_WINDOWS.get((cand.best_visit_time or "").lower())
+            if _slot is not None:
+                # R23：晨景/午后/黄昏槽位窗（end 落窗内），镜像 legacy 钳制。
+                lo = max(lo, _slot[0])
+                hi = min(hi, _slot[1])
             if flag_min is not None and flag_min >= lo:
                 # R18：升旗=官方固定钟点，不是「≥ 下界」——下界语义下 C-04
                 # 落地地板（到达 08:15）把开场推到 09:30，卡上再没有升旗
