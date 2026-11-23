@@ -77,9 +77,7 @@ def city_day_windows(
     shift = origin_shift(city_list, days, origin_days)
     if shift >= 1:
         inner = city_day_windows(city_list, int(days or 1) - shift, city_days)
-        windows = {
-            _norm(k): (s + shift, e + shift) for k, (s, e) in inner.items()
-        }
+        windows = {_norm(k): (s + shift, e + shift) for k, (s, e) in inner.items()}
         windows[_norm(city_list[0])] = (1, shift)
         return windows
     dests = city_list[1:] if len(city_list) > 1 else city_list

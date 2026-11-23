@@ -5509,4 +5509,3 @@ def test_departure_engine_return_click_lands_return_card_on_schedule():
             assert ret["start_time"][:5] in ["14:30", "15:30", "16:30"]
     finally:
         access_services.configure_store(None)
-

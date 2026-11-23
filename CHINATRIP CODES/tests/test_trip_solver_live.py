@@ -1583,9 +1583,7 @@ def test_generator_departure_flight_number_sets_mode(monkeypatch):
         departure_no="CA1234",
     )
     ret = next(
-        i
-        for i in session.plan.days[-1].items
-        if getattr(i, "to_city", None) == "北京"
+        i for i in session.plan.days[-1].items if getattr(i, "to_city", None) == "北京"
     )
     assert ret.mode == "flight" and ret.flight_no == "CA1234"
     assert ret.duration_minutes == 150  # 拍板「飞机 2.5h」
@@ -1635,5 +1633,3 @@ def test_generator_no_intake_info_zero_action(monkeypatch):
         store=_multi_city_store(),
     )
     assert not any("接驳腿" in a or "落腿" in a for a in session.plan.assumptions)
-
-

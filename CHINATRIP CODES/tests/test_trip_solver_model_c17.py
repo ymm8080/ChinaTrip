@@ -35,13 +35,14 @@ def test_city_day_windows_origin_days_shift():
 def test_city_day_windows_closed_tail_real_stay():
     """闭合尾城 city_days ≥2 = 真实停留（legacy 797f350 口径对齐）：尾城
     占最后 k_tail 天窗，真实目的地在 1..days-k_tail 切窗，回城日提前。"""
-    assert city_day_windows(
-        ["北京", "西安", "北京"], 7, {"西安": 3, "北京": 2}
-    ) == {"西安": (1, 5), "北京": (6, 7)}
+    assert city_day_windows(["北京", "西安", "北京"], 7, {"西安": 3, "北京": 2}) == {
+        "西安": (1, 5),
+        "北京": (6, 7),
+    }
     # k=1 仍是纯返程标记（旧口径不变）
-    assert city_day_windows(
-        ["北京", "西安", "北京"], 7, {"西安": 3, "北京": 1}
-    ) == {"西安": (1, 7)}
+    assert city_day_windows(["北京", "西安", "北京"], 7, {"西安": 3, "北京": 1}) == {
+        "西安": (1, 7)
+    }
 
 
 def test_city_day_windows_mirror_legacy_split():

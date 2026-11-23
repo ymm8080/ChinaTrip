@@ -79,9 +79,7 @@ def _apply_number(leg, number: str) -> None:
         leg.flight_no = number
         leg.train_no = None
     if kind:
-        leg.duration_minutes = (
-            FLIGHT_MINUTES if kind == "flight" else TRAIN_MINUTES
-        )
+        leg.duration_minutes = FLIGHT_MINUTES if kind == "flight" else TRAIN_MINUTES
 
 
 def _drop_overlapping_synthetic_hotel(plan, day_no: int, lo: int, hi: int) -> bool:
