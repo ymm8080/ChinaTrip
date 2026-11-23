@@ -33672,6 +33672,124 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
         summary = ChangeSummary(change_summary=[label], affected_items_count=1)
         return report, summary, notes
 
+    def set_leg_departure(
+        self,
+        session: PlanSession,
+        prev_item_id: str,
+        *,
+        depart: time,
+    ) -> tuple[ValidationReport, ChangeSummary, list[str]]:
+        """桥卡改出发时刻的实体落点（2026-11-23 用户令「乘车去下一站的
+        时间应该也可以编辑」）。
+
+        leg-bridge-* 桥卡只活在响应副本（幂等先清后挂），卡上无可编辑
+        实体；桥卡的出发时刻=上一站的结束时刻——把上一站调成「结束于
+        所选时刻」：普通卡走 set_item_duration 权威路径（开始保留、时长
+        伸缩=用户显式编辑，后续件只推真被压住的）；时长锁定的系统骨架
+        卡（酒店/晨晚/占位餐）走 retime 平移（开始=所选时刻−既有时长，
+        结束=所选时刻）。下一站的到达时刻由其自身卡的时间编辑负责
+        （既有 /retime 通道）。桥卡 id → 上一站的解析在 api 层按响应
+        同形状盘面完成（bridges.resolve_bridge_prev）。纯计算。
+        """
+        plan = session.plan
+        if plan is None:
+            raise ValueError("no_plan")
+        prev = next(
+            (
+                i
+                for d in plan.days
+                for i in d.items
+                if isinstance(i, VisitItem) and i.item_id == prev_item_id
+            ),
+            None,
+        )
+        if prev is None or prev.start_time is None:
+            raise ValueError("item_not_found")
+        dep_min = depart.hour * 60 + depart.minute
+        base_min = prev.start_time.hour * 60 + prev.start_time.minute
+        locked = (
+            (prev.category or "") == "hotel"
+            or is_hotel_night(prev)
+            or is_hotel_morning(prev)
+            or is_lunch_placeholder(prev)
+            or is_dinner_placeholder(prev)
+        )
+        if locked:
+            # 时长锁定骨架卡（占位餐/酒店晨晚）：平移整卡使结束=所选时刻
+            # （开始=所选−既有时长）——绝不能走 retime_item：它的「清当天
+            # 非钉时刻再游标重排」会把其余已锚定的卡搬去天板（R20 实测：
+            # A 卡被搬去 08:30、下一站被搬进饭前）。外科手术：只动本卡 +
+            # 顺延真被压住的后续件（同 set_item_duration 的权威路径纪律）。
+            dur = int(prev.duration_minutes or DEFAULT_VISIT_MINUTES)
+            old_end = prev.end_time or prev.start_time
+            delta = dep_min - (old_end.hour * 60 + old_end.minute)
+            start_min = base_min + delta
+            if start_min < 0:
+                raise ValueError("bridge_depart_too_early")
+            candidate = plan.model_copy(deep=True)
+            edited = next(
+                i
+                for d in candidate.days
+                for i in d.items
+                if isinstance(i, VisitItem) and i.item_id == prev_item_id
+            )
+            edited.start_time = time(start_min // 60, start_min % 60)
+            end_min2 = start_min + dur
+            edited.end_time = (
+                time(end_min2 // 60, end_min2 % 60) if end_min2 < 24 * 60 else None
+            )
+            day = next(d for d in candidate.days if d.day == edited.day)
+            original_times = {
+                i.item_id: i.start_time
+                for dd in plan.days
+                for i in dd.items
+                if isinstance(i, VisitItem)
+            }
+            shifted, _dropped = _ripple_after_duration(day, edited)
+            notes = _reconcile_transfer_days(candidate, user_edit=True)
+            _fallback_sequence_times(candidate, keep_list_order=True)
+            pushed = [
+                it.name
+                for it in day.items
+                if isinstance(it, VisitItem)
+                and it.start_time is None
+                and original_times.get(it.item_id) is not None
+            ]
+            if pushed:
+                joined = "、".join(pushed)
+                note = L(
+                    f"{joined} 当天排不下，已转为「想去」",
+                    f"{joined} no longer fits today — moved to Wanted",
+                )
+                notes.append(note)
+                candidate.assumptions.append(note)
+            if shifted:
+                joined = "、".join(
+                    f"{name} {_fmt_hm(_time_of(old))}→{_fmt_hm(_time_of(new))}"
+                    for name, old, new in shifted
+                )
+                note = L(f"后续顺延：{joined}", f"Shifted later: {joined}")
+                notes.append(note)
+                candidate.assumptions.append(note)
+            reanchor_hotel_cards(candidate.days, keep_ids={prev_item_id})
+            report = validate_plan(candidate, poi_hours=[])
+            annotate_legs(candidate)
+            self._replay_measured_legs(candidate)
+            session.plan = candidate
+        else:
+            minutes = dep_min - base_min
+            if minutes < 15:
+                raise ValueError("bridge_depart_too_early")
+            report, _summary, notes = self.set_item_duration(
+                session, prev_item_id, minutes=minutes
+            )
+        label = L(
+            f"第{prev.day}天 改为 {_fmt_hm(depart)} 出发前往下一站",
+            f"Day {prev.day}: leave for the next stop at {_fmt_hm(depart)}",
+        )
+        summary = ChangeSummary(change_summary=[label], affected_items_count=1)
+        return report, summary, notes
+
     def reflow_after_delete(self, session: PlanSession, *, days: set[int]) -> list[str]:
         """删卡后的当天时间链压缩（2026-11-15 用户「删掉天安门后后面的
         故宫没有做相应调整」）：删一张卡后，受影响天按列表顺序重新起排——

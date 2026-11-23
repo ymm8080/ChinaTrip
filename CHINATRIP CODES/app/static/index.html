@@ -2145,8 +2145,13 @@ function planCard(plan) {
         const handle = (planSession && planSession.session_id && !it.pinned && !isSynth)
           ? '<span class="drag-handle" title="' + I18N.tf("card.drag.title","拖 ⠿ 排序 / 跨天") + '">⠿</span>' : "";
         const ind = handle ? "74px" : "56px";
-        const timeCell = (planSession && planSession.session_id && !isSynth)
-          ? '<button class="t t-edit" data-action="retime" data-item-id="' + esc(it.item_id) + '" data-cur="' + (it.start_time ? String(it.start_time).slice(0, 5) : "") + '" title="' + I18N.tf("card.retime.title","点击修改开始时间") + '">' + fmtTime(it.start_time) + "</button>"
+        // 桥卡（leg-bridge-，响应副本渲染件）也放开时刻编辑（2026-11-23 用户令
+        // 「乘车去下一站的时间应该也可以编辑」）：出发=上一站结束，提交走
+        // /departure（hopedit）；其余合成卡（班车/打车/回城）仍纯展示（班次 chips 已覆盖）。
+        const isBridgeCard = isSynth && (it.item_id || "").indexOf("leg-bridge-") === 0;
+        const canEditTime = !!(planSession && planSession.session_id && (!isSynth || (isBridgeCard && it.start_time)));
+        const timeCell = canEditTime
+          ? '<button class="t t-edit" data-action="' + (isBridgeCard ? "hopedit" : "retime") + '" data-item-id="' + esc(it.item_id) + '" data-cur="' + (it.start_time ? String(it.start_time).slice(0, 5) : "") + '" title="' + I18N.tf(isBridgeCard ? "card.hopedit.title" : "card.retime.title", isBridgeCard ? "点击修改出发时间" : "点击修改开始时间") + '">' + fmtTime(it.start_time) + "</button>"
           : '<span class="t">' + fmtTime(it.start_time) + "</span>";
         // 同级备选（2026-11-05 拍板「每个点要有一个备选，尤其 UNESCO/5A/
         // 国际旅行网站推荐」）：站点行右侧 chip 区，点击一键换为主点——
@@ -2505,7 +2510,7 @@ function planCard(plan) {
       return;
     }
     const brg = ev.target.closest ? ev.target.closest(".visit-block[data-bridge]") : null;
-    if (brg && box.contains(brg)) { // 乘车/步行腿卡整卡点击（2026-11-23）：乘车卡→高德打车，步行卡→高德步行导航
+    if (brg && box.contains(brg) && !ev.target.closest("button,input")) { // 乘车/步行腿卡整卡点击（2026-11-23）：乘车卡→高德打车，步行卡→高德步行导航；卡内按钮/时间输入（hopedit 改出发时刻）优先于导航
       const blon = parseFloat(brg.getAttribute("data-dest-lon")), blat = parseFloat(brg.getAttribute("data-dest-lat"));
       const bnm = brg.getAttribute("data-dest-name");
       if (isFinite(blon) && isFinite(blat)) {
@@ -2638,6 +2643,31 @@ function planCard(plan) {
             const body = await api("/api/v1/plan/" + sid + "/departure", { item_id: id, direction: hopDir, depart: hopDep }, "POST");
             box.replaceWith(planCard(body.plan));
           } catch (err) { failToast(err); box.replaceWith(planCard(plan)); }
+        });
+      } else if (action === "hopedit") {
+        // 桥卡改出发时刻（2026-11-23 用户令「乘车去下一站的时间应该也可以编辑」）：
+        // 桥卡出发=上一站结束——POST /departure direction=out，后端把上一站
+        // 调成「结束于所选时刻」（普通站时长伸缩；占位餐/酒店骨架卡平移）。
+        if (btn.querySelector("input")) return;
+        const input = document.createElement("input");
+        input.type = "time";
+        input.value = btn.getAttribute("data-cur") || "";
+        btn.textContent = "";
+        btn.appendChild(input);
+        input.focus();
+        let done = false;
+        input.addEventListener("change", () => {
+          if (done) return;
+          done = true;
+          const v = input.value;
+          if (!v) { box.replaceWith(planCard(plan)); return; }
+          input.disabled = true;
+          api("/api/v1/plan/" + sid + "/departure", { item_id: id, direction: "out", depart: v }, "POST")
+            .then(body => box.replaceWith(planCard(body.plan)))
+            .catch(err => { failToast(err); box.replaceWith(planCard(plan)); });
+        });
+        input.addEventListener("blur", () => {
+          if (!done) { done = true; box.replaceWith(planCard(plan)); }
         });
       } else if (action === "pin") {
         const cur = btn.getAttribute("data-pinned") === "1";

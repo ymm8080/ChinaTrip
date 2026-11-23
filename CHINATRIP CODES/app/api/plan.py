@@ -2464,6 +2464,10 @@ async def select_plan_departure(
     去程点选 → 晨卡按该班次回算离店时刻（离店 = 班次 − 打车含早高峰）；
     返程点选 → 景区卡按该返程班次回推离场时刻；当天其余件按序重排。
     点选值落卡，后续重建不被默认班次覆盖。
+    leg-bridge-* 桥卡（响应副本渲染件）也走本端点：出发时刻=上一站结束——
+    在响应同形状探针盘面上解析桥卡→上一站（bridges.resolve_bridge_prev），
+    落 agent.set_leg_departure（R20 2026-11-23「乘车去下一站的时间应该
+    也可以编辑」）。
     """
     if not x_device_id:
         raise HTTPException(status_code=400, detail="missing_device_id")
@@ -2479,12 +2483,31 @@ async def select_plan_departure(
     except (TypeError, ValueError):
         raise HTTPException(status_code=422, detail="bad_depart") from None
     try:
-        _, summary, notes = agent.set_access_departure(
-            session,
-            request.item_id,
-            direction=request.direction,
-            depart=depart_at,
-        )
+        if (request.item_id or "").startswith("leg-bridge-"):
+            # R20（2026-11-23 用户令「乘车去下一站的时间应该也可以编辑」）：
+            # 桥卡只活在响应副本（幂等先清后挂、卡上无可编辑实体）——在
+            # 响应同形状的探针盘面上解析桥卡 → 上一站，改出发时刻=把上一
+            # 站调成「结束于所选时刻」（见 agent.set_leg_departure）。
+            # id 解析不到=盘面已变/过期 → 404 让前端刷新重试，不静默吞。
+            if request.direction != "out":
+                raise ValueError("bad_direction")
+            from app.services.trip_solver.assembly.bridges import (
+                resolve_bridge_prev,
+            )
+
+            prev = resolve_bridge_prev(
+                _plan_for_response(session.plan), request.item_id
+            )
+            _, summary, notes = agent.set_leg_departure(
+                session, prev.item_id, depart=depart_at
+            )
+        else:
+            _, summary, notes = agent.set_access_departure(
+                session,
+                request.item_id,
+                direction=request.direction,
+                depart=depart_at,
+            )
     except ValueError as exc:
         code = str(exc)
         if code == "item_not_found":

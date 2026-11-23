@@ -191,3 +191,49 @@ def attach_gap_bridges(plan: "ItineraryPlan") -> "ItineraryPlan":
                 )
             )
     return plan
+
+
+def resolve_bridge_prev(plan: "ItineraryPlan", bridge_id: str) -> VisitItem:
+    """解析桥卡 id → 上一站卡（桥卡出发时刻的实体锚）。
+
+    R20（2026-11-23 用户令「乘车去下一站的时间应该也可以编辑」）：桥卡
+    只活在响应副本（幂等先清后挂、卡上无可编辑实体），桥卡的出发时刻
+    =上一站的结束时刻（构造时 g0=prev.end）——用户改桥卡出发时刻就是
+    改上一站的结束。解析须在「按响应形状挂好桥卡」的盘面上进行（api 层
+    用 _plan_for_response 的产物探查，保证桥卡 id 与用户所见一致：晨卡
+    收点/回城卡重投影都会挪动空档两端，裸会话盘面探查会对不上）。
+    匹配口径与构造一致：同一时间线上、结束时刻==桥卡开始时刻的最近
+    一张可桥卡。
+
+    找不到桥卡 → item_not_found（盘面已变、id 过期，404 让前端刷新重试）；
+    上一站缺失/无时刻 → bridge_prev_untimed。
+    """
+    for day in plan.days:
+        for idx, it in enumerate(day.items):
+            if not (isinstance(it, VisitItem) and it.item_id == bridge_id):
+                continue
+            target_min = _mins(it.start_time)
+            cands = [
+                p
+                for p in day.items[:idx]
+                if isinstance(p, VisitItem)
+                and (_mins(p.end_time) or _mins(p.start_time)) == target_min
+                and (p.category or "") not in ("hotel", "transfer", "transport")
+            ]
+            if not cands:
+                raise ValueError("bridge_prev_untimed")
+            # 嵌套占位餐卡常与宿主同尾（宿主 10:00-13:00、占位午饭 12:00-13:00，
+            # R20 实测：refresh_legs 物化占位后桥卡的「结束==开始」候选有两张）
+            # ——用户眼里的「上一站」是宿主卡：改桥卡出发=伸缩宿主停留，绝不
+            # 抓占位餐卡。优先非占位卡取最晚开始（与构造 max-start 口径一致），
+            # 全是占位才回落占位。
+            real = [
+                p
+                for p in cands
+                if not str(p.item_id or "").startswith(
+                    ("meal-lunch-", "meal-dinner-", "food-lunch-ph", "food-dinner-ph")
+                )
+            ]
+            pool = real or cands
+            return max(pool, key=lambda p: _mins(p.start_time) or 0)
+    raise ValueError("item_not_found")
