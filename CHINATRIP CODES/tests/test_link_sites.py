@@ -920,6 +920,94 @@ def test_paste_answer_clears_link_clarify_override():
     assert session.cities == ["南京"] and session.days == 2
 
 
+# --- paste-answer after unreadable link must open the keep/replan round ----
+# 2026-11-24 用户实报：链接读不到→请粘贴 后，整段行程文字当答复贴进来
+# ——必须与 start 同口径先开读点确认轮（site_days → sequence_ask 问
+# keep/replan），不能跳过确认直接生成。
+
+
+class _KnownPlaces:
+    """poi_details 最小桩：库内点名命中 + 规范绑定两用。"""
+
+    def __init__(self, known):
+        self.known = known  # {(city, name): row}
+
+    def candidate_by_name(self, city, name):
+        return self.known.get((city, (name or "").strip()))
+
+    def match_text_names(self, city, text, *, limit=8):
+        return [row for (c, n), row in self.known.items() if c == city and n in text]
+
+
+_PASTE_ANSWER = (
+    "Beijing 4 days. Day 1: Tiananmen Square in the morning, "
+    "then the Forbidden City. Day 4: Mutianyu Great Wall hike."
+)
+
+
+def test_paste_planning_text_as_clarify_answer_opens_keep_replan_round():
+    known = {
+        ("北京", n): {"name": n, "city": "北京", "category": "风景名胜"}
+        for n in ("天安门广场", "故宫博物院", "慕田峪长城")
+    }
+    llm = RecordingLLM(
+        [
+            json.dumps(
+                {
+                    "sites": [
+                        {
+                            "name": "天安门广场",
+                            "kind": "sight",
+                            "city": "北京",
+                            "day": 1,
+                        },
+                        {
+                            "name": "故宫博物院",
+                            "kind": "sight",
+                            "city": "北京",
+                            "day": 1,
+                        },
+                        {
+                            "name": "慕田峪长城",
+                            "kind": "sight",
+                            "city": "北京",
+                            "day": 4,
+                        },
+                    ]
+                },
+                ensure_ascii=False,
+            ),
+        ]
+    )
+    agent = PlanningAgent(
+        llm,
+        amap_client=StubAmap(),
+        link_reader=StubReader(
+            LinkDigest(url=_PLANNER_CHAT_URL, reason="share_shell", error="分享壳页")
+        ),
+        trip_items=TripItemService(),
+        poi_details=_KnownPlaces(known),
+    )
+    session = run(
+        agent.start(
+            device_id="d",
+            cities=[],
+            days=0,
+            preferences=f"按这个行程排 {_PLANNER_CHAT_URL}",
+        )
+    )
+    assert session.clarify_override  # R26 的「请粘贴」追问
+
+    session, reply, _ = run(agent.message(session, _PASTE_ANSWER))
+    assert session.state == "site_confirm"
+    assert session.pending_sites == ["天安门广场", "故宫博物院", "慕田峪长城"]
+    assert session.site_days == {"天安门广场": 1, "故宫博物院": 1, "慕田峪长城": 4}
+    assert session.pending_sites_source == "brief"
+    assert session.must_visits == []  # 未点选不入库（2026-11-14 口径）
+    assert "认出了这些地点" in reply
+    assert llm.calls == 1  # 只烧一次读点 LLM，未提前生成
+
+
 # --- variant-name dedupe (plan already holds the site) ---------------------
 
 

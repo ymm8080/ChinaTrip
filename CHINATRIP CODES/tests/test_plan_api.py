@@ -563,6 +563,77 @@ def test_start_unreadable_planner_link_replies_paste_request():
     assert "plan" not in body
 
 
+def test_message_paste_answer_opens_sequence_ask_after_unreadable_link():
+    """「链接读不到→请粘贴」的答复轮：整段行程文字进来必须开
+    site_confirm 并带 sequence_ask（keep/replan），不得直接生成。"""
+    from app.services.web_reader import LinkDigest
+
+    known = {
+        ("北京", n): {"name": n, "city": "北京", "category": "风景名胜"}
+        for n in ("天安门广场", "故宫博物院", "慕田峪长城")
+    }
+
+    class _Places:
+        def candidate_by_name(self, city, name):
+            return known.get((city, (name or "").strip()))
+
+        def match_text_names(self, city, text, *, limit=8):
+            return [row for (c, n), row in known.items() if c == city and n in text]
+
+    answer = (
+        "Beijing 4 days. Day 1: Tiananmen Square in the morning, "
+        "then the Forbidden City. Day 4: Mutianyu Great Wall hike."
+    )
+    agent = PlanningAgent(
+        StubAdapter(
+            [
+                json.dumps(
+                    {
+                        "sites": [
+                            {
+                                "name": "天安门广场",
+                                "kind": "sight",
+                                "city": "北京",
+                                "day": 1,
+                            },
+                            {
+                                "name": "故宫博物院",
+                                "kind": "sight",
+                                "city": "北京",
+                                "day": 1,
+                            },
+                            {
+                                "name": "慕田峪长城",
+                                "kind": "sight",
+                                "city": "北京",
+                                "day": 4,
+                            },
+                        ]
+                    },
+                    ensure_ascii=False,
+                ),
+            ]
+        ),
+        amap_client=NoPoiAmap(),
+        link_reader=_Reader(
+            LinkDigest(url=_PLANNER_SHARE_URL, reason="share_shell", error="壳页")
+        ),
+        poi_details=_Places(),
+    )
+    client = client_for(agent)
+    sid = start(client, {"preferences": f"按这个行程排 {_PLANNER_SHARE_URL}"}).json()[
+        "session_id"
+    ]
+    body = message(client, sid, answer).json()
+    assert body["state"] == "site_confirm"
+    assert body["sequence_ask"]["options"] == ["keep", "replan"]
+    assert body["sequence_ask"]["days"] == {
+        "天安门广场": 1,
+        "故宫博物院": 1,
+        "慕田峪长城": 4,
+    }
+
+
 # --- product rule 2026-10-20: sites/confirm endpoint --------------------
 
 

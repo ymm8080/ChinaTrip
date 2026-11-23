@@ -34,6 +34,7 @@ from app.services.lang_ctx import L
 from app.services.llm import LLMError
 from app.services.llm.base import ChatMessage, parse_json_content
 from app.services.trip_orchestrator.session import PlanSession
+from app.services.web_reader import find_urls
 
 
 def _match_picked_sites(all_sites, mandatory):
@@ -427,6 +428,27 @@ class RoundsMixin:
                         ),
                     ]
         if session.cities and session.days > 0:
+            # R26（2026-11-24 用户实报「贴完整规划文字没弹 keep/replan」）：
+            # 「链接读不到→请粘贴」的答复轮里，整段行程文字是当答复进来的
+            # ——必须（a）把它折进挖点源（preferences 里还是那条打不开的
+            # 链接，find_urls 会短路挖点），（b）与 start 同口径先开读点
+            # 确认轮（pending_sites+site_days → 卡上 sequence_ask 问
+            # keep/replan），再轮到生成；没有可确认地点时照旧直接生成。
+            _answer = text.strip()
+            if _answer and not session.brief_mined:
+                _src = (session.brief_text or session.preferences or "").strip()
+                if not _src or find_urls(_src):
+                    # 旧源就是那条读不到的链接：粘贴正文直接替换它，
+                    # 否则挖点通道被 find_urls 短路、确认轮永远开不出来。
+                    session.brief_text = _answer
+                elif _answer not in _src:
+                    session.brief_text = f"{_src} {_answer}".strip()
+            if session.plan is None and not session.brief_mined:
+                _round_notes = await self._brief_site_round(session)
+                if _round_notes:
+                    session.brief_notes = [*session.brief_notes, *_round_notes]
+                if session.state == "site_confirm":
+                    return session, session.history[-1].content, None
             session = await self._generate_v0(session)
             if session.state == "resto_confirm":
                 return session, session.history[-1].content, None
