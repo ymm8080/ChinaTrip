@@ -1633,3 +1633,37 @@ def test_generator_no_intake_info_zero_action(monkeypatch):
         store=_multi_city_store(),
     )
     assert not any("接驳腿" in a or "落腿" in a for a in session.plan.assumptions)
+
+
+def test_engine_default_pick_library_ace_without_musts():
+    """R12-H10c 端到端（2026-11-22 用户令「兵马俑不是口头必去也应被选」）：
+    无任何必去输入，库内王牌（5A/4.7，如兵马俑）凭填充库内数据分自然
+    入选引擎解——远郊王牌可能不在到达日，但必须在场。"""
+    from app.services.trip_solver.inputs.enrich import enrich
+    from app.services.trip_solver.live import _row_to_candidate
+    from app.services.trip_solver.model.solve import solve_snapshot
+    from app.services.trip_solver.types import FactSnapshot, TripRequest
+
+    center = (108.9424, 34.2610)
+    lintong = (109.2785, 34.3845)
+    rows = [
+        {"name": "秦始皇帝陵博物院", "rating": 4.7, "tags": ["5a"], "source": "5a", "location": lintong, "suggested_duration_min": 180},
+        {"name": "华清宫", "rating": 4.6, "tags": ["5a"], "source": "5a", "location": (109.2135, 34.3628), "suggested_duration_min": 150},
+        {"name": "西安钟楼", "rating": 4.4, "source": "amap", "location": center, "suggested_duration_min": 60},
+        {"name": "小雁塔", "rating": 4.4, "source": "amap", "location": (108.9384, 34.2495), "suggested_duration_min": 90},
+        {"name": "西安博物院", "rating": 4.3, "source": "amap", "location": (108.9310, 34.2460), "suggested_duration_min": 90},
+    ]
+    cands = tuple(
+        _row_to_candidate(f"f{i}", r, kind="fill") for i, r in enumerate(rows)
+    )
+    snap = FactSnapshot(
+        schema_version=2,
+        request=TripRequest(days=3, cities=("西安",), sight_cap_per_day=2),
+        candidates=cands,
+    )
+    sol = solve_snapshot(enrich(snap), budget_s=8.0)
+    by_cid = {c.cid: c for c in cands}
+    placed_names = [by_cid[i.cid].name for i in sol.items if i.kind == "visit"]
+    assert "秦始皇帝陵博物院" in placed_names
+    ace = next(i for i in sol.items if by_cid[i.cid].name == "秦始皇帝陵博物院")
+    assert 1 <= ace.day <= 3

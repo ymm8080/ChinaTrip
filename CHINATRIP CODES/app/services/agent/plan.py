@@ -21890,6 +21890,39 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
             # 行程外心愿披露（2026-11-07 具名体验愿望案）：跳过也要让用户看见，
             # 不再静默蒸发（2026-10-25 日志铁律）。
             extra_assumptions = list(extra_assumptions or []) + skip_notes
+        # PRIORITY RANK 同口径（2026-11-22 用户令「景点选择按 PRIORITY
+        # RANK，legacy 与 cp-sat 同一套选点逻辑」）：引擎 start 缝早已把
+        # 强意图/优先级措辞点名收进 musts（R13f，live.generate_session_
+        # via_trip_solver），legacy 管线此前只把同一段文本当软偏好——
+        # 同一句「兵马俑是最高优先级的景点」两条路径两种选点语义，且
+        # legacy 选点层没有必去钉选兜底时会漏选。此处同函数补齐，落
+        # session.must_visits：本回合 legacy 选点（_merge_must_visits
+        # 钉选）与后续重排缝（_session_snapshot musts）都按必去承接。
+        try:
+            from app.services.trip_orchestrator.nlu import _restart_named_musts
+
+            _named_musts = _restart_named_musts(
+                session.preferences or "",
+                store=self._poi_details,
+                cities=session.cities,
+            )
+        except Exception:
+            _named_musts = []
+        if _named_musts:
+            _have = {str(m or "").strip() for m in (session.must_visits or [])}
+            _new_musts = [
+                p for p in _named_musts if str(p or "").strip() not in _have
+            ]
+            if _new_musts:
+                session.must_visits = list(session.must_visits or []) + _new_musts
+                extra_assumptions = list(extra_assumptions or []) + [
+                    L(
+                        "偏好中的点名景点已按最高优先级收进必去："
+                        + "、".join(_new_musts),
+                        "Named sights from preferences are pinned as "
+                        "must-visits: " + ", ".join(_new_musts),
+                    )
+                ]
         # P3 二期（2026-11-18 拍板「偏好重排也要换 CP-SAT」）：引擎可完整
         # 承载的会话形状（replan_seam_shape）且本请求未被 api 缝先试过时，
         # _generate_v0 的全量重解改走模型引擎——偏好文本随快照入池（偏好

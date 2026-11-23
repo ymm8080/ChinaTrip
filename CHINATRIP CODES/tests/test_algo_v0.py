@@ -1258,3 +1258,28 @@ def test_sched_best_visit_is_library_passthrough_only():
     assert _sched_best_visit(hotel_cand) == "any"
     # 空候选 → None
     assert _sched_best_visit(None) is None
+
+
+# --- 默认选点王牌必入选（2026-11-22 用户令「兵马俑不是口头必去也应被选」） ---
+
+
+def test_algo_default_pick_5a_far_suburb_ace():
+    """无任何必去输入时，库内最高档王牌（5A 远郊，如兵马俑）凭 tier 梯子
+    自然入选——不需要用户口头点名。远郊簇（兵马俑+华清宫同片区临潼）
+    与市中心簇并存，3 日窗口两簇都应有人被选。"""
+    cands = [
+        _cand("秦始皇帝陵博物院", "西安", tags=["5a"], loc=(109.2785, 34.3845), suggested=180),
+        _cand("华清宫", "西安", tags=["5a"], loc=(109.2135, 34.3628), suggested=150),
+        _cand("西安钟楼", "西安", loc=(108.9424, 34.2610), suggested=60),
+        _cand("小雁塔", "西安", loc=(108.9384, 34.2495), suggested=90),
+        _cand("回民街", "西安", loc=(108.9320, 34.2650), suggested=90),
+        _cand("西安博物院", "西安", loc=(108.9310, 34.2460), suggested=90),
+    ]
+    picked = PlanningAgent._deterministic_selection(
+        cands, 3, {"西安": (1, 3)}, notes=[], preferences=""
+    )
+    names = [p["name"] for p in picked]
+    assert "秦始皇帝陵博物院" in names
+    # 远郊王牌不因到达日轻量闸被放生——只挪日，不落选
+    ace_day = next(p["day"] for p in picked if p["name"] == "秦始皇帝陵博物院")
+    assert 1 <= ace_day <= 3

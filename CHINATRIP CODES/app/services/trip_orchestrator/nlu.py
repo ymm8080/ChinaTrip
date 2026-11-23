@@ -294,7 +294,10 @@ def _restart_named_musts(text: str, store=None, cities=None) -> list[str]:
     """换局句里的点名地点短语（二期 2026-11-18 拍板「点名长句也换引擎」）。
 
     只认强意图点名词（必去/要去/必须去/一定要去/务必去/打卡）后到句读
-    为止的短语，按「和/与/跟/及/还有/以及/、」拆开；「想去」是心愿软
+    为止的短语，按「和/与/跟/及/还有/以及/、」拆开；PRIORITY RANK 措辞
+    （2026-11-22 用户令「景点选择按 PRIORITY RANK」）同口径硬收——
+    「X是最高优先级(的景点)」「最高优先级是X」「X必去/必玩/必看」
+    「最想去X」「首选X」。「想去」是心愿软
     语义（R8 偏好/心愿链），引擎 musts=硬覆盖，语义不对等——留 legacy。
     短语不做底库校验：绑定交给快照绑定链（精确名→文本匹配→骨架兜底，
     缝不吞点、B-01）；底库没有的点（如楼外楼）由骨架候选诚实承载，
@@ -347,9 +350,102 @@ def _restart_named_musts(text: str, store=None, cities=None) -> list[str]:
     junk_re = _re.compile(
         r"然后|接着|之后|另外|要少|别太|太多|较少|安排|规划|节奏|时间"
     )
+    # PRIORITY RANK 措辞（2026-11-22 用户令「景点选择按 PRIORITY RANK」）：
+    # 「X是最高优先级(的景点)」「X必去/必玩/必看」「最想去X」「首选X」
+    # 此前全部被吞成软偏好——R13f 只收「必去」后置短语，前置主语形态
+    # 与优先级措辞两条硬意图形态漏收。收进 musts 后覆盖层（引擎）与
+    # _merge_must_visits 钉选（legacy）同口径承接，选点序=优先级第一。
+    prio_is_re = _re.compile(
+        r"(?:是|为|算是)(?:本次|这次|此行)?(?:旅行的|行程的|出游的|游玩的|"
+        r"旅游的|此行的)?(?:最高|第一|头号)优先级"
+    )
+    prio_head_re = _re.compile(
+        r"(?:最高|第一|头号)优先级(?:的景点|的地点|景点|地点)?(?:是|为|[:：])"
+    )
+    trailing_must_re = _re.compile(
+        r"([\u4e00-\u9fffA-Za-z0-9]{2,16}?)(?:必去|必玩|必看|必到|必逛)"
+        r"(?![\u4e00-\u9fffA-Za-z0-9])"
+    )
+    want_most_re = _re.compile(r"最(?:想|先)去([\u4e00-\u9fffA-Za-z0-9]{2,16})")
+    first_pick_re = _re.compile(r"首选[:：]?\s*([\u4e00-\u9fffA-Za-z0-9]{2,16})")
+    lead_junk_re = _re.compile(r"^(?:本次|这次|此行|我们|我|咱们|去|先|最好|先要|要)+")
+    # 「不是最高优先级/不算最高优先级」否定语境不读
+    prio_neg_re = _re.compile(r"(?:不是|不算|并非|并非是|不算?)\s*(?:本次|这次|此行)?")
+
+    def _clean_subject(token: str) -> str:
+        """主语清洗：指示词/代词前缀 + 城市「游/之行/之旅」后缀剥离。
+        城市后缀仅在 cities 参数命中该城市时剥（防「迪士尼游乐园」误剥）。"""
+        token = lead_junk_re.sub("", token or "").rstrip("的")
+        for city in cities or []:
+            base = (city or "").strip().removesuffix("市")
+            if not base or not token.startswith(base):
+                continue
+            _tail_token = token[len(base) :]
+            for suffix in ("游", "之行", "之旅"):
+                if _tail_token.startswith(suffix):
+                    _rest = _tail_token[len(suffix) :]
+                    if len(_rest) >= 2:
+                        token = _rest
+                        break
+            else:
+                continue
+            break
+        return token
+
+    def _subject_before(idx: int) -> str:
+        """优先级短语主语：短语起点往前取最后一个无标点 token
+        （「这次西安游兵马俑是最高优先级」→「兵马俑」，非贪婪回溯
+        会把整段 swallow 成主语）。"""
+        seg = probe[max(0, idx - 48) : idx]
+        token = _re.split(r"[。！？；;，,\s：:、（）()「」【】\"'·]+", seg)[-1] if seg else ""
+        return _clean_subject(token)
+
     probe = text or ""
     out: list[str] = []
     seen: set[str] = set()
+
+    def _offer(name: str) -> None:
+        p = _clean_phrase(name)
+        if len(p) < 2 or len(p) > 16 or p in seen or junk_re.search(p):
+            return
+        seen.add(p)
+        out.append(p)
+
+    # ① 优先级措辞前置主语：「兵马俑是最高优先级的景点」
+    for m in prio_is_re.finditer(probe):
+        before = probe[max(0, m.start() - 1) : m.start()]
+        if before in ("不", "别", "无") or prio_neg_re.search(
+            probe[max(0, m.start() - 4) : m.start() + 2]
+        ):
+            continue
+        _offer(_subject_before(m.start()))
+        if len(out) >= 8:
+            return out
+    # ② 「最高优先级是X」「首选X」后置宾语
+    for m in prio_head_re.finditer(probe):
+        seg = probe[m.end() : m.end() + 24]
+        token = _re.split(r"[。！？；;，,\s、]+", seg)[0] if seg else ""
+        if token:
+            _offer(token)
+        if len(out) >= 8:
+            return out
+    for m in first_pick_re.finditer(probe):
+        _offer(m.group(1))
+        if len(out) >= 8:
+            return out
+    for m in want_most_re.finditer(probe):
+        _offer(m.group(1))
+        if len(out) >= 8:
+            return out
+    # ③ 尾部强标记：「兵马俑必去」——旧 marker_re 只认标记后短语，
+    # 主语在前的形态整段漏收
+    for m in trailing_must_re.finditer(probe):
+        if probe[max(0, m.start() - 1) : m.start()] in ("不", "别", "无"):
+            continue
+        _offer(_clean_subject(m.group(1)))
+        if len(out) >= 8:
+            return out
+
     for m in marker_re.finditer(probe):
         # 负向语境：「不必去/别必去/无必去」不是点名
         if probe[max(0, m.start() - 1) : m.start()] in ("不", "别", "无"):

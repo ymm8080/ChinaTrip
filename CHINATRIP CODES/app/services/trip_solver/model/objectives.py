@@ -72,6 +72,10 @@ MORNING_MINUTE = 12 * 60
 ENTERTAINMENT_PRESENT_REWARD = 40
 CATEGORY_DIVERSITY_REWARD = 20
 QUALITY_SCALE = 100
+# RATE 层（2026-11-22 用户令「选点按 PRIORITY RANK, WEATHER, rate 而非
+# amap rate」）：填充候选的库内数据分奖励上限——有界，让 rate 生效于
+# 填充选择但压不住天气层罚项/同菜系罚项。
+FILL_QUALITY_REWARD_CAP = 200
 # P2-B3 evidence: at 4/min a dense day's typ-shrinkage outbids
 # FILL_REWARD (g01 both-fills net -10 at tier ①) and days starve; 1/min
 # fixes density but trips the P0 audit (8-min transfer gaps, 17km walk
@@ -241,7 +245,18 @@ def _preference(
             except Exception:
                 pref_bonus = 0
 
-        quality = int(round(float(cand.quality or 0) * QUALITY_SCALE))
+        # R12-H10c：quality 双域——live 库行是 int 数据分（_data_priority_
+        # score，1-100+）；快照/语料行是 float 0-1。必去两域同语义 ×100
+        # （live 77→7700，语料 0.9→90）；填充按域分支：live 域吃原始分
+        # ×2 有界（4.0→80、4.5→90、5A 4.7→154、4.8 名录→cap 200，保
+        # 分辨率）；语料 float 域维持 ×100 旧语义（shadow 对照零漂移）。
+        _q = float(cand.quality or 0)
+        if cand.rid:
+            quality = int(round(_q * QUALITY_SCALE))
+        elif _q > 2:  # live 库内数据分域
+            quality = min(int(_q) * 2, FILL_QUALITY_REWARD_CAP)
+        else:  # 快照/语料 float 域
+            quality = int(round(_q * QUALITY_SCALE))
         big_must = bool(
             cand.rid and int(cand.suggested_duration_min or 0) > BIG_MUST_MIN_DURATION
         )

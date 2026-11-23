@@ -5756,3 +5756,25 @@ def test_start_seam_served_engine_does_not_double_fold(monkeypatch):
     assert not any("行程由现行引擎生成" in a for a in body["assumptions"])
     # 必去已由引擎绑定排卡：无「未排上」横幅（键匹配链路）
     assert body["plan"].get("unarranged_musts") in (None, [])
+
+
+def test_restart_named_musts_priority_rank():
+    """PRIORITY RANK 措辞硬收（2026-11-22 用户令「景点选择按 PRIORITY
+    RANK，legacy 与 cp-sat 同一套选点逻辑」）：「X是最高优先级(的景点)」
+    「最高优先级是X」「X必去/必玩」「最想去X」「首选X」此前被吞成软
+    偏好——兵马俑漏排事故根因之一。否定语境/软品类偏好不收。"""
+    from app.api.plan import _restart_named_musts as f
+
+    assert f("兵马俑是最高优先级的景点") == ["兵马俑"]
+    assert f("兵马俑是这次旅行的最高优先级") == ["兵马俑"]
+    assert f("兵马俑必去") == ["兵马俑"]
+    assert f("华清宫必玩") == ["华清宫"]
+    assert f("最高优先级是兵马俑") == ["兵马俑"]
+    assert f("最想去兵马俑") == ["兵马俑"]
+    assert f("首选：兵马俑") == ["兵马俑"]
+    # 主语前带指示词/前缀不吞整段
+    assert f("这次西安游兵马俑是最高优先级", cities=["西安"]) == ["兵马俑"]
+    # 否定语境与软偏好不收
+    assert f("博物馆不是最高优先级") == []
+    assert f("不必去西湖") == []
+    assert f("喜欢博物馆和美食") == []
