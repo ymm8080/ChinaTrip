@@ -278,7 +278,11 @@ def test_access_leg_detail_has_taxi_leg_shuttle_and_urls():
 
 
 def test_service_options_rank_fewer_transfers_then_shorter():
-    """多方式分块：默认推荐=换乘少，其次时间短（2026-11-16 用户拍板）。"""
+    """多方式分块：默认推荐=换乘少，其次时间短（2026-11-16 用户拍板）。
+
+    2026-11-23 用户拍板「any bus should be replaced by taxi」后，换乘选项改用
+    铁路接驳（非 bus）——常规公交已在 ``services_for`` 单点剔除，不再进候选。
+    """
     from app.services import access_services
 
     direct_slow = _svc_row(
@@ -289,9 +293,9 @@ def test_service_options_rank_fewer_transfers_then_shorter():
         fare_cny=50.0,
     )
     transfer_fast = _svc_row(
-        service_name="57路 → 通游专线21路（1 次换乘）",
-        mode="bus",
-        boarding_stop="东城三里河站",
+        service_name="市郊铁路 S2线 → 八达岭接驳车（1 次换乘）",
+        mode="train",
+        boarding_stop="黄土店站",
         ride_minutes=60,
         fare_cny=10.0,
     )
@@ -310,7 +314,7 @@ def test_service_options_rank_fewer_transfers_then_shorter():
         access_services.configure_store(None)
     assert [o["service_name"] for o in opts] == [
         "前门旅游专线",
-        "57路 → 通游专线21路（1 次换乘）",
+        "市郊铁路 S2线 → 八达岭接驳车（1 次换乘）",
     ]
     assert opts[0]["recommended"] is True
     assert opts[0]["transfers"] == 0
@@ -340,10 +344,10 @@ def test_access_breakdown_multi_mode_options_and_clear_gateway():
         last_mile_minutes=10,
         outbound_times=["07:26", "08:26", "09:26"],
     )
-    bus = _svc_row(
+    coach = _svc_row(
         poi_name="八达岭长城",
-        service_name="877路",
-        mode="bus",
+        service_name="北京旅游集散中心直通车",
+        mode="shuttle",
         boarding_stop="德胜门站",
         boarding_lon=116.385,
         boarding_lat=39.949,
@@ -353,7 +357,22 @@ def test_access_breakdown_multi_mode_options_and_clear_gateway():
         last_mile_minutes=10,
         outbound_times=["06:30", "07:30", "08:30"],
     )
-    access_services.configure_store(_FakeStore([train, bus]))
+    # 常规公交（mode=bus）：2026-11-23 用户拍板「any bus should be replaced by
+    # taxi」——进档案即被剔除，下面的断言钉住它绝不作为 option 露出。
+    bus = _svc_row(
+        poi_name="八达岭长城",
+        service_name="877路",
+        mode="bus",
+        boarding_stop="北土城站",
+        boarding_lon=116.402,
+        boarding_lat=39.978,
+        alight_stop="八达岭站",
+        ride_minutes=90,
+        fare_cny=12.0,
+        last_mile_minutes=10,
+        outbound_times=["06:30", "07:30", "08:30"],
+    )
+    access_services.configure_store(_FakeStore([train, coach, bus]))
     a = VisitItem(
         item_id="hotel-morning-d1",
         name="🏨 从酒店出发",
@@ -390,6 +409,8 @@ def test_access_breakdown_multi_mode_options_and_clear_gateway():
     detail = a.next_leg_detail
     opts = detail["options"]
     assert len(opts) == 2
+    # 常规公交不出现（2026-11-23 拍板一律改打车）
+    assert "877路" not in [o["service_name"] for o in opts]
     assert opts[0]["recommended"] is True
     # 乘车点是清晰单站名（不是三站拼一串），且与推荐块一致
     assert detail["gateway"] == opts[0]["boarding_stop"]
