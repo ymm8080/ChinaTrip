@@ -22272,12 +22272,9 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
             site_cities=session.site_cities,
             bindings={**session.wish_bindings, **self._wish_bindings},
             transfer_days=transfer_days,
-            # R25：replan 选边=不吃文字日程（按天气/地理自由排）；keep/None 照旧
-            site_days=(
-                {}
-                if str(getattr(session, "sequence_choice", "") or "") == "replan"
-                else session.site_days
-            ),
+            # R25b：顺序选边（keep/replan）是引擎语义（快照 day_hint + C-25）——
+            # legacy 不承接该选择；site_days 保持原样（未选边时代码面零变化）。
+            site_days=session.site_days,
         )
         # 8.1.5 硬闸门联动（TravelPlanner 常识约束）：每天非 food 游览点
         # >4 裁到 4——过载日既走不完也过不了铁律 6。
