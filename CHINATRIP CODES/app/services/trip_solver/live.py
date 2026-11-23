@@ -900,6 +900,64 @@ def _intake_day_no(date_iso, start_date, days: int, default_day: int) -> Optiona
     return _role_endpoint(day)
 
 
+def _overlay_chosen_departures(snapshot, session):
+    """R19: carry user-selected shuttle times into the snapshot.
+
+    access_chosen_depart/return live on the scenic cards (written
+    by the departure-selection surgery). A full engine re-solve
+    rebuilt candidates without reading them, silently reverting
+    the user's pick to the default bus. Keyed by poi_id with a
+    name fallback; frozen dataclasses are re-cast via replace().
+    """
+    from dataclasses import replace as _replace
+
+    from app.services.itinerary.models import VisitItem
+
+    plan = getattr(session, "plan", None)
+    if plan is None:
+        return snapshot
+    by_poi: dict[str, dict[str, str]] = {}
+    by_name: dict[str, dict[str, str]] = {}
+    for day in plan.days:
+        for item in day.items:
+            if not isinstance(item, VisitItem):
+                continue
+            dep = getattr(item, "access_chosen_depart", None)
+            ret = getattr(item, "access_chosen_return", None)
+            if not dep and not ret:
+                continue
+            slot = {
+                "depart": str(dep) if dep else "",
+                "return": str(ret) if ret else "",
+            }
+            if item.poi_id:
+                by_poi.setdefault(str(item.poi_id), slot)
+            if item.name:
+                by_name.setdefault(str(item.name), slot)
+    if not by_poi and not by_name:
+        return snapshot
+    out = []
+    changed = False
+    for cand in snapshot.candidates:
+        hit = by_poi.get(str(cand.poi_id)) if cand.poi_id else None
+        if hit is None:
+            hit = by_name.get(str(cand.name))
+        if hit is None:
+            out.append(cand)
+            continue
+        changed = True
+        out.append(
+            _replace(
+                cand,
+                chosen_depart=hit.get("depart") or None,
+                chosen_return=hit.get("return") or None,
+            )
+        )
+    if not changed:
+        return snapshot
+    return _replace(snapshot, candidates=tuple(out))
+
+
 def _session_snapshot(
     session, store, extra_musts=None, weather_lookup=None, food_rows=None
 ):
@@ -966,6 +1024,9 @@ def _session_snapshot(
         ),
         food_rows=food_rows,
     )
+    # R19: chosen-shuttle overlay before validation; a no-chosen
+    # session is a pure passthrough.
+    snapshot = _overlay_chosen_departures(snapshot, session)
     if validate_snapshot(snapshot):
         return None
     return snapshot

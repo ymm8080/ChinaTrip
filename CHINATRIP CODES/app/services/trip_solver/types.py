@@ -61,6 +61,16 @@ class CandidateItem:
     booking_url: Optional[str] = None
     website: Optional[str] = None
     reservation_hint: Optional[str] = None
+    # R19 (chosen-shuttle durability): user-selected outbound /
+    # return bus times (HH:MM). Live-session fact only -- the
+    # selection surgery writes them onto the scenic cards and
+    # _session_snapshot overlays them here so a full re-solve
+    # pins the picked bus instead of reverting to the default
+    # (legacy rules.py consumed the same card fields). Corpus
+    # snapshots never carry them; excluded from snapshot_hash
+    # (same whitelist treatment as the booking fields).
+    chosen_depart: Optional[str] = None
+    chosen_return: Optional[str] = None
 
 
 @dataclass(frozen=True)

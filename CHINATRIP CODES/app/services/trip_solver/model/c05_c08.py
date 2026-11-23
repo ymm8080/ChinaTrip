@@ -274,8 +274,29 @@ def add_c08_access(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
             continue
         deps = [hhmm_to_min(d) for d in profile.departures]
         # R12-H4：默认最早班车 08:30（更早的行不进可排面，fail-open）
-        deps = [m for m in deps if m >= DEFAULT_FIRST_SHUTTLE_MIN] or deps
+        # R19 (chosen-shuttle pin): a user-picked bus is explicit
+        # user authority (iron-rule-19 semantics) -- a singleton
+        # domain overrides the default 08:30 first-shuttle floor
+        # (an early 07:30 pick must survive a re-solve). A stale
+        # pick that is no longer in the timetable is ignored
+        # (fail-open).
+        if getattr(cand, "chosen_depart", None):
+            _cdm = hhmm_to_min(str(cand.chosen_depart))
+            deps = (
+                [_cdm]
+                if _cdm in deps
+                else [m for m in deps if m >= DEFAULT_FIRST_SHUTTLE_MIN] or deps
+            )
+        else:
+            deps = [m for m in deps if m >= DEFAULT_FIRST_SHUTTLE_MIN] or deps
         rets = [hhmm_to_min(d) for d in profile.returns]
+        # R19: chosen return -- same user authority on the return
+        # leg; the earliest-feasible chain degenerates to the
+        # picked bus under a singleton domain.
+        if getattr(cand, "chosen_return", None):
+            _crm = hhmm_to_min(str(cand.chosen_return))
+            if _crm in rets:
+                rets = [_crm]
         if not deps:
             continue
         ride = int(profile.ride_minutes)

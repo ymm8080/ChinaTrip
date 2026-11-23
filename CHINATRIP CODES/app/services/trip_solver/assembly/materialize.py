@@ -431,6 +431,13 @@ def materialize_plan(
                     card.access_return_times = list(profile.returns)
                     card.access_ticket_url = profile.ticket_url
                     card.access_official_url = profile.official_url
+                    # R19: chosen buses ride back onto the card so
+                    # chips / future edits read one authority (the
+                    # mirror of set_access_departure's dual write).
+                    if getattr(cand, "chosen_depart", None):
+                        card.access_chosen_depart = str(cand.chosen_depart)
+                    if getattr(cand, "chosen_return", None):
+                        card.access_chosen_return = str(cand.chosen_return)
                     # R15：打车段分钟随卡（档案值，缺省网关打车口径）——
                     # 晨卡离店=班次−打车与去程打车卡共用同源分钟数。
                     card.access_taxi_minutes = (

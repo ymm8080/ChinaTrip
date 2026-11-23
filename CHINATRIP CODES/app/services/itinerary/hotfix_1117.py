@@ -108,7 +108,15 @@ def _is_filler(item) -> bool:
         isinstance(item, VisitItem)
         # R12 交通桥卡（leg-bridge-*）是渲染件不是填充活动——绝不当
         # filler 撤（远郊日清场/必去让位两 pass 都不动它）。
-        and not str(getattr(item, "item_id", "") or "").startswith("leg-bridge-")
+        # R19: render segments are not fill activities -- gap
+        # bridges (leg-bridge-), engine outbound shuttle cards
+        # (access-out-), return cards (access-return-*, incl.
+        # meal-bound), taxi cards (taxi-board-). Evicting them
+        # strands the access chain (live 07:30 pick: the return
+        # card was evicted as a pre-remote filler).
+        and not str(getattr(item, "item_id", "") or "").startswith(
+            ("leg-bridge-", "access-out-", "access-return-", "taxi-board-")
+        )
         and (item.category or "") not in ("food", "hotel")
         and not item.pinned
         and not getattr(item, "must", False)
@@ -327,6 +335,13 @@ def retime_remote_day_from_access(
     for day in plan.days:
         for idx, visit in enumerate(day.items):
             if not _is_remote(visit) or visit.start_time is None:
+                continue
+            # R19: access-chain render cards are legs, not visits;
+            # the card-time==bus-time semantics below belongs to
+            # the scenic card only.
+            if str(getattr(visit, "item_id", "") or "").startswith(
+                ("leg-bridge-", "access-out-", "access-return-", "taxi-board-")
+            ):
                 continue
             deps = [
                 _hhmm_to_min(d)

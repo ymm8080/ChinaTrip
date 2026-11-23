@@ -36,6 +36,37 @@ from app.services.llm.base import ChatMessage, parse_json_content
 from app.services.trip_orchestrator.session import PlanSession
 
 
+def _match_picked_sites(all_sites, mandatory):
+    """R19: match confirmed must-visit names against pending sites.
+
+    Exact match first; then substring aliasing in both directions
+    (user phrase picks the canonical candidate, e.g. a short
+    colloquial name vs the registered full name) with a >=2 char
+    guard and at most one alias site per wanted name. Returns
+    (picked_site_names, unmatched_wanted_names).
+    """
+    wanted = [str(m or "").strip() for m in (mandatory or []) if str(m or "").strip()]
+    picked: list[str] = []
+    unmatched: list[str] = []
+    for w in wanted:
+        if w in all_sites:
+            picked.append(w)
+            continue
+        alias = next(
+            (
+                s
+                for s in all_sites
+                if s not in picked and len(w) >= 2 and (w in s or s in w)
+            ),
+            None,
+        )
+        if alias is not None:
+            picked.append(alias)
+        else:
+            unmatched.append(w)
+    return picked, unmatched
+
+
 class RoundsMixin:
     async def _answer_site_confirm(
         self, session: PlanSession, text: str
@@ -78,7 +109,11 @@ class RoundsMixin:
         no composed text, no re-parsing; unpicked sites never land."""
         session = session.model_copy(deep=True)
         all_sites = list(session.pending_sites)
-        picked = [s for s in all_sites if s in set(mandatory)]
+        # R19: exact + alias matching -- a mandatory name that
+        # matches no candidate must be disclosed, never dropped
+        # silently (Palace-Museum case: colloquial pick vs the
+        # canonical registered name).
+        picked, unmatched = _match_picked_sites(all_sites, mandatory)
         session.history.append(
             ChatMessage(
                 role="user",
@@ -92,6 +127,15 @@ class RoundsMixin:
         session.pending_link_url = ""
         session.pending_sites_source = "link"
         notes: list[str] = []
+        for _w in unmatched:
+            notes.append(
+                L(
+                    "\u4f60\u70b9\u9009\u7684\u300c%s\u300d\u4e0d\u5728\u5019\u9009\u5730\u70b9\u91cc\uff0c"
+                    "\u672a\u5199\u5165\u5fc3\u613f\u5355" % _w,
+                    "Picked '%s' is not in the candidate list; "
+                    "not added to the wishlist" % _w,
+                )
+            )
         skipped = [s for s in all_sites if s not in set(picked)]
         if skipped:
             notes.append(

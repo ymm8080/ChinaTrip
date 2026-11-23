@@ -7666,6 +7666,25 @@ def _reunite_show_with_venue(plan: ItineraryPlan) -> None:
                 break
 
 
+def _is_leg_render_card(item) -> bool:
+    """R19: synthetic access-chain cards are render segments, not
+
+    Prefix family: leg-bridge- (R12 gap bridges), access-out-
+    (engine outbound shuttle card), access-return- (return cards
+    incl. meal-bound access-return-meal-*), taxi-board- (outbound
+    taxi card). Their coordinates are boarding points or derived
+    anchors, not visit targets: once _backfill_locations geocodes
+    them, geo clustering re-homes the shuttle card to a
+    city-center day and clears its time (live 07:30 pick: the
+    outbound card was re-homed to day 1, left untimed, then
+    demoted out of the response). Visit-facing passes must skip
+    this family.
+    """
+    return str(getattr(item, "item_id", "") or "").startswith(
+        ("leg-bridge-", "access-out-", "access-return-", "taxi-board-")
+    )
+
+
 def _reunite_tight_kin(plan: ItineraryPlan) -> None:
     """紧簇亲属归位（2026-11-08 聚合分裂案：城心簇三锚 D1/D4/D2
     三点 ≤0.5km 拆三天、主题街区 kin 全在 D2 被楔子清障整删实
@@ -7698,6 +7717,8 @@ def _reunite_tight_kin(plan: ItineraryPlan) -> None:
             and str(i.category or "") not in ("food", "hotel", "entertainment")
             and _has_xy(i)
             and str(i.city or "") == str(day.base_city or "")
+            # R19: access-chain render cards never join clusters
+            and not _is_leg_render_card(i)
         )
 
     def _countable_on(day: DayPlan) -> int:
@@ -8030,6 +8051,8 @@ def _purify_cluster_days(plan: ItineraryPlan, *, relax_pins: bool = False) -> li
             and str(i.category or "") not in ("food", "hotel", "entertainment")
             and _has_xy(i)
             and str(i.city or "") == str(day.base_city or "")
+            # R19: access-chain render cards never join clusters
+            and not _is_leg_render_card(i)
         )
 
     def _countable_on(day: DayPlan) -> int:
@@ -32259,6 +32282,12 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
             and not is_hotel_morning(item)
             # R12 交通桥卡（leg-bridge-*）：渲染件，无 POI 可回填
             and not str(item.item_id or "").startswith("leg-bridge-")
+            # R19: access-chain render cards (access-out-/
+            # access-return-/taxi-board-) have no POI either --
+            # and a geocoded boarding point turns them into
+            # clustering "visits" (root of the 07:30 outbound
+            # card vanish).
+            and not _is_leg_render_card(item)
         ]
         if not missing:
             return

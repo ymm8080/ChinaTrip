@@ -1585,6 +1585,17 @@ async def message_plan(
 # 保护名册只保「不删除」，不保「下发显示」——下发层一律滤掉。
 _UNTIMED_KEEP_CATEGORIES = frozenset({"food", "hotel"})
 
+#: R19: access-chain render cards -- kept like skeleton even
+#: when untimed; demoting them to unplaced made the picked
+#: shuttle card vanish from the timeline and polluted the
+#: alternatives pool.
+_LEG_RENDER_PREFIXES = (
+    "leg-bridge-",
+    "access-out-",
+    "access-return-",
+    "taxi-board-",
+)
+
 
 def _strip_untimed_items(plan):
     """API 出口过滤（2026-11-13 用户拍板「未安排（无时刻灰卡）不要显示」
@@ -1608,6 +1619,7 @@ def _strip_untimed_items(plan):
                 and item.start_time is None
                 and not item.pinned
                 and (item.category or "") not in _UNTIMED_KEEP_CATEGORIES
+                and not str(item.item_id or "").startswith(_LEG_RENDER_PREFIXES)
             ):
                 stripped.append(item)
                 changed = True
@@ -1661,6 +1673,22 @@ def _with_gap_bridges(plan):
         return plan
 
 
+def _dedupe_plan_assumptions(plan):
+    """R19: content-dedupe the assumptions block (order-preserving,
+    non-mutating). Heal passes re-emit notes on every gate and the
+    plan/session double-write plus background replan races can
+    stamp the same line twice (live 07:30 pick: 6 lines x 2).
+    """
+    if plan is None:
+        return plan
+    lines = list(getattr(plan, "assumptions", None) or [])
+    seen = set()
+    deduped = [a for a in lines if not (a in seen or seen.add(a))]
+    if len(deduped) == len(lines):
+        return plan
+    return plan.model_copy(update={"assumptions": deduped})
+
+
 def _plan_for_response(plan):
     """行程下发出口装配（2026-11-13 拍板「未安排卡不显示」）：先剔无时刻
     非钉参访卡（剔除件转 plan.unplaced，亮成宿主卡「想去」chip——只有
@@ -1668,6 +1696,7 @@ def _plan_for_response(plan):
     「早晨卡只有出发时间，没有 DURATION」），最后挂同级备选 chip。所有
     返回完整行程的端点（start / from-itinerary / _plan_turn_body 一族）
     统一走本入口，禁止旁路。"""
+    plan = _dedupe_plan_assumptions(plan)
     plan = _plan_with_alternatives(
         _morning_point_cards(_hotel_cards_front_back(_strip_untimed_items(plan)))
     )
