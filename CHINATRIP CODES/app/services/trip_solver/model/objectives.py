@@ -599,6 +599,15 @@ def _makespan(bundle: "VarBundle", enriched: "EnrichedSnapshot") -> ObjectiveTie
     # higher tier or allowing lunch to choose the outbound departure.
     terms.extend(bundle.active_dep_vars.values())
     terms.extend(bundle.active_ret_vars.values())
+    # R21（2026-11-23 「天安门后 8:46 乘车 30 分，故宫应 9 点而非 10:58」）：
+    # day_end 只看当天收尾——卡间内部空洞零成本，trip 规模 tier4 又是
+    # dtime 截断的 FEASIBLE（live 实测 wall_capped，从不证最优），空洞
+    # 解就这样非确定性地落库。Σ start 给每个洞直接定价：截断解也带
+    # 紧排梯度，语义与 assembly.compact_days 的「可移动卡拉左」一致。
+    # 只取 start 不取 end：时长收缩（c09 sbg 闸）不动 start，不新增
+    # 收缩诱因；不在场卡的 start 是窗内自由变量、被推到窗底=常数
+    # 偏移，无决策扭曲。
+    terms.extend(bundle.start.values())
     return ObjectiveTier("makespan_early_access", sum(terms), "min")
 
 

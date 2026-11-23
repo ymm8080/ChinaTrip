@@ -1322,9 +1322,14 @@ def edit_session_via_trip_solver(
                 return None, _disclosed_fallback()
             solution2 = getattr(outcome2, "solution", None)
             if solution2 is not None and getattr(outcome2, "ops_applied", None):
-                from .assembly.materialize import materialize_plan
+                from .assembly.materialize import compact_days, materialize_plan
 
                 plan2 = materialize_plan(solution2, snapshot)
+                # R21：编辑链与生成链（solve_trip→assemble）同口径——
+                # materialize 产出的是裸求解排期，tier4 截断时可带内部
+                # 空洞；compact_days 左压后才落会话。keep 只锁天不锁
+                # 时刻（时刻本就自由重解），压缩不越 keep 语义。
+                plan2 = compact_days(plan2, snapshot)
                 if not _degenerate_plan(plan2):
                     placed2 = {i.cid for i in solution2.items}
                     dropped = sorted({op.cid for op in demoted} - placed2)
@@ -1349,9 +1354,13 @@ def edit_session_via_trip_solver(
                     return plan2, outcome2
     if solution is None or not getattr(outcome, "ops_applied", None):
         return None, _disclosed_fallback()
-    from .assembly.materialize import materialize_plan
+    from .assembly.materialize import compact_days, materialize_plan
 
     plan = materialize_plan(solution, snapshot)
+    # R21：同上——编辑重解的裸排期过 compact 再落库。生成链自 11-18
+    # 7c2300a 起一直如此（solve_trip→assemble→compact_days），编辑链
+    # 漏接正是「天安门 08:46 收旗 → 故宫 10:58」洞的落库点。
+    plan = compact_days(plan, snapshot)
     if _degenerate_plan(plan):
         return None, _disclosed_fallback()
     if extra_assumptions:
