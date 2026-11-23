@@ -117,12 +117,27 @@ class _MixedModeStore:
             "window_source": "official",
         }
         return [
-            dict(base, poi_name="慕田峪长城", mode="shuttle",
-                 service_name="慕田峪通游专线", boarding_stop="前门站"),
-            dict(base, poi_name="慕田峪长城", mode="bus",
-                 service_name="877路", boarding_stop="北土城地铁站"),
-            dict(base, poi_name="八达岭长城", mode="bus",
-                 service_name="877路", boarding_stop="北土城地铁站"),
+            dict(
+                base,
+                poi_name="慕田峪长城",
+                mode="shuttle",
+                service_name="慕田峪通游专线",
+                boarding_stop="前门站",
+            ),
+            dict(
+                base,
+                poi_name="慕田峪长城",
+                mode="bus",
+                service_name="877路",
+                boarding_stop="北土城地铁站",
+            ),
+            dict(
+                base,
+                poi_name="八达岭长城",
+                mode="bus",
+                service_name="877路",
+                boarding_stop="北土城地铁站",
+            ),
         ]
 
 
