@@ -2151,7 +2151,7 @@ function planCard(plan) {
         const isBridgeCard = isSynth && (it.item_id || "").indexOf("leg-bridge-") === 0;
         const canEditTime = !!(planSession && planSession.session_id && (!isSynth || (isBridgeCard && it.start_time)));
         const timeCell = canEditTime
-          ? '<button class="t t-edit" data-action="' + (isBridgeCard ? "hopedit" : "retime") + '" data-item-id="' + esc(it.item_id) + '" data-cur="' + (it.start_time ? String(it.start_time).slice(0, 5) : "") + '" title="' + I18N.tf(isBridgeCard ? "card.hopedit.title" : "card.retime.title", isBridgeCard ? "点击修改出发时间" : "点击修改开始时间") + '">' + fmtTime(it.start_time) + "</button>"
+          ? '<button class="t t-edit" data-action="' + (isBridgeCard ? "hopedit" : "retime") + '" data-item-id="' + esc(it.item_id) + '" data-cur="' + (it.start_time ? String(it.start_time).slice(0, 5) : "") + '" title="' + (isBridgeCard ? I18N.tf("card.hopedit.title", "点击修改出发时间") : I18N.tf("card.retime.title", "点击修改开始时间")) + '">' + fmtTime(it.start_time) + "</button>"
           : '<span class="t">' + fmtTime(it.start_time) + "</span>";
         // 同级备选（2026-11-05 拍板「每个点要有一个备选，尤其 UNESCO/5A/
         // 国际旅行网站推荐」）：站点行右侧 chip 区，点击一键换为主点——

@@ -174,3 +174,62 @@ CHINATRIP CODES/tests/e2e/artifacts/
 CHINATRIP CODES/data/e2e_state.db
 CHINATRIP CODES/data/e2e_state.db-shm
 CHINATRIP CODES/data/e2e_state.db-wal
+
+# 2026-11-23 收编（第二轮）：根目录会话散件——本轮 545+155 条未跟踪噪音。
+# 探针/补丁/应用脚本与输出，结案即弃不入库。已跟踪的同前缀文件逐一 !
+# 回来（规则须与事实一致，见上方先例）。
+CHINATRIP CODES/_probe_*
+CHINATRIP CODES/_patch_*
+CHINATRIP CODES/_apply_*
+CHINATRIP CODES/_g[0-9a-z]*
+CHINATRIP CODES/_v2_*
+CHINATRIP CODES/_shadow*
+CHINATRIP CODES/_pytest_*
+CHINATRIP CODES/_pick_sid.txt
+CHINATRIP CODES/plan_ts-*
+CHINATRIP CODES/resp_ts-*
+tmp_commit_msg_*.txt
+*.bak_cpsat
+_trip_*_backup.json
+_wt_r12h/
+# tmp_probe 已是纯会话工作区（218 个历史探针脚本 _p1.._p124 等经
+# git rm --cached 出库、文件留盘），此后整个目录不再入库。
+tmp_probe/
+!CHINATRIP CODES/_patch_e501.py
+!CHINATRIP CODES/_patch_strip_fix2.py
+!CHINATRIP CODES/_patch_strip_fix3.py
+!CHINATRIP CODES/_patch_test_calls.py
+!CHINATRIP CODES/_patch_test_calls2.py
+!CHINATRIP CODES/_patch_test_fixture.py
+!CHINATRIP CODES/_probe_disp.log
+!CHINATRIP CODES/_probe_disp2.log
+!CHINATRIP CODES/_probe_disp3.log
+!CHINATRIP CODES/_probe_disp4.log
+!CHINATRIP CODES/_probe_disp5.log
+!CHINATRIP CODES/_probe_strip.py
+!CHINATRIP CODES/_probe_strip_flow.py
+!CHINATRIP CODES/_probe_strip_flow2.py
+!CHINATRIP CODES/_probe_strip_flow3.py
+!CHINATRIP CODES/_probe_zjz_alias.py
+!CHINATRIP CODES/_probe_zjz_cores.py
+!CHINATRIP CODES/_probe_zjz_cores2.py
+!CHINATRIP CODES/_probe_zjz_device.py
+!CHINATRIP CODES/_probe_zjz_en_rows.py
+!CHINATRIP CODES/_probe_zjz_engine.py
+!CHINATRIP CODES/_probe_zjz_flaky.py
+!CHINATRIP CODES/_probe_zjz_hist.py
+!CHINATRIP CODES/_probe_zjz_keys.py
+!CHINATRIP CODES/_probe_zjz_live.py
+!CHINATRIP CODES/_probe_zjz_live2.py
+!CHINATRIP CODES/_probe_zjz_live3.py
+!CHINATRIP CODES/_probe_zjz_live4.py
+!CHINATRIP CODES/_probe_zjz_offline.py
+!CHINATRIP CODES/_probe_zjz_rows.py
+!CHINATRIP CODES/_probe_zjz_schema.py
+!CHINATRIP CODES/_probe_zjz_score.py
+!CHINATRIP CODES/_probe_zjz_sess.py
+!CHINATRIP CODES/_probe_zjz_sess2.py
+!CHINATRIP CODES/_probe_zjz_sqlite.py
+!CHINATRIP CODES/_probe_zjz_tables.py
+!CHINATRIP CODES/_probe_zjz_tables2.py
+!CHINATRIP CODES/_probe_zjz_wish.py
