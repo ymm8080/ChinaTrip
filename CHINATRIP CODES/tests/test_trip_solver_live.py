@@ -1647,11 +1647,43 @@ def test_engine_default_pick_library_ace_without_musts():
     center = (108.9424, 34.2610)
     lintong = (109.2785, 34.3845)
     rows = [
-        {"name": "秦始皇帝陵博物院", "rating": 4.7, "tags": ["5a"], "source": "5a", "location": lintong, "suggested_duration_min": 180},
-        {"name": "华清宫", "rating": 4.6, "tags": ["5a"], "source": "5a", "location": (109.2135, 34.3628), "suggested_duration_min": 150},
-        {"name": "西安钟楼", "rating": 4.4, "source": "amap", "location": center, "suggested_duration_min": 60},
-        {"name": "小雁塔", "rating": 4.4, "source": "amap", "location": (108.9384, 34.2495), "suggested_duration_min": 90},
-        {"name": "西安博物院", "rating": 4.3, "source": "amap", "location": (108.9310, 34.2460), "suggested_duration_min": 90},
+        {
+            "name": "秦始皇帝陵博物院",
+            "rating": 4.7,
+            "tags": ["5a"],
+            "source": "5a",
+            "location": lintong,
+            "suggested_duration_min": 180,
+        },
+        {
+            "name": "华清宫",
+            "rating": 4.6,
+            "tags": ["5a"],
+            "source": "5a",
+            "location": (109.2135, 34.3628),
+            "suggested_duration_min": 150,
+        },
+        {
+            "name": "西安钟楼",
+            "rating": 4.4,
+            "source": "amap",
+            "location": center,
+            "suggested_duration_min": 60,
+        },
+        {
+            "name": "小雁塔",
+            "rating": 4.4,
+            "source": "amap",
+            "location": (108.9384, 34.2495),
+            "suggested_duration_min": 90,
+        },
+        {
+            "name": "西安博物院",
+            "rating": 4.3,
+            "source": "amap",
+            "location": (108.9310, 34.2460),
+            "suggested_duration_min": 90,
+        },
     ]
     cands = tuple(
         _row_to_candidate(f"f{i}", r, kind="fill") for i, r in enumerate(rows)

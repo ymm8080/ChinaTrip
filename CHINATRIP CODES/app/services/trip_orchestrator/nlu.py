@@ -397,7 +397,11 @@ def _restart_named_musts(text: str, store=None, cities=None) -> list[str]:
         （「这次西安游兵马俑是最高优先级」→「兵马俑」，非贪婪回溯
         会把整段 swallow 成主语）。"""
         seg = probe[max(0, idx - 48) : idx]
-        token = _re.split(r"[。！？；;，,\s：:、（）()「」【】\"'·]+", seg)[-1] if seg else ""
+        token = (
+            _re.split(r"[。！？；;，,\s：:、（）()「」【】\"'·]+", seg)[-1]
+            if seg
+            else ""
+        )
         return _clean_subject(token)
 
     probe = text or ""

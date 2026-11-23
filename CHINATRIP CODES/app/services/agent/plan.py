@@ -21910,9 +21910,7 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
             _named_musts = []
         if _named_musts:
             _have = {str(m or "").strip() for m in (session.must_visits or [])}
-            _new_musts = [
-                p for p in _named_musts if str(p or "").strip() not in _have
-            ]
+            _new_musts = [p for p in _named_musts if str(p or "").strip() not in _have]
             if _new_musts:
                 session.must_visits = list(session.must_visits or []) + _new_musts
                 extra_assumptions = list(extra_assumptions or []) + [
