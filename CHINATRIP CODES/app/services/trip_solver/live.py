@@ -648,32 +648,56 @@ def _musts_all_placed(outcome, snapshot) -> bool:
     return resolved > 0
 
 
-def _recover_outcome(snapshot, outcome, budget_s):
-    """R24 引擎原生恢复：解不出盘（INFEASIBLE/UNKNOWN/瞬时坏池）→ 预算升档重解一次。
+def _expected_days(snapshot) -> int:
+    """R25：请求天数（0/缺失时跳过缩天体检）。"""
+    return int(getattr(getattr(snapshot, "request", None), "days", 0) or 0)
 
-    2026-11-23 用户令「NO MEANING TO RUN LEGACY. WE NEED TO RUN CP-SAT TO REPLACE
-    LEGACY」：回落 legacy 之前先给引擎一次翻盘机会（R19 fill 抖动族实测同参重解
-    可翻盘）。重试自身失败保持原 outcome 的回落语义，绝不把生成打死。
+
+def _plan_shrunk(plan, snapshot) -> bool:
+    """R25：缩天盘判定（请求 N 天只回 <N 天=残缺不可交付）。"""
+    expected = _expected_days(snapshot)
+    if not expected or plan is None:
+        return False
+    return len(getattr(plan, "days", None) or []) < expected
+
+
+def _recover_outcome(snapshot, outcome, budget_s):
+    """R24/R25 引擎原生恢复：回落 legacy 前先给引擎一次翻盘机会。
+
+    触发：解不出盘（INFEASIBLE/UNKNOWN/瞬时坏池）、缩天盘（残缺）、或引擎侧
+    异常/not-ready 回落（瞬态基础设施错重解一次常可恢复；2026-11-23 用户令
+    「NO MEANING TO RUN LEGACY. WE NEED TO RUN CP-SAT TO REPLACE LEGACY」）。
+    重试自身失败保持原 outcome 的回落语义，绝不把生成打死；重试反而更差
+    （无盘且原盘非空）时保留原盘。
     """
     from .entry import ENGINE_CPSAT, solve_trip
 
-    if outcome.engine != ENGINE_CPSAT or getattr(outcome, "plan", None) is not None:
+    plan = getattr(outcome, "plan", None)
+    if (
+        outcome.engine == ENGINE_CPSAT
+        and plan is not None
+        and not _plan_shrunk(plan, snapshot)
+    ):
         return outcome
     try:
-        return solve_trip(
+        retry = solve_trip(
             snapshot,
             flag=ENGINE_CPSAT,
             budget_s=max(float(budget_s or 20.0), 20.0) * 2.0,
         )
     except Exception:
         return outcome
+    if getattr(retry, "plan", None) is None and plan is not None:
+        return outcome
+    return retry
 
 
 def _engine_declines(outcome, snapshot) -> bool:
-    """R24：是否仍需回落 legacy——解不出盘/非引擎服务/退化盘且必去不全在场。
+    """R24/R25：是否仍需回落 legacy——非引擎/盘缺失/缩天盘/退化盘且必去不全在场。
 
-    退化盘但「必去全在场」不再回落（R19 (1) 拍板：legacy 再丢必去，比空日引擎盘
-    更差）；调用方放行引擎盘并补披露假设。
+    缩天盘先经 _recover_outcome 重试；重试仍缩天=真缺陷，回落安全网并披露
+    （残缺盘绝不静默交付）。退化盘但「必去全在场」不回落（R19(1) 拍板：
+    legacy 再丢必去，比空日引擎盘更差）；调用方放行引擎盘并补披露假设。
     """
     from .entry import ENGINE_CPSAT
 
@@ -681,6 +705,8 @@ def _engine_declines(outcome, snapshot) -> bool:
         return True
     plan = getattr(outcome, "plan", None)
     if plan is None:
+        return True
+    if _plan_shrunk(plan, snapshot):
         return True
     return bool(_degenerate_plan(plan)) and not _musts_all_placed(outcome, snapshot)
 
