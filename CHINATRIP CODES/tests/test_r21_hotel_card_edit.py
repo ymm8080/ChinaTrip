@@ -15,6 +15,7 @@
 from datetime import time as dtime
 
 from fastapi.testclient import TestClient
+from test_plan_api import DEVICE_HEADERS, StubAdapter, make_app  # noqa: E402
 
 from app.api.amap import get_search_chain
 from app.api.plan import get_plan_sessions, get_settings
@@ -26,7 +27,6 @@ from app.services.itinerary import (
     ItineraryPlan,
     VisitItem,
 )
-from test_plan_api import DEVICE_HEADERS, StubAdapter, make_app  # noqa: E402
 
 NIGHT = "hotel-night-d1"
 MORNING = "hotel-morning-d2"
@@ -109,11 +109,7 @@ def _plan_session(*, morning_verified_other: bool = False):
 
 
 def _items_by_id(body):
-    return {
-        i.get("item_id"): i
-        for d in body["plan"]["days"]
-        for i in d["items"]
-    }
+    return {i.get("item_id"): i for d in body["plan"]["days"] for i in d["items"]}
 
 
 def _save(app, session):
