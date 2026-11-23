@@ -1289,3 +1289,32 @@ def test_algo_default_pick_5a_far_suburb_ace():
     # 远郊王牌不因到达日轻量闸被放生——只挪日，不落选
     ace_day = next(p["day"] for p in picked if p["name"] == "秦始皇帝陵博物院")
     assert 1 <= ace_day <= 3
+
+
+def test_empty_pool_after_grouping_does_not_crash():
+    """组内过滤后空池不再炸 UnboundLocalError（R20-fix 回归）。
+
+    rainy_here/night_rainy 只在城循环体内绑定；池全被过滤（cross_city_hit）
+    或空池时循环体一次不跑，函数体层级的
+    _enforce_day_zones(rainy_days=rainy_here) 直接 UnboundLocalError——
+    引擎回落 deterministic 时 /plan/start 直接 500（live 实录）。缺省空集
+    =「无天气信息=无雨闸」fail-open。"""
+    assert (
+        PlanningAgent._deterministic_selection([], days=1, ranges={"北京": (1, 1)})
+        == []
+    )
+    assert (
+        PlanningAgent._deterministic_selection(
+            [
+                {
+                    "name": "异地命中",
+                    "city": "北京",
+                    "category": "sight",
+                    "cross_city_hit": True,
+                }
+            ],
+            days=1,
+            ranges={"北京": (1, 1)},
+        )
+        == []
+    )

@@ -24833,6 +24833,14 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
         # 行程级品类账本（2026-11-07 拍板「博物馆/风景区/CITYWALK 每
         # 行程最多一个」）：跨城共享计数，城循环逐城扣减。
         _itin_bucket_used = {"museum": 0, "scenic": 0, "citywalk": 0}
+        # 雨天集合缺省空集（R20-fix 2026-11-23）：绑定发生在城循环体内，
+        # 池全被过滤（cross_city_hit）或空池时循环体一次不跑，函数体层级
+        # 的 _enforce_day_zones(rainy_days=rainy_here) 直接 UnboundLocalError
+        # → 引擎回落 deterministic 时 /plan/start 整单 500（live 实录）。
+        # 缺省空集=「无天气信息→无雨闸」fail-open，与「无雨窗口恒不生效」
+        # 既有口径一致；城循环内照常按城重绑，正常路径零扰动。
+        rainy_here: set[int] = set()
+        night_rainy: set[int] = set()
         for city, group in groups.items():
             lo, hi = ranges.get(city, (1, days))
             span = max(hi - lo + 1, 1)
