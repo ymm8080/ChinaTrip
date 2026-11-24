@@ -16,6 +16,25 @@
 from __future__ import annotations
 
 
+def has_user_day_blocks(request) -> bool:
+    """True when the user authored explicit per-day must-visit groups.
+
+    Mirrors the activation condition of :func:`add_c25_day_blocks`: a must
+    carrying an in-range integer ``day_hint`` becomes a hard same-day block.
+    Other heuristics that would conflict with such a block (notably C-06
+    remote-day exclusivity) must yield to it -- otherwise the user's own
+    grouping turns infeasible and the min-drop ladder discards must-visits.
+    """
+    days_total = int(getattr(request, "days", 0) or 0)
+    if days_total <= 0:
+        return False
+    return any(
+        isinstance(getattr(req, "day_hint", None), int)
+        and 1 <= req.day_hint <= days_total
+        for req in (getattr(request, "musts", ()) or ())
+    )
+
+
 def add_c25_day_blocks(bundle, enriched) -> None:
     request = enriched.snapshot.request
     days_total = int(getattr(request, "days", 0) or 0)

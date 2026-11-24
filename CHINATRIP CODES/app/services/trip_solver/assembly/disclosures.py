@@ -32,6 +32,19 @@ WEATHER_LINE = {
     "en": "Day {day} forecast {cond}; outdoor stops ({names}) scheduled "
     "under rain preferences.",
 }
+# R31: C-06 remote-day exclusivity yielded to the user's explicitly written
+# day plan so their own same-day grouping stays feasible (no must dropped).
+C06_YIELD = {
+    "zh": (
+        "已按你写明的日程排布；远郊日「只插一个景点」的默认规则已让位，"
+        "以保证你写的同日景点都排入。"
+    ),
+    "en": (
+        "Your written day plan is honored; the default 'one extra stop on "
+        "a remote day' rule yielded so every same-day stop you wrote "
+        "could be scheduled."
+    ),
+}
 INDOOR_YES = {"yes", "true", "1", "indoor"}
 
 
@@ -68,6 +81,8 @@ def render_disclosures(
     if solution.slack_level:
         for step in LADDER_STEP_NAMES[: solution.slack_level]:
             lines.append(render_reason(step, lang, family="slack_reasons"))
+    if solution.c06_yielded_to_day_plan:
+        lines.append(C06_YIELD[lang])
     if solution.unplaced:
         lines.append(COVERAGE_SOME[lang].format(n=len(solution.unplaced)))
         seen: set[str] = set()

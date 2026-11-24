@@ -129,6 +129,8 @@ def solve(
     tier2_det: Optional[float] = None,
 ) -> Solution:
     started = time.perf_counter()
+    # R31: C-06 may have yielded to the user's written day plan at build time.
+    c06_yielded = bool(getattr(bundle, "c06_yielded_to_day_plan", False))
     if hint is not None:
         _apply_hint(bundle, hint)
     tiers = build_objectives(bundle, enriched, slack)
@@ -264,6 +266,7 @@ def solve(
                 objective_values=objective_values,
                 hint_used=hint is not None,
                 wall_capped=wall_capped,
+                c06_yielded_to_day_plan=c06_yielded,
             )
         if status == "UNKNOWN":
             # No feasible point found within the deterministic budget: keep
@@ -301,6 +304,7 @@ def solve(
             objective_values=objective_values,
             hint_used=hint is not None,
             wall_capped=wall_capped,
+            c06_yielded_to_day_plan=c06_yielded,
         )
 
     items: list[SolutionItem] = []
@@ -357,6 +361,7 @@ def solve(
         n_vars=len(proto.variables),
         n_cons=len(proto.constraints),
         wall_capped=wall_capped,
+        c06_yielded_to_day_plan=c06_yielded,
     )
     # F-62 收敛口径=引擎实际预算（Q3 披露放宽后携带真实预算）
     sol.budget_used_ms = int(budget_s * 1000)
@@ -467,6 +472,7 @@ def canonical_solution(solution: "Solution") -> str:
             for h in solution.hotel_anchors
         ),
         "objective_values": dict(sorted(solution.objective_values.items())),
+        "c06_yielded_to_day_plan": bool(solution.c06_yielded_to_day_plan),
     }
     return json.dumps(
         payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")

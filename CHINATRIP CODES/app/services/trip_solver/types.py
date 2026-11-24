@@ -229,6 +229,9 @@ class Solution:
     # time 触发即置真（求解结果依赖机器快慢=负载敏感）。影子层据此改
     # 用无墙压对照对判确定性（F-41 测代码级确定性，不测机器负载）。
     wall_capped: bool = False
+    # R31: C-06 remote-day exclusivity yielded to the user's own written
+    # day plan (C-25 blocks). Disclosed on plan.assumptions.
+    c06_yielded_to_day_plan: bool = False
 
 
 def validate_snapshot(snapshot: FactSnapshot) -> list[str]:

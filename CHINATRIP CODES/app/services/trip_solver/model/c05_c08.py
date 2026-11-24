@@ -147,8 +147,24 @@ def add_c06_remote_exclusivity(
     续把关「只有空闲才插」）；同簇远郊卡不占额；同址餐归 F-22；餐/
     宿/交通类不占额；用户钉在本日的卡豁免（铁律 19——C-08 以
     dep≥end+taxi 绕行链序）。
-    ``relax=True`` is F-25 rung 5 (disclosed) — skipped entirely."""
+    ``relax=True`` is F-25 rung 5 (disclosed) — skipped entirely.
+
+    R31: an explicit user-authored day plan (C-25 ``day_hint`` blocks)
+    outranks this default heuristic. When the user wrote "put these stops on
+    day N", C-06's hard "at most one small extra on a remote day" cap makes
+    that very grouping infeasible; the min-drop ladder then discarded the
+    must-visits (e.g. 什刹海 / 鸟巢(国家体育场) with 慕田峪 on one written day)
+    while the day still had free hours. So the heuristic yields wholesale
+    for such requests. Physical access ordering is NOT lost — C-08
+    (``add_c08_access``) independently enforces "finish before the outbound
+    shuttle or start after the return" for every profiled remote item.
+    """
     if relax:
+        return
+    from .c25_must_days import has_user_day_blocks
+
+    if has_user_day_blocks(enriched.snapshot.request):
+        bundle.c06_yielded_to_day_plan = True
         return
     snapshot = enriched.snapshot
     profiled = _profile_keys(enriched)
