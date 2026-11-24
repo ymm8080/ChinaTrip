@@ -710,6 +710,32 @@ def _musts_all_placed(outcome, snapshot) -> bool:
     return resolved > 0
 
 
+def _uncovered_must_count(outcome, snapshot) -> int:
+    """R32: bound must-visits missing from the solved plan (rid-keyed).
+
+    Mirrors ``_musts_all_placed`` but returns a count so callers can compare
+    two candidate outcomes. ``-1`` means the outcome carries no solution and
+    coverage cannot be judged — callers must keep the previous behaviour.
+    """
+    solution = getattr(outcome, "solution", None)
+    if solution is None:
+        return -1
+    placed = {i.cid for i in (getattr(solution, "items", None) or ())}
+    by_rid: dict[str, set[str]] = {}
+    for cand in getattr(snapshot, "candidates", ()) or ():
+        rid = getattr(cand, "rid", None)
+        if rid:
+            by_rid.setdefault(str(rid), set()).add(cand.cid)
+    missing = 0
+    for req in getattr(getattr(snapshot, "request", None), "musts", ()) or ():
+        cids = by_rid.get(str(getattr(req, "rid", "") or ""))
+        if not cids:
+            continue
+        if not (cids & placed):
+            missing += 1
+    return missing
+
+
 def _expected_days(snapshot) -> int:
     """R25：请求天数（0/缺失时跳过缩天体检）。"""
     return int(getattr(getattr(snapshot, "request", None), "days", 0) or 0)
@@ -729,28 +755,52 @@ def _recover_outcome(snapshot, outcome, budget_s):
     触发：解不出盘（INFEASIBLE/UNKNOWN/瞬时坏池）、缩天盘（残缺）、或引擎侧
     异常/not-ready 回落（瞬态基础设施错重解一次常可恢复；2026-11-23 用户令
     「NO MEANING TO RUN LEGACY. WE NEED TO RUN CP-SAT TO REPLACE LEGACY」）。
+    R32 追加：盘形状健康但有时限内的覆盖损失（必去被丢）同样重解——
+    tier① 的 FEASIBLE 值会被等式锁死，不重解就静默丢失必去。
     重试自身失败保持原 outcome 的回落语义，绝不把生成打死；重试反而更差
-    （无盘且原盘非空）时保留原盘。
+    （无盘且原盘非空、或覆盖未改善）时保留原盘。
     """
     from .entry import ENGINE_CPSAT, solve_trip
 
     plan = getattr(outcome, "plan", None)
+    shrunk = _plan_shrunk(plan, snapshot)
+    # R32：3s 墙帽下 tier① 可能只拿到 FEASIBLE 的次优覆盖值；solve.py 会把
+    # 该值等式锁死，后续层再也无法补回必去。丢必去的盘即使形状健康也必须
+    # 重解一次（更长墙钟），否则「有时间却把必去丢了」会静默交付。
+    missing = _uncovered_must_count(outcome, snapshot)
+    coverage_retry = (
+        outcome.engine == ENGINE_CPSAT
+        and plan is not None
+        and not shrunk
+        and missing > 0
+    )
     if (
         outcome.engine == ENGINE_CPSAT
         and plan is not None
-        and not _plan_shrunk(plan, snapshot)
+        and not shrunk
+        and not coverage_retry
     ):
         return outcome
+    retry_budget = (
+        max(float(budget_s or 3.0) * 3.0, 12.0)
+        if coverage_retry
+        else max(float(budget_s or 20.0), 20.0) * 2.0
+    )
     try:
         retry = solve_trip(
             snapshot,
             flag=ENGINE_CPSAT,
-            budget_s=max(float(budget_s or 20.0), 20.0) * 2.0,
+            budget_s=retry_budget,
         )
     except Exception:
         return outcome
     if getattr(retry, "plan", None) is None and plan is not None:
         return outcome
+    if coverage_retry:
+        retry_missing = _uncovered_must_count(retry, snapshot)
+        # 重试没把覆盖率救回来（或更差）就保留原盘，绝不倒退。
+        if retry_missing >= 0 and retry_missing >= missing:
+            return outcome
     return retry
 
 

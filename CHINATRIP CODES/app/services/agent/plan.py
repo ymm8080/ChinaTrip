@@ -19238,6 +19238,31 @@ def _panda_waypoint_pass(
     return notes
 
 
+def _after_remote_return(day, item: VisitItem) -> bool:
+    """R33: the item starts after this day's remote-site return card.
+
+    C-06's "one extra stop after the return" slot is the sanctioned reason a
+    city sight may start late on a remote day. The outbound gate previously
+    had no idea that slot existed and cleared such cards to untimed, which
+    then demoted the must-visit to unplaced (e.g. 鸟巢(国家体育场) after
+    慕田峪长城 on a user-written day). Structural detection from the final
+    plan keeps the gate independent of solver internals.
+    """
+    if item.start_time is None:
+        return False
+    start = item.start_time.hour * 60 + item.start_time.minute
+    for other in day.items:
+        oid = str(getattr(other, "item_id", "") or "")
+        if not oid.startswith("access-return-"):
+            continue
+        if other.end_time is None:
+            continue
+        back = other.end_time.hour * 60 + other.end_time.minute
+        if back <= start:
+            return True
+    return False
+
+
 def enforce_entry_gate(plan: ItineraryPlan) -> list[str]:
     """白天入场闸读闸（2026-11-17 二拍「CAN WE FIX THE REMAINING ONE」：
     M50创意园 16:58/静安寺 16:15 贴晚饭锚收尾案）：出站前最终否决——
@@ -19278,6 +19303,24 @@ def enforce_entry_gate(plan: ItineraryPlan) -> list[str]:
             # 15:27 被顺延过 15:30 大点带，物理停止入园在 21:00，
             # 政策带微越不构成进不去）；>30 分钟才退回无时刻转想去。
             if m - cap <= _FLEX_TOLERANCE_MINUTES:
+                continue
+            if getattr(it, "must", False) and _after_remote_return(day, it):
+                # R33: a must scheduled in C-06's sanctioned after-return slot
+                # is a deliberate late slot, not a gate breach. Keep its time
+                # so the coverage audit does not demote it to unplaced.
+                marker = (
+                    f"远郊返程后的必去「{it.name}」保留晚间时刻"
+                    "（远郊日余量槽）"
+                )
+                _already = (getattr(plan, "assumptions", None) or []) + notes
+                if marker not in _already:
+                    notes.append(
+                        L(
+                            marker,
+                            "Must-visit '%s' keeps its evening slot in the "
+                            "remote day's after-return slot." % it.name,
+                        )
+                    )
                 continue
             hh, mm = divmod(cap, 60)
             it.start_time = None
