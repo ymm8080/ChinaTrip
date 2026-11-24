@@ -163,13 +163,58 @@ def add_c06_remote_exclusivity(
         return
     from .c25_must_days import has_user_day_blocks
 
-    if has_user_day_blocks(enriched.snapshot.request):
-        bundle.c06_yielded_to_day_plan = True
-        return
     snapshot = enriched.snapshot
     profiled = _profile_keys(enriched)
     remote_cands = [c for c in snapshot.candidates if (c.poi_id or c.cid) in profiled]
+
+    def _esc_pairs_for_day(day: int) -> list:
+        return [
+            (c.cid, bundle.cap_escapes[(c.cid, day)])
+            for c in snapshot.candidates
+            if (c.cid, day) in bundle.cap_escapes
+        ]
+
+    def _bind_escape_existence(day: int):
+        # R36 存在性锚（R12-H22 语义收口）：esc ⇒ OR(各远郊在场)——
+        # 「远郊日」是存在性语义，与远郊只数无关；此前该蕴涵错挂在逐
+        # 远郊循环里，≥2 远郊时被写成「每个远郊都在场」，逃逸位恒死
+        # （慕田峪+八达岭同请求即触发，可丢必去）。无远郊 ⇒ esc 钉 0
+        # （C-02 契约「无远郊日的 esc 被 C-06 钉死为 0」——此前的两条
+        # 让位路径 esc 都是自由布尔，闸被整体架空）。返回日级聚合布尔
+        # （无远郊返回 None）。esc ⇒ 自身在场的绑定也在此统一提走。
+        pairs = _esc_pairs_for_day(day)
+        if not pairs:
+            return None
+        remote_day = None
+        if remote_cands:
+            remote_day = bundle.model.NewBoolVar("c06rd_%d" % day)
+            bundle.model.AddMaxEquality(
+                remote_day,
+                [bundle.presence[(r.cid, day)] for r in remote_cands],
+            )
+        for cid, esc in pairs:
+            bundle.model.AddImplication(esc, bundle.presence[(cid, day)])
+            if remote_day is not None:
+                bundle.model.AddImplication(esc, remote_day)
+            else:
+                bundle.model.Add(esc == 0)
+        return remote_day
+
+    if has_user_day_blocks(enriched.snapshot.request):
+        bundle.c06_yielded_to_day_plan = True
+        # R31 让位 ≠ esc 失义（R36 最小锚）：只保「远郊日在场」存在性
+        # 与每日至多一张逃逸卡；独占/quota 等强约束不回来（R35 二分
+        # PROVEN INFEASIBLE 的根因正是 quota 锚过强 + 多远郊全绑定）。
+        for day in bundle.days:
+            escs = [esc for _cid, esc in _esc_pairs_for_day(day)]
+            _bind_escape_existence(day)
+            if len(escs) > 1:
+                bundle.model.Add(sum(escs) <= 1)
+        return
+
     if not remote_cands:
+        for day in bundle.days:
+            _bind_escape_existence(day)  # 无远郊：esc 全钉 0（R36）
         return
     request = snapshot.request
     pinned_by_day: dict[int, set[str]] = {}
@@ -178,6 +223,9 @@ def add_c06_remote_exclusivity(
             if pin.rid == c.rid or (pin.cid and pin.cid == c.cid):
                 pinned_by_day.setdefault(pin.day, set()).add(c.cid)
     for day in bundle.days:
+        # R36：存在性锚逐日一次——esc ⇒ OR(各远郊在场) + esc ⇒ 自身
+        # 在场的绑定自逐远郊循环提走后，主路径统一在这里挂上。
+        _bind_escape_existence(day)
         pinned_here = pinned_by_day.get(day, set())
         for rid_cand in remote_cands:
             lr = bundle.presence[(rid_cand.cid, day)]
@@ -198,15 +246,10 @@ def add_c06_remote_exclusivity(
             for other in snapshot.candidates:
                 if other.cid == rid_cand.cid:
                     continue
-                # R12-H22b（天坛 1152>960 越闸实锤修复）：逃逸钉底——
-                # esc ⇒ (他卡在场 ∧ 远郊日在场) 提到一切 continue 之前
-                # （H24 大点分支曾绕过蕴涵让 esc 成自由变量、闸被白抬）；
-                # 非远郊日/未在场恒 esc=0，闸照常。
-                _esc_top = bundle.cap_escapes.get((other.cid, day))
-                if _esc_top is not None:
-                    _lit_top = bundle.presence[(other.cid, day)]
-                    bundle.model.AddImplication(_esc_top, _lit_top)
-                    bundle.model.AddImplication(_esc_top, lr)
+                # R12-H22b/R36：逃逸钉底（esc ⇒ 他卡在场 ∧ 远郊日在场）
+                # 已提升为逐日一次的 _bind_escape_existence——在这里写
+                # esc ⇒ lr 会随远郊只数漂移成「每个远郊都在场」（≥2 远
+                # 郊时逃逸位恒死），存在性语义必须聚合在循环外。
                 if (other.poi_id or other.cid) in profiled:
                     continue  # same remote cluster: allowed
                 if _bound_to_remote(other, rid_cand):
@@ -237,12 +280,14 @@ def add_c06_remote_exclusivity(
                     _aft = bundle.model.NewBoolVar(
                         "c06a_%s_%s_%d" % (rid_cand.cid, other.cid, day)
                     )
-                    # R12-H22：余量槽闸豁免——esc 只许在返程后支上
+                    # R12-H22/R36：余量槽闸豁免——esc 只许在返程后支上，
+                    # 且改挂「实际在场的那只远郊」：(esc ∧ 本远郊在场) ⇒
+                    # aft；lit/lr 的存在性绑定已由 _bind_escape_existence
+                    # 统一提走（逐远郊无条件 esc ⇒ aft/lit/lr 在多远郊时
+                    # 会把存在性写成全称）。
                     _esc = bundle.cap_escapes.get((other.cid, day))
                     if _esc is not None:
-                        bundle.model.AddImplication(_esc, _aft)
-                        bundle.model.AddImplication(_esc, lit)
-                        bundle.model.AddImplication(_esc, lr)
+                        bundle.model.AddBoolOr([_aft.Not(), _esc.Not(), lr.Not()])
                     bundle.model.Add(
                         bundle.start[(other.cid, day)] >= floor_expr
                     ).OnlyEnforceIf([lit, lr, _aft])
@@ -255,13 +300,12 @@ def add_c06_remote_exclusivity(
                         <= dep_var
                     ).OnlyEnforceIf([lit, lr, _aft.Not()])
                 else:
+                    # 无班次链（合成夹具）：floor 在 [lit, lr] 下无条件
+                    # 生效；esc 的存在性绑定已统一提走（R36），此处无需
+                    # 逐远郊重复 esc ⇒ lit / esc ⇒ lr。
                     bundle.model.Add(
                         bundle.start[(other.cid, day)] >= floor_expr
                     ).OnlyEnforceIf([lit, lr])
-                    _esc = bundle.cap_escapes.get((other.cid, day))
-                    if _esc is not None:
-                        bundle.model.AddImplication(_esc, lit)
-                        bundle.model.AddImplication(_esc, lr)
             if extras:
                 bundle.model.Add(sum(extras) <= 1).OnlyEnforceIf(lr)
 
