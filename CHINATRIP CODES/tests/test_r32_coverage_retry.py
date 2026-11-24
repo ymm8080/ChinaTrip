@@ -57,7 +57,15 @@ def _outcome(*cids, days=1):
 def test_uncovered_must_count():
     snap = _snapshot()
     assert live._uncovered_must_count(_outcome("c1", "c2"), snap) == 0
-    assert live._uncovered_must_count(_outcome("c1",), snap) == 1
+    assert (
+        live._uncovered_must_count(
+            _outcome(
+                "c1",
+            ),
+            snap,
+        )
+        == 1
+    )
     assert live._uncovered_must_count(_outcome(), snap) == 2
     assert live._uncovered_must_count(SimpleNamespace(solution=None), snap) == -1
 
@@ -71,7 +79,9 @@ def test_recover_resolves_when_healthy_plan_loses_a_must(monkeypatch):
 
     monkeypatch.setattr(entry, "solve_trip", fake_solve)
     snap = _snapshot()
-    first = _outcome("c1",)  # time-capped incumbent lost r2
+    first = _outcome(
+        "c1",
+    )  # time-capped incumbent lost r2
     out = live._recover_outcome(snap, first, budget_s=3.0)
     assert calls == [12.0]  # max(3*3, 12) - not the 40s failure retry
     assert out is not first
@@ -84,7 +94,9 @@ def test_recover_keeps_original_when_coverage_not_improved(monkeypatch):
 
     monkeypatch.setattr(entry, "solve_trip", fake_solve)
     snap = _snapshot()
-    first = _outcome("c1",)
+    first = _outcome(
+        "c1",
+    )
     out = live._recover_outcome(snap, first, budget_s=3.0)
     assert out is first
 
@@ -97,7 +109,11 @@ def test_recover_keeps_original_when_solution_unknown(monkeypatch):
 
     monkeypatch.setattr(entry, "solve_trip", fake_solve)
     first = SimpleNamespace(
-        engine=ENGINE_CPSAT, plan=_plan("c1",), solution=None
+        engine=ENGINE_CPSAT,
+        plan=_plan(
+            "c1",
+        ),
+        solution=None,
     )
     out = live._recover_outcome(_snapshot(), first, budget_s=3.0)
     assert out is first
@@ -111,6 +127,8 @@ def test_recover_prefers_full_plan_even_if_retry_missing_unknown(monkeypatch):
 
     monkeypatch.setattr(entry, "solve_trip", fake_solve)
     snap = _snapshot()
-    first = _outcome("c1",)
+    first = _outcome(
+        "c1",
+    )
     out = live._recover_outcome(snap, first, budget_s=3.0)
     assert len(out.plan.days[0].items) == 2

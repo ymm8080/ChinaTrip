@@ -53,6 +53,7 @@ def _plan(*items):
 
 def test_after_remote_return_detection():
     late = _visit("鸟巢", time(18, 23), time(19, 53))
+
     def day(*items):
         return DayPlan(day=1, base_city="北京", items=list(items))
 

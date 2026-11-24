@@ -19308,10 +19308,7 @@ def enforce_entry_gate(plan: ItineraryPlan) -> list[str]:
                 # R33: a must scheduled in C-06's sanctioned after-return slot
                 # is a deliberate late slot, not a gate breach. Keep its time
                 # so the coverage audit does not demote it to unplaced.
-                marker = (
-                    f"远郊返程后的必去「{it.name}」保留晚间时刻"
-                    "（远郊日余量槽）"
-                )
+                marker = f"远郊返程后的必去「{it.name}」保留晚间时刻（远郊日余量槽）"
                 _already = (getattr(plan, "assumptions", None) or []) + notes
                 if marker not in _already:
                     notes.append(

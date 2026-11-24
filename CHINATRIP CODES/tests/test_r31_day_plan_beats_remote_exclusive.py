@@ -40,15 +40,24 @@ def _c06_world(*, with_day_hints: bool):
     hint = 1 if with_day_hints else None
     cands = [
         SimpleNamespace(
-            cid="cR", rid="rR", poi_id=REMOTE, category="sight",
+            cid="cR",
+            rid="rR",
+            poi_id=REMOTE,
+            category="sight",
             suggested_duration_min=180,
         ),
         SimpleNamespace(
-            cid="cA", rid="rA", poi_id="pa", category="sight",
+            cid="cA",
+            rid="rA",
+            poi_id="pa",
+            category="sight",
             suggested_duration_min=90,
         ),
         SimpleNamespace(
-            cid="cB", rid="rB", poi_id="pb", category="sight",
+            cid="cB",
+            rid="rB",
+            poi_id="pb",
+            category="sight",
             suggested_duration_min=90,
         ),
     ]
@@ -71,8 +80,14 @@ def _c06_world(*, with_day_hints: bool):
     start = {(c, 1): m.NewIntVar(0, 1440, "s_%s" % c) for c in ("cR", "cA", "cB")}
     dur = {"cR": 180, "cA": 90, "cB": 90}
     bundle = SimpleNamespace(
-        model=m, presence=presence, start=start, dur=dur, days=(1,),
-        cap_escapes={}, active_ret_vars={}, dep_vars={},
+        model=m,
+        presence=presence,
+        start=start,
+        dur=dur,
+        days=(1,),
+        cap_escapes={},
+        active_ret_vars={},
+        dep_vars={},
     )
     add_c06_remote_exclusivity(bundle, enriched)
     for cid in ("cR", "cA", "cB"):
@@ -103,9 +118,17 @@ def test_has_user_day_blocks_ignores_out_of_range_hints():
         ],
     )
     assert has_user_day_blocks(request) is True
-    assert has_user_day_blocks(SimpleNamespace(days=2, musts=[
-        SimpleNamespace(rid="r2", day_hint=9),
-    ])) is False
+    assert (
+        has_user_day_blocks(
+            SimpleNamespace(
+                days=2,
+                musts=[
+                    SimpleNamespace(rid="r2", day_hint=9),
+                ],
+            )
+        )
+        is False
+    )
 
 
 # --- end-to-end snapshot ----------------------------------------------------
@@ -130,25 +153,45 @@ def _snapshot(*, with_day_hints: bool) -> FactSnapshot:
         ),
         candidates=(
             CandidateItem(
-                cid="cR", name="慕田峪长城", poi_id=REMOTE, kind="requested",
-                rid="rR", category="sight", opening_hours="00:00-24:00",
-                suggested_duration_min=180, remote=True,
+                cid="cR",
+                name="慕田峪长城",
+                poi_id=REMOTE,
+                kind="requested",
+                rid="rR",
+                category="sight",
+                opening_hours="00:00-24:00",
+                suggested_duration_min=180,
+                remote=True,
             ),
             CandidateItem(
-                cid="cA", name="北京奥林匹克公园", poi_id=A, kind="requested",
-                rid="rA", category="sight", opening_hours="00:00-24:00",
+                cid="cA",
+                name="北京奥林匹克公园",
+                poi_id=A,
+                kind="requested",
+                rid="rA",
+                category="sight",
+                opening_hours="00:00-24:00",
                 suggested_duration_min=90,
             ),
             CandidateItem(
-                cid="cB", name="鸟巢(国家体育场)", poi_id=B, kind="requested",
-                rid="rB", category="sight", opening_hours="00:00-24:00",
+                cid="cB",
+                name="鸟巢(国家体育场)",
+                poi_id=B,
+                kind="requested",
+                rid="rB",
+                category="sight",
+                opening_hours="00:00-24:00",
                 suggested_duration_min=90,
             ),
         ),
         access_profiles=(
             AccessProfile(
-                gateway="g", to_poi=REMOTE, ride_minutes=60, last_mile_minutes=10,
-                departures=("08:30", "09:30"), returns=("14:30", "15:30"),
+                gateway="g",
+                to_poi=REMOTE,
+                ride_minutes=60,
+                last_mile_minutes=10,
+                departures=("08:30", "09:30"),
+                returns=("14:30", "15:30"),
             ),
         ),
         source="synthetic",
