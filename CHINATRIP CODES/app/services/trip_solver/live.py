@@ -1252,7 +1252,7 @@ def _overlay_chosen_departures(snapshot, session):
 
 def _sequence_must_days(session) -> dict[str, int] | None:
     """R25：keep 选边时把文字日程的「第N天」带进快照（C-25 硬钉）。"""
-    if str(getattr(session, "sequence_choice", "") or "") != "keep":
+    if str(getattr(session, "sequence_choice", "") or "") not in ("keep", "both"):
         return None
     out = {
         str(n): int(d)

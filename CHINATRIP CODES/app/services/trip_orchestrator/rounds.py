@@ -116,7 +116,8 @@ class RoundsMixin:
         # （无 store）→ 按 keep 生成并披露请在确认卡上点「两个都要」。
         _typed_seq = _typed_sequence_choice(text)
         if _typed_seq:
-            session.sequence_choice = "keep" if _typed_seq == "both" else _typed_seq
+            # R30：both 也原样落 sequence_choice（api 回合后产引擎版 alt）
+            session.sequence_choice = _typed_seq
         mandatory, optional, parsed = await self._split_site_answer(text, sites)
         if not parsed:
             # Product rule 2026-10-20: an unrecognizable answer keeps the
@@ -134,9 +135,9 @@ class RoundsMixin:
         if _typed_seq == "both":
             notes.append(
                 L(
-                    "输入框里暂不能直接生成引擎版；想要两趟对比，请在确认卡上点「两个都要」。",
-                    "The engine version can't be created from the text box; "
-                    "for two trips, tap \u201cBoth\u201d on the confirmation card.",
+                    "已同时生成引擎自排版，稍后可切换查看。",
+                    "An engine-planned version is being generated too — "
+                    "you'll be able to switch and compare.",
                 )
             )
         mentioned = set(mandatory) | set(optional)

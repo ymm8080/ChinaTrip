@@ -139,6 +139,9 @@ class PlanSession(BaseModel):
     sequence_choice: str | None = None
     # R25d both：同一贴文另存一份「引擎自排版」行程的会话号（用户一键查看/对比）
     alt_session_id: str | None = None
+    # R28：双趋切换——引擎版会话标 alt_role="engine"，
+    # alt_session_id 回链主（写明顺序）会话；H5 据此渲染「回到我写的顺序」。
+    alt_role: str | None = None
     # 自由输入点名的排除项（2026-11-14 北京小众案）：「尽量避开故宫、长城」
     # 里的地点不是必去，是排除项——不进 must_visits，选点池同名候选直接出局。
     avoid_sites: list[str] = Field(default_factory=list)

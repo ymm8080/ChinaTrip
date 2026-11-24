@@ -525,7 +525,7 @@ async def save_plan(
     # 合对调，钉/场次/餐酒店不动，披露进 assumptions。
     rain_notes = (
         []
-        if str(getattr(session, "sequence_choice", "") or "") == "keep"
+        if str(getattr(session, "sequence_choice", "") or "") in ("keep", "both")
         else agent.rain_rebalance_days(session)
     )
     if rain_notes:
@@ -709,7 +709,10 @@ async def get_plan_session(
         raise HTTPException(status_code=400, detail="no_plan")
     # R25c：KEEP 会话的盘面由引擎负责（快照期已按 POI 去重、按天气选天）——
     # 读路径不再做同站合并/雨日对调，免得拆掉用户写明的整天块。
-    _keep_seq = str(getattr(session, "sequence_choice", "") or "") == "keep"
+    _keep_seq = str(getattr(session, "sequence_choice", "") or "") in (
+        "keep",
+        "both",
+    )
     # 同站合并读闸（2026-10-28 变脸 x4 事故）：历史脏数据打开即自愈，
     # 与下方实测腿刷新同模式（读路径修复 + store.save 持久化）。
     if not _keep_seq:

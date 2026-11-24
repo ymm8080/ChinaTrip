@@ -57,6 +57,12 @@ def test_session_snapshot_keep_vs_replan():
         must_visits=["故宫博物院"],
     )
     assert [m.day_hint for m in _session_snapshot(keep, store).request.musts] == [2]
+    both = _sess(
+        sequence_choice="both",
+        site_days={"故宫博物院": 2},
+        must_visits=["故宫博物院"],
+    )
+    assert [m.day_hint for m in _session_snapshot(both, store).request.musts] == [2]
     replan = _sess(
         sequence_choice="replan",
         site_days={"故宫博物院": 2},
@@ -231,11 +237,11 @@ def test_typed_keep_lands_sequence_choice():
     for text, want in (
         ("按我写的顺序", "keep"),
         ("按天气重排", "replan"),
-        ("两个都要", "keep"),
+        ("两个都要", "both"),
     ):
         probe = _sess(state="site_confirm", pending_sites=["故宫博物院"])
         typed = _typed_sequence_choice(text)
-        probe.sequence_choice = "keep" if typed == "both" else typed
+        probe.sequence_choice = typed
         assert probe.sequence_choice == want
 
 
