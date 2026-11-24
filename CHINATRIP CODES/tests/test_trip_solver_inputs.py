@@ -70,6 +70,7 @@ def test_entry_cap_nanluoguxiang_vs_qianmen_r36():
     """R36：同构行（attraction / 全年全天开放 / 90min）必须同口径——
     南锣鼓巷不再是 big-site 960，与前门大街同为 open-form 豁免。
     另兜无 hours 数据的胡同行（street_like 补「巷/胡同」）。"""
+
     def cap(**kw):
         return entry_cap_minutes(**kw)
 
