@@ -13545,6 +13545,7 @@ def _evict_evening_gate_breachers(plan: ItineraryPlan) -> list[str]:
     """
     hours_by_poi = {h.poi_id: h for h in _plan_poi_hours(plan)}
     evicted = []
+    kept_musts: list = []
     for day in plan.days:
         keep = []
         for it in day.items:
@@ -13562,6 +13563,15 @@ def _evict_evening_gate_breachers(plan: ItineraryPlan) -> list[str]:
                     cap is not None
                     and (it.start_time.hour * 60 + it.start_time.minute) > cap
                 ):
+                    # R37 必去不降级（R35 出站闸同口径扩到本闸）——求解
+                    # 器把必去放进远郊返程后的逃逸位（C-06/C-08 把关过
+                    # 的唯一可行槽；慕田峪+八达岭+鸟巢 live 实锤：16:35
+                    # 开场被本闸打成 unplaced）时不得再移出；物理可行由
+                    # 模型层 C-01 营业窗把关。非必去照旧移出转想排。
+                    if getattr(it, "must", False):
+                        kept_musts.append(it)
+                        keep.append(it)
+                        continue
                     evicted.append((day.day, it, cap))
                     continue
             keep.append(it)
@@ -13588,6 +13598,15 @@ def _evict_evening_gate_breachers(plan: ItineraryPlan) -> list[str]:
             "只能从 %s 开场，已移出行程转想排——想保留可改约白天时段"
             "或指定其他天" % (it.name, cap_txt, it.start_time.strftime("%H:%M"))
         )
+    for it in kept_musts:
+        _marker = (
+            "必去「%s」保留晚间时刻（必去优先于白天入场带，营业窗照卡）"
+            % it.name
+        )
+        if _marker not in notes and _marker not in (
+            getattr(plan, "assumptions", None) or []
+        ):
+            notes.append(_marker)
     return notes
 
 
