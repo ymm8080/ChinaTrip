@@ -73,7 +73,7 @@ def test_uncovered_must_count():
 def test_recover_resolves_when_healthy_plan_loses_a_must(monkeypatch):
     calls = []
 
-    def fake_solve(snapshot, flag=None, budget_s=0):
+    def fake_solve(snapshot, flag=None, budget_s=0, hint=None):
         calls.append(budget_s)
         return _outcome("c1", "c2")  # retry finds the full coverage
 
@@ -89,7 +89,7 @@ def test_recover_resolves_when_healthy_plan_loses_a_must(monkeypatch):
 
 
 def test_recover_keeps_original_when_coverage_not_improved(monkeypatch):
-    def fake_solve(snapshot, flag=None, budget_s=0):
+    def fake_solve(snapshot, flag=None, budget_s=0, hint=None):
         return _outcome("c2")  # still one must missing (different one)
 
     monkeypatch.setattr(entry, "solve_trip", fake_solve)
@@ -104,7 +104,7 @@ def test_recover_keeps_original_when_coverage_not_improved(monkeypatch):
 def test_recover_keeps_original_when_solution_unknown(monkeypatch):
     # No solution object -> coverage cannot be judged; preserve legacy guard
     # behaviour (existing R24 contract).
-    def fake_solve(snapshot, flag=None, budget_s=0):
+    def fake_solve(snapshot, flag=None, budget_s=0, hint=None):
         raise AssertionError("must not retry")
 
     monkeypatch.setattr(entry, "solve_trip", fake_solve)
@@ -120,7 +120,7 @@ def test_recover_keeps_original_when_solution_unknown(monkeypatch):
 
 
 def test_recover_prefers_full_plan_even_if_retry_missing_unknown(monkeypatch):
-    def fake_solve(snapshot, flag=None, budget_s=0):
+    def fake_solve(snapshot, flag=None, budget_s=0, hint=None):
         return SimpleNamespace(
             engine=ENGINE_CPSAT, plan=_plan("c1", "c2"), solution=None
         )

@@ -35,6 +35,14 @@ OPEN_FORM_CATEGORIES = frozenset({"citywalk", "street"})
 EVENING_OK_BEST = frozenset({"evening", "sunset", "show"})
 
 _WINDOW_RE = re.compile(r"(\d{1,2}:\d{2})\s*[-–~至到]\s*(\d{1,2}:\d{2})")
+# R36（2026-11-24）：「全年全天开放」类全天声明=数据里明确写了 24h
+# 开放，正则读不出来导致 window=None——模型层 open-form 豁免面
+# （window is not None or street_like）看不到真值，同构行分裂：
+# 前门大街（名含「街」）豁免、南锣鼓巷掉 big-site 960。显式全天
+# 声明解析为 (0,1440)＝无闸形态；「无固定开放时间」类无信息行
+# 保持 None 照吃闸（2026-11-17 拍板不动）。周一闭馆由 C-01
+# closed_weekdays 另行把关，窗口不影响闭馆日判定。
+_ALLDAY_RE = re.compile(r"全天(?:开放|营业)|24\s*小时(?:营业|开放)?|24\s*[Hh]")
 
 
 def _to_min(text: str) -> Optional[int]:
@@ -47,13 +55,17 @@ def parse_first_window(text: Optional[str]) -> Optional[tuple[int, int]]:
     """First HH:MM-HH:MM span in an opening-hours display string.
 
     Covers the G-01 patterns (今天07:30-18:30开放… / 周一至周日 00:00-24:00 /
-    03:30-20:30 / 故宫多段文本取第一段). Seasonal multi-window parsing is
-    fixture-v2 scope (audit M3); callers treat the result as an approximation.
+    03:30-20:30 / 故宫多段文本取第一段) plus the R36 explicit all-day
+    statements (全年全天开放 / 24小时营业 → (0, 1440)). Seasonal
+    multi-window parsing is fixture-v2 scope (audit M3); callers treat the
+    result as an approximation.
     """
     if not text:
         return None
     match = _WINDOW_RE.search(text)
     if not match:
+        if _ALLDAY_RE.search(text):
+            return (0, 24 * 60)
         return None
     opens = _to_min(match.group(1))
     closes = _to_min(match.group(2))
@@ -152,8 +164,12 @@ def entry_cap_minutes(
         return None, "theme-block"
     if is_open_form(window):
         # 真开放形态（全天窗）或街区语义行豁免；hours 缺失（window
-        # None）的非街区行落回普通/大点闸（晚闸拍板 2026-11-17）
-        street_like = (category or "") in OPEN_FORM_CATEGORIES or "街" in (name or "")
+        # None）的非街区行落回普通/大点闸（晚闸拍板 2026-11-17）。
+        # R36：街区语义补「巷/胡同」——南锣鼓巷/五道营胡同类与
+        # 前门大街（名含「街」）同形态，历史上只有「街」字命中。
+        street_like = (category or "") in OPEN_FORM_CATEGORIES or any(
+            _w in (name or "") for _w in ("街", "巷", "胡同")
+        )
         if window is not None or street_like:
             return None, "open-form"
     if is_big_site(

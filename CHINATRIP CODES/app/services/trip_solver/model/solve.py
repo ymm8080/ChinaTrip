@@ -193,7 +193,15 @@ def solve(
         bundle.model.ClearAssumptions()
         if _st in (cp_model.OPTIMAL, cp_model.FEASIBLE):
             _locked = {}
-        else:
+        elif _st == cp_model.INFEASIBLE:
+            # R34: only a *proven* INFEASIBLE k=0 justifies the single-drop
+            # sweep. UNKNOWN means the 0.1 deterministic-time probe could
+            # neither seat all musts nor prove they cannot all be seated —
+            # so the one-drop probes (same model, same dtime) cannot decide
+            # anything either. Real profile: a 33-candidate / 12-must / 4-day
+            # trip burned 13 x ~330ms = 4.28s (72% of the whole solve) on
+            # probes that ALL returned UNKNOWN, locking nothing. Bail out
+            # and let the coverage tier (larger dtime) decide placement.
             for _rid in sorted(_unp, key=lambda x: _weights.get(x, 1)):
                 _others = [v.Not() for x, v in _unp.items() if x != _rid]
                 bundle.model.AddAssumptions(_others)

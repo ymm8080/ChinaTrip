@@ -71,7 +71,7 @@ def test_musts_all_placed_requires_one_resolved_must():
 def test_recover_retries_planless_cpsat_with_doubled_budget(monkeypatch):
     calls = []
 
-    def fake_solve(snapshot, flag=None, budget_s=0):
+    def fake_solve(snapshot, flag=None, budget_s=0, hint=None):
         calls.append(budget_s)
         if len(calls) == 1:
             return SimpleNamespace(engine=ENGINE_CPSAT, plan=None, solution=None)
@@ -89,7 +89,7 @@ def test_recover_retries_planless_cpsat_with_doubled_budget(monkeypatch):
 def test_recover_no_retry_when_plan_exists(monkeypatch):
     calls = []
 
-    def fake_solve(snapshot, flag=None, budget_s=0):
+    def fake_solve(snapshot, flag=None, budget_s=0, hint=None):
         calls.append(budget_s)
         return SimpleNamespace(
             engine=ENGINE_CPSAT, plan=_plan(_sight("c1")), solution=None
@@ -107,7 +107,7 @@ def test_recover_retries_legacy_fallback_outcome(monkeypatch):
     # 重解常可恢复（R25）。
     calls = []
 
-    def fake_solve(snapshot, flag=None, budget_s=0):
+    def fake_solve(snapshot, flag=None, budget_s=0, hint=None):
         calls.append(budget_s)
         if len(calls) == 1:
             return SimpleNamespace(engine=ENGINE_LEGACY, plan=None, solution=None)
@@ -126,7 +126,7 @@ def test_recover_retries_shrunk_plan(monkeypatch):
     # 请求 4 天只回 1 天=缩天盘，先重试；重试回 4 天健康盘则采用。
     calls = []
 
-    def fake_solve(snapshot, flag=None, budget_s=0):
+    def fake_solve(snapshot, flag=None, budget_s=0, hint=None):
         calls.append(budget_s)
         if len(calls) == 1:
             return SimpleNamespace(
@@ -154,7 +154,7 @@ def test_recover_retries_shrunk_plan(monkeypatch):
 
 
 def test_recover_keeps_shrunk_plan_when_retry_worse(monkeypatch):
-    def fake_solve(snapshot, flag=None, budget_s=0):
+    def fake_solve(snapshot, flag=None, budget_s=0, hint=None):
         return SimpleNamespace(engine=ENGINE_CPSAT, plan=None, solution=None)
 
     monkeypatch.setattr(entry, "solve_trip", fake_solve)

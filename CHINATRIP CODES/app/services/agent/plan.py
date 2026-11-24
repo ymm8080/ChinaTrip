@@ -14454,6 +14454,19 @@ def _make_room_for_meal(day: DayPlan, item: VisitItem, start: int, dur: int) -> 
             return False
         if not _fits_hours_window(_hours_from_visit(other), new_start, new_dur):
             return False
+        # R35：餐卡顺延无权推迟开场（enforce_entry_gate 文档口径
+        # 「兜底排程、餐卡顺延、贴锚收口都无权推迟开场」）——顺延后的
+        # 新开场若越过 generic_entry_cap+30 容忍（读闸同口径），整条
+        # 让位链拒绝，餐卡按槽位口径另找位；R33 远郊返程后的必去槽
+        # 豁免（那是引擎有意排的晚间位，不是越闸）。否则顺延完的卡
+        # 立刻被入场闸清时刻、审计降级成 unplaced（景山 17:11→18:00
+        # 根案）。
+        _cap = generic_entry_cap(other, _hours_from_visit(other))
+        if _cap is not None and not (
+            getattr(other, "must", False) and _after_remote_return(day, other)
+        ):
+            if new_start - _cap > _FLEX_TOLERANCE_MINUTES:
+                return False
         moves.append((other, _time_of(new_start), _time_of(new_end), new_dur))
         cursor = new_end
         prev_moved = other
@@ -19276,7 +19289,14 @@ def enforce_entry_gate(plan: ItineraryPlan) -> list[str]:
     触发；只清时刻不动结构，后续重排仍可合法落位。
 
     R12-E2 弹性（2026-11-16 拍板 ≤30 分钟容忍同口径）：越闸 ≤30 分钟
-    的微越线容忍不清时刻；>30 分钟才退回无时刻。"""
+    的微越线容忍不清时刻；>30 分钟才退回无时刻。
+
+    R33→R35（2026-11-24）：必去整体豁免清时刻。R33 原只豁免远郊返程后
+    槽，但写明天把同日必去挤到晚间（南锣 19:32/景山 17:11）同属用户
+    显式权威，物理可行由 C-01 营业窗把关；清时刻只会经
+    demote_untimed_musts 把必去打成 unplaced（用户三次报障同根）。
+    非必去卡照旧清时刻守闸；餐卡顺延守卫（_make_room_for_meal R35）
+    仍拒绝把卡推过帽，减少无谓晚场。"""
     hours_by_poi = {h.poi_id: h for h in _plan_poi_hours(plan)}
     notes: list[str] = []
     for day in plan.days:
@@ -19304,18 +19324,26 @@ def enforce_entry_gate(plan: ItineraryPlan) -> list[str]:
             # 政策带微越不构成进不去）；>30 分钟才退回无时刻转想去。
             if m - cap <= _FLEX_TOLERANCE_MINUTES:
                 continue
-            if getattr(it, "must", False) and _after_remote_return(day, it):
-                # R33: a must scheduled in C-06's sanctioned after-return slot
-                # is a deliberate late slot, not a gate breach. Keep its time
-                # so the coverage audit does not demote it to unplaced.
-                marker = f"远郊返程后的必去「{it.name}」保留晚间时刻（远郊日余量槽）"
+            if getattr(it, "must", False):
+                # R33→R35: 必去不受白天入场带降级。R33 原豁免只覆盖远郊
+                # 返程后槽，但写明天把同日必去挤到晚间是用户显式权威
+                # （铁律 19 精神，R31 同一逻辑：用户写明天 > 默认启发式），
+                # 且物理可行已由模型层 C-01 营业窗把关——南锣鼓巷
+                # 19:32、景山 17:11 都是写明天排满后的合法晚场，清时刻
+                # 只会把必去打成 unplaced（用户三次报障同根：什刹海/
+                # 鸟巢/景山/圆明园）。非必去卡照旧清时刻守闸。
+                marker = (
+                    f"必去「{it.name}」保留晚间时刻"
+                    "（必去优先于白天入场带，营业窗照卡）"
+                )
                 _already = (getattr(plan, "assumptions", None) or []) + notes
                 if marker not in _already:
                     notes.append(
                         L(
                             marker,
-                            "Must-visit '%s' keeps its evening slot in the "
-                            "remote day's after-return slot." % it.name,
+                            "Must-visit '%s' keeps its evening slot "
+                            "(must-visits outrank the daytime entry band; "
+                            "opening hours still apply)." % it.name,
                         )
                     )
                 continue

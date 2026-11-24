@@ -786,11 +786,18 @@ def _recover_outcome(snapshot, outcome, budget_s):
         if coverage_retry
         else max(float(budget_s or 20.0), 20.0) * 2.0
     )
+    # R34: warm-start the coverage retry with the first (suboptimal) solution.
+    # The incumbent already seats most musts, so CP-SAT refines from it instead
+    # of rebuilding the search from scratch. Only for the coverage path: a
+    # no-plan/shrunk outcome has no usable incumbent (and _apply_hint would hint
+    # every presence to 0), so those retries keep the cold start.
+    retry_hint = outcome.solution if coverage_retry else None
     try:
         retry = solve_trip(
             snapshot,
             flag=ENGINE_CPSAT,
             budget_s=retry_budget,
+            hint=retry_hint,
         )
     except Exception:
         return outcome

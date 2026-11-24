@@ -54,6 +54,54 @@ def test_parse_first_window_patterns():
     assert parse_first_window("无固定开放时间") is None
 
 
+def test_parse_first_window_allday_statement_r36():
+    """R36（南锣鼓巷 vs 前门大街分类分裂）：显式全天声明=数据真值，
+    解析为 (0,1440) 开放形态；无信息行（无固定/纯文本）仍 None。"""
+    assert parse_first_window("全年全天开放") == (0, 1440)
+    assert parse_first_window("全天开放") == (0, 1440)
+    assert parse_first_window("周一至周日全天营业") == (0, 1440)
+    assert parse_first_window("24小时营业") == (0, 1440)
+    assert parse_first_window("24H") == (0, 1440)
+    assert parse_first_window("无固定开放时间") is None
+    assert parse_first_window("淡季营业") is None
+
+
+def test_entry_cap_nanluoguxiang_vs_qianmen_r36():
+    """R36：同构行（attraction / 全年全天开放 / 90min）必须同口径——
+    南锣鼓巷不再是 big-site 960，与前门大街同为 open-form 豁免。
+    另兜无 hours 数据的胡同行（street_like 补「巷/胡同」）。"""
+    def cap(**kw):
+        return entry_cap_minutes(**kw)
+
+    for name in ("南锣鼓巷", "前门大街"):
+        assert cap(
+            name=name,
+            category="attraction",
+            best_visit_time="any",
+            opening_hours_text="全年全天开放",
+            duration_min=90,
+            tier=8,
+        ) == (None, "open-form")
+    # 无 hours 数据的胡同行：街区语义兜住（既有「街」字路径的类内补齐）
+    assert cap(
+        name="五道营胡同",
+        category="attraction",
+        best_visit_time="any",
+        opening_hours_text=None,
+        duration_min=90,
+        tier=8,
+    ) == (None, "open-form")
+    # 无信息行不越权：非街区语义照吃闸（2026-11-17 拍板不动）
+    assert cap(
+        name="老舍茶馆",
+        category="tea_experience",
+        best_visit_time="any",
+        opening_hours_text=None,
+        duration_min=60,
+        tier=None,
+    ) == (990, "generic")
+
+
 def test_open_form_semantics():
     assert is_open_form(None) is True  # no hours = street/citywalk
     assert is_open_form((0, 1440)) is True  # 00:00-24:00

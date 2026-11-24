@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
-"""R33: the daytime entry gate must not demote a must-visit that the solver
-deliberately placed in C-06's after-remote-return slot.
+"""R33→R35: the daytime entry gate must not demote must-visits.
 
-Before R33 the gate cleared such cards to untimed, then the coverage audit
-demoted them to unplaced (鸟巢(国家体育场) after 慕田峪长城 on a user-written
-day). The exemption is narrow: must-visits only, only after a real return
-card, and only when they would otherwise breach the cap.
+R33 scoped the exemption to C-06's after-remote-return slot; R35 (2026-11-24)
+widened it to every must-visit: user-written day plans legitimately pack same-
+day musts into evening slots (南锣 19:32 / 景山 17:11), physical feasibility is
+already guaranteed by the model's C-01 opening-hours windows, and clearing the
+time only fed demote_untimed_musts → unplaced (the user's thrice-reported bug:
+什刹海 / 鸟巢 / 景山 / 圆明园). Non-must cards are still cleared.
 """
 
 from datetime import time
@@ -75,12 +76,14 @@ def test_late_must_after_return_keeps_time_with_disclosure():
     assert enforce_entry_gate(plan) == []
 
 
-def test_late_must_without_return_still_cleared():
-    late = _visit("鸟巢(国家体育场)", time(18, 23), time(19, 53), item_id="v3")
+def test_late_must_without_return_keeps_time_too():
+    # R35: the exemption no longer requires the after-remote-return shape —
+    # every must keeps its slot (written-day evening packs are user authority).
+    late = _visit("南锣鼓巷", time(19, 32), time(21, 2), item_id="v3")
     plan = _plan(late)
     notes = enforce_entry_gate(plan)
-    assert late.start_time is None
-    assert notes and "停止入场" in notes[0]
+    assert late.start_time == time(19, 32)
+    assert notes and "南锣鼓巷" in notes[0]
 
 
 def test_late_non_must_after_return_still_cleared():
