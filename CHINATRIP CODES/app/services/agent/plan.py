@@ -13599,10 +13599,7 @@ def _evict_evening_gate_breachers(plan: ItineraryPlan) -> list[str]:
             "或指定其他天" % (it.name, cap_txt, it.start_time.strftime("%H:%M"))
         )
     for it in kept_musts:
-        _marker = (
-            "必去「%s」保留晚间时刻（必去优先于白天入场带，营业窗照卡）"
-            % it.name
-        )
+        _marker = "必去「%s」保留晚间时刻（必去优先于白天入场带，营业窗照卡）" % it.name
         if _marker not in notes and _marker not in (
             getattr(plan, "assumptions", None) or []
         ):
