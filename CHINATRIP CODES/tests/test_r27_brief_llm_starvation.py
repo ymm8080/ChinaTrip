@@ -106,9 +106,9 @@ def test_library_full_does_not_starve_llm():
     # LLM 行在前（文本顺序），用户点名的三处全在
     assert added[:3] == ["天坛", "什刹海", "故宫博物院"]
     assert session.must_visits[:3] == ["天坛", "什刹海", "故宫博物院"]
-    # 底库行补差额全数入列（无帽）
+    # 底库行补差额入列（无帽）；鸟巢双源行 R37 倒装折一只留
+    # 一行（夹具序里 国家体育场·鸟巢 先到先得）
     assert added[3:] == [
-        "鸟巢(国家体育场)",
         "国家体育场·鸟巢",
         "中和殿",
         "北京奥林匹克公园",
@@ -117,6 +117,7 @@ def test_library_full_does_not_starve_llm():
         "慕田峪长城",
         "天安门广场",
     ]
+    assert sum(1 for n in added if "鸟巢" in n or "国家体育场" in n) == 1
 
 
 def test_llm_rows_precede_library_rows_in_text_order():
@@ -203,8 +204,9 @@ def test_parent_present_suppresses_library_subsite_rows():
     # LLM 行在前；三个殿/坛子点行被撤，不再垫卡
     assert added[:3] == ["天坛", "什刹海", "故宫博物院"]
     assert not ({"中和殿", "圜丘", "太和殿"} & names)
-    # 非子点的底库行照旧补差
-    assert "鸟巢(国家体育场)" in names
+    # 非子点的底库行照旧补差；鸟巢双源行 R37 倒装折一只留一行
+    assert "国家体育场·鸟巢" in names
+    assert "鸟巢(国家体育场)" not in names
     assert "慕田峪长城" in names
 
 
@@ -233,7 +235,8 @@ def test_missing_subsites_key_is_noop():
 
     added, _ = run(agent._mine_brief_sites(session))
 
-    assert len(added) == 3 + len(_POISON_LIBRARY)
+    # 鸟巢双源行 R37 倒装折一：8 行底库只补 7 行
+    assert len(added) == 3 + len(_POISON_LIBRARY) - 1
 
 
 def test_subsites_outside_library_rows_ignored():
@@ -250,4 +253,5 @@ def test_subsites_outside_library_rows_ignored():
     added, _ = run(agent._mine_brief_sites(session))
 
     assert added[:1] == ["故宫博物院"]
-    assert len(added) == 1 + len(_POISON_LIBRARY)
+    # 鸟巢双源行 R37 倒装折一：8 行底库只补 7 行
+    assert len(added) == 1 + len(_POISON_LIBRARY) - 1

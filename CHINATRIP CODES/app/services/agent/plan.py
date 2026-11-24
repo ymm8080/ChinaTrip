@@ -3574,7 +3574,24 @@ def _same_site(a: str, b: str) -> bool:
     na, nb = _norm_site_name(a), _norm_site_name(b)
     if not na or not nb:
         return na == nb
-    return na == nb or ((na in nb or nb in na) and min(len(na), len(nb)) >= 2)
+    if na == nb or ((na in nb or nb in na) and min(len(na), len(nb)) >= 2):
+        return True
+    # R37 词序倒装通道（R28b 挂账①）：同一实体的两个来源行常互为词序
+    # 倒装——「鸟巢(国家体育场)」 vs 「国家体育场·鸟巢」norm 剥掉括号/
+    # 间隔号后互不为子串（等值+包含通道都不收敛），确认卡垫两行、
+    # 池 twin 并卡层并不掉（must 合并等 20+ 调用点同一缺口；R29 已把
+    # 库内双行折一并转召回别名，文本/LLM 变体路径仍在）。归一后字符
+    # 多重集相等（≥4 字，防 2-3 字泛名/短地名撞车）即同一实体的倒装
+    # 变体；池侧调用本就挂 _twin_site_gate 30km 地理闸，确认卡侧与
+    # 旧包含通道同一无坐标口径。
+    # 数字串不参与倒装（编号换位=不同实体：博物馆12/博物馆21、
+    # 58号楼/85号楼）——数字序列须全等，字母/CJK 才做多重集比较。
+    da, db = re.findall(r"\d+", na), re.findall(r"\d+", nb)
+    if da != db:
+        return False
+    fa = re.sub(r"\d", "", na).casefold()
+    fb = re.sub(r"\d", "", nb).casefold()
+    return len(fa) >= 4 and sorted(fa) == sorted(fb)
 
 
 def _contained_twin_pair(a: str, b: str) -> tuple[str, str] | None:
@@ -19333,8 +19350,7 @@ def enforce_entry_gate(plan: ItineraryPlan) -> list[str]:
                 # 只会把必去打成 unplaced（用户三次报障同根：什刹海/
                 # 鸟巢/景山/圆明园）。非必去卡照旧清时刻守闸。
                 marker = (
-                    f"必去「{it.name}」保留晚间时刻"
-                    "（必去优先于白天入场带，营业窗照卡）"
+                    f"必去「{it.name}」保留晚间时刻（必去优先于白天入场带，营业窗照卡）"
                 )
                 _already = (getattr(plan, "assumptions", None) or []) + notes
                 if marker not in _already:
