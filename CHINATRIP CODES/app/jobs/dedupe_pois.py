@@ -37,6 +37,7 @@
     否则 ``UnknownPoiColumnError`` 拒绝执行（防 schema 漂移静默丢信息）。
   - 批次快照表只增不删（不像一次性脚本 DROP TABLE），多次/多对可共存。
 """
+
 from __future__ import annotations
 
 import argparse
@@ -132,19 +133,23 @@ def _engine():
 def _pois_columns(conn) -> list[str]:
     return [
         r[0]
-        for r in conn.execute(text(
-            "SELECT column_name FROM information_schema.columns "
-            "WHERE table_name='pois' AND table_schema='public' "
-            "ORDER BY ordinal_position"
-        )).fetchall()
+        for r in conn.execute(
+            text(
+                "SELECT column_name FROM information_schema.columns "
+                "WHERE table_name='pois' AND table_schema='public' "
+                "ORDER BY ordinal_position"
+            )
+        ).fetchall()
     ]
 
 
 def _load_rows(conn, cols: list[str], ids: list[str]) -> dict[str, dict]:
     clause, params = _in_clause("id", ids)
-    rows = conn.execute(
-        text(f"SELECT * FROM pois WHERE id::text IN ({clause})"), params
-    ).mappings().all()
+    rows = (
+        conn.execute(text(f"SELECT * FROM pois WHERE id::text IN ({clause})"), params)
+        .mappings()
+        .all()
+    )
     return {str(r["id"]): dict(r) for r in rows}
 
 
@@ -179,22 +184,28 @@ def _ref_tables(conn) -> list[tuple[str, bool]]:
     """所有含 poi_id 的下游表 + 该列是否有唯一约束（PK/UNIQUE）。"""
     tables = [
         r[0]
-        for r in conn.execute(text(
-            "SELECT table_name FROM information_schema.columns "
-            "WHERE column_name='poi_id' AND table_schema='public' "
-            "AND table_name <> :bak ORDER BY table_name"
-        ), {"bak": _BAK_TABLE}).fetchall()
+        for r in conn.execute(
+            text(
+                "SELECT table_name FROM information_schema.columns "
+                "WHERE column_name='poi_id' AND table_schema='public' "
+                "AND table_name <> :bak ORDER BY table_name"
+            ),
+            {"bak": _BAK_TABLE},
+        ).fetchall()
     ]
     out = []
     for table in tables:
-        unique = conn.execute(text(
-            "SELECT count(*) FROM information_schema.table_constraints tc "
-            "JOIN information_schema.key_column_usage kcu "
-            "  ON tc.constraint_name=kcu.constraint_name "
-            "WHERE tc.table_schema='public' AND tc.table_name=:t "
-            "  AND tc.constraint_type IN ('PRIMARY KEY','UNIQUE') "
-            "  AND kcu.column_name='poi_id'"
-        ), {"t": table}).scalar()
+        unique = conn.execute(
+            text(
+                "SELECT count(*) FROM information_schema.table_constraints tc "
+                "JOIN information_schema.key_column_usage kcu "
+                "  ON tc.constraint_name=kcu.constraint_name "
+                "WHERE tc.table_schema='public' AND tc.table_name=:t "
+                "  AND tc.constraint_type IN ('PRIMARY KEY','UNIQUE') "
+                "  AND kcu.column_name='poi_id'"
+            ),
+            {"t": table},
+        ).scalar()
         out.append((table, bool(unique)))
     return out
 
@@ -260,10 +271,14 @@ def _scan_alias_candidates(
         shared = _longest_common_substring(r["an"], r["bn"])
         if len(shared) < min_shared:
             continue
-        out.append({
-            "distance_m": float(r["d_m"]), "shared": shared,
-            "keeper_hint": None, "a": dict(r),
-        })
+        out.append(
+            {
+                "distance_m": float(r["d_m"]),
+                "shared": shared,
+                "keeper_hint": None,
+                "a": dict(r),
+            }
+        )
     out.sort(key=lambda x: (-len(x["shared"]), x["distance_m"]))
     return out[:limit]
 
@@ -275,22 +290,29 @@ def _ensure_backup_table(conn, cols: list[str]) -> None:
     ).scalar()
     if not exists:
         collist = ", ".join(_q(c) for c in cols)
-        conn.execute(text(
-            f"CREATE TABLE {_q(_BAK_TABLE)} AS "
-            f"SELECT {collist} FROM pois WHERE false"
-        ))
-        conn.execute(text(
-            f"ALTER TABLE {_q(_BAK_TABLE)} "
-            "ADD COLUMN batch_id text NOT NULL, "
-            "ADD COLUMN dedup_at timestamptz NOT NULL DEFAULT now()"
-        ))
+        conn.execute(
+            text(
+                f"CREATE TABLE {_q(_BAK_TABLE)} AS "
+                f"SELECT {collist} FROM pois WHERE false"
+            )
+        )
+        conn.execute(
+            text(
+                f"ALTER TABLE {_q(_BAK_TABLE)} "
+                "ADD COLUMN batch_id text NOT NULL, "
+                "ADD COLUMN dedup_at timestamptz NOT NULL DEFAULT now()"
+            )
+        )
         return
     bak_cols = {
         r[0]
-        for r in conn.execute(text(
-            "SELECT column_name FROM information_schema.columns "
-            "WHERE table_name=:t AND table_schema='public'"
-        ), {"t": _BAK_TABLE}).fetchall()
+        for r in conn.execute(
+            text(
+                "SELECT column_name FROM information_schema.columns "
+                "WHERE table_name=:t AND table_schema='public'"
+            ),
+            {"t": _BAK_TABLE},
+        ).fetchall()
     }
     missing = [c for c in (*cols, "batch_id", "dedup_at") if c not in bak_cols]
     if missing:
@@ -304,10 +326,13 @@ def _snapshot(conn, cols: list[str], ids: list[str], batch_id: str) -> int:
     clause, params = _in_clause("s", ids)
     params["batch"] = batch_id
     collist = ", ".join(_q(c) for c in cols)
-    res = conn.execute(text(
-        f"INSERT INTO {_q(_BAK_TABLE)} ({collist}, batch_id) "
-        f"SELECT {collist}, :batch FROM pois WHERE id::text IN ({clause})"
-    ), params)
+    res = conn.execute(
+        text(
+            f"INSERT INTO {_q(_BAK_TABLE)} ({collist}, batch_id) "
+            f"SELECT {collist}, :batch FROM pois WHERE id::text IN ({clause})"
+        ),
+        params,
+    )
     return res.rowcount
 
 
@@ -329,21 +354,24 @@ def _rollback_batch(conn, cols: list[str], batch_id: str) -> dict:
     clause, params = _in_clause("r", ids)
     params["b"] = batch_id
     collist = ", ".join(_q(c) for c in cols)
-    sets = ", ".join(
-        f"{_q(c)}=EXCLUDED.{_q(c)}" for c in cols if c != "id"
+    sets = ", ".join(f"{_q(c)}=EXCLUDED.{_q(c)}" for c in cols if c != "id")
+    res = conn.execute(
+        text(
+            f"INSERT INTO pois ({collist}) "
+            f"SELECT {collist} FROM {_q(_BAK_TABLE)} "
+            f"WHERE batch_id=:b AND id::text IN ({clause}) "
+            f"ON CONFLICT (id) DO UPDATE SET {sets}"
+        ),
+        params,
     )
-    res = conn.execute(text(
-        f"INSERT INTO pois ({collist}) "
-        f"SELECT {collist} FROM {_q(_BAK_TABLE)} "
-        f"WHERE batch_id=:b AND id::text IN ({clause}) "
-        f"ON CONFLICT (id) DO UPDATE SET {sets}"
-    ), params)
     statuses = {
         str(r["id"]): r["status"]
         for r in conn.execute(
             text(f"SELECT id, status FROM pois WHERE id::text IN ({clause})"),
             {k: v for k, v in params.items() if k.startswith("r")},
-        ).mappings().all()
+        )
+        .mappings()
+        .all()
     }
     return {"batch_id": batch_id, "rowcount": res.rowcount, "statuses": statuses}
 
@@ -357,15 +385,13 @@ def _retarget(conn_or_session, tables, keeper_id: str, loser_ids: list[str]) -> 
         if is_unique:
             n_keeper = conn_or_session.execute(
                 text(
-                    f"SELECT count(*) FROM {_q(table)} "
-                    "WHERE poi_id = CAST(:k AS uuid)"
+                    f"SELECT count(*) FROM {_q(table)} WHERE poi_id = CAST(:k AS uuid)"
                 ),
                 {"k": keeper_id},
             ).scalar()
             n_loser = conn_or_session.execute(
                 text(
-                    f"SELECT count(*) FROM {_q(table)} "
-                    f"WHERE poi_id::text IN ({clause})"
+                    f"SELECT count(*) FROM {_q(table)} WHERE poi_id::text IN ({clause})"
                 ),
                 {k: v for k, v in params.items() if k.startswith("l")},
             ).scalar()
@@ -373,13 +399,16 @@ def _retarget(conn_or_session, tables, keeper_id: str, loser_ids: list[str]) -> 
                 out[table] = {
                     "updated": 0,
                     "skipped": f"poi_id 唯一且 keeper 已有 {n_keeper} 行；"
-                               f"loser 的 {n_loser} 行保留不删（需人工并表）",
+                    f"loser 的 {n_loser} 行保留不删（需人工并表）",
                 }
                 continue
-        res = conn_or_session.execute(text(
-            f"UPDATE {_q(table)} SET poi_id = CAST(:k AS uuid) "
-            f"WHERE poi_id::text IN ({clause})"
-        ), params)
+        res = conn_or_session.execute(
+            text(
+                f"UPDATE {_q(table)} SET poi_id = CAST(:k AS uuid) "
+                f"WHERE poi_id::text IN ({clause})"
+            ),
+            params,
+        )
         out[table] = {"updated": res.rowcount}
     return out
 
@@ -407,8 +436,9 @@ def _apply_full(engine, cols, keeper_id, loser_ids, plan, *, city, batch_id) -> 
     return {"snapshot_rows": snapped, "refs": refs}
 
 
-def _verify_full(engine, cols, keeper_id, loser_ids, plan, keeper_before,
-                 loser_rows, refs) -> None:
+def _verify_full(
+    engine, cols, keeper_id, loser_ids, plan, keeper_before, loser_rows, refs
+) -> None:
     with engine.connect() as conn:
         now = _load_rows(conn, cols, [keeper_id, *loser_ids])
         tables = _ref_tables(conn)
@@ -447,21 +477,26 @@ def _write_ledger(cols, rows, plan, batch_id, refs, *, city, applied) -> Path:
     actions = []
     for col in plan.changed_columns:
         cp = plan.columns[col]
-        actions.append({
-            "column": col, "final_action": cp.action,
-            "final_value": _csv_value(cp.value)[:200],
-            "history": list(cp.history),
-        })
+        actions.append(
+            {
+                "column": col,
+                "final_action": cp.action,
+                "final_value": _csv_value(cp.value)[:200],
+                "history": list(cp.history),
+            }
+        )
     receipt = {
         "batch_id": batch_id,
         "applied": applied,
         "city": city,
         "column_count": plan.column_count,
-        "keeper": {"id": rows[0].get("id"), "name_zh": rows[0].get("name_zh"),
-                   "source": rows[0].get("source")},
+        "keeper": {
+            "id": rows[0].get("id"),
+            "name_zh": rows[0].get("name_zh"),
+            "source": rows[0].get("source"),
+        },
         "losers": [
-            {"id": r.get("id"), "name_zh": r.get("name_zh"),
-             "source": r.get("source")}
+            {"id": r.get("id"), "name_zh": r.get("name_zh"), "source": r.get("source")}
             for r in rows[1:]
         ],
         "changed_columns": plan.changed_columns,
@@ -531,8 +566,7 @@ def _run_full(args, engine) -> None:
             rows_map = _load_rows(conn, cols, [keeper_id, *loser_ids])
         else:
             names = (
-                [args.name] if args.name
-                else _scan_candidates(args.city, args.limit)
+                [args.name] if args.name else _scan_candidates(args.city, args.limit)
             )
             if not names:
                 print("无可处理地名")
@@ -546,26 +580,41 @@ def _run_full(args, engine) -> None:
                 rows = _load_rows(conn, cols, ids)
                 keep_id = (
                     _resolve_keep(args.keep, get_session_factory())
-                    if args.keep else None
+                    if args.keep
+                    else None
                 )
                 keeper_row = choose_keeper([rows[i] for i in ids], keep_id)
                 keeper_id = str(keeper_row["id"])
                 loser_ids = [i for i in ids if i != keeper_id]
                 rows_map = {i: rows[i] for i in [keeper_id, *loser_ids]}
                 _run_one_full(
-                    args, engine, conn, cols, tables, keeper_id, loser_ids,
-                    rows_map, name,
+                    args,
+                    engine,
+                    conn,
+                    cols,
+                    tables,
+                    keeper_id,
+                    loser_ids,
+                    rows_map,
+                    name,
                 )
             return
         _run_one_full(
-            args, engine, conn, cols, tables, keeper_id, loser_ids,
+            args,
+            engine,
+            conn,
+            cols,
+            tables,
+            keeper_id,
+            loser_ids,
             rows_map,
             args.city or str(rows_map[keeper_id].get("name_zh") or "pair"),
         )
 
 
-def _run_one_full(args, engine, conn, cols, tables, keeper_id, loser_ids,
-                  rows_map, label) -> None:
+def _run_one_full(
+    args, engine, conn, cols, tables, keeper_id, loser_ids, rows_map, label
+) -> None:
     keeper = rows_map[keeper_id]
     losers = [rows_map[i] for i in loser_ids]
     inactive = [
@@ -596,12 +645,23 @@ def _run_one_full(args, engine, conn, cols, tables, keeper_id, loser_ids,
         engine, cols, keeper_id, loser_ids, plan, city=label, batch_id=batch_id
     )
     _verify_full(
-        engine, cols, keeper_id, loser_ids, plan, keeper, losers,
+        engine,
+        cols,
+        keeper_id,
+        loser_ids,
+        plan,
+        keeper,
+        losers,
         result["refs"],
     )
     path = _write_ledger(
-        cols, [keeper, *losers], plan, batch_id, result["refs"],
-        city=label, applied=True,
+        cols,
+        [keeper, *losers],
+        plan,
+        batch_id,
+        result["refs"],
+        city=label,
+        applied=True,
     )
     print(f"APPLIED + VERIFY OK; snapshot={_BAK_TABLE}/{batch_id}; ledger={path}")
 
@@ -625,15 +685,18 @@ def main() -> None:
     parser.add_argument("--verbose", action="store_true")
     # ---- 全字段通道 ----
     parser.add_argument(
-        "--full", action="store_true",
+        "--full",
+        action="store_true",
         help="用全字段合并引擎（默认仍走 merge_place 旧通道）",
     )
     parser.add_argument(
-        "--pair", default=None,
+        "--pair",
+        default=None,
         help="显式同实体组 '<keeper>|<loser1>,<loser2>'，隐含 --full",
     )
     parser.add_argument(
-        "--scan-aliases", action="store_true",
+        "--scan-aliases",
+        action="store_true",
         help="跨名同实体候选扫描（只列不写，隐含 dry-run）",
     )
     parser.add_argument(
@@ -642,9 +705,7 @@ def main() -> None:
     parser.add_argument(
         "--min-shared", type=int, default=4, help="候选扫描名称最长公共子串最小长度"
     )
-    parser.add_argument(
-        "--rollback-batch", default=None, help="按批次从快照表整行恢复"
-    )
+    parser.add_argument("--rollback-batch", default=None, help="按批次从快照表整行恢复")
     args = parser.parse_args()
     logging.basicConfig(
         level=logging.DEBUG if args.verbose else logging.INFO,
@@ -654,8 +715,13 @@ def main() -> None:
         args.full or args.pair or args.scan_aliases or args.rollback_batch
     )
     if full_channel:
-        if not (args.pair or args.scan_aliases or args.rollback_batch
-                or args.name or args.scan):
+        if not (
+            args.pair
+            or args.scan_aliases
+            or args.rollback_batch
+            or args.name
+            or args.scan
+        ):
             parser.error(
                 "全字段通道需要 --pair / --scan-aliases / --name / "
                 "--scan / --rollback-batch"

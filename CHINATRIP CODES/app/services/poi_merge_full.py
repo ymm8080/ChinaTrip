@@ -26,6 +26,7 @@ SURE THE ONE LEFT HAS ALL INFORMATION IN ALL TWO ENTRIES」**——退役一条�
   - 单值/标量冲突只留一个值，**被舍弃的值写进逐列台账 + DB 快照**，
     不制造半解析值。这是「一条有效记录」口径下的显式取舍。
 """
+
 from __future__ import annotations
 
 import json
@@ -37,19 +38,28 @@ from typing import Any, Iterable, Sequence
 class Policy(str, Enum):
     """单列合并策略。"""
 
-    IDENTITY = "identity"          # 身份/状态/坐标/更新戳：恒保留 keeper
-    ARRAY = "array"                # JSON 数组：内容并集
-    CONCAT = "concat"              # 互补事实长文本：两段(多段)都留
-    TIMESTAMP = "timestamp"        # 核验时间戳：取较新
+    IDENTITY = "identity"  # 身份/状态/坐标/更新戳：恒保留 keeper
+    ARRAY = "array"  # JSON 数组：内容并集
+    CONCAT = "concat"  # 互补事实长文本：两段(多段)都留
+    TIMESTAMP = "timestamp"  # 核验时间戳：取较新
     PREFER_LONGER = "prefer_longer"  # 单值文本：取信息量更大者
-    SCALAR = "scalar"              # 数值/枚举/布尔/外部 ID：冲突保留 keeper
+    SCALAR = "scalar"  # 数值/枚举/布尔/外部 ID：冲突保留 keeper
 
 
 # 源优先级（与 ops/scan_same_entity_pairs.py::_SOURCE_PRIORITY 同序）。
 # 未在名单内的源（如 baidu）= 最低，index 越大越靠后。
 SOURCE_PRIORITY: tuple[str, ...] = (
-    "unesco", "5a", "museum1", "museum2", "museum3", "artmuseum",
-    "street", "histown", "amap", "chinatravel", "osm",
+    "unesco",
+    "5a",
+    "museum1",
+    "museum2",
+    "museum3",
+    "artmuseum",
+    "street",
+    "histown",
+    "amap",
+    "chinatravel",
+    "osm",
 )
 
 
@@ -213,8 +223,10 @@ def merge_column(
         return keep, "keep", ""
     if pol is Policy.PREFER_LONGER:
         if len(str(lose)) > len(str(keep)):
-            return lose, "prefer_longer", (
-                f"退役行更详（{len(str(lose))}>{len(str(keep))}）"
+            return (
+                lose,
+                "prefer_longer",
+                (f"退役行更详（{len(str(lose))}>{len(str(keep))}）"),
             )
         return keep, "keep", ""
     # Policy.SCALAR：保留 keeper，退役行的值由逐列台账 + DB 快照留痕
@@ -224,8 +236,8 @@ def merge_column(
 @dataclass(frozen=True)
 class ColumnPlan:
     value: Any
-    action: str                       # 最终动作（history 为空则 keep）
-    history: tuple[dict, ...] = ()    # 逐 loser 的处置留痕（台账用）
+    action: str  # 最终动作（history 为空则 keep）
+    history: tuple[dict, ...] = ()  # 逐 loser 的处置留痕（台账用）
 
 
 @dataclass
@@ -344,33 +356,27 @@ def merge_rows(
         for col in cols:
             before = current[col]
             loser_value = _row_get(row, col)
-            new, action, note = merge_column(
-                col, before, loser_value, loser_source=src
-            )
+            new, action, note = merge_column(col, before, loser_value, loser_source=src)
             current[col] = new
             if action == "keep_scalar":
                 # 标量冲突：值不变，只记被舍弃的一方（台账可追溯）
-                conflicts.append({
-                    "column": col,
-                    "from": label,
-                    "keeper_value": _brief(before),
-                    "discarded_value": _brief(loser_value),
-                })
-            elif action not in ("identity", "keep"):
-                histories[col].append(
-                    {"from": label, "action": action, "note": note}
+                conflicts.append(
+                    {
+                        "column": col,
+                        "from": label,
+                        "keeper_value": _brief(before),
+                        "discarded_value": _brief(loser_value),
+                    }
                 )
+            elif action not in ("identity", "keep"):
+                histories[col].append({"from": label, "action": action, "note": note})
 
-    plan = FullMergePlan(
-        loser_labels=tuple(labels), conflicts=conflicts
-    )
+    plan = FullMergePlan(loser_labels=tuple(labels), conflicts=conflicts)
     for col in cols:
         hist = histories[col]
         last_action = hist[-1]["action"] if hist else "keep"
         plan.columns[col] = ColumnPlan(current[col], last_action, tuple(hist))
-    plan.alias_union = build_alias_union(
-        keeper_row, loser_rows, extra_aliases
-    )
+    plan.alias_union = build_alias_union(keeper_row, loser_rows, extra_aliases)
     plan.columns["name_aliases"] = ColumnPlan(
         plan.alias_union,
         "alias_union" if plan.alias_union else "keep",
@@ -404,9 +410,7 @@ def verify_plan(
             if h["action"] == "union":
                 for row in loser_rows:
                     for item in list(_row_get(row, col) or []):
-                        if json_key(item) not in {
-                            json_key(x) for x in (got or [])
-                        }:
+                        if json_key(item) not in {json_key(x) for x in (got or [])}:
                             problems.append(f"{col}: 并集缺项 {json_key(item)[:60]}")
                             break
                 break

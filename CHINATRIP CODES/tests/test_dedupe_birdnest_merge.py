@@ -5,6 +5,7 @@
 全字段回填 / 数组并集 / 互补文本两存 / 名字变体全留 / 身份列不改写 /
 二次执行幂等。ops 脚本不被 pytest 自动收集，故用 importlib 显式加载。
 """
+
 from __future__ import annotations
 
 import importlib.util
@@ -13,9 +14,7 @@ from pathlib import Path
 
 import pytest
 
-_SCRIPT = (
-    Path(__file__).resolve().parents[1] / "ops" / "dedupe_birdnest_20261124.py"
-)
+_SCRIPT = Path(__file__).resolve().parents[1] / "ops" / "dedupe_birdnest_20261124.py"
 spec = importlib.util.spec_from_file_location("dedupe_birdnest_20261124", _SCRIPT)
 mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)
@@ -101,9 +100,7 @@ def test_timestamp_takes_newer():
     )
     assert action == "keep" and new == AMAP["photos_fetched_at"]
     older = BAIDU["ta_fetched_at"] - timedelta(days=2)
-    new2, action2, _ = mod.merge_column(
-        "ta_fetched_at", older, AMAP["ta_fetched_at"]
-    )
+    new2, action2, _ = mod.merge_column("ta_fetched_at", older, AMAP["ta_fetched_at"])
     assert action2 == "newer" and new2 == AMAP["ta_fetched_at"]
 
 
@@ -130,8 +127,14 @@ def test_equal_values_are_not_reported_as_actions():
 
 @pytest.mark.parametrize(
     "col",
-    ["opening_hours", "hours_source", "indoor", "rain_ok", "origin",
-     "opening_hours_en"],
+    [
+        "opening_hours",
+        "hours_source",
+        "indoor",
+        "rain_ok",
+        "origin",
+        "opening_hours_en",
+    ],
 )
 def test_keeper_only_fields_are_not_touched(col):
     new, action, _ = mod.merge_column(col, AMAP[col], None)
@@ -141,9 +144,13 @@ def test_keeper_only_fields_are_not_touched(col):
 def test_alias_union_covers_both_rows_names_and_short_names():
     aliases = mod.build_alias_union(AMAP, BAIDU)
     for name in (
-        "国家体育场·鸟巢", "Beijing National Stadium",
-        "Bird's Nest (National Stadium)", "National Stadium",
-        "北京国家体育场", "鸟巢", "国家体育场",
+        "国家体育场·鸟巢",
+        "Beijing National Stadium",
+        "Bird's Nest (National Stadium)",
+        "National Stadium",
+        "北京国家体育场",
+        "鸟巢",
+        "国家体育场",
     ):
         assert name in aliases, name
     assert "鸟巢(国家体育场)" not in aliases  # keeper 自己不进别名
@@ -153,13 +160,15 @@ def test_alias_union_covers_both_rows_names_and_short_names():
 def test_full_plan_covers_every_loser_only_field():
     """真实两行形状跑全列 plan：baidu 独有字段无一漏合并。"""
     cols = sorted(set(AMAP) | set(BAIDU))
-    plan = {
-        col: mod.merge_column(col, AMAP.get(col), BAIDU.get(col))
-        for col in cols
-    }
+    plan = {col: mod.merge_column(col, AMAP.get(col), BAIDU.get(col)) for col in cols}
     loser_only = (
-        "phone", "tags", "tags_source", "intro_source", "photos",
-        "photos_source", "name_aliases",
+        "phone",
+        "tags",
+        "tags_source",
+        "intro_source",
+        "photos",
+        "photos_source",
+        "name_aliases",
     )
     for col in loser_only:
         assert plan[col][1] in ("fill", "union"), (col, plan[col][1])

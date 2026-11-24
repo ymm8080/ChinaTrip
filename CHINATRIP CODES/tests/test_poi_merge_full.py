@@ -6,6 +6,7 @@ schema 全 78 列覆盖闸 / 数组并集 / 互补文本多段留 / 别名默认
 1 keeper + N losers / 纯函数复核。一次性脚本 ``ops/dedupe_birdnest_20261124.py``
 的口径回归仍在 ``test_dedupe_birdnest_merge.py``，两者互不替代。
 """
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -32,26 +33,84 @@ from app.services.poi_merge_full import (
 
 # 2026-11-24 information_schema 只读探针：pois 全 78 列（顺序即库顺序）
 POIS_COLUMNS_78 = (
-    "id", "source", "source_poi_id", "city", "name_zh", "name_en",
-    "category", "status", "location", "wgs84_location", "updated_at",
-    "address", "opening_hours", "hours_source", "hours_updated_at", "phone",
-    "website", "rating", "rating_source", "tags", "tags_source", "intro",
-    "intro_source", "photos", "photos_source", "best_visit_time",
-    "best_visit_time_source", "suggested_duration_min", "origin",
-    "rating_count", "review_tags", "review_tags_source", "ticket_price_min",
-    "ticket_price_max", "ticket_source", "district", "business_area",
-    "indoor", "rain_ok", "name_aliases", "duration_source", "review_summary",
-    "review_summary_source", "reservation_required",
-    "reservation_advance_days", "booking_url", "intro_en", "address_en",
-    "review_tags_en", "review_summary_en", "opening_hours_en",
-    "photos_fetched_at", "photos_fetch_fail", "user_family", "user_groups",
-    "ta_location_id", "ta_geo_id", "ta_fetched_at", "ta_status", "ta_url",
-    "ta_rating", "ta_opening_hours", "ta_suggested_duration_min",
-    "ta_intro_en", "access_mode", "access_minutes", "access_gateway",
-    "access_gateway_minutes", "access_note", "access_note_en",
-    "access_source", "access_updated_at", "access_boarding",
-    "access_boarding_lon", "access_boarding_lat", "access_service_minutes",
-    "access_wait_minutes", "access_last_mile_minutes",
+    "id",
+    "source",
+    "source_poi_id",
+    "city",
+    "name_zh",
+    "name_en",
+    "category",
+    "status",
+    "location",
+    "wgs84_location",
+    "updated_at",
+    "address",
+    "opening_hours",
+    "hours_source",
+    "hours_updated_at",
+    "phone",
+    "website",
+    "rating",
+    "rating_source",
+    "tags",
+    "tags_source",
+    "intro",
+    "intro_source",
+    "photos",
+    "photos_source",
+    "best_visit_time",
+    "best_visit_time_source",
+    "suggested_duration_min",
+    "origin",
+    "rating_count",
+    "review_tags",
+    "review_tags_source",
+    "ticket_price_min",
+    "ticket_price_max",
+    "ticket_source",
+    "district",
+    "business_area",
+    "indoor",
+    "rain_ok",
+    "name_aliases",
+    "duration_source",
+    "review_summary",
+    "review_summary_source",
+    "reservation_required",
+    "reservation_advance_days",
+    "booking_url",
+    "intro_en",
+    "address_en",
+    "review_tags_en",
+    "review_summary_en",
+    "opening_hours_en",
+    "photos_fetched_at",
+    "photos_fetch_fail",
+    "user_family",
+    "user_groups",
+    "ta_location_id",
+    "ta_geo_id",
+    "ta_fetched_at",
+    "ta_status",
+    "ta_url",
+    "ta_rating",
+    "ta_opening_hours",
+    "ta_suggested_duration_min",
+    "ta_intro_en",
+    "access_mode",
+    "access_minutes",
+    "access_gateway",
+    "access_gateway_minutes",
+    "access_note",
+    "access_note_en",
+    "access_source",
+    "access_updated_at",
+    "access_boarding",
+    "access_boarding_lon",
+    "access_boarding_lat",
+    "access_service_minutes",
+    "access_wait_minutes",
+    "access_last_mile_minutes",
 )
 
 AMAP = {
@@ -139,9 +198,7 @@ def test_stale_policy_column_is_reported():
 def test_user_family_is_scalar_text_not_array():
     """鸟巢一次性脚本把 user_family 误列进 ARRAY_COLS，通用层必须纠正。"""
     assert COLUMN_POLICIES["user_family"] is Policy.PREFER_LONGER
-    new, action, _ = merge_column(
-        "user_family", "culture", "culture_and_family"
-    )
+    new, action, _ = merge_column("user_family", "culture", "culture_and_family")
     assert action == "prefer_longer" and new == "culture_and_family"
 
 
@@ -153,9 +210,7 @@ def test_identity_columns_never_overwritten():
 
 
 def test_empty_keeper_fills_from_loser():
-    assert merge_column("phone", None, "4006002008")[:2] == (
-        "4006002008", "fill"
-    )
+    assert merge_column("phone", None, "4006002008")[:2] == ("4006002008", "fill")
 
 
 def test_equal_values_are_not_reported_as_actions():
@@ -191,9 +246,7 @@ def test_timestamp_takes_newer_and_tolerates_uncomparable():
 
 
 def test_prefer_longer_and_scalar_conflict():
-    new, action, _ = merge_column(
-        "address_en", None, BAIDU["address_en"]
-    )
+    new, action, _ = merge_column("address_en", None, BAIDU["address_en"])
     assert action == "fill"
     new, action, _ = merge_column("address", AMAP["address"], BAIDU["address"])
     assert action == "keep" and new == AMAP["address"]
@@ -240,9 +293,9 @@ def test_source_priority_and_choose_keeper():
 
 
 def test_completeness_counts_non_empty_columns():
-    assert completeness(BAIDU, POIS_COLUMNS_78) > completeness(
-        AMAP, POIS_COLUMNS_78
-    ) - 5
+    assert (
+        completeness(BAIDU, POIS_COLUMNS_78) > completeness(AMAP, POIS_COLUMNS_78) - 5
+    )
 
 
 # ---------------------------------------------------------------- 多行折合
@@ -251,12 +304,16 @@ def test_merge_rows_1_keeper_2_losers_covers_every_column():
     assert isinstance(plan, FullMergePlan)
     assert plan.column_count == 78
     assert len(plan.changed_columns) > 0
-    assert plan.loser_labels == (
-        "baidu:国家体育场·鸟巢", "osm:国家体育场"
-    )
+    assert plan.loser_labels == ("baidu:国家体育场·鸟巢", "osm:国家体育场")
     # baidu 独有字段全部并入
-    for col in ("phone", "tags_source", "intro_source", "photos",
-                "photos_source", "address_en"):
+    for col in (
+        "phone",
+        "tags_source",
+        "intro_source",
+        "photos",
+        "photos_source",
+        "address_en",
+    ):
         assert plan.columns[col].history, col
     assert plan.columns["phone"].value == "4006002008"
     assert len(plan.columns["photos"].value) == 2
@@ -267,8 +324,13 @@ def test_merge_rows_1_keeper_2_losers_covers_every_column():
     # 时间戳取三者最新
     assert plan.columns["ta_fetched_at"].value == OSM["ta_fetched_at"]
     # 名字变体全留
-    for name in ("国家体育场·鸟巢", "国家体育场", "北京国家体育场",
-                 "Beijing National Stadium", "National Stadium"):
+    for name in (
+        "国家体育场·鸟巢",
+        "国家体育场",
+        "北京国家体育场",
+        "Beijing National Stadium",
+        "National Stadium",
+    ):
         assert name in plan.alias_union
 
 
@@ -298,8 +360,8 @@ def test_verify_plan_passes_on_good_result():
 def test_verify_plan_catches_missing_union_item_and_concat_text():
     plan = merge_rows(POIS_COLUMNS_78, AMAP, [BAIDU])
     after = {**AMAP, **{c: p.value for c, p in plan.columns.items()}}
-    after["photos"] = []                      # 丢数组并集
-    after["intro"] = AMAP["intro"]           # 丢 baidu 那段事实
+    after["photos"] = []  # 丢数组并集
+    after["intro"] = AMAP["intro"]  # 丢 baidu 那段事实
     problems = verify_plan(plan, after, AMAP, [BAIDU])
     assert any("photos" in p for p in problems)
     assert any("intro" in p for p in problems)
