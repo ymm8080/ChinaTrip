@@ -686,7 +686,7 @@ async def start_plan_from_itinerary(
     # 翻已排期，已排期里本行程没有的回心愿单。
     agent.sync_trip_rows(session)
     body: dict = {"session_id": session.session_id, "state": session.state}
-    body["plan"] = _plan_for_response(session.plan)
+    body["plan"] = _with_free_meal_fill(_plan_for_response(session.plan), session)
     body["assumptions"] = session.assumptions
     body["violations"] = current_violations(session)
     return body
@@ -1476,7 +1476,7 @@ async def start_plan(
         body["restos"] = [r.model_dump() for r in session.pending_restos]
         if session.history and session.history[-1].role == "assistant":
             body["reply"] = session.history[-1].content
-    body["plan"] = _plan_for_response(session.plan)
+    body["plan"] = _with_free_meal_fill(_plan_for_response(session.plan), session)
     # 缺日期补齐的披露（2026-11-23）：默认下周一不是用户给的日期，必须写在
     # assumptions 里，不能让「下周一」悄悄成为行程起点。
     if _defaulted_start:
@@ -1491,7 +1491,7 @@ async def start_plan(
             session.plan.assumptions.append(_note)
         if _note not in session.assumptions:
             session.assumptions.append(_note)
-        body["plan"] = _plan_for_response(session.plan)
+        body["plan"] = _with_free_meal_fill(_plan_for_response(session.plan), session)
     body["assumptions"] = session.assumptions
     body["violations"] = current_violations(session)
     return body
@@ -1960,6 +1960,28 @@ def _dedupe_plan_assumptions(plan):
     return plan.model_copy(update={"assumptions": deduped})
 
 
+def _with_free_meal_fill(plan, session):
+    """R41h-b：出站计划统一过一遍「自由餐卡 → 就近真餐厅」填充。
+
+    只落在 **deepcopy 的出站副本** 上（R41e：就地改会话盘会与卡窗重绑/补卡
+    自愈器互相搬卡，同一会话每次刷新的餐厅集合会漂）；失败原样返回、绝不
+    挡出站。所有下发完整行程的出口（GET / start / turn）统一走本助手——
+    只接消息回合会让 H5 刷新（GET）看到的盘没有推荐。
+    """
+    try:
+        import copy as _copy
+        from types import SimpleNamespace as _SN
+
+        _resp = _copy.deepcopy(plan)
+        heal_free_meal_cards(
+            _SN(plan=_resp, session_id=getattr(session, "session_id", "?"))
+        )
+        return _resp
+    except Exception:  # noqa: BLE001 - 推荐失败绝不能挡住出站
+        logger.warning("plan: free meal fill on response failed", exc_info=True)
+        return plan
+
+
 def _plan_for_response(plan):
     """行程下发出口装配（2026-11-13 拍板「未安排卡不显示」）：先剔无时刻
     非钉参访卡（剔除件转 plan.unplaced，亮成宿主卡「想去」chip——只有
@@ -2340,23 +2362,9 @@ def _plan_turn_body(session, reply: str, change, *, alternatives: bool = True) -
             if alternatives
             else _with_gap_bridges(_strip_untimed_items(session.plan))
         )
-        # R41e：自由安排午/晚餐卡 → 就近推荐真餐厅（keep 盘写明日程后当天
-        # 被必去压满、挤不出独立餐块时，占位卡换身份即可、不动景点；打分与
-        # 引擎同源＝评分×评分数×距离）。
-        # 只落在**出站副本**上：会话盘被就地改写会与其它自愈器（卡窗重绑/
-        # 补卡）互相搬卡，同一会话每次刷新的餐厅集合会漂（实测 6↔3 张）；
-        # 副本填充则每次读都是同一结果，也不往会话里堆披露。
-        try:
-            import copy as _copy
-            from types import SimpleNamespace as _SN
-
-            _resp_plan = _copy.deepcopy(_resp_plan)
-            heal_free_meal_cards(
-                _SN(plan=_resp_plan, session_id=getattr(session, "session_id", "?"))
-            )
-        except Exception:  # noqa: BLE001 - 推荐失败绝不能挡住出站
-            logger.warning("plan: free meal fill on response failed", exc_info=True)
-        body["plan"] = _resp_plan
+        # R41e/R41h-b：自由餐卡就近推荐只落出站副本（不动会话盘），所有
+        # 出站口（GET/start/turn）统一走 _with_free_meal_fill。
+        body["plan"] = _with_free_meal_fill(_resp_plan, session)
         body["violations"] = current_violations(session)
     if change is not None:
         body["change"] = change
