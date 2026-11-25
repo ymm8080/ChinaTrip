@@ -65,7 +65,9 @@
 // v144 2026-11-25: 交通腿统一成一种——站点页脚/桥卡/回程打车行三种呈现并成一行「出发时刻 距下一站 X km ·
 // 车程约 N 分钟 · 约 ¥Y」，行右固定 TAXI + ALL TRANSPORTATION（去导航页看全部交通方式）；
 // 酒店晨卡出到第一个景点的交通腿。必须 bump 拉新缓存壳。
-const VERSION = 'v144';
+// v145 2026-11-25: 交通腿统一行收尾——同址占位桥卡（午饭就在刚逛完的景点里）显示「同址 · 就在
+// 附近」、不再挂打车/导航按钮；打车文案去掉重复的间隔点。必须 bump 拉新缓存壳。
+const VERSION = 'v145';
 const CACHE = 'chinatrip-h5-' + VERSION;
 const SHELL = [
   './', './index.html', './i18n.js', './qrcode.min.js', './sortable.min.js', './manifest.webmanifest', './agent.html',

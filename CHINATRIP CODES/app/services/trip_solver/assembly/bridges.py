@@ -35,6 +35,12 @@ BRIDGE_GAP_MIN = 0
 _MODE_VERB = {"walk": "步行", "taxi": "乘车", "access": "接驳"}
 _MODE_ICON = {"walk": "🚶", "taxi": "🚕", "access": "🚌"}
 BRIDGE_ID_PREFIX = "leg-bridge-"
+# 两端同址阈值（R39）：镜像 legs.MIN_LEG_KM——annotate 对同址不成腿，桥卡对同址
+# 标 same_venue（时间线占位，不是一段交通）。itinerary 层不 import 引擎装配层，
+# 反向亦不 import，沿用 BRIDGE_ID_PREFIX 的镜像常量模式。
+_SAME_VENUE_BRIDGE_KM = 0.05
+# 同址占位（午饭/晚饭就在刚逛完的景点里）：前端出「同址 · 就在附近」、不出按钮
+SAME_VENUE_MODE = "same_venue"
 
 
 def _haversine_km(a, b) -> float:
@@ -152,7 +158,19 @@ def attach_gap_bridges(plan: "ItineraryPlan") -> "ItineraryPlan":
             minutes = getattr(prev, "next_leg_minutes", None)
             verb = _MODE_VERB.get(mode)
             icon = _MODE_ICON.get(mode, "🧭")
-            if not (verb and isinstance(minutes, int)):
+            # R39：两端同址（<0.05km，与 annotate「同址不成腿」同口径）——这不是一段
+            # 交通，是时间线占位（R12-C2「空档可见」）：标 same_venue，前端出「同址 ·
+            # 就在附近」且不出打车/导航按钮（给就在脚下的午饭挂 TAXI 是荒谬的）。
+            # 两端缺坐标不算同址。
+            _pa, _pb = _pt(prev), _pt(nxt)
+            same_venue = (
+                _pa is not None
+                and _pb is not None
+                and _haversine_km(_pa, _pb) < _SAME_VENUE_BRIDGE_KM
+            )
+            if same_venue:
+                mode, minutes, verb, icon = SAME_VENUE_MODE, None, None, "📍"
+            elif not (verb and isinstance(minutes, int)):
                 # R39：兜底估算与统一腿字段同口径取点（锚定占位餐卡吃锚点）——
                 # 此前只认 location，午饭后那一段算不出分钟、桥卡名落「自由安排」。
                 est = _estimated_leg(_pt(prev), _pt(nxt))
@@ -161,7 +179,11 @@ def attach_gap_bridges(plan: "ItineraryPlan") -> "ItineraryPlan":
                     verb = _MODE_VERB.get(mode)
                     icon = _MODE_ICON.get(mode, "🧭")
             wait = gap - minutes if isinstance(minutes, int) else gap
-            if verb and isinstance(minutes, int):
+            if same_venue:
+                name = "📍 同址 · 就在附近"
+                if wait > 60:
+                    name = "🕒 自由活动约%d分钟（下一站同址）" % wait
+            elif verb and isinstance(minutes, int):
                 name = "%s %s前往下一站·约%d分钟" % (icon, verb, minutes)
                 if wait > 60:
                     name = "🕒 自由活动，随后%s前往下一站·约%d分钟" % (
@@ -174,7 +196,7 @@ def attach_gap_bridges(plan: "ItineraryPlan") -> "ItineraryPlan":
                 name = "🧭 前往下一站（自由安排）"
                 if wait > 60:
                     name = "🕒 自由活动，随后前往下一站"
-            nxt_en = "the next stop"
+            nxt_en = "the same venue (right nearby)" if same_venue else "the next stop"
             added.append(
                 VisitItem(
                     item_id="%sd%d-%d" % (BRIDGE_ID_PREFIX, day.day, seq),
@@ -209,6 +231,9 @@ def _unified_leg_fields(prev: VisitItem, nxt: VisitItem, mode: str, minutes) -> 
     坐标直线距离 + 城市价目表现估，缺坐标就留空（前端出「自由安排」），
     不编造。
     """
+    if mode == SAME_VENUE_MODE:
+        # 同址占位：只有方式标记，没有距离/车程/费用可给
+        return {"next_leg_mode": SAME_VENUE_MODE}
     out: dict = {}
     km = getattr(prev, "distance_to_next_km", None)
     if not isinstance(km, (int, float)):

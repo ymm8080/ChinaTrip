@@ -311,6 +311,11 @@ def test_h5_unified_leg_row_wiring_and_syntax(tmp_path):
     assert 'button[data-action="navall"]' in html
     assert 'navAllTransportTo(na.getAttribute("data-name")' in html
     assert '#modeBar button[data-mode="driving"]' in html
+    # 同址占位桥卡（两端 <0.05km）：不出按钮、不挂整卡导航；
+    # 链接内词条去前导分隔符，免出「· ·」双点
+    assert 'it.next_leg_mode === "same_venue"' in html
+    assert '(isBridgeLeg && it.next_leg_mode !== "same_venue")' in html
+    assert "const stripDot = (s) => String(s).replace(" in html
 
     i18n = (static / "i18n.js").read_text(encoding="utf-8")
     assert '"card.allTransport": "🧭 ALL TRANSPORTATION"' in i18n
@@ -484,3 +489,37 @@ def test_bridge_after_anchored_placeholder_meal_estimates_from_anchor():
     assert isinstance(br.next_leg_cost_cny, (int, float))
     assert br.distance_to_next_km == pytest.approx(3.3, abs=0.6)  # 颐和园锚点 → 圆明园
     assert "自由安排" not in (br.name or "")
+
+
+def test_bridge_between_same_venue_cards_is_marked_same_venue():
+    """两端同址的桥卡（午饭就锚在刚逛完的景点里，距离≈0）：不是一段交通。
+
+    此前兜底估算对 0km 返回 None → 桥卡名落「🧭 前往下一站（自由安排）」，统一后
+    又被挂上打车/导航按钮，指向同址的午饭（live 会话 09247aac Day2 天坛 11:30 →
+    午餐 11:35 实锤）。标 same_venue：前端出「同址 · 就在附近」且不出按钮。
+    """
+    temple = _v("v4", "天坛", time(9, 0), time(11, 30), loc=TEMPLE_OF_HEAVEN)
+    lunch = VisitItem(
+        item_id="meal-lunch-2",
+        name="午餐",
+        city="北京",
+        day=1,
+        category="food",
+        start_time=time(11, 35),
+        end_time=time(12, 35),
+        duration_minutes=60,
+        anchor_from_prev=True,
+        anchor_location=GeoPoint(lon=TEMPLE_OF_HEAVEN[0], lat=TEMPLE_OF_HEAVEN[1]),
+    )
+    plan = _plan([temple, lunch])
+    attach_gap_bridges(plan)
+    br = _bridge(plan)
+    assert br is not None
+    assert br.next_leg_mode == "same_venue"
+    assert br.distance_to_next_km is None
+    assert br.next_leg_minutes is None
+    assert "同址" in (br.name or "")
+    assert "自由安排" not in (br.name or "") and "前往下一站" not in (br.name or "")
+    assert br.name_en  # 英文界面有对应文案
+    # 桥卡名不内嵌目的地名（既有口径）
+    assert "午餐" not in (br.name or "")

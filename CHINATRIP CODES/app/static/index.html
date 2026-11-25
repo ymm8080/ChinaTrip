@@ -2289,7 +2289,10 @@ function planCard(plan) {
         // 渲染文案不是 POI——不出 site-link 简介链（点击不再弹「暂无更多简介」）。
         const isTransferLeg = (it.category || "") === "transfer";
         const isBridgeLeg = isTransferLeg && (it.item_id || "").indexOf("leg-bridge-") === 0;
-        const bDest = isBridgeLeg ? bridgeDestAt(d.items, idx) : null;
+        // R39：同址占位桥卡不挂整卡导航（没有要去的另一个地方）
+        const bDest = (isBridgeLeg && it.next_leg_mode !== "same_venue")
+          ? bridgeDestAt(d.items, idx)
+          : null;
         const bTaxi = !!(bDest && /乘车|打车|🚕|🚞|🚄|🚈|🚌/.test(it.name || ""));
         const bridgeAttrs = bDest
           ? ' data-bridge="' + (bTaxi ? "taxi" : "walk") + '" data-dest-name="' + esc(bDest.name) +
@@ -6016,6 +6019,10 @@ function switchTab(name) {
    按钮：🚕 TAXI=高德打车（calltaxi，起点=当前位置）、ALL TRANSPORTATION=去导航页看全部
    交通方式（起点=当前位置、目的地=下一景点）。站点页脚与桥卡（leg-bridge-*）共用本函数。 */
 function legRowParts(it, items, idx) {
+  // 同址占位（午/晚饭就在刚逛完的景点里）：时间线占位，不是一段交通——不出按钮
+  if (it.next_leg_mode === "same_venue") {
+    return { text: I18N.pick(it, "name", "name_en") || "", buttons: "" };
+  }
   const km = it.distance_to_next_km;
   const isBridge = String(it.item_id || "").indexOf("leg-bridge-") === 0;
   let nxt = null; // 同日下一站（与 legs.annotate_legs 的口径一致：跳过 TransferItem）
@@ -6051,8 +6058,10 @@ function legRowParts(it, items, idx) {
       const legTail = legAccess ? I18N.t("card.access_min") : I18N.t("card.taxi_min");
       const legFare = (typeof it.next_leg_cost_cny === "number") ? I18N.t("card.fare") + it.next_leg_cost_cny : "";
       const driveHref = navDriveUrl(it, nxt); // 起点=当前站点；空餐卡只有锚点，吃 legPoint
+      // 词条自带前导分隔符（" · 车程约 "）；链接前已有 " · "，链接内去掉，免出双点
+      const stripDot = (s) => String(s).replace(/^\s*·\s*/, "");
       seg = driveHref
-        ? ' · <a class="leg-link" target="_blank" rel="noopener" href="' + driveHref + '" title="' + I18N.tf("card.drive.titlePre", "在地图打开驾车导航（起点=当前站点，含叫车等候约30分钟，终点=") + esc(nxt.name) + I18N.tf("card.drive.titleClose", "）") + '">' + legLabel + taxiMin + legTail + legFare + "</a>"
+        ? ' · <a class="leg-link" target="_blank" rel="noopener" href="' + driveHref + '" title="' + I18N.tf("card.drive.titlePre", "在地图打开驾车导航（起点=当前站点，含叫车等候约30分钟，终点=") + esc(nxt.name) + I18N.tf("card.drive.titleClose", "）") + '">' + stripDot(legLabel) + taxiMin + legTail + legFare + "</a>"
         : legLabel + taxiMin + legTail + legFare;
     }
     const legFrom = (it.next_leg_detail && it.next_leg_detail.to_city)

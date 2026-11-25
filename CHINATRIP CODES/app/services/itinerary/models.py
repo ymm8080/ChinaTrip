@@ -105,7 +105,9 @@ class VisitItem(BaseModel):
     # 统一算（含景区专线接驳链），前端不再用直线公式自算；成本按城市出租车
     # 价目表估，接驳段另加默认票价。
     next_leg_minutes: int | None = None
-    next_leg_mode: Literal["taxi", "walk", "access"] | None = None
+    # R39：same_venue=同址占位桥卡（两端 <0.05km：午饭就在刚逛完的景点里），
+    # 不是一段交通——前端出「同址 · 就在附近」、不出打车/导航按钮。
+    next_leg_mode: Literal["taxi", "walk", "access", "same_venue"] | None = None
     next_leg_cost_cny: int | None = None
     next_leg_cost_note: str | None = None
     # 独立回城卡（2026-11-16 用户拍板「回程卡应该是独立卡」）：合成卡只在
