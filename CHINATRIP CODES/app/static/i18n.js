@@ -339,6 +339,7 @@
       "bk.cancel": "Cancel", "bk.go": "Go anyway",
       "bk.hotelNoDate": "No「trip start date」 set above: set it to auto-derive check-in/out for day {d}.",
       "bk.hotelThis": "🏨 Hotels near this one",
+      "bk.hotel.cityFirst": "Pick a stay city above first, then tap Trip / Booking / Agoda.",
       "bk.prefillTo": "Prefilled {f} → {t} — pick dates and search",
       "bk.prefillFrom": "Prefilled departure city {f}; please fill the arrival city",
       "bk.trainBtn": "🚄 Book trains", "bk.flightBtn": "✈️ Book flights", "bk.hotelBtn": "🏨 Book hotels",

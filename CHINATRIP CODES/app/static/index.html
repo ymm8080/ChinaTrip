@@ -828,6 +828,10 @@
           <label class="fld"><span data-i18n="book.lon">经度</span> <input type="number" id="bkHotelLon" step="0.0001" placeholder="116.397"></label>
           <label class="fld"><span data-i18n="book.lat">纬度</span> <input type="number" id="bkHotelLat" step="0.0001" placeholder="39.917"></label>
           <button class="btn" id="bkHotelGo" data-i18n="book.hotelGo">🏨 找酒店</button>
+          <span class="sep"></span>
+          <button class="btn ghost mini" id="bkHotelTrip">Trip</button>
+          <button class="btn ghost mini" id="bkHotelBooking">Booking</button>
+          <button class="btn ghost mini" id="bkHotelAgoda">Agoda</button>
         </div>
         <div id="bkHotelDays"></div>
         <div class="flow" id="flow-book-hotel"></div>
@@ -2229,7 +2233,7 @@ function planCard(plan) {
         // 合成卡（2026-11-16 独立回城卡）：后端只在响应副本上生成，卡上没有可编辑实体
         const isSynth = !!it.synthetic;
         const isHotelSlot = isNight || isMorning; // ✏️ 走 set-hotel 验证写回
-        const isHotelCard = it.category === "hotel"; // R44：三类酒店卡（入住/夜/晨）——钉住按钮不挂、预订按钮换三外链
+        const isHotelCard = it.category === "hotel"; // R44/R44d：三类酒店卡（入住/夜/晨）——不出 ✏️/📌/🗑；预订外链挪「预订」页
         const isFoodCard = it.category === "food"; // R44c：餐卡（系统餐位+命名餐厅）——右侧不出 ✏️/📌/🗑（🍚 MORE 保留）
         // 🍚 MORE（2026-11-26 用户令「改成〈饭菜的图标〉MORE，点击就直接 CALL 美团APP」）：
         // 餐位/餐厅卡名右侧 MORE 直唤美团 App（mtLaunchMeituan，见 mtBook 处）；
@@ -2238,28 +2242,15 @@ function planCard(plan) {
         const mtBtn = it.category === "food"
           ? ' <button class="btn mini ghost" data-action="mtbook" data-item-id="' + esc(it.item_id) + '" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '" title="' + I18N.tf("card.mt.title", "唤起美团 App 订座/点单；未装 App 自动开美团网页；出行人资料自动挂单，每 2 分钟跟踪预订状态直到完成") + '">🍚 MORE</button>'
           : "";
-        // R44（2026-11-25 用户令「它应该有三个按钮: Trip, Booking, Agoda」）：酒店卡预订按钮
-        // 改三枚外链——按当天城市（卡 city=当晚宿城；晨卡=昨晚宿城）直跳三家官网搜酒店。
-        // zh 用中文城名、EN 用 I18N.city 英文名（CITY_EN 未收录回落中文，三站均能识别）；
-        // 原生锚点 target=_blank rel=noopener（同 booking_url 先例），会话外也可点（同美团订口径）。
-        let htlCity = "";
-        if (it.category === "hotel") {
-          htlCity = it.city || wxCity || "";
-          if (I18N.locale() !== "zh") htlCity = I18N.city(htlCity) || htlCity;
-        }
-        const htlQ = encodeURIComponent(htlCity);
-        const htlLink = (label, url) => ' <a class="btn mini ghost" style="text-decoration:none;display:inline-block" target="_blank" rel="noopener" href="' + esc(url) + '">' + label + "</a>";
-        const htlBtn = it.category === "hotel"
-          ? htlLink("Trip", "https://www.trip.com/hotels/list?keyword=" + htlQ) +
-            htlLink("Booking", "https://www.booking.com/searchresults.html?ss=" + htlQ) +
-            htlLink("Agoda", "https://www.agoda.com/search?textToSearch=" + htlQ)
-          : "";
+        // R44d（2026-11-25 用户令「酒店三个预定按钮应该放到预定页面」）：Trip/Booking/Agoda
+        // 外链挪到「🎫 预订」页 🏨 酒店分区（bkHotelOutbound，按住宿城市直开，见 book tab 代码）；
+        // 规划页酒店卡不再出预订按钮，卡底文字指路预订页。
         if (planSession && planSession.session_id && (!isSynth || isHotelSlot)) { // 会话内：换点/钉住/删除可点（合成卡无编辑入口；酒店卡例外——R21 拍板时间/名字/地址可编辑，R15 物化遗留 synthetic 旗不挡；R44b/R44c：酒店卡与餐卡不出 ✏️/📌/🗑）
-          tail = mtBtn + htlBtn + ((isFoodCard || isHotelCard) ? "" : ' <button class="btn mini ghost" data-action="rename" data-item-id="' + esc(it.item_id) + '" data-city="' + esc(it.city) + '" data-name="' + esc(it.name) + '" data-dur="' + (it.duration_minutes || 0) + '"' + (isHotelSlot ? ' data-hotel="1" data-addr="' + esc(it.address || "") + '"' : "") + ' title="' + (isMorning ? I18N.tf("card.hotel.set.title.morning", "输入酒店名，验证后写入晨卡（名称+地址）") : (isNight ? I18N.tf("card.hotel.set.title", "输入酒店名，验证后写入本晚酒店卡（名称+地址）") : I18N.tf("card.rename.title","✏️ 改关键字，从库内匹配替换；无匹配回车留空"))) + '">' + I18N.tf("card.rename","✏️") + "</button>") +
+          tail = mtBtn + ((isFoodCard || isHotelCard) ? "" : ' <button class="btn mini ghost" data-action="rename" data-item-id="' + esc(it.item_id) + '" data-city="' + esc(it.city) + '" data-name="' + esc(it.name) + '" data-dur="' + (it.duration_minutes || 0) + '"' + (isHotelSlot ? ' data-hotel="1" data-addr="' + esc(it.address || "") + '"' : "") + ' title="' + (isMorning ? I18N.tf("card.hotel.set.title.morning", "输入酒店名，验证后写入晨卡（名称+地址）") : (isNight ? I18N.tf("card.hotel.set.title", "输入酒店名，验证后写入本晚酒店卡（名称+地址）") : I18N.tf("card.rename.title","✏️ 改关键字，从库内匹配替换；无匹配回车留空"))) + '">' + I18N.tf("card.rename","✏️") + "</button>") +
             ((isFoodCard || isHotelCard) ? "" : ' <button class="btn mini ghost' + (it.pinned ? " on" : "") + '" data-action="pin" data-item-id="' + esc(it.item_id) + '" data-pinned="' + (it.pinned ? "1" : "0") + '">' + (it.pinned ? I18N.t("card.pinned") : I18N.t("card.pin")) + "</button>") + // R44/R44c：酒店卡与餐卡不出钉住（用户令「酒店卡不需要钉住」「餐卡钉住按钮也不要了」）
             ((isFoodCard || isHotelCard) ? "" : ' <button class="btn mini ghost" data-action="del" data-item-id="' + esc(it.item_id) + '">' + I18N.tf("card.del","🗑 删除") + "</button>"); // R44b/R44c：酒店卡与餐卡不出 ✏️/🗑
         } else { // 已保存行程回看：仅静态徽标（美团订/订酒店仍可点）
-          tail = mtBtn + htlBtn + ((it.pinned && !it.soft_pin) ? ' <span class="badge warn">' + I18N.tf("card.pinned.badge","已钉住") + "</span>" : "");
+          tail = mtBtn + ((it.pinned && !it.soft_pin) ? ' <span class="badge warn">' + I18N.tf("card.pinned.badge","已钉住") + "</span>" : "");
         }
         // 悬停简介走 .site-pop 浮层（本行下方 JS），不再挂原生 title（双 tooltip 重叠）
         const handle = (planSession && planSession.session_id && !it.pinned && (!isSynth || isHotelSlot))
@@ -2340,9 +2331,9 @@ function planCard(plan) {
           : "";
         const meta = [it.address ? "📍 " + I18N.pick(it, "address", "address_en") : "", flagTxt, it.opening_hours ? "🕐 " + I18N.pick(it, "opening_hours", "opening_hours_en") : ((it.category === "hotel" || isSynth) ? "" : I18N.t("card.hours_unknown"))].filter(Boolean).join("");
         if (meta) blk.appendChild(el('<div class="muted" style="margin:0 2px 6px ' + ind + '">' + esc(meta) + "</div>"));
-        // R44（2026-11-25 用户令「在酒店下面写一行字」）：确认邮件转发提示（用户指定英文原文；
-        // <USER ID> 是字面占位——plan 链路不下发用户 ID，后端无此概念）。
-        if (it.category === "hotel") blk.appendChild(el('<div class="muted" style="margin:0 2px 6px ' + ind + ';font-size:11px">PLEASE FORWARD CONFIRMATION EMAIL TO &lt;USER ID&gt;@CHINA FOR PLAN UPDATE.</div>'));
+        // R44d（2026-11-25 用户令）：酒店卡底文字改指路预订页 + 转发确认邮件（<USER ID> 是
+        // 字面占位——plan 链路不下发用户 ID，后端无此概念）。
+        if (it.category === "hotel") blk.appendChild(el('<div class="muted" style="margin:0 2px 6px ' + ind + ';font-size:11px">Please book in RESERVATION page, and transfer confirmation email to &lt;USER ID&gt;@CHINA for plan update.</div>'));
         // 回城段独立成卡后，景区卡只留一行提示（2026-11-16 用户拍板「回程卡应该是独立卡」）
         if (it.return_hint) blk.appendChild(el('<div class="muted" style="margin:0 2px 6px ' + ind + '">' + esc(it.return_hint) + "</div>"));
         const hasKm = typeof it.distance_to_next_km === "number";
@@ -5773,7 +5764,11 @@ function bkOffersCards(body) {
 function bkShow(kind) {
   document.querySelectorAll("#bookTabs .chip").forEach(c => c.classList.toggle("on", c.dataset.bk === kind));
   document.querySelectorAll("#tab-book .bk-pane").forEach(p => p.classList.toggle("on", p.id === "bk-" + kind));
-  if (kind === "hotel") bkRenderPlanDays();
+  if (kind === "hotel") {
+    bkRenderPlanDays();
+    const hc = document.getElementById("bkHotelCity");
+    if (hc && !hc.value.trim() && BOOK.plan && BOOK.plan.cities && BOOK.plan.cities[0]) hc.value = BOOK.plan.cities[0]; // R44d：默认住宿城市=行程首城
+  }
   if (kind === "show" || kind === "site") {
     const inp = document.getElementById(BK_CATALOG[kind].cityEl);
     if (inp && !inp.value.trim() && BOOK.plan && BOOK.plan.cities && BOOK.plan.cities[0]) inp.value = BOOK.plan.cities[0];
@@ -5783,6 +5778,23 @@ document.querySelectorAll("#bookTabs .chip").forEach(c => {
   c.addEventListener("click", () => bkShow(c.dataset.bk));
 });
 document.getElementById("bookStartDate").addEventListener("change", bkRenderPlanDays);
+/* R44d（2026-11-25 用户令「酒店三个预定按钮应该放到预定页面」）：Trip / Booking / Agoda
+   按上方住宿城市直开三家官网搜酒店（新窗口，无联盟参数）；规划页酒店卡不再出外链。 */
+function bkHotelOutbound(site) {
+  const raw = (document.getElementById("bkHotelCity").value || "").trim();
+  if (!raw) { toast(I18N.tf("bk.hotel.cityFirst", "先填住宿城市，再点 Trip / Booking / Agoda")); return; }
+  const city = (I18N.locale() !== "zh" && I18N.city) ? (I18N.city(raw) || raw) : raw;
+  const q = encodeURIComponent(city);
+  const url = site === "trip"
+    ? "https://www.trip.com/hotels/list?keyword=" + q
+    : site === "booking"
+      ? "https://www.booking.com/searchresults.html?ss=" + q
+      : "https://www.agoda.com/search?textToSearch=" + q;
+  window.open(url, "_blank", "noopener");
+}
+document.getElementById("bkHotelTrip").addEventListener("click", () => bkHotelOutbound("trip"));
+document.getElementById("bkHotelBooking").addEventListener("click", () => bkHotelOutbound("booking"));
+document.getElementById("bkHotelAgoda").addEventListener("click", () => bkHotelOutbound("agoda"));
 
 /* ---- 💳 客户付款层（/api/v1/payments；公司↔客户收款，铁律 22 渠道 handoff 不变） ---- */
 

@@ -91,7 +91,10 @@
 // ——接 v156 酒店卡同款收口。必须 bump 拉新缓存壳。
 // v158 2026-11-25: 酒店→乘车点的 🚕 打车卡紧跟晨卡时，晨卡不再重复出一行同段车程
 // （用户实报「transportation from hotel to mutianyu is duplicate」）。
-const VERSION = 'v158';
+// v159 2026-11-25: 酒店三外链按钮（Trip/Booking/Agoda）从规划页挪到「🎫 预订」页 🏨 酒店
+// 分区（按上方住宿城市直开三家官网，切到酒店分区自动预填行程首城）；规划页酒店卡底
+// 文字改「Please book in RESERVATION page, and transfer confirmation email to <USER ID>@CHINA for plan update.」。
+const VERSION = 'v159';
 const CACHE = 'chinatrip-h5-' + VERSION;
 const SHELL = [
   './', './index.html', './i18n.js', './qrcode.min.js', './sortable.min.js', './manifest.webmanifest', './agent.html',
