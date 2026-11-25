@@ -381,6 +381,91 @@ def _has_leg(item: VisitItem) -> bool:
     )
 
 
+def _honor_chosen_return(plan: ItineraryPlan) -> None:
+    """点选返程班次优先（2026-11-26 用户令「远郊回程腿应该放在 17:08 前」）。
+
+    用户在接驳卡上点选返程班次后，游览必须在该班次前结束（离场 = 班次 −
+    走回乘车点），锚在同址、排在游览之后的占位餐不可能再吃——挪到游览之前
+    （先午餐后游览，2026-11-17 用户口径）。否则同址簇「散场最晚」是餐卡，
+    board 被推到末班之后，回程班次选不出来、回城卡丢时刻被排到全天最后
+    （实报：选 15:30 回城，回程卡跑到 19:23 之后）。
+    """
+    for day in plan.days:
+        for site in day.items:
+            if not isinstance(site, VisitItem):
+                continue
+            chosen = _clock_minutes(
+                _parse_clock_text(getattr(site, "access_chosen_return", None))
+            )
+            if chosen is None:
+                continue
+            mode, _terminal, service, _wait, last = _access_profile(site)
+            if mode not in SCHEDULED_ACCESS_MODES or not service:
+                continue
+            front = int(getattr(site, "access_last_mile_minutes", None) or last or 0)
+            latest_end = chosen - front
+            site_start = _clock_minutes(site.start_time)
+            site_end = _clock_minutes(site.end_time)
+            if site_start is None or latest_end <= site_start:
+                continue
+            if site_end is not None and site_end > latest_end:
+                site.end_time = _time_of(latest_end)
+                site.duration_minutes = max(0, latest_end - site_start)
+                plan.assumptions.append(
+                    L(
+                        f"第{day.day}天 {site.name} 按 "
+                        f"{site.access_chosen_return} 返程班次"
+                        f"离场，游览收尾提前到 {site.end_time:%H:%M}",
+                        f"Day {day.day}: {site.name} now ends at {site.end_time:%H:%M} "
+                        f"to catch the {site.access_chosen_return} return shuttle",
+                    )
+                )
+                site_end = latest_end
+            site_pt = _point(site)
+            # 游后同址占位餐 → 挪到游览之前
+            for m in list(day.items):
+                if not isinstance(m, VisitItem) or m is site:
+                    continue
+                if not (is_lunch_placeholder(m) or is_dinner_placeholder(m)):
+                    continue
+                m_start = _clock_minutes(m.start_time)
+                if m_start is None or site_end is None or m_start < site_end:
+                    continue
+                m_pt = _point(m)
+                if site_pt is None or m_pt is None:
+                    continue
+                if haversine_km(site_pt, m_pt) > SAME_VENUE_KM:
+                    continue
+                dur = int(m.duration_minutes or 60)
+                new_start = site_start - dur
+                if new_start < 0:
+                    continue
+                # 前一张卡的收尾不能压住（留 10 分钟缓冲）
+                prev_end = 0
+                for other in day.items:
+                    if other is m or other is site or not isinstance(other, VisitItem):
+                        continue
+                    o_end = _clock_minutes(other.end_time)
+                    o_start = _clock_minutes(other.start_time)
+                    if o_end is None or o_start is None or o_start >= site_start:
+                        continue
+                    prev_end = max(prev_end, o_end)
+                if new_start < prev_end + 10:
+                    continue
+                m.start_time = _time_of(new_start)
+                m.end_time = _time_of(new_start + dur)
+                plan.assumptions.append(
+                    L(
+                        f"第{day.day}天 {m.name} 挪到游览之前（{m.start_time:%H:%M}）"
+                        f"——按 {site.access_chosen_return} 返程班次离场，游后无法用餐",
+                        f"Day {day.day}: {m.name} moved before the visit "
+                        f"({m.start_time:%H:%M}) — the "
+                        f"{site.access_chosen_return} return shuttle "
+                        "leaves right after",
+                    )
+                )
+
+
 def annotate_legs(plan: ItineraryPlan, *, only_missing: bool = False) -> ItineraryPlan:
     """Fill/clear the leg fields of every day in ``plan`` (in place).
 
@@ -388,6 +473,10 @@ def annotate_legs(plan: ItineraryPlan, *, only_missing: bool = False) -> Itinera
     （尤其 refresh_legs 的高德实测 leg_source=amap）原样保留——读路径补
     卡后补算是为了新卡有腿，不是把实测覆盖成估计（R39d 回归）。
     """
+    # R50（2026-11-26 用户令「远郊回程腿应该放在 17:08 前。它有步行，车程，
+    # 订票。普通的市区内TAXI不是这个 FORMAT」）：点选返程班次优先——游览截到
+    # 班次前、游后同址餐挪到游前，回程不再被餐卡推到末班之后。
+    _honor_chosen_return(plan)
     # 空餐卡先贴前一站（地址 + 锚点），腿链才能算出「餐 → 下一站」
     resolve_meal_anchors(plan)
     for day in plan.days:
@@ -1062,9 +1151,17 @@ def attach_return_cards(plan: ItineraryPlan) -> ItineraryPlan:
         # 用户拍板「回程腿给午饭让位、顺延到 15:00-16:47」：开始让到同址
         # 占位结束之后，到达时刻整体顺延。只认景区旁（≤SAME_VENUE_KM）的
         # 游后占位——市区晚饭与回城段重叠是正常抵达后用餐，不让。
+        # R50：用户点选过返程班次时，回程必须按点选班次发车——游后同址餐
+        # 不能把回程顺延到末班之后（那天选 15:30，餐卡把回程推到 17:08 后，
+        # 回城卡丢了时刻、被排到全天最后）。让位规则只对默认班次生效。
+        _chosen_ret = _clock_minutes(
+            _parse_clock_text(getattr(site, "access_chosen_return", None))
+        )
         site_pt = site.location or site.anchor_location
         meal_end_candidates: list[int] = []
         for m in day.items:
+            if _chosen_ret is not None:
+                break  # R50：点选班次优先，不让位
             if not isinstance(m, VisitItem) or m is site:
                 continue
             if not (is_lunch_placeholder(m) or is_dinner_placeholder(m)):
