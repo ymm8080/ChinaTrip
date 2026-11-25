@@ -2313,7 +2313,8 @@ function planCard(plan) {
           : "";
         // R39：桥卡（leg-bridge-*）自身就是统一交通腿行——卡名位渲染「距下一站 X km ·
         // 车程约 N 分钟 · 约 ¥Y」（R41c：纯信息行，不出按钮）。
-        const brRow = isBridgeCard ? legRowParts(it, d.items, idx) : null;
+        // R51：同址 0km/1 分钟的桥卡不出腿行（卡名「同址 · 就在附近」仍在）。
+        const brRow = isBridgeCard && !trivialLeg(it) ? legRowParts(it, d.items, idx) : null;
         const spP = legPoint(it); // R41c：站点名=高德导航链接（起点=当前位置，终点=所点站点）
         const blk = el('<div class="visit-block" data-id="' + esc(it.item_id) + '"' + bridgeAttrs + '><div class="row">' + (handle || timePad) + timeCell + (isBridgeCard ? '<span class="muted" style="flex:0 1 auto;min-width:0">' + brRow + "</span>" : '<span style="flex:1 1 auto;min-width:170px">' + ((isTransferLeg || it.category === "hotel") ? esc(I18N.pick(it, "name", "name_en")) : '<a class="site-link" data-action="brief" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '" data-addr="' + esc(it.address || "") + '" data-hours="' + esc(it.opening_hours || "") + (spP ? '" data-lon="' + spP.lon + '" data-lat="' + spP.lat : "") + '">' + esc(I18N.pick(it, "name", "name_en")) + "</a>") + I18N.tf("card.paren.pre","（") + esc(I18N.city(it.city)) + I18N.tf("card.paren.suf","）") + (isNight ? hotelStayLabel(plan, it) : isMorning ? "" : (it.duration_minutes || 0) + I18N.t("card.minutes")) + tail + "</span>") + altChips + "</div></div>");
         // 同街族并卡（2026-11-07 拍板「同街族合成一卡，时长取最大」）：
@@ -2355,6 +2356,18 @@ function planCard(plan) {
         if (it.category === "hotel") blk.appendChild(el('<div class="muted" style="margin:0 2px 6px ' + ind + ';font-size:11px">Please book in RESERVATION page, and transfer confirmation email to &lt;USER ID&gt;@CHINA for plan update.</div>'));
         // 回城段独立成卡后，景区卡只留一行提示（2026-11-16 用户拍板「回程卡应该是独立卡」）
         if (it.return_hint) blk.appendChild(el('<div class="muted" style="margin:0 2px 6px ' + ind + '">' + esc(it.return_hint) + "</div>"));
+        // R51（2026-11-26 用户令「如果 TRANSPORTATION LEG 是 ↓ 距下一站 0.0 km ·
+        // 步行约 1 分钟，这个不用显示出来」）：同址 0 公里/1 分钟的步行腿不出行
+        // ——页脚与桥卡同一判定；数据层照旧成对（leg_pairs 不动），只是不渲染。
+        const trivialLeg = (x) => {
+          if (!x) return false;
+          const mode = String(x.next_leg_mode || "");
+          const km = Number(x.distance_to_next_km);
+          const min = Number(x.next_leg_minutes != null ? x.next_leg_minutes : x.next_walk_minutes);
+          return (mode === "walk" || mode === "same_venue")
+            && (!isFinite(km) || km < 0.05)
+            && (!isFinite(min) || min <= 1);
+        };
         const hasKm = typeof it.distance_to_next_km === "number";
         // R39（2026-11-25 用户令「三种交通腿统一成一种：时间在前」）：站间
         // 交通腿只出一行——[出发时刻] 距下一站 X km · 车程/步行/接驳约 N 分钟 · 约 ¥Y
@@ -2390,7 +2403,7 @@ function planCard(plan) {
           }
           return false;
         })();
-        if (hasKm && !isBridgeCard && !bridgeFollows) {
+        if (hasKm && !isBridgeCard && !bridgeFollows && !trivialLeg(it)) {
           const rowParts = legRowParts(it, d.items, idx);
           // R39b：与站点卡同一 .row 栅格——隐藏把手占位对齐时间列（R41c：按钮已下线，行内只留时刻与文字）。
           // R39d：下一站若嵌在卡内（午饭 12:00 落在 13:32 收尾的游览里），出发

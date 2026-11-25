@@ -109,7 +109,9 @@
 // v166 2026-11-26: 纯打车回城腿不再渲染「🎟 购票 / 打车约 ¥X + 接驳约 ¥0」退化块——
 // 购票行只在真有可购接驳段（专线名/运营方/班次/票价/接驳费任一非空）时出；打车费用仍在卡底腿行。
 // 后端纯打车回城明细的接驳空槽改发 null（R49）。必须 bump 拉新缓存壳。
-const VERSION = 'v166';
+// v167 2026-11-26: 同址 0 公里/1 分钟的步行腿不再显示（页脚与桥卡同一判定）；
+// 数据层照旧成对，只是不渲染这一行噪声。
+const VERSION = 'v167';
 const CACHE = 'chinatrip-h5-' + VERSION;
 const SHELL = [
   './', './index.html', './i18n.js', './qrcode.min.js', './sortable.min.js', './manifest.webmanifest', './agent.html',

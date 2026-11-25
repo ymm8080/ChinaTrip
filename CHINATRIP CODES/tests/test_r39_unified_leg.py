@@ -295,8 +295,12 @@ def test_h5_unified_leg_row_wiring_and_syntax(tmp_path):
     html = (static / "index.html").read_text(encoding="utf-8")
 
     assert "function legRowParts(it, items, idx) {" in html
-    assert "if (hasKm && !isBridgeCard && !bridgeFollows) {" in html  # 页脚闸
-    assert "const brRow = isBridgeCard ? legRowParts(it, d.items, idx) : null;" in html
+    assert "!bridgeFollows && !trivialLeg(it)) {" in html  # 页脚闸
+    # R51：同址 0km/1 分钟桥卡不出腿行
+    assert (
+        "const brRow = isBridgeCard && !trivialLeg(it) ? "
+        "legRowParts(it, d.items, idx) : null;" in html
+    )
     assert "if (isRet && !hasKm && (Number(legD.taxi_km) || 0) > 0.05) {" in html
     # 页脚：出发时刻在前、腿文字随后（R41c：按钮 span 已删）
     assert '\'<span class="t" style="flex:0 0 auto">\' + depTxt + "</span>"' in html
