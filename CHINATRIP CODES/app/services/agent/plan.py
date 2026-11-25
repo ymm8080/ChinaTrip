@@ -20072,9 +20072,37 @@ def heal_free_meal_cards(
         if item.start_time is None:
             continue
         minutes = _minutes_of(item.start_time)
-        lo, hi = MEAL_CARD_SLOT_WINDOWS[slot]
-        if not (lo <= minutes <= hi):
+        # 与引擎 R41 正餐时段窗同口径（午 11:00-15:00、晚 17:00-20:30）：
+        # 远郊日回城后的午餐是 11:0x 开场，按 legacy 卡窗（11:30-12:30）会被
+        # 误挡；真正落在早餐/下午茶时段的卡仍宁留占位。
+        if slot == "lunch":
+            if not (11 * 60 <= minutes < 15 * 60):
+                continue
+        elif not (17 * 60 <= minutes <= 20 * 60 + 30):
             continue
+        if item.duration_minutes:
+            end_min = minutes + int(item.duration_minutes)
+            nested = False
+            for other in day.items:
+                if other is item or not isinstance(other, VisitItem):
+                    continue
+                if str(getattr(other, "category", "") or "") in (
+                    "food",
+                    "hotel",
+                    "transport",
+                    "transfer",
+                ):
+                    continue
+                if other.start_time is None or not other.duration_minutes:
+                    continue
+                o_lo = _minutes_of(other.start_time)
+                if o_lo <= minutes and end_min <= o_lo + int(other.duration_minutes):
+                    nested = True
+                    break
+            if nested:
+                # 卡整体嵌在某个景点块里（「游览途中就地用餐」）：那是同址
+                # 语义，不能塞一家 2km 外的店——保持占位。
+                continue
         pts = [
             (p.location.lon, p.location.lat)
             for p in day.items
@@ -20095,7 +20123,9 @@ def heal_free_meal_cards(
                 )
                 rows_cache[city] = []
         pick = None
-        for row in select_geo_rated(rows_cache[city], pts, limit=2):
+        # 候选给宽一点：同一天两张卡，前几名可能已被别的卡占用/撞菜系
+        picked_rows = select_geo_rated(rows_cache[city], pts, limit=4)
+        for row in picked_rows:
             name = str(row.get("name") or "")
             if not name or name in taken:
                 continue

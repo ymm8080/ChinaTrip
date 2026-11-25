@@ -157,3 +157,34 @@ def test_existing_named_meal_card_is_not_replaced():
     session = _session([day])
     assert heal_free_meal_cards(session, store=_Store(_ROWS)) == []
     assert session.plan.days[0].items[1].name == "四季民福烤鸭店（故宫店）"
+
+
+def test_remote_day_early_lunch_is_filled():
+    # 远郊日回城前的午餐开场 11:08：与引擎 R41 时段窗同口径（≥11:00）应填，
+    # 不能再被 legacy 卡窗（11:30）挡掉。
+    day = DayPlan(
+        day=1,
+        base_city="北京",
+        items=[
+            _placeholder("meal-lunch-3", "午餐", time(11, 8)),
+            _sight("v8", "天坛", 116.4128, 39.8836, time(12, 8), dur=240),
+        ],
+    )
+    session = _session([day])
+    assert heal_free_meal_cards(session, store=_Store(_ROWS))
+    assert session.plan.days[0].items[0].name == "南门涮肉(天坛店)"
+
+
+def test_card_nested_inside_sight_block_is_left_free():
+    # 卡整体嵌在景点块内（游览途中就地用餐）：同址语义，不塞 2km 外的店。
+    day = DayPlan(
+        day=1,
+        base_city="北京",
+        items=[
+            _sight("v1", "天坛", 116.4128, 39.8836, time(9, 0), dur=240),
+            _placeholder("meal-lunch-1", "午餐", time(12, 0)),
+        ],
+    )
+    session = _session([day])
+    assert heal_free_meal_cards(session, store=_Store(_ROWS)) == []
+    assert session.plan.days[0].items[1].name == "午餐"
