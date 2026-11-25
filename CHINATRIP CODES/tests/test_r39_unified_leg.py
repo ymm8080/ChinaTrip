@@ -303,8 +303,13 @@ def test_h5_unified_leg_row_wiring_and_syntax(tmp_path):
         in html
     )
     assert (
-        "'<span style=\"flex:0 0 auto;margin-left:auto;white-space:nowrap\">'"
-        " + rowParts.buttons" in html
+        "'<span style=\"flex:0 0 auto;white-space:nowrap\">' + rowParts.buttons" in html
+    )
+    # R39b：腿行/桥卡用隐藏把手占位，时间列与站点卡对齐；按钮紧跟文字并排
+    assert "const timePad = (planSession && planSession.session_id)" in html
+    assert (
+        '<span class="drag-handle" style="visibility:hidden" aria-hidden="true">'
+        "⠿</span>" in html
     )
     # 按钮与跳转：TAXI 复用 calltaxi；ALL TRANSPORTATION 落导航页
     # （起点=当前位置、终点=下一景点）

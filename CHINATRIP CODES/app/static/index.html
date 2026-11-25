@@ -2180,6 +2180,12 @@ function timeEditFail(err, box, plan) {
 
 
 function planCard(plan) {
+  // R39b（2026-11-25 用户令「transportation leg 的时间要和其他 site 对齐」）：站点卡的
+  // 时间列前面是 ⠿ 拖拽把手（15.5px + 8px 间距）；腿行/桥卡没有把手，用同宽隐藏占位
+  // 补齐，时间才落在同一列。只读视图（无会话）卡片本身没把手，不加占位。
+  const timePad = (planSession && planSession.session_id)
+    ? '<span class="drag-handle" style="visibility:hidden" aria-hidden="true">⠿</span>'
+    : "";
   const box = el('<div class="card"><h4>' + I18N.tf("card.itinId","🧳 行程编号 ") + "<code>" + esc(plan.itinerary_id) + "</code> · " + esc((plan.cities || []).map(c => I18N.city(c)).join(" → ")) + "</h4></div>");
   (plan.days || []).forEach(d => {
     const dt = planDateIso(d.day);
@@ -2305,7 +2311,7 @@ function planCard(plan) {
         // R39：桥卡（leg-bridge-*）自身就是统一交通腿行——卡名位渲染「距下一站 X km ·
         // 车程约 N 分钟 · 约 ¥Y」，行右 TAXI / ALL TRANSPORTATION 两枚按钮。
         const brRow = isBridgeCard ? legRowParts(it, d.items, idx) : null;
-        const blk = el('<div class="visit-block" data-id="' + esc(it.item_id) + '"' + bridgeAttrs + '><div class="row">' + handle + timeCell + (isBridgeCard ? '<span class="muted" style="flex:1 1 auto;min-width:170px">' + brRow.text + '</span><span style="flex:0 0 auto;margin-left:auto;white-space:nowrap">' + brRow.buttons + "</span>" : '<span style="flex:1 1 auto;min-width:170px">' + ((isTransferLeg || it.category === "hotel") ? esc(I18N.pick(it, "name", "name_en")) : '<a class="site-link" data-action="brief" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '" data-addr="' + esc(it.address || "") + '" data-hours="' + esc(it.opening_hours || "") + '">' + esc(I18N.pick(it, "name", "name_en")) + "</a>") + I18N.tf("card.paren.pre","（") + esc(I18N.city(it.city)) + I18N.tf("card.paren.suf","）") + (isNight ? hotelStayLabel(plan, it) : isMorning ? "" : (it.duration_minutes || 0) + I18N.t("card.minutes")) + tail + "</span>") + altChips + "</div></div>");
+        const blk = el('<div class="visit-block" data-id="' + esc(it.item_id) + '"' + bridgeAttrs + '><div class="row">' + handle + (isBridgeCard ? timePad : "") + timeCell + (isBridgeCard ? '<span class="muted" style="flex:0 1 auto;min-width:0">' + brRow.text + '</span><span style="flex:0 0 auto;white-space:nowrap">' + brRow.buttons + "</span>" : '<span style="flex:1 1 auto;min-width:170px">' + ((isTransferLeg || it.category === "hotel") ? esc(I18N.pick(it, "name", "name_en")) : '<a class="site-link" data-action="brief" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '" data-addr="' + esc(it.address || "") + '" data-hours="' + esc(it.opening_hours || "") + '">' + esc(I18N.pick(it, "name", "name_en")) + "</a>") + I18N.tf("card.paren.pre","（") + esc(I18N.city(it.city)) + I18N.tf("card.paren.suf","）") + (isNight ? hotelStayLabel(plan, it) : isMorning ? "" : (it.duration_minutes || 0) + I18N.t("card.minutes")) + tail + "</span>") + altChips + "</div></div>");
         // 同街族并卡（2026-11-07 拍板「同街族合成一卡，时长取最大」）：
         // 子站折在主卡名下只读展示（删除/换点作用于整卡），主卡时长已
         // 是族内最长一站，不再叠加。二拍（并卡不消失案）：每子站独立
@@ -2345,10 +2351,13 @@ function planCard(plan) {
         })();
         if (hasKm && !isBridgeCard && !bridgeFollows) {
           const rowParts = legRowParts(it, d.items, idx);
-          blk.appendChild(el('<div class="leg-row" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:0 2px 6px ' + ind + '">' +
+          // R39b：与站点卡同一 .row 栅格——隐藏把手占位对齐时间列；按钮紧跟文字右侧并排
+          // （此前 margin-left:auto 把两枚按钮推到行最右，用户要求「right by side」）。
+          blk.appendChild(el('<div class="row leg-row" style="margin:0 0 6px;align-items:center">' +
+            timePad +
             '<span class="t" style="flex:0 0 auto">' + fmtTime(it.end_time) + "</span>" +
-            '<span class="muted" style="flex:1 1 160px;min-width:0">' + rowParts.text + "</span>" +
-            '<span style="flex:0 0 auto;margin-left:auto;white-space:nowrap">' + rowParts.buttons + "</span></div>"));
+            '<span class="muted" style="flex:0 1 auto;min-width:0">' + rowParts.text + "</span>" +
+            '<span style="flex:0 0 auto;white-space:nowrap">' + rowParts.buttons + "</span></div>"));
         }
         // 合成卡（独立回城卡）本身就是一段路：没有「距下一站」也要出接驳块
         if (hasKm || isSynth) {
