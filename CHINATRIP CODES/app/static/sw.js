@@ -94,7 +94,9 @@
 // v159 2026-11-25: 酒店三外链按钮（Trip/Booking/Agoda）从规划页挪到「🎫 预订」页 🏨 酒店
 // 分区（按上方住宿城市直开三家官网，切到酒店分区自动预填行程首城）；规划页酒店卡底
 // 文字改「Please book in RESERVATION page, and transfer confirmation email to <USER ID>@CHINA for plan update.」。
-const VERSION = 'v159';
+// v160 2026-11-26: 赞/👎/点评图标从预约信息行改挂景点地址行右端（地址+旗时+开放时间
+// 同一 flex 行右推；无地址/时刻行的卡回落独立图标行）。必须 bump 拉新缓存壳。
+const VERSION = 'v160';
 const CACHE = 'chinatrip-h5-' + VERSION;
 const SHELL = [
   './', './index.html', './i18n.js', './qrcode.min.js', './sortable.min.js', './manifest.webmanifest', './agent.html',
