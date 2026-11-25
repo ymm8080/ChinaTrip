@@ -20158,7 +20158,9 @@ def heal_free_meal_cards(
             cand = candidate_from_poi_dict(row)
             if cand is None or cand.location is None:
                 continue
-            if slot not in (cand.allowed_slots or frozenset()):
+            # 无营业时间/餐期元数据的行（餐厅库多数如此）不限制槽位——
+            # 与引擎「无营业时间＝全天开放」同口径；有元数据才按它的窗判。
+            if cand.allowed_slots and slot not in cand.allowed_slots:
                 continue
             pick = (row, cand)
             break
