@@ -47,7 +47,12 @@
 // v135 2026-11-23: API GET 不再被 3 秒超时掐死（networkFirst 只在缓存有兜底时提前让路，无缓存就继续等网络）——慢实例上 >3s 的行程/规划大 GET 此前直接 Failed to fetch 且无恢复路径。必须 bump 拉新缓存壳。
 // v133 2026-11-23: 时间编辑失败码转人话+时钟选择器加回（用户实报「there is error msg」「时钟选、点击保存要保留」）——已知失败码转明确文案（行程已更新请刷新/当天无班次表/结构锁定）；编辑态双控件=直输框（9:30/0930，Enter 提交）+右侧时钟选择器（选完即存）；餐卡双家族 id（meal-lunch-N ↔ food-lunch-ph-dN）后端按别名解析不再 404（后端随下次重启生效）。必须 bump 拉新缓存壳。
 // v132 2026-11-23: 确认卡必须逐行选完才能点 ✅（用户实报「选了一行点 ✅ 又弹卡」）——带文字开局差异卡有多行（days/numbers/card_days），只答部分行点 ✅ → 未答行不在 resolved_diffs → 后端重新检出再弹卡；✅ 未选完置灰+剩余行数提示，选完即亮。必须 bump 拉新缓存壳。
-const VERSION = 'v136';
+// v137 2026-11-25: 首版生成提示时长文案纠正——实测 CP-SAT 端到端约 6–8s（最坏约 12s），
+// 原「约 30–60 秒/30–60 s」严重高估，改「约 5–15 秒/5–15 s」（index.html 两处 tf 回退原文 +
+// i18n.js en 词典 plan.gen.running）。必须 bump 拉新缓存壳。
+// v138 2026-11-25: 地点确认卡的 chip 接入正式行程卡同款悬停简介浮层（site_pop），
+// 后端在 site_confirm 响应下发 site_cities 供详情查询；必须 bump 拉新缓存壳。
+const VERSION = 'v138';
 const CACHE = 'chinatrip-h5-' + VERSION;
 const SHELL = [
   './', './index.html', './i18n.js', './qrcode.min.js', './sortable.min.js', './manifest.webmanifest', './agent.html',

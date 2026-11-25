@@ -3087,7 +3087,8 @@ function enrichBrief(info, city, name) {
 // 404/未收录落「暂无」不报错；绝不影响原气泡与卡片渲染。
 const SITE_POP = { cache: new Map(), pop: null, showTimer: null, hideTimer: null };
 function sitePopHead(name, city) {
-  return "<b>" + esc(name) + "</b>" + I18N.tf("card.paren.pre","（") + esc(I18N.city(city)) + I18N.tf("card.paren.suf","）");
+  const cityLabel = esc(I18N.city(city)); // 确认卡城市可能没留档：空串就不摆一对空括号
+  return "<b>" + esc(name) + "</b>" + (cityLabel ? I18N.tf("card.paren.pre","（") + cityLabel + I18N.tf("card.paren.suf","）") : "");
 }
 function sitePopHideNow() {
   clearTimeout(SITE_POP.showTimer); SITE_POP.showTimer = null;
@@ -3157,7 +3158,7 @@ async function sitePopShow(link) {
   place();
 }
 document.addEventListener("mouseover", (ev) => {
-  const link = ev.target && ev.target.closest ? ev.target.closest("a.site-link, button.alt-swap") : null;
+  const link = ev.target && ev.target.closest ? ev.target.closest("a.site-link, button.alt-swap, button.site-pop-chip") : null;
   if (!link) return;
   if (SITE_POP.pop && SITE_POP.pop._link !== link) sitePopHideNow(); // 换目标：旧浮层立刻收走
   clearTimeout(SITE_POP.hideTimer);
@@ -3165,7 +3166,7 @@ document.addEventListener("mouseover", (ev) => {
   SITE_POP.showTimer = setTimeout(() => sitePopShow(link), 350);
 });
 document.addEventListener("mouseout", (ev) => {
-  const link = ev.target && ev.target.closest ? ev.target.closest("a.site-link, button.alt-swap") : null;
+  const link = ev.target && ev.target.closest ? ev.target.closest("a.site-link, button.alt-swap, button.site-pop-chip") : null;
   if (!link) return;
   sitePopScheduleHide();
 });
@@ -3563,6 +3564,7 @@ try { localStorage.removeItem("chinatrip_plan_session"); } catch (_) {}
 // 后旧 chips 就地失效，防止再点打出 409 not_awaiting_sites 吓到用户。
 let siteChipBoxes = [];
 function closeSiteChipBoxes() {
+  sitePopHideNow(); // 确认卡收走时浮层不属于 holder，得单独摘掉，防止悬空
   siteChipBoxes.forEach(box => box.querySelectorAll("button").forEach(b => {
     b.disabled = true; b.style.opacity = ".45"; b.onclick = null;
     if (b.textContent === I18N.tf("infra.requesting","请求中…")) b.textContent = I18N.tf("plan.chipConfirmed","✅ 已确认"); // busy() 的 finally 不再复活它
@@ -3591,7 +3593,10 @@ function planRenderReply(holder, body, opts) {
     const row = el('<div class="chips"></div>');
     const must = new Set();
     body.sites.forEach(s => {
-      const b = el('<button class="chip">' + esc(s) + "</button>");
+      // 与正式行程卡同款悬停简介：chip 挂 name/city，交给 SITE_POP 的委托监听。
+      // city 由响应 site_cities 回填；没留档就空串，详情端点按名字全局找。
+      const siteCity = (body.site_cities && body.site_cities[s]) || "";
+      const b = el('<button class="chip site-pop-chip" data-name="' + esc(s) + '" data-city="' + esc(siteCity) + '">' + esc(s) + "</button>");
       if (briefRound) { must.add(s); b.style.background = "#2563eb"; b.style.color = "#fff"; }
       b.onclick = () => {
         if (must.has(s)) { must.delete(s); b.style.background = ""; b.style.color = ""; }
@@ -3944,7 +3949,7 @@ async function planStartConfirmed(routeSource, overrides) {
     : routeSource === "form"
       ? I18N.tf("plan.route.useForm","📋 用表单参数")
       : I18N.tf("plan.route.apply","✅ 就按所选规划"));
-  const holder = addMsg("flow-plan", "sys", I18N.tf("plan.gen.running","⏳ 正在生成初版行程（约 30–60 秒，请稍候）…"));
+  const holder = addMsg("flow-plan", "sys", I18N.tf("plan.gen.running","⏳ 正在生成初版行程（约 5–15 秒，请稍候）…"));
   try {
     const payload = {
       cities: s.formCities,
@@ -4032,7 +4037,7 @@ async function planStartCore(extraPref, images) {
   addMsg("flow-plan", "user", textMode
     ? I18N.tf("plan.echo.text","开始规划：") + extraPref
     : I18N.tf("plan.echo.start","开始规划：") + r.cities.map(c => I18N.city(c)).join("→") + I18N.tf("plan.echo.totalPre","，共 ") + r.total + I18N.tf("plan.echo.totalSuf"," 天") + (PLAN.startDate ? I18N.tf("plan.echo.datePre","，") + PLAN.startDate + I18N.tf("plan.echo.dateSuf"," 出发") : "") + I18N.tf("plan.echo.transport","；交通：") + tSel.options[tSel.selectedIndex].text + I18N.tf("plan.echo.prefPre","；偏好：") + (prefs || I18N.tf("plan.echo.none","无")));
-  const holder = addMsg("flow-plan", "sys", I18N.tf("plan.gen.running","⏳ 正在生成初版行程（约 30–60 秒，请稍候）…"));
+  const holder = addMsg("flow-plan", "sys", I18N.tf("plan.gen.running","⏳ 正在生成初版行程（约 5–15 秒，请稍候）…"));
   try {
     // brief：自由输入框里那一整句（2026-11-13）——它写出的路线优先于表单回填值，
     // 否则「重新规划」把上次行程的参数回填后，新打的城市会被表单顶掉。

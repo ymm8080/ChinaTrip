@@ -694,7 +694,7 @@
       "plan.fb.recorded": "Recorded — thanks for the feedback!",
       "plan.first.done": "First draft ready ✅ tweak it just by chatting (multi-turn).",
       "plan.gen.fail": "❌ Planning failed: ",
-      "plan.gen.running": "⏳ Drafting your itinerary (about 30–60 s)…",
+      "plan.gen.running": "⏳ Drafting your itinerary (about 5–15 s)…",
       "plan.handoff.pre": "Concierge-payment ref pre-filled: ",
       "plan.handoff.suf": " (start directly from 💳 Pay on the Book tab)",
       "plan.input.phActive": "Keep chatting, e.g. move day-2 sights to day 3; tap the summary above to reopen the parameters",
