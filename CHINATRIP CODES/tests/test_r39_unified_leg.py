@@ -752,3 +752,23 @@ def test_h5_footer_uses_nested_departure_time():
     assert '\'<span class="t" style="flex:0 0 auto">\' + depTxt' in html
     # 嵌套存在时不隐藏页脚
     assert "if (nested) return false;" in html
+
+
+def test_bridge_reevaluates_when_prev_leg_targets_nested_child():
+    """卡内午饭嵌在游览窗内时，13:32→14:02 的桥卡要按两端重估（车程），
+    不能继承宿主卡「到午饭」的 0.0 km 步行腿（R39d 实报回归）。"""
+    from app.services.trip_solver.assembly.bridges import attach_gap_bridges
+
+    plan = _plan(_r39d_day())
+    from app.services.itinerary.legs import annotate_legs
+
+    annotate_legs(plan)
+    attach_gap_bridges(plan)
+    bridge = next(
+        i for i in plan.days[0].items if str(i.item_id).startswith("leg-bridge-")
+    )
+    assert bridge.next_leg_mode == "taxi", bridge.next_leg_mode
+    assert bridge.distance_to_next_km and bridge.distance_to_next_km > 2, (
+        bridge.distance_to_next_km
+    )
+    assert bridge.next_leg_minutes and bridge.next_leg_minutes > 1

@@ -168,6 +168,23 @@ def attach_gap_bridges(plan: "ItineraryPlan") -> "ItineraryPlan":
                 and _pb is not None
                 and _haversine_km(_pa, _pb) < _SAME_VENUE_BRIDGE_KM
             )
+            # R39d：前卡的腿可能指向「卡内嵌件」（颐和园 13:32 收尾，12:00 的
+            # 午饭嵌在窗内）——桥卡两端其实是 3.63km 的车程，直继承会写成
+            # 「1 分钟步行」。两端坐标明显不同而前卡腿≈同址时，按桥两端重估。
+            km_override = None
+            if not same_venue and _pa is not None and _pb is not None:
+                _real = _haversine_km(_pa, _pb)
+                _km_prev = getattr(prev, "distance_to_next_km", None)
+                if _real >= _SAME_VENUE_BRIDGE_KM and (
+                    not isinstance(_km_prev, (int, float))
+                    or _km_prev < _SAME_VENUE_BRIDGE_KM
+                ):
+                    _est = _estimated_leg(_pa, _pb)
+                    if _est is not None:
+                        mode, minutes = _est
+                        verb = _MODE_VERB.get(mode)
+                        icon = _MODE_ICON.get(mode, "🧭")
+                        km_override = round(_real, 2)
             if same_venue:
                 mode, minutes, verb, icon = SAME_VENUE_MODE, None, None, "📍"
             elif not (verb and isinstance(minutes, int)):
@@ -209,7 +226,9 @@ def attach_gap_bridges(plan: "ItineraryPlan") -> "ItineraryPlan":
                     end_time=_time(g1 // 60 % 24, g1 % 60),
                     duration_minutes=gap,
                     synthetic=True,
-                    **_unified_leg_fields(prev, nxt, mode, minutes),
+                    **_unified_leg_fields(
+                        prev, nxt, mode, minutes, km_override=km_override
+                    ),
                 )
             )
         if added:
@@ -223,7 +242,13 @@ def attach_gap_bridges(plan: "ItineraryPlan") -> "ItineraryPlan":
     return plan
 
 
-def _unified_leg_fields(prev: VisitItem, nxt: VisitItem, mode: str, minutes) -> dict:
+def _unified_leg_fields(
+    prev: VisitItem,
+    nxt: VisitItem,
+    mode: str,
+    minutes,
+    km_override: float | None = None,
+) -> dict:
     """桥卡的统一腿字段（R39，2026-11-25 用户令「三种交通腿统一成一种」）。
 
     桥卡与站点页脚带同一套字段（距离/方式/分钟/费用），H5 才能把每段转场
@@ -246,7 +271,11 @@ def _unified_leg_fields(prev: VisitItem, nxt: VisitItem, mode: str, minutes) -> 
             "next_walk_minutes": 1,
         }
     out: dict = {}
-    km = getattr(prev, "distance_to_next_km", None)
+    km = (
+        km_override
+        if isinstance(km_override, (int, float))
+        else getattr(prev, "distance_to_next_km", None)
+    )
     if not isinstance(km, (int, float)):
         a = _pt(prev)
         b = _pt(nxt)
