@@ -2334,9 +2334,12 @@ function planCard(plan) {
         // 右推；transfer 不出（2026-11-23 用户令腿不做点赞）；无地址/时刻行的卡（占位
         // 餐卡等）回落独立图标行。
         const fbSite = it.category === "food" || it.category === "hotel";
-        // 酒店卡/餐卡只有显示了具体地址（和名字）才出赞/踩/点评（2026-11-26 用户令）；
-        // 无地址不出（占位餐卡/未验证酒店），其它卡照旧。
-        const fbShow = (it.category || "") !== "transfer" && (!fbSite || (it.address || "").trim() !== "");
+        // 酒店卡/餐卡只有显示了具体地址和具体名字才出赞/踩/点评（2026-11-26 用户令
+        // 「有地址和名字才出」）：具体名字=卡绑定真实实体（poi_id 非空——占位餐卡/
+        // 未验证酒店没有；R41b 填充卡与引擎命名卡都有），其它卡照旧。
+        const fbAddr = (it.address || "").trim() !== "";
+        const fbNamed = !!(it.poi_id || "").toString().trim();
+        const fbShow = (it.category || "") !== "transfer" && (!fbSite || (fbAddr && fbNamed));
         const fbInline = fbShow ? '<span style="white-space:nowrap;color:var(--muted);font-size:12px">' +
           '<a class="fb-btn" data-kind="up" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '">👍</a> ' +
           '<a class="fb-btn" data-kind="down" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '">👎</a> ' +

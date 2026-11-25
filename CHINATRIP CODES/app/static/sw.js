@@ -103,7 +103,10 @@
 //（13:21，前面是自由活动），不再要求等于上一卡收尾（13:00）；后面跟桥卡时页脚让位。
 // v164 2026-11-26: 酒店卡/餐卡只有显示了具体地址（和名字）才出赞/踩/点评图标
 // （无地址占位餐卡/未验证酒店不再出；其它卡不变）。必须 bump 拉新缓存壳。
-const VERSION = 'v164';
+// v165 2026-11-26: 酒店卡/餐卡的赞/踩/点评再收紧——地址之外还须绑定真实实体
+//（poi_id，即显示具体名字）：只有地址但仍是「午餐/晚饭」占位名的不出。
+// 必须 bump 拉新缓存壳。
+const VERSION = 'v165';
 const CACHE = 'chinatrip-h5-' + VERSION;
 const SHELL = [
   './', './index.html', './i18n.js', './qrcode.min.js', './sortable.min.js', './manifest.webmanifest', './agent.html',
