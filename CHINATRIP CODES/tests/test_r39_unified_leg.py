@@ -451,3 +451,36 @@ def test_get_plan_with_coordless_morning_card_does_not_500():
     assert r.status_code == 200, r.text
     items = {i["item_id"]: i for i in r.json()["plan"]["days"][0]["items"]}
     assert items["hotel-morning-d1"]["distance_to_next_km"] is not None
+
+
+def test_bridge_after_anchored_placeholder_meal_estimates_from_anchor():
+    """上一张是锚定占位餐卡（没有 location，位置在锚点上）：桥卡兜底估算吃锚点。
+
+    此前只认 location → 算不出分钟 → 桥卡名落「🧭 前往下一站（自由安排）」、统一
+    字段只有距离没有车程/费用（用户实报的第二种格式残留：live 会话 591c9e98
+    午饭 13:00 → 圆明园 13:37 实锤）。
+    """
+    site = _v("s1", "颐和园", time(9, 0), time(13, 0), loc=SUMMER_PALACE)
+    lunch = VisitItem(
+        item_id="food-lunch-ph-d1",
+        name="午饭（自由安排）",
+        city="北京",
+        day=1,
+        category="food",
+        start_time=time(12, 0),
+        end_time=time(13, 0),
+        duration_minutes=60,
+        anchor_from_prev=True,
+        anchor_location=GeoPoint(lon=SUMMER_PALACE[0], lat=SUMMER_PALACE[1]),
+    )
+    nxt = _v("s2", "圆明园", time(13, 37), time(14, 22), loc=(116.30, 40.01))
+    plan = _plan([site, lunch, nxt])
+    attach_gap_bridges(plan)  # 不跑 annotate：午饭卡没有腿字段 → 走桥卡兜底估算
+    br = _bridge(plan)
+    assert br is not None
+    assert br.start_time == time(13, 0) and br.end_time == time(13, 37)
+    assert br.next_leg_mode == "taxi"
+    assert isinstance(br.next_leg_minutes, int) and br.next_leg_minutes > 0
+    assert isinstance(br.next_leg_cost_cny, (int, float))
+    assert br.distance_to_next_km == pytest.approx(3.3, abs=0.6)  # 颐和园锚点 → 圆明园
+    assert "自由安排" not in (br.name or "")

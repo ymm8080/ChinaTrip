@@ -61,6 +61,14 @@ def _estimated_leg(a, b):
     return ("taxi", round(min(180, km * 1.3 / 35 * 60)) + 30)
 
 
+def _pt(item):
+    """取值点：真 POI 坐标优先，锚定卡（占位午饭/晚饭）回退继承来的
+
+    anchor_location——与 legs._point / agent._leg_point / H5 legPoint 同口径。
+    """
+    return getattr(item, "location", None) or getattr(item, "anchor_location", None)
+
+
 def _mins(t) -> int | None:
     if t is None:
         return None
@@ -145,10 +153,9 @@ def attach_gap_bridges(plan: "ItineraryPlan") -> "ItineraryPlan":
             verb = _MODE_VERB.get(mode)
             icon = _MODE_ICON.get(mode, "🧭")
             if not (verb and isinstance(minutes, int)):
-                est = _estimated_leg(
-                    getattr(prev, "location", None),
-                    getattr(nxt, "location", None),
-                )
+                # R39：兜底估算与统一腿字段同口径取点（锚定占位餐卡吃锚点）——
+                # 此前只认 location，午饭后那一段算不出分钟、桥卡名落「自由安排」。
+                est = _estimated_leg(_pt(prev), _pt(nxt))
                 if est is not None:
                     mode, minutes = est
                     verb = _MODE_VERB.get(mode)
@@ -205,8 +212,8 @@ def _unified_leg_fields(prev: VisitItem, nxt: VisitItem, mode: str, minutes) -> 
     out: dict = {}
     km = getattr(prev, "distance_to_next_km", None)
     if not isinstance(km, (int, float)):
-        a = getattr(prev, "location", None) or getattr(prev, "anchor_location", None)
-        b = getattr(nxt, "location", None) or getattr(nxt, "anchor_location", None)
+        a = _pt(prev)
+        b = _pt(nxt)
         if a is not None and b is not None:
             km = round(_haversine_km(a, b), 2)
     if isinstance(km, (int, float)) and km > 0:
