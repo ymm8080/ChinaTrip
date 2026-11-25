@@ -93,6 +93,25 @@ def _row_to_candidate(
 
     from .inputs.cuisine import cuisine_key  # R12-D 菜系键
 
+    # R41（2026-11-25 用户令「附近餐厅都没有被推荐插入到餐卡。除了 RATE,
+    # GEOGRAPHIC. 还考虑一下 RATING NUMBER.」）：餐候选质量分吃「评分 ×
+    # 评分数」的可信度评分（meal_geo.quality_score）——小样本满分不再压过
+    # 高评论数高分店；无评分餐厅 = 0（旧 _data_priority_score 的 max(1,…)
+    # 地板会让它落进 float 域 ×100 拿满质量奖励，实盘无评分店质量 +100）。
+    # 其余类别与语料 float 域行为不变。
+    if kind == "requested":
+        quality = _data_priority_score(row)
+    elif (row.get("category") or "") == "food" and (
+        row.get("rating") or row.get("tags")
+    ):
+        from app.services.meal_geo import quality_score as _food_quality_score
+
+        quality = _food_quality_score(row)
+    elif row.get("rating") or row.get("tags"):
+        quality = _data_priority_score(row)
+    else:
+        quality = row.get("quality")
+
     return CandidateItem(
         cid=cid,
         name=clean_meal_slot_suffix(str(row.get("name") or "")),
@@ -119,15 +138,7 @@ def _row_to_candidate(
         # 评分降序 tie-break」脱钩。填充同吃库内数据分（有界奖励
         # 见 objectives.FILL_QUALITY_REWARD_CAP），选点序与 legacy
         # 同源；无评分/无标签行保持 0（旧快照行为不变）。
-        quality=(
-            _data_priority_score(row)
-            if kind == "requested"
-            else (
-                _data_priority_score(row)
-                if (row.get("rating") or row.get("tags"))
-                else row.get("quality")
-            )
-        ),
+        quality=quality,
         lon=lon,
         lat=lat,
         opening_hours=row.get("opening_hours"),
@@ -559,7 +570,14 @@ def snapshot_from_request(
                     for row in (must_rows + pool)
                     if isinstance(row.get("location"), (tuple, list))
                     and len(row["location"]) >= 2
+                    # R41：锚=景点。池里的餐厅行不当锚——否则「餐厅旁边的
+                    # 餐厅」白白吃掉一整个簇的配额（实测御仙都/白家大院两条
+                    # 池内餐行各占 2 个名额，而它们当天并不在盘面上）。
+                    and (row.get("category") or "") != "food"
                 ],
+                # R41：名额随行程天数（午/晚双槽），不再全程 4 家按锚点下标
+                # 截断——旧口径下名额全被市中心簇吃光，后面的天零候选。
+                limit=max(4, min(10, 2 * int(days or 1))),
             )
     except Exception:  # noqa: BLE001 - 加料失败零影响（旧池原样）
         logger.warning("trip_solver: geo rated food pool failed", exc_info=True)
@@ -568,13 +586,22 @@ def snapshot_from_request(
     # 检索行在此并池（legacy _rec_food/recommend_restaurants 同源），与
     # top_pois  food 行同一 seen_names 去重 + 同一 any-槽标注。无 food_rows
     # 时零行为变化（影子语料/旧测试形状完全不动）。
+    # R41：餐候选与必去的去重只对「必去本身是餐馆」做包含匹配——分店名里
+    # 含景点名（南门涮肉(天坛店) vs 必去「天坛」）不是同一个地方，旧双向子串
+    # 包含把离景点最近的店当重复项丢掉（真实库实测天坛店因此没进快照）。
+    # 用户 avoid 仍保持包含语义（avoid「麦当劳」应挡掉所有分店）。
+    must_food_names = {
+        str(r.get("name") or "")
+        for r in must_rows
+        if (r.get("category") or "") == "food"
+    }
     for row in list(food_rows or []) + geo_food_rows:
         name = str(row.get("name") or "")
         if not name or name in seen_names:
             continue
         if any(_name_hits(name, a) for a in avoid):
             continue
-        if any(_name_hits(name, m) for m in must_names_bound):
+        if any(_name_hits(name, m) for m in must_food_names):
             continue
         seen_names.add(name)
         pool.append(row)

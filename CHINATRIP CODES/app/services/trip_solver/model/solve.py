@@ -41,6 +41,83 @@ TIER_DETERMINISTIC_BUDGET = 0.4
 LADDER_TIER_DETERMINISTIC_BUDGET = 0.1
 
 
+#: R41 餐绑定打磨的确定性预算：非餐分日钉死后搜索面只剩「餐槽绑谁 + 时刻
+#: 微调」，incumbent 完整热启动下第一组可行解几乎立刻可得。
+MEAL_POLISH_DETERMINISTIC_BUDGET = 0.35
+
+
+def _polish_meal_bindings(bundle, enriched, pref_tier, base_solver, floor, *, wall_s):
+    """R41：分日锁死后的**餐绑定打磨**（小求解，与 preference 大层解耦）。
+
+    动机（2026-11-25 用户「附近餐厅都没有被推荐插入到餐卡」真库实测）：
+    命名餐的全部收益都在 preference 大层，默认预算（0.75-0.95 dtime）下该层
+    经常只还回带缺口的 FEASIBLE，甚至整层 UNKNOWN——两种形态端上都是
+    「附近餐厅一张都没进餐卡」。把非餐候选的**分日**钉到当前 incumbent 后，
+    同一套约束里可动的只剩餐槽绑定与时刻微调，搜索面小几个量级；再以
+    incumbent 做完整热启动，第一组合法解即刻可得，随后就地把命名餐补齐。
+
+    词典序不被破坏：
+    - coverage/weather/day_hint 等已锁层的等式约束仍在模型里；
+    - 非餐分日被钉 → 必去覆盖与已锁层目标天然不变；
+    - preference 目标以 incumbent 值为地板（floor 非空时），只接受不更差的解；
+      调用方随后用打磨值做等式锁，后续层看到的仍是同一词典序契约。
+    - 任何失败/超时返回 None，调用方保留原 incumbent（行为与旧版一致）。
+    """
+    snapshot = enriched.snapshot
+    meal_cids = {
+        c.cid
+        for c in snapshot.candidates
+        if (c.category or "") == "food" and getattr(c, "meal_slot", None)
+    }
+    if not meal_cids or base_solver is None or wall_s <= 0.02:
+        return None
+    model = bundle.model
+    maximize = getattr(pref_tier, "sense", "max") != "min"
+    # 钉分日只用 **assumptions**（与 coverage 层同款机制），不往模型里加
+    # 任何约束：收工 ClearAssumptions + ClearHints 即还原，后续 travel/
+    # makespan 层看到的仍是原模型（upb 的 repeated constraints 不支持删除，
+    # 约束式钉法会污染后续层）。目标地板改为求解后比对，同样无需加约束。
+    for cid, day in bundle.cid_day_list:
+        if cid in meal_cids:
+            continue
+        lit = bundle.presence[(cid, day)]
+        model.AddAssumptions([lit if base_solver.Value(lit) else lit.Not()])
+    # 完整热启动 = incumbent 本身：钉非分日假设下它仍然可行，因此打磨几乎
+    # 不可能 UNKNOWN（旧层「搜不到任何可行点」的失灵形态到此为止）。
+    model.ClearHints()  # 同一变量重复 AddHint 会 MODEL_INVALID（R8-S4 教训）
+    for cid, day in bundle.cid_day_list:
+        model.AddHint(
+            bundle.presence[(cid, day)],
+            base_solver.Value(bundle.presence[(cid, day)]),
+        )
+        model.AddHint(
+            bundle.start[(cid, day)], base_solver.Value(bundle.start[(cid, day)])
+        )
+    for cid, var in bundle.dur.items():
+        model.AddHint(var, base_solver.Value(var))
+    for key, lit in bundle.meal_bound.items():
+        model.AddHint(lit, base_solver.Value(lit))
+    if maximize:
+        model.Maximize(pref_tier.expression)
+    else:
+        model.Minimize(pref_tier.expression)
+    solver = cp_model.CpSolver()
+    solver.parameters.num_workers = 1
+    solver.parameters.random_seed = SOLVER_SEED
+    solver.parameters.max_time_in_seconds = wall_s
+    solver.parameters.max_deterministic_time = MEAL_POLISH_DETERMINISTIC_BUDGET
+    status = solver.Solve(model)
+    model.ClearAssumptions()
+    model.ClearHints()
+    if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
+        return None
+    if floor is not None:
+        value = solver.ObjectiveValue()
+        if (maximize and value < floor) or (not maximize and value > floor):
+            return None  # 不如 incumbent：不采纳（调用方保留原解）
+    return solver, solver.StatusName(status)
+
+
 def _seed_greedy_fill_hints(bundle, enriched, prev_solver) -> None:
     """Greedy incumbent seed for tier②: keep tier① placements, add
     fills in tier order onto the least-loaded feasible day. Hints
@@ -217,6 +294,13 @@ def solve(
     # R13g：墙帽污染账——任一层的墙钟帽先于 det-time 触发即记真
     # （求解被墙钟截断=结果负载敏感；对照见 Solution.wall_capped）。
     wall_capped = False
+    # R41：有餐候选时，preference 层后接一次「钉分日」的餐绑定打磨（见
+    # _polish_meal_bindings），并给它预留墙钟——打磨只吃 0.35 det，通常
+    # 零点几秒内返回。
+    has_meals = any(
+        (c.category or "") == "food" and getattr(c, "meal_slot", None)
+        for c in enriched.snapshot.candidates
+    )
     for index, tier in enumerate(tiers):
         coverage_assumptions = index == 0 and bool(bundle.fill_gates)
         if coverage_assumptions:
@@ -242,7 +326,10 @@ def solve(
             if budget_s > 0
             else 0.0
         )
-        candidate_solver.parameters.max_time_in_seconds = remaining
+        _wall = remaining
+        if tier.name == "preference" and has_meals:
+            _wall = max(0.05, remaining - min(1.0, remaining * 0.3))
+        candidate_solver.parameters.max_time_in_seconds = _wall
         # R8-S4：tier②（fill 最大化）专属 dtime——大池 all-fill 的
         # 病灶层（36×5 在 0.4/0.5 下 UNKNOWN=空排）；其余层维持
         # R5 调好的口径（g11 墙钟不被拖爆）。
@@ -267,6 +354,30 @@ def solve(
             wall_capped = True
         if coverage_assumptions:
             bundle.model.ClearAssumptions()
+        if tier.name == "preference" and has_meals:
+            # R41：钉分日打磨餐绑定。层 UNKNOWN 时以「上一层 incumbent」为底
+            # （此时该层还没加等式锁，打磨可自由优化 preference）；层成功时
+            # 以本层值为地板，只接受不更差的解。
+            _base = candidate_solver if status in ("OPTIMAL", "FEASIBLE") else solver
+            _floor = (
+                int(round(candidate_solver.ObjectiveValue()))
+                if status in ("OPTIMAL", "FEASIBLE")
+                else None
+            )
+            _left = (
+                max(0.0, budget_s - (time.perf_counter() - started))
+                if budget_s > 0
+                else 0.0
+            )
+            _polished = _polish_meal_bindings(
+                bundle, enriched, tier, _base, _floor, wall_s=_left
+            )
+            if _polished is not None:
+                _was_optimal = status == "OPTIMAL"
+                candidate_solver, status = _polished
+                if status == "OPTIMAL" and not _was_optimal:
+                    # 打磨只在「钉分日」子空间里证优，不能冒称整层最优
+                    status = "FEASIBLE"
         if status == "INFEASIBLE":
             return Solution(
                 status="INFEASIBLE",

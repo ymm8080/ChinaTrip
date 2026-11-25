@@ -4,10 +4,10 @@
 「WE HV RESTRANTS IN BOTH POIS AND RESTRANT TABLES」+「ALWAYS USE CP-SAT」）。
 
 覆盖：
-1. select_geo_rated：评分闸/半径闸/每锚配额/同名去重/总数上限；
+1. select_geo_rated：评分闸/半径闸/每簇配额/同名去重/总数上限（R41 簇轮转）；
 2. cuisine_key 读两表声明菜系（cuisine/cuisine_group），槽位时段闸不再漏行；
 3. 引擎候选池：restaurants 表行按评分×地理进池（meal_slot=any、quality=评分分）；
-4. 地理半边：餐馆落在「附近无景点在场」的天被罚——远店不进解、近店落对天；
+4. 地理半边（R41 硬闸）：餐馆只能落在「附近有景点在场」的天——远店全程不可选；
 5. 槽位时段闸：无菜系键的餐卡同样「午槽<15:00 / 晚槽≥15:00」（倒挂不可行）。
 """
 
@@ -21,10 +21,10 @@ from test_brief_text_input import SitesStore
 from app.services.meal_geo import select_geo_rated
 from app.services.trip_solver.inputs.cuisine import cuisine_key
 from app.services.trip_solver.live import snapshot_from_request
-from app.services.trip_solver.model.c09_c16 import _r12d_hard_gates
-from app.services.trip_solver.model.objectives import (
-    MEAL_FAR_DAY_PENALTY,
-    _meal_far_penalty,
+from app.services.trip_solver.model.c09_c16 import (
+    MEAL_NEAR_SIGHT_KM,
+    _meal_near_gate,
+    _r12d_hard_gates,
 )
 
 
@@ -68,14 +68,14 @@ def test_select_geo_rated_keeps_best_rated_within_radius():
         rows,
         [(116.4000, 39.9100)],
         radius_km=2.0,
-        per_anchor=2,
+        per_cluster=2,
         limit=4,
         min_rating=4.0,
     )
     assert [r["name"] for r in picked] == ["近高分", "近低分"]
 
 
-def test_select_geo_rated_per_anchor_cap_and_limit():
+def test_select_geo_rated_per_cluster_cap_and_limit():
     rows = [
         _row("A1", 116.4000, 39.9100, 4.9, 10),
         _row("A2", 116.4005, 39.9105, 4.8, 10),
@@ -83,13 +83,14 @@ def test_select_geo_rated_per_anchor_cap_and_limit():
         _row("B2", 116.5005, 39.9505, 4.7, 10),
     ]
     anchors = [(116.4000, 39.9100), (116.5000, 39.9500)]
+    # 每簇 1 家 + 上限 2：两簇各取头名（余量补足见 R41 欠填充测试）
     assert [
-        r["name"] for r in select_geo_rated(rows, anchors, per_anchor=1, limit=4)
+        r["name"] for r in select_geo_rated(rows, anchors, per_cluster=1, limit=2)
     ] == [
         "A1",
         "B1",
     ]
-    assert len(select_geo_rated(rows, anchors, per_anchor=2, limit=3)) == 3
+    assert len(select_geo_rated(rows, anchors, per_cluster=2, limit=3)) == 3
 
 
 def test_select_geo_rated_no_anchor_keeps_old_pool():
@@ -146,14 +147,18 @@ def test_snapshot_pool_takes_rated_rows_by_geo():
     )
     foods = [c for c in snap.candidates if c.category == "food"]
     names = {c.name for c in foods}
-    # 每锚点只取评分最高的 MEAL_GEO_PER_ANCHOR(=1) 家：只有近高分店进池；
-    # 同锚点的低分行是备选（评分最高的那家被避/被点时才会用到）
+    # R41：每簇午/晚双配额（MEAL_GEO_PER_CLUSTER=2）——同簇前两名都进池，
+    # 第二名是被避/被点时的备选；25km 外的远店仍不进池。
     assert "近高分店" in names
-    assert "近低分店" not in names
+    assert "近低分店" in names
     assert "远高分店" not in names  # 25km 外，不进 geo 池
     assert all(c.meal_slot == "any" for c in foods)  # 顶餐卡的 any 槽
     high = next(c for c in foods if c.name == "近高分店")
-    assert high.quality and high.quality > 40  # 4.8 评分 → 库内数据分 96 量级
+    low = next(c for c in foods if c.name == "近低分店")
+    # R41：质量分吃可信度评分（4.8×500 → 47.7 量级 → 48），仍 >40；
+    # 高评论数店的质量分必须高过小样本店（评分数进模型）。
+    assert high.quality and high.quality > 40
+    assert high.quality > low.quality
 
 
 # ----------------------------------------------------------- 地理半边（软罚）
@@ -167,7 +172,8 @@ def _presence_grid(model, cids, days):
     }
 
 
-def test_meal_far_penalty_picks_near_day_and_drops_far_shop():
+def test_meal_near_gate_picks_near_day_and_drops_far_shop():
+    """R41：软罚 400 → 餐馆侧就近硬闸；同样的结局（近店落近天、远店不进解）。"""
     model = cp_model.CpModel()
     sight = SimpleNamespace(
         cid="s1", category="museum", meal_slot=None, lon=116.400, lat=39.910, rid=None
@@ -182,23 +188,23 @@ def test_meal_far_penalty_picks_near_day_and_drops_far_shop():
     presence = _presence_grid(model, ["s1", "f1", "f2"], days)
     bundle = SimpleNamespace(model=model, presence=presence, days=days)
     enriched = SimpleNamespace(snapshot=SimpleNamespace(candidates=[sight, near, far]))
-    terms = _meal_far_penalty(bundle, enriched)
-    assert terms, "应有地理罚项"
+    _meal_near_gate(bundle, enriched)
 
-    # 景点只在第 1 天在场；餐卡奖励 190（≈FILL_REWARD+quality 量级）
+    # 景点只在第 1 天在场；餐卡奖励 190（≈FILL_REWARD+quality 量级）。
+    # 没有罚项——「不就近」直接不可行，不靠目标值压。
     model.Add(presence[("s1", 1)] == 1)
     model.Add(presence[("s1", 2)] == 0)
     reward = 190 * sum(presence[(cid, day)] for cid in ("f1", "f2") for day in days)
-    model.Maximize(reward - sum(terms))
+    model.Maximize(reward)
     solver = cp_model.CpSolver()
     assert solver.Solve(model) == cp_model.OPTIMAL
-    # 近店落在有景点的第 1 天（第 2 天要付 MEAL_FAR_DAY_PENALTY）
+    # 近店落在有景点的第 1 天（第 2 天无景点在场：硬闸不可行）
     assert solver.Value(presence[("f1", 1)]) == 1
     assert solver.Value(presence[("f1", 2)]) == 0
-    # 远店附近无池内景点：哪一天都罚 400 > 190 奖励 → 不进解
+    # 远店 2.5km 内无池内景点：全程不可选（旧版是逐日罚 400 的软压）
     assert solver.Value(presence[("f2", 1)]) == 0
     assert solver.Value(presence[("f2", 2)]) == 0
-    assert MEAL_FAR_DAY_PENALTY > 190
+    assert MEAL_NEAR_SIGHT_KM > 0
 
 
 # --------------------------------------------------- 槽位时段闸（无菜系键也盖）

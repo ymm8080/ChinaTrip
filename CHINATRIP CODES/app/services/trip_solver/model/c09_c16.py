@@ -425,7 +425,7 @@ def _r12f_fill_yields_gate(bundle: VarBundle, enriched: "EnrichedSnapshot") -> N
     把它计进 fill_mid 等于同一份时间算两次。稠密日（12 必去/4 天）必去
     满档吃掉整个预算后，7 家库内高分餐馆全被本闸压掉、餐卡全落成自由卡
     ——与「按评分+地理选餐厅」的 R29 初衷相悖。餐馆另受 R12-D3（同菜系
-    同日≤1、槽位时段对齐）与 _meal_far_penalty（就近）约束，不因豁免本
+    同日≤1、槽位时段对齐）与 _meal_near_gate（就近硬闸）约束，不因豁免本
     预算而失控；R29 前只有 4 条 pois 荐点行受影响，行为等价。
     """
     model = bundle.model
@@ -515,6 +515,66 @@ def _r13h_twin_exclusivity(bundle: VarBundle, enriched: "EnrichedSnapshot") -> N
                     )
 
 
+#: R41 餐馆就近闸半径 km（原 objectives.MEAL_NEAR_SIGHT_KM 同值同义，随闸
+#: 迁到唯一消费点）。与选池侧 meal_geo.MEAL_GEO_CLUSTER_KM 同口径。
+MEAL_NEAR_SIGHT_KM = 2.5
+
+
+#: R41 绑定正餐的时段窗：午餐不早于 11:00（REMOTE_LUNCH_EARLIEST 同值）、
+#: 晚餐不早于 17:00（系统占位餐卡 MEAL_WINDOWS["dinner"] 起点同值）。旧闸只卡
+#: 15:00 午/晚分界，绑定餐没有时段窗——大预算/打磨解里出过 09:00 的「午餐」、
+#: 15:30 的「晚餐」（读路径按时刻又判成早餐/下午茶，再补一张自由卡）。
+MEAL_LUNCH_EARLIEST = 11 * 60
+MEAL_DINNER_EARLIEST = 17 * 60
+
+
+def _meal_near_gate(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
+    """R41：自动选餐的**餐馆侧就近硬闸**（取代 R29 的 400 软罚）。
+
+    非用户点名（rid 空）的餐候选落在某天 ⇒ 当天必须有 MEAL_NEAR_SIGHT_KM 内
+    的池内景点在场；2.5km 内根本没有池内景点的候选 = 离哪天的动线都远，直接
+    全程不可选（宁缺勿错，不再出现「长城日晚餐落 54km 外市区店」）。
+
+    为什么可以硬化（R29 当年不敢）：闸只约束餐馆一侧、绝不强迫任何景点在场
+    ——「所有餐候选全程不在场」永远可行（占位餐卡兜底），不会像旧写法那样
+    牵连景点把搜索压成「只剩必去」。同时它把 R29 软罚造成的「分日 × 落餐」
+    目标耦合从 preference 层拿掉：餐馆的可行天集合由景点分日直接传播，搜索
+    空间随之缩小。用户点名的餐馆（rid）不受限（显式选择优先，同 R29）。
+    """
+    from ..inputs.travel import haversine_km
+
+    snapshot = enriched.snapshot
+    model = bundle.model
+    sights = [
+        c
+        for c in snapshot.candidates
+        if (c.category or "") not in ("food", "hotel", "transport", "transfer")
+        and not getattr(c, "meal_slot", None)
+        and getattr(c, "lon", None) is not None
+        and getattr(c, "lat", None) is not None
+    ]
+    for cand in snapshot.candidates:
+        if (cand.category or "") != "food" or not getattr(cand, "meal_slot", None):
+            continue
+        if cand.rid:  # 用户点名的餐馆＝用户选择，不做就近约束
+            continue
+        lon = getattr(cand, "lon", None)
+        lat = getattr(cand, "lat", None)
+        if lon is None or lat is None:  # 无坐标（或精简桩）：无从判就近，不加闸
+            continue
+        near = [
+            s
+            for s in sights
+            if haversine_km(lon, lat, s.lon, s.lat) <= MEAL_NEAR_SIGHT_KM
+        ]
+        for day in bundle.days:
+            lit = bundle.presence[(cand.cid, day)]
+            if not near:
+                model.Add(lit == 0)
+                continue
+            model.AddBoolOr([lit.Not()] + [bundle.presence[(s.cid, day)] for s in near])
+
+
 def _r12d_hard_gates(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
     """R12-D3（2026-11-19 拍板「选餐点：尽量不要同样的菜肴」）：池内
     自动选的餐馆（fill、无 rid）两道硬闸——用户必去（rid）不受限（显式
@@ -522,10 +582,11 @@ def _r12d_hard_gates(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
 
     ① 同菜系两店同日至多一家在场（any-槽：在场⇔绑定——同日双绑即双在
        场，presence 和 ≤1 一式即闸）；
-    ② 槽位时段对齐：午槽绑定 ⇒ 时刻 <15:00、晚槽绑定 ⇒ ≥15:00（倒挂
-       直接不可行——槽标签跟时刻走，不再受 tier_det 搜索预算摆布；
+    ② 槽位时段对齐：午槽绑定 ⇒ 11:00≤时刻<15:00、晚槽绑定 ⇒ ≥17:00
+       （倒挂直接不可行——槽标签跟时刻走，不再受 tier_det 搜索预算摆布；
+       R41 补正餐时段窗：09:00 的「午餐」/15:30 的「晚餐」同样不可行；
        软罚/软奖励继续服务必去餐馆与跨天去重）。占位餐卡永远可兜底，
-       两闸均不会造成不可行。
+       各闸均不会造成不可行。
     """
     model = bundle.model
     split = 15 * 60
@@ -563,8 +624,17 @@ def _r12d_hard_gates(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
                     continue
                 if slot == "lunch":
                     model.Add(bundle.start[(c.cid, day)] < split).OnlyEnforceIf(blit)
+                    # R41：午餐不得落在早餐时段（≥11:00，≤15:00 由上式保证）
+                    model.Add(
+                        bundle.start[(c.cid, day)] >= MEAL_LUNCH_EARLIEST
+                    ).OnlyEnforceIf(blit)
                 else:
-                    model.Add(bundle.start[(c.cid, day)] >= split).OnlyEnforceIf(blit)
+                    # R41：晚餐 ≥17:00（旧版 ≥15:00 会把下午茶时段标成晚餐）
+                    model.Add(
+                        bundle.start[(c.cid, day)] >= MEAL_DINNER_EARLIEST
+                    ).OnlyEnforceIf(blit)
+    # R41 ③：餐馆侧就近硬闸（原 R29 objectives._meal_far_penalty 软罚的硬化）
+    _meal_near_gate(bundle, enriched)
 
 
 def add_c10_remote_lunch(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:

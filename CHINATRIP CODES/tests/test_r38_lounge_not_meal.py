@@ -90,15 +90,15 @@ def test_empty_or_missing_fields_no_false_positive():
 def test_lounge_dropped_before_rating_gate_real_restaurant_takes_slot():
     """复刻 2155da21 Day3：满分大堂吧 + 4.5/4.9 真餐馆同锚点。
 
-    改前大堂吧以 5.0 独占 per_anchor=1，真餐馆落选 → 当天晚餐落「晚饭」
-    自由卡；改后大堂吧被剔，真餐馆补位，仍只有一家进池（行为稳定）。
+    改前大堂吧以 5.0 独占每簇 1 个名额（R41 前为 per_anchor=1），真餐馆落选
+    → 当天晚餐落「晚饭」自由卡；改后大堂吧被剔，真餐馆补位（行为稳定）。
     """
     rows = [
         _row("北京璞瑄酒店·大堂吧", 116.4161, 39.9248, 5.0, 37),
         _row("南门涮肉(东单店)", 116.4279, 39.9088, 4.5, 106),
         _row("四季民福烤鸭店(王府井店)", 116.4100, 39.9150, 4.9, 500),
     ]
-    picked = select_geo_rated(rows, [(116.4100, 39.9150)], per_anchor=1, limit=4)
+    picked = select_geo_rated(rows, [(116.4100, 39.9150)], per_cluster=1, limit=1)
     names = [r["name"] for r in picked]
     assert "北京璞瑄酒店·大堂吧" not in names
     assert names == ["四季民福烤鸭店(王府井店)"]
