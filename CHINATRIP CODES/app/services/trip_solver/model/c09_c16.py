@@ -418,11 +418,21 @@ def _r12f_fill_yields_gate(bundle: VarBundle, enriched: "EnrichedSnapshot") -> N
     只能消费真余量；必去自挤溢出日（满档+骨架超容）豁免预算——必去
     自己缩合法（傍晚收口闸/窄窗自缩与填充无关，无辜填充照常进场）。
     填充可选，永不致不可行。
+
+    R39（2026-11-25 用户「why no restaurants is picked up at all」）：餐馆
+    不占填充预算。餐位时刻已在 skeleton 的 150 分钟里预留，餐馆只是填进
+    这张已留的餐卡（C-09 bound/anchor），不是额外塞进景点行程的填充卡；
+    把它计进 fill_mid 等于同一份时间算两次。稠密日（12 必去/4 天）必去
+    满档吃掉整个预算后，7 家库内高分餐馆全被本闸压掉、餐卡全落成自由卡
+    ——与「按评分+地理选餐厅」的 R29 初衷相悖。餐馆另受 R12-D3（同菜系
+    同日≤1、槽位时段对齐）与 _meal_far_penalty（就近）约束，不因豁免本
+    预算而失控；R29 前只有 4 条 pois 荐点行受影响，行为等价。
     """
     model = bundle.model
     cands = enriched.snapshot.candidates
     reqs = [c for c in cands if c.rid]
-    fills = [c for c in cands if not c.rid]
+    # 餐馆=餐卡数据源，不是景点填充：不进 fill_mid 预算（R39）。
+    fills = [c for c in cands if not c.rid and (c.category or "") != "food"]
     if not reqs or not fills:
         return
     capacity = DAY_END_MINUTES - DAY_START_MINUTES  # 750

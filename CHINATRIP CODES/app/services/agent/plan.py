@@ -5909,6 +5909,37 @@ def _day_meal_card_present(day: DayPlan, slot: str) -> bool:
     return any(_meal_card_slot(i) == "untimed" for i in day.items)
 
 
+def _absorb_free_card_beside_named(plan: ItineraryPlan) -> list[str]:
+    """R39b：撤掉与命名真餐卡同槽的自由占位卡（幂等，不挪动其它卡）。
+
+    `_meal_card_slot` 对占位件返回 None，故「占位自身算不算卡」与「同一
+    槽位是否已有真餐」判据不同——读路径 heal_meal_cards 会把真餐厅绑到
+    餐卡，旧会话里被编辑漂到晚段的宴席（item_id 仍叫 meal-lunch-N）判成
+    晚餐槽；随后 _ensure_meal_cards 按 id 槽补「晚饭」自由卡，两卡并排。
+    这里按**时刻口径**重扫：真餐占了该槽就撤掉同槽占位，一个餐卡只留一
+    张（与生成/编辑终装 _retime_meal_placeholders 同口径，但不动时刻）。
+    """
+    dropped: list[str] = []
+    for day in plan.days:
+        taken = {
+            card
+            for i in day.items
+            if (card := _meal_card_slot(i)) in ("lunch", "tea", "dinner")
+        }
+        if not taken:
+            continue
+        for item in list(day.items):
+            ph_slot = (
+                "lunch"
+                if is_lunch_placeholder(item)
+                else "dinner" if is_dinner_placeholder(item) else None
+            )
+            if ph_slot is not None and ph_slot in taken:
+                day.items.remove(item)
+                dropped.append(f"第{day.day}天{item.name}")
+    return dropped
+
+
 def _first_free_gap(
     blocked: list[tuple[int, int]],
     starts: list[int],
@@ -10560,8 +10591,17 @@ def heal_arrival_light(plan: ItineraryPlan) -> None:
     这些由规划期的 PlanningAgent._fill_arrival_day_nearby 从库里挑 5 公里内
     的点（用户 2026-11-14「城市漫步要找到景点；餐卡和按摩卡找附近 5 公里
     内的点」）。
+
+    R39b（2026-11-25 用户「一个午餐/晚餐怎么会一张自由卡加一个餐厅并排」）：
+    补卡后必须跑占位吸收——读路径先 heal_meal_cards 把真餐厅绑到餐卡，旧
+    会话的命名卡可能被编辑漂到另一餐段（如 meal-lunch-2 的宴席漂到 17:39
+    =晚餐时刻），此时 _ensure_meal_cards 按 id 槽看到晚餐缺卡就补「晚饭」
+    自由卡，与已漂过来的真餐厅并排。补卡后按时刻口径吸收同槽占位，一个
+    餐卡只留一张（与生成/编辑终装同口径）。幂等：无同槽对时零改动。
     """
     _ensure_meal_cards(plan)
+    # 补卡后按时刻口径吸收同槽占位（真餐厅漂到本槽 → 撤自由卡）。
+    _absorb_free_card_beside_named(plan)
 
 
 def _endpoint_day_light_sweep(
@@ -13599,7 +13639,10 @@ def _evict_evening_gate_breachers(plan: ItineraryPlan) -> list[str]:
             "或指定其他天" % (it.name, cap_txt, it.start_time.strftime("%H:%M"))
         )
     for it in kept_musts:
-        _marker = "必去「%s」保留晚间时刻（必去优先于白天入场带，营业窗照卡）" % it.name
+        _marker = (
+            "必去「%s」保留晚间时刻（必去优先于白天入场带，营业窗照卡）"
+            % it.name
+        )
         if _marker not in notes and _marker not in (
             getattr(plan, "assumptions", None) or []
         ):
@@ -19805,6 +19848,141 @@ def heal_meal_cards(session: PlanSession) -> list[str]:
         logger.warning(
             "plan: session %s 餐卡绑定自愈：%s",
             session.session_id,
+            "；".join(notes),
+        )
+    return notes
+
+
+#: R38b 读路径换餐半径（km）：先按 R29 同口径 2km，找不到再放 5km（到达
+#: 日「就近 5 公里」口径）。都没有就不动卡——绝不把 10km 外的店塞进餐卡。
+_NON_MEAL_SWAP_KM = (2.0, 5.0)
+
+
+def heal_non_meal_meal_cards(
+    session: PlanSession, *, store: PoiDetailStore | None = None
+) -> list[str]:
+    """R38b：旧会话里「酒廊/大堂吧/酒吧」占着午/晚餐卡 → 就地换真餐馆。
+
+    R38 把非正餐行挡在 geo 池外，只管**新生成**；已经落库的会话（用户
+    2026-11-25 看到的那份测试结果就是）刷新时仍把「北京璞瑄酒店·大堂吧」
+    当晚餐交付。这里在出站前自愈：按当天动线锚、R29 同口径（评分 ≥4.0 +
+    就近 2km/5km）从独立餐厅库挑一家真餐馆，**保留原卡的时刻/时长/卡号**，
+    名称/坐标/地址/营业时间随新店走，并在 assumptions 留一句披露。
+
+    边界：
+    - 只换午/晚餐卡；下午茶卡上的酒廊是合理安排（大堂吧本来就卖下午茶）。
+    - 同城库里没有达标的真餐馆（或都已在行程里）就不动，宁留原卡也不
+      为了「看起来对」塞一家 10km 外的店。
+    - 幂等：换完的卡名不再是酒廊标记，二次调用直接返回空。
+    """
+    plan = getattr(session, "plan", None)
+    if plan is None or not getattr(plan, "days", None):
+        return []
+    from app.services.meal_geo import is_non_meal_venue
+
+    targets = [
+        (day, item, slot)
+        for day in plan.days
+        for item in day.items
+        if _is_real_food(item)
+        and (slot := _meal_card_slot(item)) in ("lunch", "dinner")
+        and is_non_meal_venue({"name": item.name})
+    ]
+    if not targets:
+        return []
+    try:
+        from app.services.meal_geo import MEAL_GEO_MIN_RATING
+        from app.services.poi_details import get_poi_detail_store
+        from app.services.restaurants import candidate_from_poi_dict, rank_by_detour
+
+        store = store or get_poi_detail_store()
+    except Exception:  # noqa: BLE001 - 自愈失败绝不能挡住出站
+        logger.warning("plan: non-meal heal unavailable", exc_info=True)
+        return []
+
+    rows_cache: dict[str, list[dict]] = {}
+    taken = {str(i.name) for d in plan.days for i in d.items}
+    notes: list[str] = []
+    for day, item, slot in targets:
+        city = item.city or _meal_city_at(day, item.start_time) or ""
+        if city not in rows_cache:
+            try:
+                rows_cache[city] = list(store.restaurant_rows_in_city(city) or [])
+            except Exception:  # noqa: BLE001 - 单城失败只跳过该卡
+                logger.warning(
+                    "plan: restaurant rows failed for %s", city, exc_info=True
+                )
+                rows_cache[city] = []
+        pts = [
+            i.location
+            for i in day.items
+            if isinstance(i, VisitItem)
+            and i is not item
+            and i.location is not None
+            and (i.category or "") not in ("food", "hotel")
+        ]
+        cands = []
+        by_name: dict[str, dict] = {}
+        for row in rows_cache[city]:
+            if is_non_meal_venue(row):
+                continue
+            name = str(row.get("name") or "")
+            if not name or name in taken:
+                continue
+            cand = candidate_from_poi_dict(row)
+            if cand is None or cand.location is None:
+                continue
+            if cand.rating is None or cand.rating < MEAL_GEO_MIN_RATING:
+                continue
+            if slot not in (cand.allowed_slots or frozenset()):
+                continue
+            cands.append(cand)
+            by_name[name] = row
+        if not cands:
+            continue
+        ranked = rank_by_detour(
+            cands, route_points=pts, dinner_rec=(slot == "dinner")
+        )
+        pick = None
+        for km in _NON_MEAL_SWAP_KM:
+            pick = next(
+                (
+                    c
+                    for c in ranked
+                    if c.detour_score is not None and c.detour_score <= km
+                ),
+                None,
+            )
+            if pick is not None:
+                break
+        if pick is None:
+            continue
+        row = by_name.get(pick.name) or {}
+        old = item.name
+        # 卡身份换店，时刻/时长/卡号不动（用户看到的槽位和时间不跳）。
+        item.name = pick.name
+        item.name_en = row.get("name_en")
+        item.poi_id = pick.poi_id
+        item.category = "food"
+        item.location = pick.location
+        item.address = pick.address
+        item.address_en = row.get("address_en")
+        item.opening_hours = pick.opening_hours
+        item.opening_hours_en = row.get("opening_hours_en")
+        item.intro_en = None
+        taken.add(pick.name)
+        notes.append(
+            "%s「%s」是酒廊/大堂吧类非正餐，已按评分+就近换为「%s」"
+            % (_meal_card_label(slot), old, pick.name)
+        )
+    if notes:
+        annotate_legs(plan)
+        for note in notes:
+            if note not in plan.assumptions:
+                plan.assumptions.append(note)
+        logger.warning(
+            "plan: session %s 非正餐餐卡自愈：%s",
+            getattr(session, "session_id", "?"),
             "；".join(notes),
         )
     return notes

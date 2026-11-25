@@ -96,6 +96,7 @@ from app.services.agent.plan import (
     heal_item_ids,
     heal_leg_gaps,
     heal_meal_cards,
+    heal_non_meal_meal_cards,
 )
 from app.services.agent.wish_fast import consume_fast_turn
 from app.services.ctrip_hours import get_ctrip_hours
@@ -2256,6 +2257,9 @@ def _plan_turn_body(session, reply: str, change, *, alternatives: bool = True) -
         heal_item_ids(session)
         # 餐卡=槽位、餐厅=数据：旧会话漂在卡窗外的餐厅在出站前回填
         heal_meal_cards(session)
+        # R38b：旧会话午/晚餐卡被酒廊/大堂吧占着（R38 前生成）→ 按评分+
+        # 就近换真餐馆，刷新即修（幂等，库里没有达标店就不动）。
+        heal_non_meal_meal_cards(session)
         # 到达日不再整天没安排（2026-11-13 六拍）：旧行程的空到达日出站前
         # 补一段「城市漫步（自由安排）」+ 缺的餐卡，刷新即修不必重规划。
         heal_arrival_light(session.plan)

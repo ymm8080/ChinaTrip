@@ -37,6 +37,43 @@ MEAL_GEO_LIMIT = 4
 # top_pois 的老路径进池，行为不变）。
 MEAL_GEO_MIN_RATING = 4.0
 
+# R38（2026-11-25 用户「北京璞瑄酒店·大堂吧既不是娱乐也不是酒店也不是
+# 餐厅 / 当作餐厅为什么后面还有一个晚餐自由卡」）：酒廊 / 大堂吧 / 酒吧
+# 不是正餐餐厅，即便评分高、离景点近也不得占命名午餐/晚餐卡。R29 把
+# restaurants 表每一行都投影成 category="food"，导致「大堂吧」这类行靠
+# TA 满分挤进 geo 池、顶掉真餐馆，当天晚餐又落回「晚饭（自由安排）」。
+# 这里按菜系组 + 名称标记把非正餐行挡在 geo 池外——原行留库不动，
+# top_pois 老路径与下午茶语义零影响。
+_NON_MEAL_CUISINE_GROUPS = frozenset({"酒吧夜店"})
+_NON_MEAL_NAME_MARKERS = ("大堂吧", "酒廊", "lobby lounge", "lobby bar", "酒吧")
+#: 反向标记（2026-11-25 库审）：名字里明说是餐厅的（「Calypso地中海餐厅·
+#: 酒廊」= 餐厅附带酒廊，库里菜系组是西餐）不按上面标记剔——剔了只会让
+#: 餐池更空（用户紧接着问的「why no restaurants is picked up at all」）。
+_MEAL_NAME_MARKERS = ("餐厅", "restaurant", "食府", "食堂")
+
+
+def is_non_meal_venue(row: dict[str, Any]) -> bool:
+    """酒廊/大堂吧/酒吧类非正餐餐饮行判定（纯函数）。
+
+    只看菜系组与名称标记，不动评分/坐标/来源；缺字段的行不误伤。
+    名字里明说「餐厅」的先行放行（库审：「源膳全日餐厅」「古城老院餐厅」
+    的菜系组被标成酒吧夜店，按组剔会白让掉两家真馆子）。
+    """
+    name = _norm_cuisine(str(row.get("name") or ""))
+    if name and any(_norm_cuisine(m) in name for m in _MEAL_NAME_MARKERS):
+        return False
+    for key in ("cuisine_group", "cuisine", "cuisine_family"):
+        value = str(row.get(key) or "")
+        if value and _norm_cuisine(value) in _NON_MEAL_CUISINE_GROUPS:
+            return True
+    if not name:
+        return False
+    return any(_norm_cuisine(m) in name for m in _NON_MEAL_NAME_MARKERS)
+
+
+def _norm_cuisine(s: str) -> str:
+    return "".join(s.split()).lower()
+
 
 def _coords(row: dict[str, Any]) -> Optional[tuple[float, float]]:
     loc = row.get("location")
@@ -96,6 +133,10 @@ def select_geo_rated(
         return []
     best_by_name: dict[str, tuple[float, int, float, int, dict[str, Any]]] = {}
     for row in rows:
+        # R38：酒廊/大堂吧/酒吧不是正餐，先于评分闸剔除（满分大堂吧不得
+        # 顶掉真餐馆、留下「晚餐自由安排」占位）。
+        if is_non_meal_venue(row):
+            continue
         coords = _coords(row)
         rating = rating_of(row)
         if coords is None or rating < min_rating:
