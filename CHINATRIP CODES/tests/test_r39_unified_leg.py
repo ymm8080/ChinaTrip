@@ -779,3 +779,28 @@ def test_bridge_reevaluates_when_prev_leg_targets_nested_child():
         bridge.distance_to_next_km
     )
     assert bridge.next_leg_minutes and bridge.next_leg_minutes > 1
+
+
+def test_h5_footer_suppressed_when_taxi_board_follows():
+    """R39e：紧跟 🚕 打车卡（taxi-board-*）时上一张卡不再重复出腿行。
+
+    用户实报「transportation from hotel to mutianyu is duplicate」：酒店晨卡页脚
+    10.8 km·27 分·¥31 与紧随的「打车前往前门大街北口·约30分钟」卡是同一段。
+    """
+    from pathlib import Path
+
+    html = (
+        Path(__file__).resolve().parents[1] / "app" / "static" / "index.html"
+    ).read_text(encoding="utf-8")
+    assert 'if (cid.indexOf("taxi-board-") === 0) return true;' in html
+    # 桥卡语义不变
+    assert 'return cid.indexOf("leg-bridge-") === 0 && st === endT;' in html
+    # sw 版本随 H5 改动推进
+    sw = (Path(__file__).resolve().parents[1] / "app" / "static" / "sw.js").read_text(
+        encoding="utf-8"
+    )
+    # 并行会话持续 bump：断言下限而不是钉死版本（钉死会在别人 bump 后误红）。
+    import re
+
+    m = re.search(r"const VERSION = 'v(\d+)';", sw)
+    assert m is not None and int(m.group(1)) >= 150, sw[:200]

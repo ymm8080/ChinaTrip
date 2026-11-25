@@ -2355,6 +2355,9 @@ function planCard(plan) {
         // 命中第一张不早于本卡收尾的卡再判桥卡；否则「景点+卡内午饭→桥卡」会出两行同一段。
         // R39d：卡内嵌件（12:00 午饭落在 13:32 收尾的游览里）优先出「到它的腿」——
         // 有嵌套件时不隐藏页脚，桥卡只负责后段（13:32 → 下一站）。
+        // R39e（2026-11-25 用户实报「transportation from hotel to mutianyu is
+        // duplicate」）：紧跟的 🚕 打车卡（taxi-board-*）本身就是「酒店 → 乘车点」
+        // 这段，上一张卡（酒店晨卡）不再重复出一行同段车程。
         const bridgeFollows = (() => {
           if (!it.end_time || isBridgeCard) return false;
           const endT = String(it.end_time).slice(0, 5);
@@ -2365,7 +2368,9 @@ function planCard(plan) {
             const st = String(c.start_time).slice(0, 5);
             if (st < endT) { nested = true; continue; } // 嵌套在卡内（同址占位午饭等）
             if (nested) return false;
-            return String(c.item_id || "").indexOf("leg-bridge-") === 0 && st === endT;
+            const cid = String(c.item_id || "");
+            if (cid.indexOf("taxi-board-") === 0) return true;
+            return cid.indexOf("leg-bridge-") === 0 && st === endT;
           }
           return false;
         })();

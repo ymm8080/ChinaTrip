@@ -89,7 +89,9 @@
 // （R44 去钉住的续刀；set-hotel 的卡上入口随之撤除）。必须 bump 拉新缓存壳。
 // v157 2026-11-25: 餐卡右侧下架 ✏️ 修改 / 📌 钉住 / 🗑 删除（系统餐位与命名餐厅一体，🍚 MORE 保留）
 // ——接 v156 酒店卡同款收口。必须 bump 拉新缓存壳。
-const VERSION = 'v157';
+// v158 2026-11-25: 酒店→乘车点的 🚕 打车卡紧跟晨卡时，晨卡不再重复出一行同段车程
+// （用户实报「transportation from hotel to mutianyu is duplicate」）。
+const VERSION = 'v158';
 const CACHE = 'chinatrip-h5-' + VERSION;
 const SHELL = [
   './', './index.html', './i18n.js', './qrcode.min.js', './sortable.min.js', './manifest.webmanifest', './agent.html',
