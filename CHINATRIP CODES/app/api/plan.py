@@ -1444,6 +1444,7 @@ async def start_plan(
             n: (getattr(session, "site_kinds", None) or {}).get(n, "sight")
             for n in session.pending_sites
         }
+        body["site_names_en"] = _site_names_en_payload(session)
         # R25：文字日程（site_days 非空）→ 同一张卡上问顺序选边
         _sd = {
             str(n): int(d)
@@ -2228,6 +2229,22 @@ def _audit_must_coverage(session: PlanSession) -> None:
     )
 
 
+def _site_names_en_payload(session) -> dict[str, str]:
+    """确认卡站点英文名（2026-11-25「选英文时站点还是中文」）。
+
+    chips/句子由前端与问句层按 UI 语言消费；zh 请求直接空表零开销。
+    现场解析不落会话结构——旧会话（无档案）同样获得英文名显示。
+    """
+    names = [n for n in (getattr(session, "pending_sites", None) or []) if n]
+    if not names or get_lang() == "zh":
+        return {}
+    try:
+        return get_poi_detail_store().display_names_en(names) or {}
+    except Exception:
+        logger.warning("plan: site_names_en payload lookup failed", exc_info=True)
+        return {}
+
+
 def _plan_turn_body(session, reply: str, change, *, alternatives: bool = True) -> dict:
     """Shared response envelope for message + sites/confirm turns."""
     body: dict = {
@@ -2248,6 +2265,7 @@ def _plan_turn_body(session, reply: str, change, *, alternatives: bool = True) -
             n: (getattr(session, "site_kinds", None) or {}).get(n, "sight")
             for n in session.pending_sites
         }
+        body["site_names_en"] = _site_names_en_payload(session)
         # R25：文字日程（site_days 非空）→ 同一张卡上问顺序选边
         _sd = {
             str(n): int(d)

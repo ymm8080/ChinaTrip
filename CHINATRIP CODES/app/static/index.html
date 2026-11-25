@@ -3592,18 +3592,25 @@ function siteReplyNode(text, body) {
   if (!sites.length) return el("<div>" + esc(text) + "</div>");
   const cities = body.site_cities || {};
   const kinds = body.site_kinds || {};
-  const pat = sites.slice().sort((a, b) => b.length - a.length)
-    .map(s => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
+  // 2026-11-25：EN 语言下后端句子里的站名已是英文名（site_names_en 下发
+  // 的映射），匹配与显示都用英文名；data-name 仍回原名，悬停详情按名查。
+  const nmEn = body.site_names_en || {};
+  const enMode = I18N.locale() !== "zh";
+  const disp = {};
+  sites.forEach(s => { disp[s] = (enMode && nmEn[s]) ? nmEn[s] : s; });
+  const pat = sites.slice().sort((a, b) => disp[b].length - disp[a].length)
+    .map(s => disp[s].replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
   const re = new RegExp("(" + pat + ")", "g");
   const wrap = document.createElement("div");
   let last = 0, m;
   while ((m = re.exec(text)) !== null) {
     if (m.index > last) wrap.appendChild(document.createTextNode(text.slice(last, m.index)));
-    const name = m[1];
+    const shown = m[1];
+    const name = sites.find(s => disp[s] === shown) || shown;
     wrap.appendChild(el('<span class="site-pop-inline" data-name="' + esc(name) +
       '" data-city="' + esc(cities[name] || "") +
-      '" data-kind="' + esc(kinds[name] || "sight") + '">' + esc(name) + "</span>"));
-    last = m.index + name.length;
+      '" data-kind="' + esc(kinds[name] || "sight") + '">' + esc(shown) + "</span>"));
+    last = m.index + shown.length;
   }
   if (last < text.length) wrap.appendChild(document.createTextNode(text.slice(last)));
   return wrap;
@@ -3632,10 +3639,13 @@ function planRenderReply(holder, body, opts) {
     body.sites.forEach(s => {
       // 与正式行程卡同款悬停简介：chip 挂 name/city，交给 SITE_POP 的委托监听。
       // city 由响应 site_cities 回填；没留档就空串，详情端点按名字全局找。
+      // 2026-11-25：EN 语言下标签显示库内英文名（site_names_en）；数据层
+      // 仍用中文名——must 集合、确认提交、悬停 data-name 都不动。
       const siteCity = (body.site_cities && body.site_cities[s]) || "";
       const siteKind = (body.site_kinds && body.site_kinds[s]) || "sight";
+      const label = (I18N.locale() !== "zh" && body.site_names_en && body.site_names_en[s]) || s;
       const b = el('<button class="chip site-pop-chip" data-name="' + esc(s) +
-        '" data-city="' + esc(siteCity) + '" data-kind="' + esc(siteKind) + '">' + esc(s) + "</button>");
+        '" data-city="' + esc(siteCity) + '" data-kind="' + esc(siteKind) + '">' + esc(label) + "</button>");
       if (briefRound) { must.add(s); b.style.background = "#2563eb"; b.style.color = "#fff"; }
       b.onclick = () => {
         if (must.has(s)) { must.delete(s); b.style.background = ""; b.style.color = ""; }

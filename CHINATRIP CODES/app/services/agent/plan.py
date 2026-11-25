@@ -20269,6 +20269,21 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
                 continue
         return []
 
+    def _site_names_en_for(self, names: list[str] | None) -> dict[str, str]:
+        """EN 请求下站点名 → 库内英文名（确认卡问句/chips 显示面，2026-11-25）。
+
+        zh 请求、无 store、查询失败一律空表——调用方 get 回落中文名，零
+        行为变化。英文名只是显示糖：pending_sites/必去/确认提交等数据层
+        全部保持中文名不动。
+        """
+        if not is_en() or self._poi_details is None or not names:
+            return {}
+        try:
+            return self._poi_details.display_names_en(list(names)) or {}
+        except Exception:
+            logger.warning("plan: site en-name display lookup failed", exc_info=True)
+            return {}
+
     def _site_confirm_question(
         self, session: PlanSession, *, reask: bool = False, source: str = "link"
     ) -> str:
@@ -20276,12 +20291,18 @@ class PlanningAgent(ConversationMixin, StartNluMixin, RoundsMixin):
         unparseable answer (the round stays open). source 决定问法：
         "brief"=文字/视频描述读出，"image"=图片读出（两者默认全选，点掉
         不要的即可），"link"=贴进来的链接（保持不点=不入库）。"""
+        # 2026-11-25（用户实报「选英文时贴文读出的站点还是中文」）：EN 轮
+        # 列表里的站名按库内英文名显示（display_names_en 精确/别名解析，
+        # 查不到回落中文名——数据缺口不硬凑）；zh 请求空表零变化。
+        en_names = self._site_names_en_for(session.pending_sites)
         listing = L(
             "、".join(
-                f"（{i}）{site}" for i, site in enumerate(session.pending_sites, 1)
+                f"（{i}）{en_names.get(site, site)}"
+                for i, site in enumerate(session.pending_sites, 1)
             ),
             ", ".join(
-                f"({i}) {site}" for i, site in enumerate(session.pending_sites, 1)
+                f"({i}) {en_names.get(site, site)}"
+                for i, site in enumerate(session.pending_sites, 1)
             ),
         )
         origin = {

@@ -903,6 +903,91 @@ class PoiDetailStore:
         hay = f"{name_zh or ''} {name_en or ''}".lower()
         return any(mark in hay for mark in cls._TEXT_STAY_MARKS)
 
+    def display_names_en(self, names: list[str]) -> dict[str, str]:
+        """批量站点名 → 库内英文名（2026-11-25「选英文时站点还是中文」）。
+
+        确认卡 chips 与回复句子的 EN 显示面：name_zh 精确等值优先，别名
+        （JSONB 数组元素等值）承接——「国家体育场」由 鸟巢(国家体育场) 行
+        接住。只取 active 行（与 search_keyword 同口径）；DB 失败/内存路
+        无档一律空表，调用方回落中文名。显示糖：不改动任何数据层键名。
+        """
+        wanted: list[str] = []
+        seen: set[str] = set()
+        for n in names or []:
+            t = (n or "").strip()
+            if t and t not in seen:
+                seen.add(t)
+                wanted.append(t)
+        out: dict[str, str] = {}
+        if not wanted:
+            return out
+        if self._db_available():
+            try:
+                with self._factory() as session:
+                    rows = (
+                        session.query(Poi.name_zh, Poi.name_en, Poi.name_aliases)
+                        .filter(
+                            (Poi.status.is_(None)) | (Poi.status == "active"),
+                            Poi.name_zh.in_(wanted),
+                        )
+                        .all()
+                    )
+            except Exception:
+                self._note_db_failure()
+                logger.warning("poi_details: en-name read failed", exc_info=True)
+                return out
+            for zh, en, _al in rows:
+                if zh and en and zh not in out:
+                    out[zh] = en
+            miss = [w for w in wanted if w not in out]
+            # 别名承接：JSONB 数组 cast text 后元素形如 "别名"，锚定引号的
+            # LIKE 即元素级等值；LIKE 通配符/引号入名的行跳过（站名不含）。
+            esc = [m for m in miss if not any(c in m for c in ("%", "_", '"'))]
+            if esc:
+                try:
+                    with self._factory() as session:
+                        alias_rows = (
+                            session.query(Poi.name_en, Poi.name_aliases)
+                            .filter(
+                                (Poi.status.is_(None)) | (Poi.status == "active"),
+                                or_(
+                                    *[
+                                        cast(Poi.name_aliases, String).like(f'%"{m}"%')
+                                        for m in esc
+                                    ]
+                                ),
+                            )
+                            .all()
+                        )
+                except Exception:
+                    self._note_db_failure()
+                    logger.warning(
+                        "poi_details: en-name alias read failed", exc_info=True
+                    )
+                    alias_rows = []
+                for en, al in alias_rows:
+                    if not en:
+                        continue
+                    for a in al or []:
+                        t = str(a or "").strip()
+                        if t in seen and t not in out:
+                            out[t] = en
+            return out
+        # 内存路（测试桩/DB 降级窗口）：_memory 行带 name_en/name_aliases
+        # 才命中（upsert 常规链路不写这两键 → 空表回落中文，语义不变）。
+        for v in self._memory.values():
+            en = (v.get("name_en") or "").strip()
+            if not en:
+                continue
+            nm = (v.get("name") or "").strip()
+            if nm in seen and nm not in out:
+                out[nm] = en
+            for a in v.get("name_aliases") or []:
+                t = str(a or "").strip()
+                if t in seen and t not in out:
+                    out[t] = en
+        return out
+
     def match_text_names(
         self, city: str | None, text: str, *, limit: int = 8
     ) -> list[dict]:
