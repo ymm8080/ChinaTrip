@@ -2373,7 +2373,13 @@ function planCard(plan) {
             if (nested) return false;
             const cid = String(c.item_id || "");
             if (cid.indexOf("taxi-board-") === 0) return true;
-            return cid.indexOf("leg-bridge-") === 0 && st === endT;
+            // R46（2026-11-26 用户实报「Day4 13:00 与 13:21 两条 18 分钟步行
+            // 到景山，duplicate」）：桥卡起点是按「出发时刻」后移的（13:21 =
+            // 13:54 到达 − 18 分车程，前面 21 分钟是自由活动），所以不能再要求
+            // 「桥卡起点 == 本卡收尾」——后面跟的是桥卡，它就是这段转场本身，
+            // 页脚一律让位（卡内嵌件分支已在上面 return false 保住）。
+            if (cid.indexOf("leg-bridge-") === 0) return true;
+            return false;
           }
           return false;
         })();

@@ -794,7 +794,8 @@ def test_h5_footer_suppressed_when_taxi_board_follows():
     ).read_text(encoding="utf-8")
     assert 'if (cid.indexOf("taxi-board-") === 0) return true;' in html
     # 桥卡语义不变
-    assert 'return cid.indexOf("leg-bridge-") === 0 && st === endT;' in html
+    # R46：桥卡起点=出发时刻，隐藏条件不再要求 st == endT
+    assert 'if (cid.indexOf("leg-bridge-") === 0) return true;' in html
     # sw 版本随 H5 改动推进
     sw = (Path(__file__).resolve().parents[1] / "app" / "static" / "sw.js").read_text(
         encoding="utf-8"
@@ -804,3 +805,21 @@ def test_h5_footer_suppressed_when_taxi_board_follows():
 
     m = re.search(r"const VERSION = 'v(\d+)';", sw)
     assert m is not None and int(m.group(1)) >= 150, sw[:200]
+
+
+def test_h5_footer_suppressed_when_bridge_starts_later():
+    """R46：桥卡起点是「出发时刻」（晚于上一卡收尾）时，页脚仍要让位。
+
+    用户实报 Day4：午饭 12:00-13:00，页脚出「13:00 步行 18 分钟到景山」，
+    桥卡又出「13:21 步行前往下一站·约18分钟（含自由等候）」——同一段两行。
+    桥卡起点 13:21 = 到达 13:54 − 车程 18 分，前面 21 分钟是自由活动。
+    """
+    from pathlib import Path
+
+    html = (
+        Path(__file__).resolve().parents[1] / "app" / "static" / "index.html"
+    ).read_text(encoding="utf-8")
+    assert 'if (cid.indexOf("leg-bridge-") === 0) return true;' in html
+    assert 'return cid.indexOf("leg-bridge-") === 0 && st === endT;' not in html
+    # 卡内嵌件分支仍在（颐和园 12:00 午饭的页脚不能被误抑制）
+    assert "if (nested) return false;" in html

@@ -99,7 +99,9 @@
 // v161 2026-11-26: 赞/👎/点评图标紧跟地址/时刻字符串右边（去掉 margin-left:auto，
 // 不再推到行右缘）。必须 bump 拉新缓存壳。
 // v162 2026-11-26: 无预约信息的卡不再出「🎫 预约信息无」占位行（card.resv.none 死键 zh/en/ja/ko 一并下架）。必须 bump 拉新缓存壳。
-const VERSION = 'v162';
+// v163 2026-11-26: 午餐后「步行 18 分钟到景山」双显修复——桥卡起点是出发时刻
+//（13:21，前面是自由活动），不再要求等于上一卡收尾（13:00）；后面跟桥卡时页脚让位。
+const VERSION = 'v163';
 const CACHE = 'chinatrip-h5-' + VERSION;
 const SHELL = [
   './', './index.html', './i18n.js', './qrcode.min.js', './sortable.min.js', './manifest.webmanifest', './agent.html',
