@@ -77,7 +77,9 @@
 // transfer 腿不出；无预约信息行的卡（餐饮/酒店）保持原独立行。必须 bump 拉新缓存壳。
 // v152 2026-11-25: 必去确认卡迟到确认不再出死横幅——勾选地点自动转成消息走对话续排（没勾就静默收卡）；
 // 开新确认卡前先失效旧卡（旧 ✅ 跨轮可点曾打出 409 死横幅）。必须 bump 拉新缓存壳。
-const VERSION = 'v152';
+// v153 2026-11-26: 餐卡「美团订」→「🍚 MORE」，点击直唤美团 App（Android intent:// 包名
+// com.sankuai.meituan / iOS imeituan://；未装 App/桌面回落美团美食频道网页）；跟踪器与出行人挂单不变。
+const VERSION = 'v153';
 const CACHE = 'chinatrip-h5-' + VERSION;
 const SHELL = [
   './', './index.html', './i18n.js', './qrcode.min.js', './sortable.min.js', './manifest.webmanifest', './agent.html',
