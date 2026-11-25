@@ -20003,6 +20003,163 @@ def heal_non_meal_meal_cards(
     return notes
 
 
+def heal_free_meal_cards(
+    session: PlanSession, *, store: PoiDetailStore | None = None
+) -> list[str]:
+    """R41b：自由安排午餐/晚餐卡 → 就近推荐真餐厅（keep/legacy/旧会话一并生效）。
+
+    背景（2026-11-25 用户「no restrant is recommended on the plan」+「keep
+    （按写明日程）也应该走 CP-SAT」）：用户写明每天去哪儿时，那天被必去景点
+    压满，引擎/legacy 都挤不出 90-120 分钟的独立餐块，餐卡只能留「午饭/晚饭
+    （自由安排）」——而**占位卡本身就是槽位**，把它的身份换成一家就近真餐馆
+    不需要挪动任何景点。本闸在出站前做这件事，打分与引擎同源（R41 口径：
+    评分 × 评分数 × 距离，`meal_geo.select_geo_rated`），所以「附近餐厅」
+    在 keep 盘上也会出现，而不只是引擎自排版。
+
+    边界：
+    - 只填午/晚餐占位卡；下午茶/早餐不动。
+    - 卡上没有时刻（未安排）不填；时刻落在餐卡窗外（如 09:30 的「午餐」）
+      不填——宁留占位，不把饭点搬到不合理的位置。
+    - 当天没有带坐标的景点 → 无锚可依，不填（绝不把 10km 外的店塞进来）。
+    - 同名店全盘只出现一次；同日同菜系只留一家；卡号/时刻/时长一律不动。
+    - 幂等：填完的卡不再是占位件，二次调用返回空。
+    """
+    plan = getattr(session, "plan", None)
+    if plan is None or not getattr(plan, "days", None):
+        return []
+    from app.services.restaurants import is_dinner_placeholder, is_lunch_placeholder
+
+    targets: list[tuple[DayPlan, VisitItem, str]] = []
+    for day in plan.days:
+        for item in day.items:
+            if not isinstance(item, VisitItem):
+                continue
+            if is_lunch_placeholder(item):
+                targets.append((day, item, "lunch"))
+            elif is_dinner_placeholder(item):
+                targets.append((day, item, "dinner"))
+    if not targets:
+        return []
+    try:
+        from app.services.coords import haversine_m
+        from app.services.meal_geo import select_geo_rated
+        from app.services.poi_details import get_poi_detail_store
+        from app.services.restaurants import candidate_from_poi_dict
+        from app.services.trip_solver.inputs.cuisine import cuisine_key
+
+        store = store or get_poi_detail_store()
+    except Exception:  # noqa: BLE001 - 自愈失败绝不能挡住出站
+        logger.warning("plan: free meal fill unavailable", exc_info=True)
+        return []
+
+    rows_cache: dict[str, list[dict]] = {}
+    taken = {
+        str(i.name)
+        for d in plan.days
+        for i in d.items
+        if isinstance(i, VisitItem) and i.name
+    }
+    cuisine_by_day: dict[int, set] = {}
+    for day in plan.days:
+        for it in day.items:
+            if str(getattr(it, "category", "") or "") != "food":
+                continue
+            ck = cuisine_key({"category": "food", "name": it.name})
+            if ck:
+                cuisine_by_day.setdefault(day.day, set()).add(ck)
+    notes: list[str] = []
+    for day, item, slot in targets:
+        if item.start_time is None:
+            continue
+        minutes = _minutes_of(item.start_time)
+        lo, hi = MEAL_CARD_SLOT_WINDOWS[slot]
+        if not (lo <= minutes <= hi):
+            continue
+        pts = [
+            (p.location.lon, p.location.lat)
+            for p in day.items
+            if isinstance(p, VisitItem)
+            and p.location is not None
+            and str(getattr(p, "category", "") or "")
+            not in ("food", "hotel", "transport", "transfer")
+        ]
+        if not pts:
+            continue
+        city = item.city or getattr(day, "base_city", "") or ""
+        if city not in rows_cache:
+            try:
+                rows_cache[city] = list(store.restaurant_rows_in_city(city) or [])
+            except Exception:  # noqa: BLE001 - 单城失败只跳过该卡
+                logger.warning(
+                    "plan: restaurant rows failed for %s", city, exc_info=True
+                )
+                rows_cache[city] = []
+        pick = None
+        for row in select_geo_rated(rows_cache[city], pts, limit=2):
+            name = str(row.get("name") or "")
+            if not name or name in taken:
+                continue
+            ck = cuisine_key(row)
+            if ck and ck in cuisine_by_day.get(day.day, set()):
+                continue
+            cand = candidate_from_poi_dict(row)
+            if cand is None or cand.location is None:
+                continue
+            if slot not in (cand.allowed_slots or frozenset()):
+                continue
+            pick = (row, cand)
+            break
+        if pick is None:
+            continue
+        row, cand = pick
+        km = (
+            min(
+                haversine_m(cand.location.lon, cand.location.lat, lon, lat)
+                for lon, lat in pts
+            )
+            / 1000.0
+        )
+        # 卡身份换店，时刻/时长/卡号不动（用户看到的槽位和时间不跳）。
+        item.name = cand.name
+        item.name_en = row.get("name_en")
+        item.poi_id = cand.poi_id
+        item.category = "food"
+        item.location = cand.location
+        item.address = cand.address
+        item.address_en = row.get("address_en")
+        item.opening_hours = cand.opening_hours
+        item.opening_hours_en = row.get("opening_hours_en")
+        item.intro_en = None
+        taken.add(cand.name)
+        ck = cuisine_key(row)
+        if ck:
+            cuisine_by_day.setdefault(day.day, set()).add(ck)
+        try:
+            rating = float(row.get("rating") or 0)
+            count = int(row.get("rating_count") or 0)
+        except (TypeError, ValueError):
+            rating, count = 0.0, 0
+        notes.append(
+            L(
+                "第%d天%s已就近推荐「%s」（%.1f★·%d 条评论·%.1fkm）"
+                % (day.day, _meal_card_label(slot), cand.name, rating, count, km),
+                "Day %d %s: nearby pick '%s' (%.1f stars, %d reviews, %.1f km)"
+                % (day.day, slot, cand.name, rating, count, km),
+            )
+        )
+    if notes:
+        annotate_legs(plan)
+        for note in notes:
+            if note not in plan.assumptions:
+                plan.assumptions.append(note)
+        logger.warning(
+            "plan: session %s 自由餐卡就近推荐：%s",
+            getattr(session, "session_id", "?"),
+            "；".join(notes),
+        )
+    return notes
+
+
 _store_singleton: PlanSessionStore | None = None
 
 

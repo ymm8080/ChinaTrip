@@ -93,6 +93,7 @@ from app.services.agent.plan import (
     drop_dangling_visits,
     enforce_entry_gate,
     heal_arrival_light,
+    heal_free_meal_cards,
     heal_item_ids,
     heal_leg_gaps,
     heal_meal_cards,
@@ -2294,6 +2295,10 @@ def _plan_turn_body(session, reply: str, change, *, alternatives: bool = True) -
         # R38b：旧会话午/晚餐卡被酒廊/大堂吧占着（R38 前生成）→ 按评分+
         # 就近换真餐馆，刷新即修（幂等，库里没有达标店就不动）。
         heal_non_meal_meal_cards(session)
+        # R41b：自由安排午/晚餐卡 → 就近推荐真餐厅（keep 盘用户写明日程后
+        # 当天被必去压满、挤不出独立餐块时，占位卡换身份即可，不动景点）。
+        # 打分与引擎同源（评分 × 评分数 × 距离），幂等。
+        heal_free_meal_cards(session)
         # 到达日不再整天没安排（2026-11-13 六拍）：旧行程的空到达日出站前
         # 补一段「城市漫步（自由安排）」+ 缺的餐卡，刷新即修不必重规划。
         heal_arrival_light(session.plan)
