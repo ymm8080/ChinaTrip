@@ -45,8 +45,14 @@ markers = [
 ]
 
 [dependency-groups]
+# 测试依赖的唯一来源。CI 的 test job 用 `pip install --group dev` 直接吃这一组，
+# 不再自己维护一份 pip 安装清单——2026-11 就因为 ci.yml 硬编码清单漏了
+# pytest-asyncio，7 个 async 用例在 CI 上被静默跳过，本地却全绿。
 dev = [
     "pytest>=9.2.0",
     "pytest-asyncio>=1.4.1",
+    "pytest-cov>=5.0",
+    "pytest-timeout>=2.3",
     "playwright>=1.49",
+    "ruff>=0.6",
 ]
