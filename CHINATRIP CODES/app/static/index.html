@@ -2230,6 +2230,7 @@ function planCard(plan) {
         // 合成卡（2026-11-16 独立回城卡）：后端只在响应副本上生成，卡上没有可编辑实体
         const isSynth = !!it.synthetic;
         const isHotelSlot = isNight || isMorning; // ✏️ 走 set-hotel 验证写回
+        const isHotelCard = it.category === "hotel"; // R44：三类酒店卡（入住/夜/晨）——钉住按钮不挂、预订按钮换三外链
         // 🍚 MORE（2026-11-26 用户令「改成〈饭菜的图标〉MORE，点击就直接 CALL 美团APP」）：
         // 餐位/餐厅卡名右侧 MORE 直唤美团 App（mtLaunchMeituan，见 mtBook 处）；
         // 未装 App/桌面回落美团美食频道，注册出行人资料后端脱敏挂单，每 2 分钟跟踪至完成。
@@ -2237,15 +2238,25 @@ function planCard(plan) {
         const mtBtn = it.category === "food"
           ? ' <button class="btn mini ghost" data-action="mtbook" data-item-id="' + esc(it.item_id) + '" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '" title="' + I18N.tf("card.mt.title", "唤起美团 App 订座/点单；未装 App 自动开美团网页；出行人资料自动挂单，每 2 分钟跟踪预订状态直到完成") + '">🍚 MORE</button>'
           : "";
-        // 🏨 订酒店（2026-11-07 每晚酒店卡）：回酒店卡名右侧拉渠道卡
-        // （携程/美团/飞猪，铁律 23 退改闸）。会话外也可点（同美团订口径）。
-        // 晨卡（2026-11-13）指向「昨晚」那段住宿：入住=前一天、退房=当天。
+        // R44（2026-11-25 用户令「它应该有三个按钮: Trip, Booking, Agoda」）：酒店卡预订按钮
+        // 改三枚外链——按当天城市（卡 city=当晚宿城；晨卡=昨晚宿城）直跳三家官网搜酒店。
+        // zh 用中文城名、EN 用 I18N.city 英文名（CITY_EN 未收录回落中文，三站均能识别）；
+        // 原生锚点 target=_blank rel=noopener（同 booking_url 先例），会话外也可点（同美团订口径）。
+        let htlCity = "";
+        if (it.category === "hotel") {
+          htlCity = it.city || wxCity || "";
+          if (I18N.locale() !== "zh") htlCity = I18N.city(htlCity) || htlCity;
+        }
+        const htlQ = encodeURIComponent(htlCity);
+        const htlLink = (label, url) => ' <a class="btn mini ghost" style="text-decoration:none;display:inline-block" target="_blank" rel="noopener" href="' + esc(url) + '">' + label + "</a>";
         const htlBtn = it.category === "hotel"
-          ? ' <button class="btn mini ghost" data-action="htlbook" data-item-id="' + esc(it.item_id) + '" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '" data-day="' + (isMorning ? d.day - 1 : d.day) + '" title="' + (isMorning ? I18N.tf("card.hotel.book.title.morning", "晨卡指向昨晚住宿：拉携程/美团/飞猪渠道卡订上一晚；未验证酒店时按前一天末个带坐标景点定位附近") : I18N.tf("card.hotel.book.title", "拉携程/美团/飞猪渠道卡订本晚酒店；未验证具体酒店时按当天末个带坐标景点定位附近")) + '">🏨 ' + I18N.tf("card.hotel.book", "订酒店") + "</button>"
+          ? htlLink("Trip", "https://www.trip.com/hotels/list?keyword=" + htlQ) +
+            htlLink("Booking", "https://www.booking.com/searchresults.html?ss=" + htlQ) +
+            htlLink("Agoda", "https://www.agoda.com/search?textToSearch=" + htlQ)
           : "";
         if (planSession && planSession.session_id && (!isSynth || isHotelSlot)) { // 会话内：换点/钉住/删除可点（合成卡无编辑入口；酒店卡例外——R21 拍板时间/名字/地址可编辑，R15 物化遗留 synthetic 旗不挡）
           tail = mtBtn + htlBtn + (mealSlot ? "" : ' <button class="btn mini ghost" data-action="rename" data-item-id="' + esc(it.item_id) + '" data-city="' + esc(it.city) + '" data-name="' + esc(it.name) + '" data-dur="' + (it.duration_minutes || 0) + '"' + (isHotelSlot ? ' data-hotel="1" data-addr="' + esc(it.address || "") + '"' : "") + ' title="' + (isMorning ? I18N.tf("card.hotel.set.title.morning", "输入酒店名，验证后写入晨卡（名称+地址）") : (isNight ? I18N.tf("card.hotel.set.title", "输入酒店名，验证后写入本晚酒店卡（名称+地址）") : I18N.tf("card.rename.title","✏️ 改关键字，从库内匹配替换；无匹配回车留空"))) + '">' + I18N.tf("card.rename","✏️") + "</button>") +
-            ' <button class="btn mini ghost' + (it.pinned ? " on" : "") + '" data-action="pin" data-item-id="' + esc(it.item_id) + '" data-pinned="' + (it.pinned ? "1" : "0") + '">' + (it.pinned ? I18N.t("card.pinned") : I18N.t("card.pin")) + "</button>" +
+            (isHotelCard ? "" : ' <button class="btn mini ghost' + (it.pinned ? " on" : "") + '" data-action="pin" data-item-id="' + esc(it.item_id) + '" data-pinned="' + (it.pinned ? "1" : "0") + '">' + (it.pinned ? I18N.t("card.pinned") : I18N.t("card.pin")) + "</button>") + // R44：酒店卡不出钉住（用户令「酒店卡不需要钉住」）
             ' <button class="btn mini ghost" data-action="del" data-item-id="' + esc(it.item_id) + '">' + I18N.tf("card.del","🗑 删除") + "</button>";
         } else { // 已保存行程回看：仅静态徽标（美团订/订酒店仍可点）
           tail = mtBtn + htlBtn + ((it.pinned && !it.soft_pin) ? ' <span class="badge warn">' + I18N.tf("card.pinned.badge","已钉住") + "</span>" : "");
@@ -2329,6 +2340,9 @@ function planCard(plan) {
           : "";
         const meta = [it.address ? "📍 " + I18N.pick(it, "address", "address_en") : "", flagTxt, it.opening_hours ? "🕐 " + I18N.pick(it, "opening_hours", "opening_hours_en") : ((it.category === "hotel" || isSynth) ? "" : I18N.t("card.hours_unknown"))].filter(Boolean).join("");
         if (meta) blk.appendChild(el('<div class="muted" style="margin:0 2px 6px ' + ind + '">' + esc(meta) + "</div>"));
+        // R44（2026-11-25 用户令「在酒店下面写一行字」）：确认邮件转发提示（用户指定英文原文；
+        // <USER ID> 是字面占位——plan 链路不下发用户 ID，后端无此概念）。
+        if (it.category === "hotel") blk.appendChild(el('<div class="muted" style="margin:0 2px 6px ' + ind + ';font-size:11px">PLEASE FORWARD CONFIRMATION EMAIL TO &lt;USER ID&gt;@CHINA FOR PLAN UPDATE.</div>'));
         // 回城段独立成卡后，景区卡只留一行提示（2026-11-16 用户拍板「回程卡应该是独立卡」）
         if (it.return_hint) blk.appendChild(el('<div class="muted" style="margin:0 2px 6px ' + ind + '">' + esc(it.return_hint) + "</div>"));
         const hasKm = typeof it.distance_to_next_km === "number";

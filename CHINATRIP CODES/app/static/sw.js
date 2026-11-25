@@ -82,7 +82,10 @@
 // v154 2026-11-25: TAXI / ALL TRANSPORTATION 按钮下线——站点名点击直达高德路线页
 // （起点=当前位置，终点=所点站点；无坐标卡仍入简介气泡）；交通腿行只留时刻与文字，
 // 远郊交通腿信息（专线/购票/尾段打车行）原样保留。必须 bump 拉新缓存壳。
-const VERSION = 'v154';
+// v155 2026-11-25: 酒店卡预订按钮改 Trip / Booking / Agoda 三枚外链（按当天宿城直跳三家官网
+// 搜酒店，替代「🏨 订酒店」渠道卡）；酒店卡不再出「📌 钉住」；酒店卡底加一行
+// 「PLEASE FORWARD CONFIRMATION EMAIL TO <USER ID>@CHINA FOR PLAN UPDATE.」。
+const VERSION = 'v155';
 const CACHE = 'chinatrip-h5-' + VERSION;
 const SHELL = [
   './', './index.html', './i18n.js', './qrcode.min.js', './sortable.min.js', './manifest.webmanifest', './agent.html',
