@@ -2224,13 +2224,13 @@ function planCard(plan) {
         }
       } else { // VisitItem
         let tail = "";
-        const mealSlot = it.soft_pin && it.category === "food"; // 系统餐位（午餐占位/顺路餐厅）：骨架不可换
         const isNight = (it.item_id || "").indexOf("hotel-night") === 0; // 每晚酒店卡（2026-11-07）
         const isMorning = (it.item_id || "").indexOf("hotel-morning") === 0; // 次日从酒店出发卡（2026-11-13）
         // 合成卡（2026-11-16 独立回城卡）：后端只在响应副本上生成，卡上没有可编辑实体
         const isSynth = !!it.synthetic;
         const isHotelSlot = isNight || isMorning; // ✏️ 走 set-hotel 验证写回
         const isHotelCard = it.category === "hotel"; // R44：三类酒店卡（入住/夜/晨）——钉住按钮不挂、预订按钮换三外链
+        const isFoodCard = it.category === "food"; // R44c：餐卡（系统餐位+命名餐厅）——右侧不出 ✏️/📌/🗑（🍚 MORE 保留）
         // 🍚 MORE（2026-11-26 用户令「改成〈饭菜的图标〉MORE，点击就直接 CALL 美团APP」）：
         // 餐位/餐厅卡名右侧 MORE 直唤美团 App（mtLaunchMeituan，见 mtBook 处）；
         // 未装 App/桌面回落美团美食频道，注册出行人资料后端脱敏挂单，每 2 分钟跟踪至完成。
@@ -2254,10 +2254,10 @@ function planCard(plan) {
             htlLink("Booking", "https://www.booking.com/searchresults.html?ss=" + htlQ) +
             htlLink("Agoda", "https://www.agoda.com/search?textToSearch=" + htlQ)
           : "";
-        if (planSession && planSession.session_id && (!isSynth || isHotelSlot)) { // 会话内：换点/钉住/删除可点（合成卡无编辑入口；酒店卡例外——R21 拍板时间/名字/地址可编辑，R15 物化遗留 synthetic 旗不挡；R44b：酒店卡不出 ✏️/📌/🗑，右侧只留 Trip/Booking/Agoda）
-          tail = mtBtn + htlBtn + ((mealSlot || isHotelCard) ? "" : ' <button class="btn mini ghost" data-action="rename" data-item-id="' + esc(it.item_id) + '" data-city="' + esc(it.city) + '" data-name="' + esc(it.name) + '" data-dur="' + (it.duration_minutes || 0) + '"' + (isHotelSlot ? ' data-hotel="1" data-addr="' + esc(it.address || "") + '"' : "") + ' title="' + (isMorning ? I18N.tf("card.hotel.set.title.morning", "输入酒店名，验证后写入晨卡（名称+地址）") : (isNight ? I18N.tf("card.hotel.set.title", "输入酒店名，验证后写入本晚酒店卡（名称+地址）") : I18N.tf("card.rename.title","✏️ 改关键字，从库内匹配替换；无匹配回车留空"))) + '">' + I18N.tf("card.rename","✏️") + "</button>") +
-            (isHotelCard ? "" : ' <button class="btn mini ghost' + (it.pinned ? " on" : "") + '" data-action="pin" data-item-id="' + esc(it.item_id) + '" data-pinned="' + (it.pinned ? "1" : "0") + '">' + (it.pinned ? I18N.t("card.pinned") : I18N.t("card.pin")) + "</button>") + // R44：酒店卡不出钉住（用户令「酒店卡不需要钉住」）
-            (isHotelCard ? "" : ' <button class="btn mini ghost" data-action="del" data-item-id="' + esc(it.item_id) + '">' + I18N.tf("card.del","🗑 删除") + "</button>"); // R44b：酒店卡不出 ✏️/🗑（用户令「删除按钮和修改按钮都不需要了」）
+        if (planSession && planSession.session_id && (!isSynth || isHotelSlot)) { // 会话内：换点/钉住/删除可点（合成卡无编辑入口；酒店卡例外——R21 拍板时间/名字/地址可编辑，R15 物化遗留 synthetic 旗不挡；R44b/R44c：酒店卡与餐卡不出 ✏️/📌/🗑）
+          tail = mtBtn + htlBtn + ((isFoodCard || isHotelCard) ? "" : ' <button class="btn mini ghost" data-action="rename" data-item-id="' + esc(it.item_id) + '" data-city="' + esc(it.city) + '" data-name="' + esc(it.name) + '" data-dur="' + (it.duration_minutes || 0) + '"' + (isHotelSlot ? ' data-hotel="1" data-addr="' + esc(it.address || "") + '"' : "") + ' title="' + (isMorning ? I18N.tf("card.hotel.set.title.morning", "输入酒店名，验证后写入晨卡（名称+地址）") : (isNight ? I18N.tf("card.hotel.set.title", "输入酒店名，验证后写入本晚酒店卡（名称+地址）") : I18N.tf("card.rename.title","✏️ 改关键字，从库内匹配替换；无匹配回车留空"))) + '">' + I18N.tf("card.rename","✏️") + "</button>") +
+            ((isFoodCard || isHotelCard) ? "" : ' <button class="btn mini ghost' + (it.pinned ? " on" : "") + '" data-action="pin" data-item-id="' + esc(it.item_id) + '" data-pinned="' + (it.pinned ? "1" : "0") + '">' + (it.pinned ? I18N.t("card.pinned") : I18N.t("card.pin")) + "</button>") + // R44/R44c：酒店卡与餐卡不出钉住（用户令「酒店卡不需要钉住」「餐卡钉住按钮也不要了」）
+            ((isFoodCard || isHotelCard) ? "" : ' <button class="btn mini ghost" data-action="del" data-item-id="' + esc(it.item_id) + '">' + I18N.tf("card.del","🗑 删除") + "</button>"); // R44b/R44c：酒店卡与餐卡不出 ✏️/🗑
         } else { // 已保存行程回看：仅静态徽标（美团订/订酒店仍可点）
           tail = mtBtn + htlBtn + ((it.pinned && !it.soft_pin) ? ' <span class="badge warn">' + I18N.tf("card.pinned.badge","已钉住") + "</span>" : "");
         }

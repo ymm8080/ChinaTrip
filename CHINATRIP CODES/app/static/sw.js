@@ -87,7 +87,9 @@
 // 「PLEASE FORWARD CONFIRMATION EMAIL TO <USER ID>@CHINA FOR PLAN UPDATE.」。
 // v156 2026-11-25: 酒店卡右侧下架 ✏️ 换酒店与 🗑 删除按钮——只留 Trip / Booking / Agoda 三枚外链
 // （R44 去钉住的续刀；set-hotel 的卡上入口随之撤除）。必须 bump 拉新缓存壳。
-const VERSION = 'v156';
+// v157 2026-11-25: 餐卡右侧下架 ✏️ 修改 / 📌 钉住 / 🗑 删除（系统餐位与命名餐厅一体，🍚 MORE 保留）
+// ——接 v156 酒店卡同款收口。必须 bump 拉新缓存壳。
+const VERSION = 'v157';
 const CACHE = 'chinatrip-h5-' + VERSION;
 const SHELL = [
   './', './index.html', './i18n.js', './qrcode.min.js', './sortable.min.js', './manifest.webmanifest', './agent.html',
