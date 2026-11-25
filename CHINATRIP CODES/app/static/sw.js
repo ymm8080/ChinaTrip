@@ -50,11 +50,19 @@
 // v137 2026-11-25: 首版生成提示时长文案纠正——实测 CP-SAT 端到端约 6–8s（最坏约 12s），
 // 原「约 30–60 秒/30–60 s」严重高估，改「约 5–15 秒/5–15 s」（index.html 两处 tf 回退原文 +
 // i18n.js en 词典 plan.gen.running）。必须 bump 拉新缓存壳。
+// v142 2026-11-25: 确认卡悬停简介支持中英文与别名正名——chip/句子里的地点名带
+// site_kinds 调 /api/pois/detail（kind=sight 排除酒店餐馆），后端按 name_aliases
+// 命中「故宫→故宫博物院」「鸟巢→鸟巢(国家体育场)」；英文读 intro_en，标题回正名。
+// 必须 bump 拉新缓存壳。
+// v141 2026-11-25: 确认卡回复文字里的地点名也接入悬停简介（此前只有 chip 可悬停，
+// 用户悬停句子里的地名无反应）；必须 bump 拉新缓存壳。
+// v139 2026-11-25: 确认卡悬停标题城市兜底——site_cities 未下发（旧会话/后端未重启）时
+// 用 /api/pois/detail 返回的 city 回填，不再依赖服务重启；必须 bump 拉新缓存壳。
 // v138 2026-11-25: 地点确认卡的 chip 接入正式行程卡同款悬停简介浮层（site_pop），
 // 后端在 site_confirm 响应下发 site_cities 供详情查询；必须 bump 拉新缓存壳。
 // v139 2026-11-25: 回城尾段腿一级化——回城卡带「落点→下一站」尾段打车腿与导航/打车链接，
 // hint 补「打车约N分 → 下一站」；车次卡贯通出发/到达站（北京南 → 上海虹桥，不只城市级）。
-const VERSION = 'v139';
+const VERSION = 'v142';
 const CACHE = 'chinatrip-h5-' + VERSION;
 const SHELL = [
   './', './index.html', './i18n.js', './qrcode.min.js', './sortable.min.js', './manifest.webmanifest', './agent.html',

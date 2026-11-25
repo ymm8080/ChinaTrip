@@ -38,6 +38,7 @@ def make_row(**over) -> SimpleNamespace:
         name_zh="洪崖洞",
         name_en="Hongya Cave",
         category="sight",
+        name_aliases=None,
         status="active",
         address="嘉陵江滨江路",
         opening_hours="09:00-23:00",
@@ -510,3 +511,91 @@ def test_access_fields_surface_for_far_site():
     assert "前门站" in body["access_note"]
     assert body["access_note_en"].startswith("Take the Mutianyu")
     assert body["access_source"] == "baidu-transit"
+
+
+def test_alias_hit_prefers_sight_over_same_word_food():
+    """确认卡短名/别名（故宫）不能命中「四季民福（故宫店）」——别名精确+景点类别优先。"""
+    food = make_row(
+        name_zh="四季民福烤鸭店（故宫店）",
+        category="food",
+        city="北京",
+        name_aliases=[],
+    )
+    museum = make_row(
+        name_zh="故宫博物院",
+        category="museum",
+        city="北京",
+        name_aliases=["故宫", "Forbidden City", "The Palace Museum"],
+        intro="明清两代皇家宫殿",
+        intro_en="The imperial palace of the Ming and Qing dynasties",
+    )
+    session = FakeSession([[], [food, museum]])
+    resp = make_app(session).get(
+        "/api/pois/detail",
+        params={"city": "北京", "name": "故宫", "kind": "sight"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["name_zh"] == "故宫博物院"
+    assert resp.json()["intro"] == "明清两代皇家宫殿"
+
+
+def test_alias_hit_works_for_english_name_and_intro():
+    """英文确认卡/英文地名同样走别名召回，并返回 intro_en。"""
+    museum = make_row(
+        name_zh="故宫博物院",
+        category="museum",
+        city="北京",
+        name_aliases=["故宫", "Forbidden City", "The Palace Museum"],
+        intro="明清两代皇家宫殿",
+        intro_en="The imperial palace of the Ming and Qing dynasties",
+    )
+    session = FakeSession([[], [museum]])
+    resp = make_app(session).get(
+        "/api/pois/detail",
+        params={"city": "北京", "name": "Forbidden City", "kind": "sight"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["name_zh"] == "故宫博物院"
+    assert body["intro_en"].startswith("The imperial palace")
+
+
+def test_sight_kind_does_not_fall_back_to_hotel_or_synthetic_bus_row():
+    """景点悬停宁缺毋滥：前门大街无 active 景点行时不能拿酒店/班车占位行冒充。"""
+    hotel = make_row(
+        name_zh="北京天安门前门大街漫心酒店",
+        category="hotel",
+        city="北京",
+    )
+    synthetic = make_row(
+        name_zh="🚌 去程 · 前门大街北口（北京旅游集散中心发车点） → 班车约98分",
+        category="attraction",
+        city="北京",
+    )
+    session = FakeSession([[], [hotel, synthetic]])
+    resp = make_app(session).get(
+        "/api/pois/detail",
+        params={"city": "北京", "name": "前门大街", "kind": "sight"},
+    )
+    assert resp.status_code == 404
+
+
+def test_english_name_hit_returns_intro_en():
+    """英文确认卡（Temple of Heaven）按 name_en 精确命中，并返回 intro_en。"""
+    temple = make_row(
+        name_zh="天坛",
+        name_en="Temple of Heaven",
+        category="temple",
+        city="北京",
+        intro="明清皇帝祭天场所",
+        intro_en="The Temple of Heaven was where emperors worshipped Heaven",
+    )
+    session = FakeSession([[temple]])
+    resp = make_app(session).get(
+        "/api/pois/detail",
+        params={"city": "北京", "name": "Temple of Heaven", "kind": "sight"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["name_zh"] == "天坛"
+    assert body["intro_en"].startswith("The Temple of Heaven")

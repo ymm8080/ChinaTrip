@@ -1436,6 +1436,14 @@ async def start_plan(
     if session.state == "site_confirm":
         body["sites"] = session.pending_sites
         body["sites_source"] = session.pending_sites_source
+        body["site_cities"] = {
+            n: (getattr(session, "site_cities", None) or {}).get(n, "")
+            for n in session.pending_sites
+        }
+        body["site_kinds"] = {
+            n: (getattr(session, "site_kinds", None) or {}).get(n, "sight")
+            for n in session.pending_sites
+        }
         # R25：文字日程（site_days 非空）→ 同一张卡上问顺序选边
         _sd = {
             str(n): int(d)
@@ -2232,6 +2240,14 @@ def _plan_turn_body(session, reply: str, change, *, alternatives: bool = True) -
     if session.state == "site_confirm":
         body["sites"] = session.pending_sites
         body["sites_source"] = session.pending_sites_source
+        body["site_cities"] = {
+            n: (getattr(session, "site_cities", None) or {}).get(n, "")
+            for n in session.pending_sites
+        }
+        body["site_kinds"] = {
+            n: (getattr(session, "site_kinds", None) or {}).get(n, "sight")
+            for n in session.pending_sites
+        }
         # R25：文字日程（site_days 非空）→ 同一张卡上问顺序选边
         _sd = {
             str(n): int(d)

@@ -324,6 +324,8 @@
   .site-pop{position:fixed;z-index:999;max-width:min(360px,86vw);max-height:300px;overflow:auto;
     background:var(--panel);color:var(--text);border:1px solid var(--border);border-radius:10px;
     box-shadow:0 6px 20px rgba(0,0,0,.22);padding:8px 10px;font-size:13px;line-height:1.55}
+  /* 确认卡回复文字里的地点名：与正式行程卡的地名链接同款悬停入口 */
+  .site-pop-inline{color:var(--accent);text-decoration:underline;cursor:pointer}
   .leg-link{color:var(--accent);text-decoration:underline;cursor:pointer}
   /* 接驳三行（2026-11-16）：与卡内其它行同色同字号，只靠「图标+段名」两列对齐做结构，
      不自带底色/边框/强调色（用户拍板「颜色跟其它一样」） */
@@ -3109,6 +3111,7 @@ async function sitePopShow(link) {
   sitePopHideNow();
   const city = link.getAttribute("data-city") || "", name = link.getAttribute("data-name") || "";
   if (!name) return;
+  const kind = link.getAttribute("data-kind") || "";
   const isAlt = link.classList.contains("alt-swap");
   const pop = el('<div class="site-pop" role="tooltip">' + sitePopHead(name, city) + '<div class="muted" style="margin-top:2px">…</div></div>');
   document.body.appendChild(pop);
@@ -3124,15 +3127,22 @@ async function sitePopShow(link) {
   place();
   pop.onmouseenter = () => clearTimeout(SITE_POP.hideTimer);
   pop.onmouseleave = sitePopHideNow;
-  const key = city + "\n" + name;
-  if (!SITE_POP.cache.has(key)) {
+  const key = city + "\n" + name + "\n" + kind;
+  if (!SITE_POP.cache.get(key)) { // null=上次失败：当作未缓存，重新请求
     let p = null;
-    try { p = await api("/api/pois/detail?city=" + encodeURIComponent(city) + "&name=" + encodeURIComponent(name), undefined, "GET"); }
+    const detailUrl = "/api/pois/detail?city=" + encodeURIComponent(city) +
+      "&name=" + encodeURIComponent(name) +
+      (kind ? "&kind=" + encodeURIComponent(kind) : "");
+    try { p = await api(detailUrl, undefined, "GET"); }
     catch (e) { p = null; }
-    SITE_POP.cache.set(key, p);
+    // 失败不缓存：后端刚重启/旧解析 404 时，缓存 null 会让用户在同一页
+    // 反复悬停都看不到简介，直到整页刷新。下一次悬停重新请求。
+    if (p) SITE_POP.cache.set(key, p);
   }
   if (SITE_POP.pop !== pop) return; // 悬停目标已换：旧浮层早被 sitePopHideNow 收走
   const p = SITE_POP.cache.get(key) || {};
+  // 确认卡可能没带 city（旧会话/后端未重启）：详情响应自带 city，直接回填标题。
+  const shownCity = city || p.city || "";
   const bits = [];
   if (isAlt) bits.push('<span class="muted">↺ ' + esc(I18N.tf("card.alt.popHint","同级备选：点击换为该点")) + "</span>");
   const intro = I18N.pick(p, "intro", "intro_en");
@@ -3146,7 +3156,7 @@ async function sitePopShow(link) {
   // 到达方式（w12_0037）：远郊件悬停就能看到「景区直达车末班 12:00」这类班次。
   const popAccess = I18N.pick(p, "access_note", "access_note_en");
   if (popAccess) bits.push("🚌 " + I18N.tf("brief.access", "怎么去：") + esc(popAccess));
-  pop.innerHTML = sitePopHead(name, city) +
+  pop.innerHTML = sitePopHead(I18N.pick(p, "name_zh", "name_en") || name, shownCity) +
     (bits.length ? '<div style="margin-top:2px">' + bits.join("<br>") + "</div>"
                  : '<div class="muted" style="margin-top:2px">' + I18N.t("brief.none") + "</div>");
   // 悬停首图（2026-11-11 拍板）：detail 响应本就带 photos，纯渲染零额外请求；
@@ -3161,7 +3171,7 @@ async function sitePopShow(link) {
   place();
 }
 document.addEventListener("mouseover", (ev) => {
-  const link = ev.target && ev.target.closest ? ev.target.closest("a.site-link, button.alt-swap, button.site-pop-chip") : null;
+  const link = ev.target && ev.target.closest ? ev.target.closest("a.site-link, button.alt-swap, button.site-pop-chip, span.site-pop-inline") : null;
   if (!link) return;
   if (SITE_POP.pop && SITE_POP.pop._link !== link) sitePopHideNow(); // 换目标：旧浮层立刻收走
   clearTimeout(SITE_POP.hideTimer);
@@ -3169,7 +3179,7 @@ document.addEventListener("mouseover", (ev) => {
   SITE_POP.showTimer = setTimeout(() => sitePopShow(link), 350);
 });
 document.addEventListener("mouseout", (ev) => {
-  const link = ev.target && ev.target.closest ? ev.target.closest("a.site-link, button.alt-swap, button.site-pop-chip") : null;
+  const link = ev.target && ev.target.closest ? ev.target.closest("a.site-link, button.alt-swap, button.site-pop-chip, span.site-pop-inline") : null;
   if (!link) return;
   sitePopScheduleHide();
 });
@@ -3575,6 +3585,30 @@ function closeSiteChipBoxes() {
   siteChipBoxes = [];
 }
 
+// 确认卡回复文字里的地点名也做成正式行程卡同款悬停入口（用户 2026-11-25 实报
+// 「悬停 sites 不出简介」：此前只给 chip 挂了 data-name，句子里的地名仍是死文字）。
+function siteReplyNode(text, body) {
+  const sites = ((body && body.sites) || []).filter(Boolean);
+  if (!sites.length) return el("<div>" + esc(text) + "</div>");
+  const cities = body.site_cities || {};
+  const kinds = body.site_kinds || {};
+  const pat = sites.slice().sort((a, b) => b.length - a.length)
+    .map(s => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
+  const re = new RegExp("(" + pat + ")", "g");
+  const wrap = document.createElement("div");
+  let last = 0, m;
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) wrap.appendChild(document.createTextNode(text.slice(last, m.index)));
+    const name = m[1];
+    wrap.appendChild(el('<span class="site-pop-inline" data-name="' + esc(name) +
+      '" data-city="' + esc(cities[name] || "") +
+      '" data-kind="' + esc(kinds[name] || "sight") + '">' + esc(name) + "</span>"));
+    last = m.index + name.length;
+  }
+  if (last < text.length) wrap.appendChild(document.createTextNode(text.slice(last)));
+  return wrap;
+}
+
 // 渲染 /plan/start 或 /plan/{id}/message 的响应（clarify 追问 / 行程卡 / 快捷条 / 违规）。
 function planRenderReply(holder, body, opts) {
   holder.textContent = "";
@@ -3599,7 +3633,9 @@ function planRenderReply(holder, body, opts) {
       // 与正式行程卡同款悬停简介：chip 挂 name/city，交给 SITE_POP 的委托监听。
       // city 由响应 site_cities 回填；没留档就空串，详情端点按名字全局找。
       const siteCity = (body.site_cities && body.site_cities[s]) || "";
-      const b = el('<button class="chip site-pop-chip" data-name="' + esc(s) + '" data-city="' + esc(siteCity) + '">' + esc(s) + "</button>");
+      const siteKind = (body.site_kinds && body.site_kinds[s]) || "sight";
+      const b = el('<button class="chip site-pop-chip" data-name="' + esc(s) +
+        '" data-city="' + esc(siteCity) + '" data-kind="' + esc(siteKind) + '">' + esc(s) + "</button>");
       if (briefRound) { must.add(s); b.style.background = "#2563eb"; b.style.color = "#fff"; }
       b.onclick = () => {
         if (must.has(s)) { must.delete(s); b.style.background = ""; b.style.color = ""; }
@@ -3642,7 +3678,11 @@ function planRenderReply(holder, body, opts) {
     box.appendChild(row2);
     holder.appendChild(box);
     siteChipBoxes.push(box);
-    if (body.reply) holder.appendChild(el('<div class="muted">' + esc(body.reply) + "</div>"));
+    if (body.reply) {
+      const rn = siteReplyNode(body.reply, body); // 句子里的地名同样可悬停
+      rn.className = "muted";
+      holder.appendChild(rn);
+    }
     // R25d both：引擎自排版行程已同时生成 → 一键切看
     if (body.alt_session_id)
       holder.appendChild(planAltChip(body.alt_session_id, body.alt_role));
@@ -3791,7 +3831,7 @@ function planRenderReply(holder, body, opts) {
     }
     // 2026-10-31（看熊猫案）：reply 压到行程卡下面——行程卡一长，顶部
     // 的说明/追问整段被顶出视野，用户看不见（用户拍板「问题移到最下面」）。
-    if (body.reply) holder.appendChild(el("<div>" + esc(body.reply) + "</div>"));
+    if (body.reply) holder.appendChild(siteReplyNode(body.reply, body));
     const vn = violationsNode(body.violations, I18N.tf("vio.hard","硬校验提示"));
     if (vn) holder.appendChild(vn);
   }

@@ -776,6 +776,8 @@ def test_start_brief_opens_sites_confirm_round():
     assert body["state"] == "site_confirm"
     assert body["sites"] == ["天坛", "颐和园"]
     assert body["sites_source"] == "brief"
+    assert set(body["site_cities"]) == set(body["sites"])  # H5 悬停简介需要 city
+    assert set(body["site_kinds"]) == set(body["sites"])  # H5 悬停按 sight/food 过滤
     assert "plan" not in body
     assert svc.list_groups()["wishlist"] == []
 
@@ -844,6 +846,8 @@ def test_images_endpoint_opens_site_round():
     assert body["state"] == "site_confirm"
     assert body["sites"] == ["天坛"]
     assert body["sites_source"] == "image"
+    assert set(body["site_cities"]) == set(body["sites"])  # H5 悬停简介需要 city
+    assert set(body["site_kinds"]) == set(body["sites"])  # H5 悬停按 sight/food 过滤
     assert svc.list_groups()["wishlist"] == []  # 确认前不入库
 
     r = client.post(

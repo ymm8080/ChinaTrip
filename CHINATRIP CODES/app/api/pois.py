@@ -19,7 +19,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel
-from sqlalchemy import text
+from sqlalchemy import or_, text
 from sqlalchemy.orm import Session, load_only, sessionmaker
 
 from app.config import get_settings
@@ -112,6 +112,7 @@ _COLS = (
     Poi.city,
     Poi.name_zh,
     Poi.name_en,
+    Poi.name_aliases,
     Poi.category,
     Poi.status,
     Poi.address,
@@ -162,6 +163,75 @@ def _city_variants(city: str) -> list[str]:
 def _norm_name(name: str) -> str:
     """Fuzzy key: drop parenthesized segments and all whitespace."""
     return re.sub(r"\s+", "", re.sub(r"[（(][^（）()]*[)）]", "", name))
+
+
+_SERVICE_CATEGORIES = {"food", "hotel", "transport", "restaurant", "lodging", "cafe"}
+_SYNTHETIC_PREFIXES = ("🚌", "🚕", "🚄", "✈️", "🚗")
+
+
+def _is_synthetic_poi_name(name: str) -> bool:
+    """接驳/班车占位行不是可介绍的景点（如「🚌 去程 · 前门大街北口…」）。"""
+    value = (name or "").strip()
+    return value.startswith(_SYNTHETIC_PREFIXES) or ("→" in value and "班车" in value)
+
+
+def _detail_row_score(row, wanted: str, norm: str, kind: str | None) -> float:
+    """详情候选排序：精确名/别名优先，其次前缀，最后包含；服务类降权。
+
+    确认卡的 chip 是「读点」出来的短名（故宫/鸟巢/慕田峪），不是 POI 正名。
+    只按 name_zh.contains 取第一行会命中「四季民福（故宫店）」这类酒店餐馆，
+    悬停简介就变成隔壁店。别名精确命中必须压过包含命中。
+    """
+    name = str(getattr(row, "name_zh", "") or "")
+    name_en = str(getattr(row, "name_en", "") or "")
+    aliases = [str(a) for a in (getattr(row, "name_aliases", None) or []) if a]
+    nname = _norm_name(name)
+    nen = _norm_name(name_en)
+    nalias = {_norm_name(a) for a in aliases}
+    score = 0.0
+    if name == wanted:
+        score += 10000
+    elif nname == norm:
+        score += 9000
+    if name_en and name_en == wanted:
+        score += 9500
+    elif name_en and nen == norm:
+        score += 8500
+    if norm and norm in nalias:
+        score += 8000
+    if norm and nname.startswith(norm):
+        score += 3000
+    elif norm and any(_norm_name(a).startswith(norm) for a in aliases):
+        score += 2500
+    elif norm and norm in nname:
+        score += 1000
+    if name_en and norm and nen.startswith(norm):
+        score += 2800
+    elif name_en and norm and norm in nen:
+        score += 900
+
+    cat = str(getattr(row, "category", "") or "").lower()
+    if kind == "sight":
+        score += -6000 if cat in _SERVICE_CATEGORIES else 200
+    elif kind == "food":
+        score += (
+            500 if cat == "food" else (-2000 if cat in {"hotel", "transport"} else 0)
+        )
+    elif cat in _SERVICE_CATEGORIES:
+        score -= 500
+    if _is_synthetic_poi_name(name):
+        score -= 7000
+    # 同分时短名更接近用户点名的核心实体（故宫 > 明清故宫（北京故宫、沈阳故宫））。
+    score -= min(len(name), 80) * 0.5
+    return score
+
+
+def _pick_detail_row(rows, wanted: str, norm: str, kind: str | None):
+    """从候选行里挑最像用户点名地点的一行；全是不相关服务行则返回 None。"""
+    if not rows:
+        return None
+    best = max(rows, key=lambda r: _detail_row_score(r, wanted, norm, kind))
+    return best if _detail_row_score(best, wanted, norm, kind) > 0 else None
 
 
 def _seed_meta_for(name: str, city: str | None = None) -> dict | None:
@@ -314,10 +384,12 @@ def _restaurant_to_model(row: Restaurant) -> PoiDetail:
 async def poi_detail(
     city: str,
     name: str,
+    kind: str | None = None,
     factory: Callable[[], Session] = Depends(get_poi_session_factory),
 ) -> PoiDetail:
     variants = _city_variants(city)
     wanted = name.strip()
+    norm = _norm_name(wanted)
     try:
         with factory() as session:
             # 退役闸（与主池 poi_details 口径一致）：retired/inactive/duplicate
@@ -326,21 +398,35 @@ async def poi_detail(
             q = session.query(Poi).options(load_only(*_COLS)).filter(alive)
             if variants:
                 q = q.filter(Poi.city.in_(variants))
-            row = q.filter(Poi.name_zh == wanted).first()
-            if row is None:
-                norm = _norm_name(wanted)
-                if norm:
-                    fq = session.query(Poi).options(load_only(*_COLS)).filter(alive)
-                    if variants:
-                        fq = fq.filter(Poi.city.in_(variants))
-                    row = fq.filter(Poi.name_zh.contains(norm)).first()
-            if row is None:
+            row = _pick_detail_row(
+                q.filter(or_(Poi.name_zh == wanted, Poi.name_en == wanted)).all(),
+                wanted,
+                norm,
+                kind,
+            )
+            if row is None and norm:
+                fq = session.query(Poi).options(load_only(*_COLS)).filter(alive)
+                if variants:
+                    fq = fq.filter(Poi.city.in_(variants))
+                # 别名与 name_zh 同权参与召回：确认卡读点常给短名/别名
+                # （故宫、鸟巢、国家体育场），只查 name_zh 会漏或命中隔壁店。
+                fq = fq.filter(
+                    or_(
+                        Poi.name_zh.contains(norm),
+                        Poi.name_en.ilike(f"%{wanted}%"),
+                        Poi.name_aliases.contains([wanted]),
+                        Poi.name_aliases.contains([norm]),
+                    )
+                )
+                row = _pick_detail_row(fq.all(), wanted, norm, kind)
+            if row is None and kind != "sight":
                 # 餐厅回退（2026-11-13）：行程卡餐位/餐厅名的气泡读侧——
                 # pois 查无再查 restaurants，命中即出同形状详情（照片/
                 # 简介/米其林徽标）。仍查无才 404（H5 静默跳过语义不变）。
                 rrow = _find_restaurant_for_photos(session, city, wanted)
                 if rrow is not None:
                     return _restaurant_to_model(rrow)
+            if row is None:
                 raise HTTPException(status_code=404, detail="poi not found")
             # 读侧 tier 接线（2026-10-28）：5A/unesco 名单行 tags 列 0 覆盖
             # （名单以骨架行存在），H5 徽章按行内 tags 永远看不到层级——出参
