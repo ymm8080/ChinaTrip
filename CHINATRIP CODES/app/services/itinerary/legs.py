@@ -330,11 +330,11 @@ def leg_pairs(plan: ItineraryPlan) -> list[tuple[VisitItem, VisitItem, float]]:
                     continue  # 贴下一站：不吃链、也不当出发卡
             if last_pt is not None:
                 km = haversine_km(last_pt, cur_pt)
-                # 酒店晨卡 → 远郊班次点：去程接驳链已由打车卡（taxi-board-*）
-                # 与去程班次卡（access-out-*）在时间线上呈现，不再叠直线腿。
+                # 晨卡自身没有坐标/锚点（位置是城市锚回退出来的）→ 远郊班次点：算不出
+                # 接驳链，只会出一条误导的直线打车腿——去程接驳已由打车卡/班次卡呈现，
+                # 不叠。晨卡带真坐标或带锚点时照旧成对出接驳链（基线行为）。
                 if km >= MIN_LEG_KM and not (
-                    str(getattr(last, "item_id", "") or "").startswith("hotel-morning")
-                    and _is_scheduled_stop(item)
+                    _point(last) is None and _is_scheduled_stop(item)
                 ):
                     out.append((last, item, km))
             last = item

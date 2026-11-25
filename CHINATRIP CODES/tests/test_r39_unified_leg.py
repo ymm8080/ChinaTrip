@@ -327,3 +327,39 @@ def test_h5_unified_leg_row_wiring_and_syntax(tmp_path):
             [node, "--check", str(f)], capture_output=True, text=True, encoding="utf-8"
         )
         assert r.returncode == 0, "%s: %s" % (f.name, (r.stderr or "")[:400])
+
+
+def test_morning_with_anchor_keeps_access_chain_to_scheduled_stop():
+    """晨卡自带锚点（location=None + anchor_location=城市锚）→ 远郊班次点：基线就成对
+    出接驳链（test_leg_fares 三条的形状）。「不叠直线腿」只约束自身无坐标/锚点、
+    位置靠城市锚回退的占位晨卡——第一版规则连带锚晨卡一起跳掉，把这三条打红。"""
+    morning = _v(
+        "hotel-morning-d1",
+        "从酒店出发",
+        time(8, 30),
+        time(9, 0),
+        cat="hotel",
+        dur=0,
+        anchor_location=GeoPoint(lon=116.4074, lat=39.9042),
+    )
+    plan = _plan(
+        [
+            morning,
+            _v(
+                "r1",
+                "慕田峪长城",
+                time(10, 40),
+                time(14, 40),
+                loc=REMOTE,
+                access_mode="shuttle",
+                access_service_minutes=90,
+                access_boarding_stop="前门大街北口",
+                access_boarding=GeoPoint(lon=116.3982, lat=39.8988),
+            ),
+        ]
+    )
+    assert _ids(plan) == [("hotel-morning-d1", "r1")]
+    annotate_legs(plan)
+    leg = plan.days[0].items[0]
+    assert leg.next_leg_mode == "access"
+    assert (leg.next_leg_detail or {}).get("direction") != "return"
