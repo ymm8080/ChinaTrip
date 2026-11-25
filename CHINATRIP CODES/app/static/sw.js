@@ -73,7 +73,9 @@
 // v149 2026-11-25: 无把手卡（合成/钉住）统一补占位，时间列全一致（只读视图不补）。
 // v150 2026-11-25: 任意两站之间都有交通腿——同址的午饭/晚饭也出一行（0.0 km · 步行约 1 分钟，
 // 出发时刻取卡内嵌件起点，如颐和园 12:00 午饭）；远郊班次点的回城专线链优先于 0 km 步行。
-const VERSION = 'v150';
+// v151 2026-11-25: 赞/👎/点评图标并入预约信息行右端（同一行右侧，不再独占一行）；
+// transfer 腿不出；无预约信息行的卡（餐饮/酒店）保持原独立行。必须 bump 拉新缓存壳。
+const VERSION = 'v151';
 const CACHE = 'chinatrip-h5-' + VERSION;
 const SHELL = [
   './', './index.html', './i18n.js', './qrcode.min.js', './sortable.min.js', './manifest.webmanifest', './agent.html',
