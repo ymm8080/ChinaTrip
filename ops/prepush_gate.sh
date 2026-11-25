@@ -59,10 +59,30 @@ echo "[pre-push gate] running full test suite (e2e excluded)... [$PY]"
 # collided with the sandbox bulk-delete guard (count 161 > threshold 50) and
 # crashed teardown AFTER 100% green — rc=1 with NO summary line, so the
 # gate's FAILED-line triage had nothing to read ("RED with no FAILED line").
-# A local basetemp confines the GC scan to .pytest_tmp/ (older local runs
-# only, keeps last 3) and never touches the system temp again.
-mkdir -p "$CODE_DIR/.pytest_tmp" 2>/dev/null
-"$PY" -m pytest "$TESTS" -q -p no:cacheprovider --basetemp="$CODE_DIR/.pytest_tmp/gate" > "$LOG" 2>&1
+# A local basetemp confines the GC scan to .pytest_tmp/ and never touches the
+# system temp again.
+#
+# 2026-11-26 R50: the basetemp must be UNIQUE PER RUN, not a fixed "gate".
+# pytest numbers tmp_path dirs identically in every run, so two concurrent
+# pytest processes sharing one basetemp share the exact same per-test dirs
+# and cross-contaminate each other's fixtures. That is what produced the
+# "1 failed ... 156 errors" pre-push gate on 2026-11-25 (test_travelers_api /
+# test_trip_items row-count asserts saw another run's rows); both files were
+# green solo. Reproduced locally: same basetemp => ERROR in one of two runs;
+# unique basetemps => 72 passed in both, twice over.
+#   * "$$" suffix = one private tree per gate process;
+#   * stale run trees are pruned best-effort (keep newest 3) at start, never
+#     at exit — a teardown-time bulk delete is exactly the R36-hours crash;
+#   * the parallel worktree session must use the same script (not a hand-run
+#     pytest with a fixed --basetemp) or the collision comes back.
+BASE="$CODE_DIR/.pytest_tmp"
+mkdir -p "$BASE" 2>/dev/null || true
+for _old in $(ls -1dt "$BASE"/gate "$BASE"/gate.* "$BASE"/solo.* 2>/dev/null | tail -n +4); do
+    rm -rf "$_old" 2>/dev/null || true
+done
+GATE_BASE="$BASE/gate.$$"
+SOLO_BASE="$BASE/solo.$$"
+"$PY" -m pytest "$TESTS" -q -p no:cacheprovider --basetemp="$GATE_BASE" > "$LOG" 2>&1
 rc=$?
 cat "$LOG"
 
@@ -81,12 +101,17 @@ case $rc in
         ;;
 esac
 
-# rc != 0 and not an infrastructure code: triage every FAILED nodeid solo.
-NODES=$(grep '^FAILED ' "$LOG" | sed 's/^FAILED //; s/ - .*$//' | sed 's/[[:space:]]*$//')
+# rc != 0 and not an infrastructure code: triage every FAILED and ERROR nodeid
+# solo. ERROR lines matter as much as FAILED: a fixture/setup error (the R50
+# concurrency class) never appears in the FAILED list, so triaging FAILED only
+# lets a contaminated run slip through as "one stale flake".
+NODES=$( { grep '^FAILED ' "$LOG"; grep '^ERROR ' "$LOG"; } \
+    | sed -e 's/^FAILED //' -e 's/^ERROR //' -e 's/ - .*$//' -e 's/[[:space:]]*$//' \
+    | grep -v '^$' | sort -u)
 if [ -z "$NODES" ]; then
     rm -f "$LOG"
     echo "" >&2
-    echo "[pre-push gate] RED: suite failed (exit $rc) with no FAILED line to triage." >&2
+    echo "[pre-push gate] RED: suite failed (exit $rc) with no FAILED/ERROR line to triage." >&2
     echo "[pre-push gate] PUSH BLOCKED. Fix the failure, then push again." >&2
     echo "[pre-push gate] Emergency bypass: git push --no-verify (fix immediately after)." >&2
     exit "$rc"
@@ -103,7 +128,7 @@ while IFS= read -r node; do
     # failure fails both (deterministic by definition).
     ok=0
     for _try in 1 2; do
-        if "$PY" -m pytest "$node" -q -p no:cacheprovider --basetemp="$CODE_DIR/.pytest_tmp/solo" >/dev/null 2>&1; then
+        if "$PY" -m pytest "$node" -q -p no:cacheprovider --basetemp="$SOLO_BASE" >/dev/null 2>&1; then
             ok=1
             break
         fi
