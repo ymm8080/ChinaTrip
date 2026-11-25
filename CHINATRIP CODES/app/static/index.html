@@ -2538,10 +2538,9 @@ function planCard(plan) {
             }
           }
         }
-        // 预约信息行（2026-11-26 起不再挂赞/👎/点评——改挂地址行右端，见 meta 行处）。
+        // 预约信息行（2026-11-26 起不再挂赞/👎/点评——改挂地址行右端，见 meta 行处；R46 起无预约信息的卡不再出「预约信息无」占位行）。
         if (it.reservation_hint) { blk.appendChild(el('<div style="display:flex;align-items:baseline;flex-wrap:wrap;gap:4px;margin:0 2px 6px ' + ind + ';color:#b26a00"><span style="flex:0 1 auto">🎫 ' + esc(it.reservation_hint) + ' <a class="fb-btn" data-kind="book" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '"' + (it.booking_url ? ' data-url="' + esc(it.booking_url) + '"' : "") + '>' + I18N.t("card.grab") + "</a></span>" + "</div>")); }
         else if (it.booking_url || it.category === "entertainment" || it.best_visit_time === "show") { blk.appendChild(el('<div style="display:flex;align-items:baseline;flex-wrap:wrap;gap:4px;margin:0 2px 6px ' + ind + ';color:#0b6e3d"><span style="flex:0 1 auto">🎭 ' + I18N.tf("card.showPref","演出票务") + ' <a class="fb-btn" data-kind="book" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '"' + (it.booking_url ? ' data-url="' + esc(it.booking_url) + '"' : "") + ' data-show="1">' + I18N.tf("card.showGo","订票直达 →") + "</a></span>" + "</div>")); }
-        else if (!isSynth && it.category !== "food" && it.category !== "hotel" && it.category !== "transfer") { blk.appendChild(el('<div class="muted" style="display:flex;align-items:baseline;flex-wrap:wrap;gap:4px;margin:0 2px 6px ' + ind + '"><span style="flex:0 1 auto">🎫 ' + I18N.tf("card.resv.none","预约信息无") + "</span>" + "</div>")); }
         // 乘车/步行腿不做点赞/好评（2026-11-23 用户令「乘车或者步行腿不需要点赞、
         // 打卡、好评功能等」）：腿是转场渲染件不是可评价 POI（「✅ 到了」打卡按钮
         // v41 已全站移除）。
