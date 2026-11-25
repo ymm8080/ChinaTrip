@@ -2299,7 +2299,10 @@ function planCard(plan) {
               : I18N.tf("card.bridge.walkTitle", "点击发起高德步行导航（起点=当前位置，终点=")) +
             esc(bDest.name) + I18N.tf("card.walk.titleClose", "）") + '"'
           : "";
-        const blk = el('<div class="visit-block" data-id="' + esc(it.item_id) + '"' + bridgeAttrs + '><div class="row">' + handle + timeCell + '<span style="flex:1 1 auto;min-width:170px">' + ((isTransferLeg || it.category === "hotel") ? esc(I18N.pick(it, "name", "name_en")) : '<a class="site-link" data-action="brief" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '" data-addr="' + esc(it.address || "") + '" data-hours="' + esc(it.opening_hours || "") + '">' + esc(I18N.pick(it, "name", "name_en")) + "</a>") + I18N.tf("card.paren.pre","（") + esc(I18N.city(it.city)) + I18N.tf("card.paren.suf","）") + (isNight ? hotelStayLabel(plan, it) : isMorning ? "" : (it.duration_minutes || 0) + I18N.t("card.minutes")) + tail + "</span>" + altChips + "</div></div>");
+        // R39：桥卡（leg-bridge-*）自身就是统一交通腿行——卡名位渲染「距下一站 X km ·
+        // 车程约 N 分钟 · 约 ¥Y」，行右 TAXI / ALL TRANSPORTATION 两枚按钮。
+        const brRow = isBridgeCard ? legRowParts(it, d.items, idx) : null;
+        const blk = el('<div class="visit-block" data-id="' + esc(it.item_id) + '"' + bridgeAttrs + '><div class="row">' + handle + timeCell + (isBridgeCard ? '<span class="muted" style="flex:1 1 auto;min-width:170px">' + brRow.text + '</span><span style="flex:0 0 auto;margin-left:auto;white-space:nowrap">' + brRow.buttons + "</span>" : '<span style="flex:1 1 auto;min-width:170px">' + ((isTransferLeg || it.category === "hotel") ? esc(I18N.pick(it, "name", "name_en")) : '<a class="site-link" data-action="brief" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '" data-addr="' + esc(it.address || "") + '" data-hours="' + esc(it.opening_hours || "") + '">' + esc(I18N.pick(it, "name", "name_en")) + "</a>") + I18N.tf("card.paren.pre","（") + esc(I18N.city(it.city)) + I18N.tf("card.paren.suf","）") + (isNight ? hotelStayLabel(plan, it) : isMorning ? "" : (it.duration_minutes || 0) + I18N.t("card.minutes")) + tail + "</span>") + altChips + "</div></div>");
         // 同街族并卡（2026-11-07 拍板「同街族合成一卡，时长取最大」）：
         // 子站折在主卡名下只读展示（删除/换点作用于整卡），主卡时长已
         // 是族内最长一站，不再叠加。二拍（并卡不消失案）：每子站独立
@@ -2318,64 +2321,21 @@ function planCard(plan) {
         // 回城段独立成卡后，景区卡只留一行提示（2026-11-16 用户拍板「回程卡应该是独立卡」）
         if (it.return_hint) blk.appendChild(el('<div class="muted" style="margin:0 2px 6px ' + ind + '">' + esc(it.return_hint) + "</div>"));
         const hasKm = typeof it.distance_to_next_km === "number";
+        // R39（2026-11-25 用户令「三种交通腿统一成一种：时间在前、打车按钮在右」）：站间
+        // 交通腿只出一行——[出发时刻] 距下一站 X km · 车程/步行/接驳约 N 分钟 · 约 ¥Y，行右
+        // 固定 🚕 TAXI + ALL TRANSPORTATION 两枚按钮（legRowParts）。桥卡（leg-bridge-*）
+        // 自身就是这一行；紧跟桥卡的上一张卡不再重复出页脚。
+        const afterIt = d.items[idx + 1];
+        const bridgeFollows = !!(afterIt && String(afterIt.item_id || "").indexOf("leg-bridge-") === 0 && it.end_time && String(it.end_time).slice(0, 5) === String(afterIt.start_time || "").slice(0, 5));
+        if (hasKm && !isBridgeCard && !bridgeFollows) {
+          const rowParts = legRowParts(it, d.items, idx);
+          blk.appendChild(el('<div class="leg-row" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:0 2px 6px ' + ind + '">' +
+            '<span class="t" style="flex:0 0 auto">' + fmtTime(it.end_time) + "</span>" +
+            '<span class="muted" style="flex:1 1 160px;min-width:0">' + rowParts.text + "</span>" +
+            '<span style="flex:0 0 auto;margin-left:auto;white-space:nowrap">' + rowParts.buttons + "</span></div>"));
+        }
         // 合成卡（独立回城卡）本身就是一段路：没有「距下一站」也要出接驳块
         if (hasKm || isSynth) {
-          let legSeg = "";
-          let taxiDest = null; // CALL TAXI 目标：>1.5km 且下一站有坐标的打车段
-          if (it.next_walk_minutes != null) {
-            let nxt = null; // 同日下一站（与 legs.annotate_legs 的口径一致：跳过 TransferItem）
-            // 同址占位餐卡（锚在本站的午饭/晚饭）不作导航终点：否则出一张
-            // 0 公里的驾车链接（2026-11-16 朱家角案「回程又没了」：腿挂回
-            // 景区卡后，下一张卡还是锚在景区的午饭；回城段同款跳过）。
-            const here0 = legPoint(it);
-            for (let j = idx + 1; j < d.items.length; j++) {
-              const cand = d.items[j];
-              if (cand.from_city) continue;
-              const cp = legPoint(cand);
-              if (here0 && cp && Math.abs(here0.lon - cp.lon) < 0.005 && Math.abs(here0.lat - cp.lat) < 0.005) continue;
-              nxt = cand;
-              break;
-            }
-            const km = it.distance_to_next_km;
-            if (km <= 1.5) {
-              // 打车模型：≤1.5km 近距步行口径（不付叫车开销，与后端 _taxi_leg_min 同式）
-              const walkHref = nxt ? amapWalkUrl(nxt) : "";
-              legSeg = walkHref
-                ? ' · <a class="leg-link" target="_blank" rel="noopener" href="' + walkHref + '" title="' + I18N.tf("card.walk.titlePre","在地图打开步行导航（起点=我的位置，终点=") + esc(nxt.name) + I18N.tf("card.walk.titleClose","）") + '">' + I18N.tf("card.walkLink","步行约 ") + it.next_walk_minutes + I18N.t("card.walk_min") + "</a>"
-                : I18N.t("card.walk") + it.next_walk_minutes + I18N.t("card.walk_min");
-            } else if (nxt || (it.next_leg_detail && it.next_leg_detail.to_city)) {
-              // 打车（默认出行）：车程=直线×1.3 绕行÷35km/h + 半小时叫车，封顶 180 分钟
-              // 2026-11-16 用户拍板：腿的时间/成本以后端为准（含景区专线接驳链），
-              // 旧会话没有 next_leg_minutes 才回落直线公式。
-              const taxiMin = (typeof it.next_leg_minutes === "number")
-                ? it.next_leg_minutes
-                : Math.min(180, Math.round(km * 1.3 / 35 * 60) + 30);
-              const legAccess = it.next_leg_mode === "access";
-              const legLabel = legAccess ? I18N.t("card.access") : I18N.t("card.taxi");
-              const legTail = legAccess ? I18N.t("card.access_min") : I18N.t("card.taxi_min");
-              const legFare = (typeof it.next_leg_cost_cny === "number")
-                ? I18N.t("card.fare") + it.next_leg_cost_cny
-                : "";
-              const driveHref = navDriveUrl(it, nxt); // 起点=当前站点；空餐卡只有锚点，吃 legPoint
-              legSeg = driveHref
-                ? ' · <a class="leg-link" target="_blank" rel="noopener" href="' + driveHref + '" title="' + I18N.tf("card.drive.titlePre","在地图打开驾车导航（起点=当前站点，含叫车等候约30分钟，终点=") + esc(nxt.name) + I18N.tf("card.drive.titleClose","）") + '">' + legLabel + taxiMin + legTail + legFare + "</a>"
-                : legLabel + taxiMin + legTail + legFare;
-              if (driveHref) taxiDest = nxt; // 有坐标才挂 CALL TAXI（按钮要写 data-lon/lat）
-            }
-          }
-          // CALL TAXI（2026-11-05）：车程右边内联小按钮，一键直唤高德打车页（起点=当前位置，终点=下一站）
-          const taxiP = taxiDest ? legPoint(taxiDest) : null;
-          const callBtn = taxiP
-            ? ' <button class="btn mini ghost" data-action="calltaxi" data-name="' + esc(taxiDest.name) + '" data-lon="' + taxiP.lon + '" data-lat="' + taxiP.lat + '" title="' + I18N.tf("card.callTaxi.title","一键转导航页打车：起点=当前位置，终点=下一站") + '">' + I18N.t("card.callTaxi") + "</button>"
-            : "";
-          if (hasKm) {
-            const legFrom = (it.next_leg_detail && it.next_leg_detail.to_city)
-              ? I18N.tf("card.to_city", "回城 ")
-              : I18N.t("card.to_next");
-            const leg = legFrom + it.distance_to_next_km.toFixed(1) + I18N.t("card.km") + legSeg +
-              (it.leg_source && it.leg_source !== "estimate" ? I18N.t("card.leg_amap") : I18N.t("card.leg_est")) + callBtn;
-            blk.appendChild(el('<div class="muted" style="margin:0 2px 6px ' + ind + '">' + leg + "</div>"));
-          }
           // 结构化接驳卡片（2026-11-16 用户拍板「TRANSPORTATION SHOULD SHOW LEG CLEARLY」，
           // 四拍定稿：固定三行表格——打车段 / 专线段 / 购票与官网，图标+段名+量化值）。
           const legD = it.next_leg_detail;
@@ -2486,7 +2446,9 @@ function planCard(plan) {
               tips.push(legD.service_name);
               if (legD.operator) tips.push(legD.operator);
             }
-            if (isRet && (Number(legD.taxi_km) || 0) > 0.05) {
+            // R39：页脚已用同一份 taxi_km/taxi_minutes 出统一腿行（含打车按钮），这里的
+            // 「打车 X km · 约 N 分钟 → 下一站」不再重复；专线段/购票行照旧。
+            if (isRet && !hasKm && (Number(legD.taxi_km) || 0) > 0.05) {
               rows.push('<div class="lr"><span class="li">\uD83D\uDE95</span><span class="lb">' +
                 I18N.tf("card.hop.lTaxi", "打车") + '</span><span class="lv">' +
                 I18N.tf("card.hop.valTaxi", "{km} km · 约 {n} 分钟 → {stop}")
@@ -2609,6 +2571,11 @@ function planCard(plan) {
       info.appendChild(el('<div class="muted">' + esc(bits.join("\u3000") || I18N.tf("brief.none","暂无更多简介信息")) + "</div>"));
       addMsg("flow-plan", "sys", info);
       enrichBrief(info, link.getAttribute("data-city"), link.getAttribute("data-name"));
+      return;
+    }
+    const na = ev.target.closest ? ev.target.closest('button[data-action="navall"]') : null;
+    if (na && box.contains(na)) { // R39 ALL TRANSPORTATION：去导航页看全部交通方式（起点=当前位置，终点=下一景点），会话外也可用
+      navAllTransportTo(na.getAttribute("data-name"), parseFloat(na.getAttribute("data-lon")), parseFloat(na.getAttribute("data-lat")));
       return;
     }
     const ct = ev.target.closest ? ev.target.closest('button[data-action="calltaxi"]') : null;
@@ -6043,6 +6010,94 @@ function switchTab(name) {
 }
 
 /* ---- CALL TAXI（行程卡 → 导航页打车，2026-11-04）：起点=当前位置，终点=下一站 ---- */
+
+/* ---- R39 统一交通腿行（2026-11-25 用户令「三种交通腿统一成一种：时间在前、打车按钮在右」） ----
+   站间交通腿只有一种呈现：距下一站 X km · 车程/步行/接驳约 N 分钟 · 约 ¥Y（来源），行右两枚
+   按钮：🚕 TAXI=高德打车（calltaxi，起点=当前位置）、ALL TRANSPORTATION=去导航页看全部
+   交通方式（起点=当前位置、目的地=下一景点）。站点页脚与桥卡（leg-bridge-*）共用本函数。 */
+function legRowParts(it, items, idx) {
+  const km = it.distance_to_next_km;
+  const isBridge = String(it.item_id || "").indexOf("leg-bridge-") === 0;
+  let nxt = null; // 同日下一站（与 legs.annotate_legs 的口径一致：跳过 TransferItem）
+  // 同址占位餐卡（锚在本站的午饭/晚饭）不作导航终点：否则出一张 0 公里的驾车链接
+  // （2026-11-16 朱家角案）。没坐标的卡（酒店夜卡等）也不作终点。
+  const here0 = legPoint(it);
+  for (let j = idx + 1; j < items.length; j++) {
+    const cand = items[j];
+    if (cand.from_city) continue;
+    const cp = legPoint(cand);
+    if (!cp) continue;
+    if (here0 && Math.abs(here0.lon - cp.lon) < 0.005 && Math.abs(here0.lat - cp.lat) < 0.005) continue;
+    nxt = cand;
+    break;
+  }
+  let seg = "";
+  let text = it.name || ""; // 无距离可算（两端缺坐标）：沿用后端桥卡名「前往下一站（自由安排）」
+  if (typeof km === "number") {
+    if (km <= 1.5) {
+      // 打车模型：≤1.5km 近距步行口径（不付叫车开销，与后端 _taxi_leg_min 同式）
+      const walkHref = nxt ? amapWalkUrl(nxt) : "";
+      seg = walkHref
+        ? ' · <a class="leg-link" target="_blank" rel="noopener" href="' + walkHref + '" title="' + I18N.tf("card.walk.titlePre", "在地图打开步行导航（起点=我的位置，终点=") + esc(nxt.name) + I18N.tf("card.walk.titleClose", "）") + '">' + I18N.tf("card.walkLink", "步行约 ") + it.next_walk_minutes + I18N.t("card.walk_min") + "</a>"
+        : I18N.t("card.walk") + it.next_walk_minutes + I18N.t("card.walk_min");
+    } else if (nxt || (it.next_leg_detail && it.next_leg_detail.to_city)) {
+      // 打车（默认出行）：车程/费用以后端为准（含景区专线接驳链），旧会话没有
+      // next_leg_minutes 才回落直线公式。
+      const taxiMin = (typeof it.next_leg_minutes === "number")
+        ? it.next_leg_minutes
+        : Math.min(180, Math.round(km * 1.3 / 35 * 60)) + 30;
+      const legAccess = it.next_leg_mode === "access";
+      const legLabel = legAccess ? I18N.t("card.access") : I18N.t("card.taxi");
+      const legTail = legAccess ? I18N.t("card.access_min") : I18N.t("card.taxi_min");
+      const legFare = (typeof it.next_leg_cost_cny === "number") ? I18N.t("card.fare") + it.next_leg_cost_cny : "";
+      const driveHref = navDriveUrl(it, nxt); // 起点=当前站点；空餐卡只有锚点，吃 legPoint
+      seg = driveHref
+        ? ' · <a class="leg-link" target="_blank" rel="noopener" href="' + driveHref + '" title="' + I18N.tf("card.drive.titlePre", "在地图打开驾车导航（起点=当前站点，含叫车等候约30分钟，终点=") + esc(nxt.name) + I18N.tf("card.drive.titleClose", "）") + '">' + legLabel + taxiMin + legTail + legFare + "</a>"
+        : legLabel + taxiMin + legTail + legFare;
+    }
+    const legFrom = (it.next_leg_detail && it.next_leg_detail.to_city)
+      ? I18N.tf("card.to_city", "回城 ")
+      : I18N.t("card.to_next");
+    const src = (it.leg_source && it.leg_source !== "estimate") ? I18N.t("card.leg_amap") : I18N.t("card.leg_est");
+    // 桥卡空档远大于车程时，保留此前写在桥卡名里的「先自由活动」提示
+    let free = "";
+    let waitNote = "";
+    if (isBridge && typeof it.next_leg_minutes === "number" && it.duration_minutes) {
+      const wait = Number(it.duration_minutes) - it.next_leg_minutes;
+      if (wait > 60) free = "🕒 " + I18N.tf("card.leg.freeThen", "自由活动约 {n} 分钟后 · ").replace("{n}", String(wait));
+      else if (wait > 10) waitNote = I18N.tf("card.leg.waitNote", "（含自由等候约 {n} 分钟）").replace("{n}", String(wait));
+    }
+    text = free + legFrom + km.toFixed(1) + I18N.t("card.km") + seg + src + waitNote;
+  }
+  let buttons = "";
+  const destP = nxt ? legPoint(nxt) : null;
+  if (nxt && destP) {
+    const nm = esc(nxt.name);
+    // 🚕 TAXI：一键转导航页打车（起点=当前位置，终点=下一站）；会话外也可用
+    buttons = ' <button class="btn mini ghost" data-action="calltaxi" data-name="' + nm + '" data-lon="' + destP.lon + '" data-lat="' + destP.lat + '" title="' + I18N.tf("card.callTaxi.title", "一键转导航页打车：起点=当前位置，终点=下一站") + '">' + I18N.t("card.callTaxi") + "</button>" +
+      // ALL TRANSPORTATION：去导航页看全部交通方式（起点=当前位置、目的地=下一景点地址）
+      ' <button class="btn mini ghost" data-action="navall" data-name="' + nm + '" data-lon="' + destP.lon + '" data-lat="' + destP.lat + '" title="' + I18N.tf("card.allTransport.title", "去导航页查看全部交通方式：起点=当前位置，终点=下一景点地址") + '">' + I18N.t("card.allTransport") + "</button>";
+  }
+  return { text: text, buttons: buttons };
+}
+
+/* R39 ALL TRANSPORTATION（2026-11-25 用户令）：去导航页看全部交通方式——起点=当前位置、
+   终点=下一景点（与 CALL TAXI 同一起终点口径，但不锁定打车：落「驾车」默认模式，模式条里
+   步行/公交/打车都可选）。 */
+function navAllTransportTo(name, lon, lat) {
+  if (!isFinite(lon) || !isFinite(lat)) { toast(I18N.tf("card.callTaxi.noCoord", "该站无坐标，请到导航页手动搜索终点")); return; }
+  switchTab("nav");
+  if (!NAV.meAuto) { // 起点被手动改过 → 回到当前位置，与 callTaxiTo/regeo 回填同式
+    NAV.me = { ...NAV.myPos };
+    NAV.meAuto = true;
+    NAV.meReal = NAV.geolocOk;
+    originKw.value = posName(NAV.me.name);
+    placeMe();
+  }
+  setDest({ name: name, location: { lon: lon, lat: lat } }); // 终点=下一景点：复用导航页 setDest（marker+flyTo+输入框回填）
+  const driveBtn = document.querySelector('#modeBar button[data-mode="driving"]');
+  if (driveBtn) driveBtn.click(); // 落驾车默认模式（模式条里步行/公交/打车都可选）
+}
 
 function callTaxiTo(name, lon, lat) {
   if (!isFinite(lon) || !isFinite(lat)) { toast(I18N.tf("card.callTaxi.noCoord", "该站无坐标，请到导航页手动搜索终点")); return; }

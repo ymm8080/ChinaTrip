@@ -180,6 +180,7 @@ def attach_gap_bridges(plan: "ItineraryPlan") -> "ItineraryPlan":
                     end_time=_time(g1 // 60 % 24, g1 % 60),
                     duration_minutes=gap,
                     synthetic=True,
+                    **_unified_leg_fields(prev, nxt, mode, minutes),
                 )
             )
         if added:
@@ -191,6 +192,47 @@ def attach_gap_bridges(plan: "ItineraryPlan") -> "ItineraryPlan":
                 )
             )
     return plan
+
+
+def _unified_leg_fields(prev: VisitItem, nxt: VisitItem, mode: str, minutes) -> dict:
+    """桥卡的统一腿字段（R39，2026-11-25 用户令「三种交通腿统一成一种」）。
+
+    桥卡与站点页脚带同一套字段（距离/方式/分钟/费用），H5 才能把每段转场
+    渲染成同一行。距离/费用优先继承前卡的 annotate 腿；前卡没有腿时按两端
+    坐标直线距离 + 城市价目表现估，缺坐标就留空（前端出「自由安排」），
+    不编造。
+    """
+    out: dict = {}
+    km = getattr(prev, "distance_to_next_km", None)
+    if not isinstance(km, (int, float)):
+        a = getattr(prev, "location", None) or getattr(prev, "anchor_location", None)
+        b = getattr(nxt, "location", None) or getattr(nxt, "anchor_location", None)
+        if a is not None and b is not None:
+            km = round(_haversine_km(a, b), 2)
+    if isinstance(km, (int, float)) and km > 0:
+        km = float(km)
+        out["distance_to_next_km"] = round(km, 2)
+        walk = getattr(prev, "next_walk_minutes", None)
+        out["next_walk_minutes"] = (
+            walk if isinstance(walk, int) else max(1, round(km * 1000.0 * 1.3 / 80.0))
+        )
+    if mode and isinstance(minutes, int):
+        out["next_leg_mode"] = mode
+        out["next_leg_minutes"] = int(minutes)
+        cost = getattr(prev, "next_leg_cost_cny", None)
+        if not isinstance(cost, (int, float)) and mode == "taxi" and km:
+            from ...itinerary.fares import estimate_taxi_fare
+
+            cost = estimate_taxi_fare(
+                getattr(nxt, "city", None) or getattr(prev, "city", None) or "",
+                float(km),
+            )
+        if isinstance(cost, (int, float)):
+            out["next_leg_cost_cny"] = cost
+    src = getattr(prev, "leg_source", None)
+    if src:
+        out["leg_source"] = src
+    return out
 
 
 def resolve_bridge_prev(plan: "ItineraryPlan", bridge_id: str) -> VisitItem:

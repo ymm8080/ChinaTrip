@@ -177,4 +177,9 @@ def test_h5_frontend_reads_site_names_en():
     assert html.count("site_names_en") >= 3
     assert html.count('I18N.locale() !== "zh"') >= 2
     sw = (root / "app" / "static" / "sw.js").read_text(encoding="utf-8")
-    assert "const VERSION = 'v143';" in sw
+    # 版本号每次前端改动都会递增（取 max+1）：断言下限而非钉死某个值——
+    # 否则别人下一次 bump 就把本测试打红（R39 交通腿统一 bump v144 实锤）。
+    import re
+
+    m = re.search(r"const VERSION = 'v(\d+)';", sw)
+    assert m and int(m.group(1)) >= 143

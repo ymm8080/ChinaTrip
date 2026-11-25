@@ -62,7 +62,10 @@
 // 后端在 site_confirm 响应下发 site_cities 供详情查询；必须 bump 拉新缓存壳。
 // v139 2026-11-25: 回城尾段腿一级化——回城卡带「落点→下一站」尾段打车腿与导航/打车链接，
 // hint 补「打车约N分 → 下一站」；车次卡贯通出发/到达站（北京南 → 上海虹桥，不只城市级）。
-const VERSION = 'v143';
+// v144 2026-11-25: 交通腿统一成一种——站点页脚/桥卡/回程打车行三种呈现并成一行「出发时刻 距下一站 X km ·
+// 车程约 N 分钟 · 约 ¥Y」，行右固定 TAXI + ALL TRANSPORTATION（去导航页看全部交通方式）；
+// 酒店晨卡出到第一个景点的交通腿。必须 bump 拉新缓存壳。
+const VERSION = 'v144';
 const CACHE = 'chinatrip-h5-' + VERSION;
 const SHELL = [
   './', './index.html', './i18n.js', './qrcode.min.js', './sortable.min.js', './manifest.webmanifest', './agent.html',

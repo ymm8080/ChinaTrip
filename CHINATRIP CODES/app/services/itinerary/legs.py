@@ -259,6 +259,35 @@ def _next_point_after(items: list, idx: int) -> GeoPoint | None:
     return None
 
 
+def _hotel_depart_point(item: VisitItem) -> GeoPoint | None:
+    """酒店晨卡的城市锚（R39，2026-11-25 用户令「酒店到第一个景点也要有
+
+    交通腿」）：占位晨卡没有坐标，按当天所在城市的中心点当出发点——晨卡
+    city=当天 base_city（跨城日随宿主城落）。真酒店带坐标时照旧走
+    :func:`_point` 的真坐标，不进这里。"""
+    if not str(getattr(item, "item_id", "") or "").startswith("hotel-morning"):
+        return None
+    from app.services.weather_open_meteo import CITY_COORDS
+
+    anchor = CITY_COORDS.get(str(getattr(item, "city", None) or "").removesuffix("市"))
+    if anchor is None:
+        return None
+    return GeoPoint(lon=anchor[1], lat=anchor[0])
+
+
+def _depart_point(last: VisitItem | None) -> GeoPoint | None:
+    """出发卡的位置：普通卡/锚定餐卡取自身或锚点，酒店晨卡取城市锚。"""
+    if last is None:
+        return None
+    return _point(last) or _hotel_depart_point(last)
+
+
+def _is_scheduled_stop(item: VisitItem) -> bool:
+    """带班次接驳档案的站点（景区专线/市郊铁路/轮渡）——去程链另成卡。"""
+    mode, _boarding, service, _wait, _last = _access_profile(item)
+    return mode in SCHEDULED_ACCESS_MODES and bool(service)
+
+
 def leg_pairs(plan: ItineraryPlan) -> list[tuple[VisitItem, VisitItem, float]]:
     """Adjacent same-day visit pairs worth measuring, with straight-line km.
 
@@ -284,8 +313,13 @@ def leg_pairs(plan: ItineraryPlan) -> list[tuple[VisitItem, VisitItem, float]]:
             if isinstance(item, TransferItem) or item.start_time is None:
                 last = None
                 continue
-            last_pt = _point(last) if last is not None else None
+            last_pt = _depart_point(last)
             cur_pt = _point(item)
+            if cur_pt is None:
+                # R39：酒店晨卡=「从酒店出发」的出发卡，位置按城市锚回退；
+                # 只当出发卡不当目的地（末站→夜卡的回程腿另有回城链口径，
+                # 这里不抢——夜卡仍透明）。
+                cur_pt = _hotel_depart_point(item)
             if cur_pt is None:
                 # 无坐标卡（占位餐卡没锚）不吃链：腿直接连到再下一个带地址
                 # 的卡（2026-11-16 用户口径「餐卡没地址就取再下个景点的地址」）
@@ -296,7 +330,12 @@ def leg_pairs(plan: ItineraryPlan) -> list[tuple[VisitItem, VisitItem, float]]:
                     continue  # 贴下一站：不吃链、也不当出发卡
             if last_pt is not None:
                 km = haversine_km(last_pt, cur_pt)
-                if km >= MIN_LEG_KM:
+                # 酒店晨卡 → 远郊班次点：去程接驳链已由打车卡（taxi-board-*）
+                # 与去程班次卡（access-out-*）在时间线上呈现，不再叠直线腿。
+                if km >= MIN_LEG_KM and not (
+                    str(getattr(last, "item_id", "") or "").startswith("hotel-morning")
+                    and _is_scheduled_stop(item)
+                ):
                     out.append((last, item, km))
             last = item
     return out
