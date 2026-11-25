@@ -2530,8 +2530,17 @@ function planCard(plan) {
                   .replace("{n}", String(legD.taxi_minutes || 0))
                   .replace("{stop}", esc(legD.next_stop || "")) + "</span></div>");
             }
+            // R49：购票行只在真有可购接驳段（专线名/运营方/班次/票价/接驳费
+            // 任一非空）时渲染；纯打车回城腿（R49 起后端接驳槽位发 null，
+            // 存量会话里已持久化的仍是空串/零值）无票可购，不再出
+            // 「🎟 购票 / 打车约 ¥X + 接驳约 ¥0」无信息退化块——打车费用
+            // 仍在卡底统一腿行（约 ¥X）。
+            const hasShuttle = !!(legD.service_name || legD.operator || legD.fare_text ||
+              (legD.access_cost || 0) > 0 ||
+              (Array.isArray(legD.departures) && legD.departures.length) ||
+              (Array.isArray(legD.returns) && legD.returns.length));
             const pay = [];
-            if ((legD.taxi_cost || 0) + (legD.access_cost || 0) > 0) {
+            if (hasShuttle && (legD.taxi_cost || 0) + (legD.access_cost || 0) > 0) {
               pay.push(I18N.tf("card.hop.cost", "打车约 ¥{a} + 接驳约 ¥{b}")
                 .replace("{a}", String(legD.taxi_cost || 0)).replace("{b}", String(legD.access_cost || 0)));
             }

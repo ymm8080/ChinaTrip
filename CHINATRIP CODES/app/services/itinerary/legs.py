@@ -711,6 +711,14 @@ def _attach_plain_tail_return(day: DayPlan, timed: list[VisitItem]) -> None:
     last.next_leg_minutes = int(minutes)
     last.next_leg_cost_cny = estimate_taxi_fare(last.city or day.base_city, km)
     last.next_leg_cost_note = None
+    # R49：纯打车回城不伪造接驳空槽——统一 schema 曾把 gateway/alight/
+    # service_name/operator/departures/returns/fare_text 写成空串/空表、
+    # access_cost 写成 0，线上无法区分「没有接驳段」和「有一段 ¥0 接驳」，
+    # 前端渲染出「🎟 购票 / 打车约 ¥29 + 接驳约 ¥0」无信息退化块（用户实报
+    # 会话 f19b103f day3 鸟巢卡）。槽位一律发 None；回城链信号
+    # direction/to_city/时刻/打车字段原样保留（回城卡投影/散场压缩/回城日
+    # 补点亲和闸/桥卡信号都只依赖这些，逐一核对过）。存量会话已持久化的
+    # 空槽由前端 hasShuttle 渲染闸兜住（only_missing 读路径不会重算它们）。
     last.next_leg_detail = {
         "mode": "taxi",
         "direction": "return",
@@ -721,13 +729,13 @@ def _attach_plain_tail_return(day: DayPlan, timed: list[VisitItem]) -> None:
         "wait_minutes": 0,
         "service_minutes": int(minutes),
         "walk_minutes": 0,
-        "gateway": "",
-        "alight": "",
+        "gateway": None,
+        "alight": None,
         "next_stop": anchor_name,
-        "service_name": "",
+        "service_name": None,
         "operator": None,
-        "departures": [],
-        "returns": [],
+        "departures": None,
+        "returns": None,
         "fare_text": None,
         "board_time": _clock(start_min),
         "next_item_id": None,
@@ -736,7 +744,7 @@ def _attach_plain_tail_return(day: DayPlan, timed: list[VisitItem]) -> None:
             _clock(start_min + int(minutes)) if start_min is not None else None
         ),
         "taxi_cost": estimate_taxi_fare(last.city or day.base_city, km),
-        "access_cost": 0,
+        "access_cost": None,
         "booking_url": None,
         "official_url": None,
     }
