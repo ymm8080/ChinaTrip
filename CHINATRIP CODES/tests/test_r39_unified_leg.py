@@ -561,3 +561,36 @@ def test_open_meal_leg_gaps_respects_night_card_boundary():
         "顺延把末站压到夜卡上: v10 %s-%s vs night %s"
         % (str(v10.start_time)[:5], str(v10.end_time)[:5], str(night.start_time)[:5])
     )
+
+
+def test_make_room_for_meal_stops_at_night_card(monkeypatch):
+    """餐卡让位链遇夜卡即整段失败（rule1 重叠横幅的第二条路径）。
+
+    R39 实锤（会话 09247aac Day3）：晚饭 18:35-19:20 与 45 分钟奥园同窗（不足 3 小时
+    大点、不算嵌套宿主），_make_room_for_meal 把奥园/鸟巢整体右推，只查 day_end 21:30
+    不看夜卡 21:16 → 鸟巢 20:35-21:20 压夜卡。让位链压线=整段失败，一个字节都不动。
+    """
+    from app.services.agent import plan as plan_mod
+
+    monkeypatch.setattr(plan_mod, "generic_entry_cap", lambda *a, **k: None)
+
+    dinner = VisitItem(
+        item_id="meal-dinner-3",
+        name="晚饭",
+        city="北京",
+        day=1,
+        category="food",
+        start_time=time(18, 35),
+        end_time=time(19, 20),
+        duration_minutes=45,
+    )
+    v9 = _v("v9", "奥林匹克公园", time(18, 35), time(19, 20), loc=(116.39, 40.00))
+    v10 = _v("v10", "鸟巢(国家体育场)", time(19, 53), time(20, 38), loc=(116.39, 40.01))
+    night = _v(
+        "hotel-night-d3", "回酒店·夜间休息", time(21, 16), time(21, 30), cat="hotel"
+    )
+    day = _plan([dinner, v9, v10, night]).days[0]
+    ok = plan_mod._make_room_for_meal(day, dinner, 18 * 60 + 35, 45)
+    assert ok is False
+    assert str(v9.start_time)[:5] == "18:35"
+    assert str(v10.end_time)[:5] == "20:38"

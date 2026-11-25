@@ -14499,6 +14499,14 @@ def _make_room_for_meal(day: DayPlan, item: VisitItem, start: int, dur: int) -> 
     顺延后再顺延被它压住的下一件（保持件长）；遇钉住/演出/交通即放弃，
     全部检查通过才一次性落盘。"""
     day_end = MEAL_CARD_DAY_END
+    # R39：夜卡（酒店卡）是硬边界——顺延不得压到它。此前只查 day_end 21:30，
+    # 夜卡 21:16 起时会把末站推到 21:20（rule1 重叠横幅实锤）。
+    night_starts = [
+        _minutes_of(o.start_time)
+        for o in day.items
+        if is_hotel_night(o) and getattr(o, "start_time", None) is not None
+    ]
+    night_bound = min(night_starts) if night_starts else None
     timed = [
         other
         for other in day.items
@@ -14535,7 +14543,7 @@ def _make_room_for_meal(day: DayPlan, item: VisitItem, start: int, dur: int) -> 
             new_start = cursor + leg
         new_dur = max(30, e - s)
         new_end = new_start + new_dur
-        if new_end > day_end:
+        if new_end > day_end or (night_bound is not None and new_end > night_bound):
             return False
         if not _fits_hours_window(_hours_from_visit(other), new_start, new_dur):
             return False
