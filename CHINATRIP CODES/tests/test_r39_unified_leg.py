@@ -516,10 +516,48 @@ def test_bridge_between_same_venue_cards_is_marked_same_venue():
     br = _bridge(plan)
     assert br is not None
     assert br.next_leg_mode == "same_venue"
-    assert br.distance_to_next_km is None
+    # R39 收口：同址也算一段腿——给真实微距 + 步行 1 分钟（前端不再走「同址」文案）
+    assert br.distance_to_next_km == pytest.approx(0.0, abs=0.02)
+    assert br.next_walk_minutes == 1
     assert br.next_leg_minutes is None
     assert "同址" in (br.name or "")
     assert "自由安排" not in (br.name or "") and "前往下一站" not in (br.name or "")
     assert br.name_en  # 英文界面有对应文案
     # 桥卡名不内嵌目的地名（既有口径）
     assert "午餐" not in (br.name or "")
+
+
+def test_open_meal_leg_gaps_respects_night_card_boundary():
+    """嵌套同址晚饭后的顺延不得压到夜卡（rule1 重叠横幅的根因）。
+
+    R39 实锤（用户会话 09247aac Day3）：晚饭 18:35-19:20 与奥园同址嵌套，顺延只查
+    day_end 21:30，把末站鸟巢推到 21:20，压到 21:16 起的夜卡上 → 出站横幅
+    「鸟巢(国家体育场)(20:35-21:20) 与 回酒店(21:16-21:30) 时间区间重叠」。
+    钉住件（夜卡）是硬边界：顺延会压线就整段不动（保持嵌套原态，rule1 不报）。
+    """
+    from app.services.agent.plan import _open_meal_leg_gaps
+
+    dinner = VisitItem(
+        item_id="meal-dinner-3",
+        name="晚饭",
+        city="北京",
+        day=1,
+        category="food",
+        start_time=time(17, 0),
+        end_time=time(17, 45),
+        duration_minutes=45,
+        anchor_from_prev=True,
+        anchor_location=GeoPoint(lon=116.0, lat=39.8),
+    )
+    v9 = _v("v9", "奥林匹克公园", time(17, 45), time(18, 30), loc=(116.39, 40.00))
+    v10 = _v("v10", "鸟巢(国家体育场)", time(18, 30), time(19, 15), loc=(116.39, 40.01))
+    night = _v(
+        "hotel-night-d3", "回酒店·夜间休息", time(19, 40), time(20, 10), cat="hotel"
+    )
+    plan = _plan([dinner, v9, v10, night])
+    _open_meal_leg_gaps(plan)
+    assert v10.end_time is not None
+    assert str(v10.end_time)[:5] <= str(night.start_time)[:5], (
+        "顺延把末站压到夜卡上: v10 %s-%s vs night %s"
+        % (str(v10.start_time)[:5], str(v10.end_time)[:5], str(night.start_time)[:5])
+    )

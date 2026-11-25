@@ -14099,6 +14099,14 @@ def _open_meal_leg_gaps(plan: ItineraryPlan) -> list[str]:
             remaining = needed - shift_back
             moves: list[tuple[VisitItem, int, bool]] = []
             ok = True
+            # R39：钉住件（夜卡等）是硬边界——顺延不得压到它。此前只查 day_end
+            # 21:30，夜卡 21:16 起时把末站推到 21:20（rule1 重叠横幅实锤）。
+            boundary: int | None = None
+            for item in chain[idx + 1 :]:
+                if not _meal_gap_movable(item):
+                    if item is not site:
+                        boundary = _minutes_of(item.start_time)
+                    break
             for item in chain[idx + 1 :]:
                 if not _meal_gap_movable(item):
                     if item is site:
@@ -14106,7 +14114,9 @@ def _open_meal_leg_gaps(plan: ItineraryPlan) -> list[str]:
                     break  # 钉住件是边界：链到此为止，不越过它推后面的卡
                 dur = int(item.duration_minutes or DEFAULT_VISIT_MINUTES)
                 new_start = _minutes_of(item.start_time) + remaining
-                if new_start + dur > day_end:
+                if new_start + dur > day_end or (
+                    boundary is not None and new_start + dur > boundary
+                ):
                     ok = False
                     break
                 if not _fits_hours_window(_hours_from_visit(item), new_start, dur):

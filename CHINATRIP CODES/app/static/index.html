@@ -6032,9 +6032,14 @@ function switchTab(name) {
    按钮：🚕 TAXI=高德打车（calltaxi，起点=当前位置）、ALL TRANSPORTATION=去导航页看全部
    交通方式（起点=当前位置、目的地=下一景点）。站点页脚与桥卡（leg-bridge-*）共用本函数。 */
 function legRowParts(it, items, idx) {
-  // 同址占位（午/晚饭就在刚逛完的景点里）：时间线占位，不是一段交通——不出按钮
+  // 同址占位（午/晚饭就在刚逛完的景点里）：也算一段腿——步行约 1 分钟；不出按钮
   if (it.next_leg_mode === "same_venue") {
-    return { text: I18N.pick(it, "name", "name_en") || "", buttons: "" };
+    const kmTxt = (typeof it.distance_to_next_km === "number") ? it.distance_to_next_km.toFixed(1) : "0.0";
+    const walkMin = (typeof it.next_walk_minutes === "number") ? it.next_walk_minutes : 1;
+    return {
+      text: I18N.t("card.to_next") + kmTxt + I18N.t("card.km") + I18N.t("card.walk") + walkMin + I18N.t("card.walk_min"),
+      buttons: "",
+    };
   }
   const km = it.distance_to_next_km;
   const isBridge = String(it.item_id || "").indexOf("leg-bridge-") === 0;

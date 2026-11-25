@@ -232,8 +232,19 @@ def _unified_leg_fields(prev: VisitItem, nxt: VisitItem, mode: str, minutes) -> 
     不编造。
     """
     if mode == SAME_VENUE_MODE:
-        # 同址占位：只有方式标记，没有距离/车程/费用可给
-        return {"next_leg_mode": SAME_VENUE_MODE}
+        # 同址占位：也算一段腿——给出真实微距 + 步行 1 分钟（前端渲染「距下一站
+        # 0.0 km · 步行约 1 分钟」，仍不出打车/导航按钮：没有要去的另一个地方）。
+        _a, _b = _pt(prev), _pt(nxt)
+        _km = (
+            round(_haversine_km(_a, _b), 2)
+            if (_a is not None and _b is not None)
+            else 0.0
+        )
+        return {
+            "next_leg_mode": SAME_VENUE_MODE,
+            "distance_to_next_km": _km,
+            "next_walk_minutes": 1,
+        }
     out: dict = {}
     km = getattr(prev, "distance_to_next_km", None)
     if not isinstance(km, (int, float)):
