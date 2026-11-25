@@ -75,7 +75,9 @@
 // 出发时刻取卡内嵌件起点，如颐和园 12:00 午饭）；远郊班次点的回城专线链优先于 0 km 步行。
 // v151 2026-11-25: 赞/👎/点评图标并入预约信息行右端（同一行右侧，不再独占一行）；
 // transfer 腿不出；无预约信息行的卡（餐饮/酒店）保持原独立行。必须 bump 拉新缓存壳。
-const VERSION = 'v151';
+// v152 2026-11-25: 必去确认卡迟到确认不再出死横幅——勾选地点自动转成消息走对话续排（没勾就静默收卡）；
+// 开新确认卡前先失效旧卡（旧 ✅ 跨轮可点曾打出 409 死横幅）。必须 bump 拉新缓存壳。
+const VERSION = 'v152';
 const CACHE = 'chinatrip-h5-' + VERSION;
 const SHELL = [
   './', './index.html', './i18n.js', './qrcode.min.js', './sortable.min.js', './manifest.webmanifest', './agent.html',

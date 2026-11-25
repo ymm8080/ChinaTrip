@@ -781,7 +781,7 @@
       "plan.photo.title": "Send photos: note screenshots or itinerary shots — places found are added to your wishlist",
       "plan.photo.reading": "⏳ Reading places from the image…",
       "plan.photo.fail": "Could not read the image: ",
-      "plan.sites.late": "ℹ️ This must-visit round has already closed (perhaps confirmed). Just message me below with any places to add.",
+      "plan.sites.lateSend": "Please add @SITES@ to my itinerary and replan.",
       "plan.sites.none": "(none picked)",
       "plan.sites.writing": "⏳ Writing to your wishlist…",
       "plan.slow.done": "✅ Background replan finished",

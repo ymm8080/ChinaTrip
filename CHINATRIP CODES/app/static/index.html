@@ -3635,6 +3635,7 @@ function planRenderReply(holder, body, opts) {
   if (!(body.state === "site_confirm" && (body.sites || []).length)) closeSiteChipBoxes();
   if (opts && opts.banner) holder.appendChild(el('<div class="muted">' + esc(opts.banner) + "</div>"));
   if (body.state === "site_confirm" && (body.sites || []).length) {
+    closeSiteChipBoxes(); // R42：开新确认卡前先失效旧卡（旧 ✅ 跨轮可点曾打出 409 死横幅；「新链接轮也关」在此兑现）
     // 链接/文字描述里认出的多个地点：先问哪些要排（确认后写入行程中心心愿单）。
     // 2026-11-14：文字/视频描述轮默认全选，点掉不要的；链接轮仍是不点=不入库。
     const sitesSource = body.sites_source || "link";
@@ -4196,10 +4197,14 @@ async function planConfirmSites(allSites, must, sequence) {
     planRenderSafe(holder, body); // 非 site_confirm 状态会顺手关掉旧 chips
   } catch (err) {
     if (err && err.detail === "not_awaiting_sites") {
-      // 迟到的确认（已确认过/文字已回答/服务重启换新会话）：不是故障，
-      // 提示改走对话，别再吓用户，也不弹红色 toast。
-      holder.textContent = I18N.tf("plan.sites.late","ℹ️ 这轮必去确认已经结束（可能已确认过）。想加的地点直接在下面发消息告诉我即可。");
+      // R42（用户令「提示不许再出现，规划要继续」）：迟到的确认（已确认过/文字已
+      // 回答/服务重启换新会话）不再出死横幅——勾选的地点自动转成一条消息走对话
+      // 通道，后端慢车道/主车道本就会续排；没勾就静默收卡。不 await：确认按钮的
+      // busy() 立即收尾，planSend 自管气泡/轮询/报错。
       closeSiteChipBoxes();
+      holder.textContent = "";
+      if (mand.length)
+        planSend(I18N.tf("plan.sites.lateSend", "请把「@SITES@」加入行程并重新规划").replace("@SITES@", mand.join("、")));
     } else {
       holder.textContent = I18N.tf("plan.sites.fail","❌ 确认失败：") + detailText(err.detail);
       failToast(err);
@@ -4266,9 +4271,9 @@ async function planBatchImport(holder, urls) {
   document.getElementById("flow-plan").scrollTop = 1e9;
 }
 
-async function planSend() {
+async function planSend(presetText) {
   const input = document.getElementById("planInput");
-  const text = input.value.trim();
+  const text = (presetText === undefined || presetText === null ? input.value : String(presetText)).trim();
   if (!text) return;
   if (!planSession) { // 自由对话（2026-10-24）：无会话打字即开规划，文字并入偏好，与「开始规划」按钮同路
     await planStartButton();
@@ -4276,12 +4281,12 @@ async function planSend() {
   }
   const urls = text.match(_URL_RE) || [];
   if (urls.length >= 2) { // §5.2 批量收藏导入：多链接一次灌入
-    input.value = "";
+    if (presetText === undefined || presetText === null) input.value = "";
     const holder = addMsg("flow-plan", "sys", I18N.tf("plan.batch.preparing","⏳ 准备批量导入…"));
     await planBatchImport(holder, urls);
     return;
   }
-  input.value = "";
+  if (presetText === undefined || presetText === null) input.value = ""; // 预置文本不碰输入框（草稿是用户自己的）
   planTouch(); // 对话回合也是用户主动动作：在途自动载入作废
   planWorking = true;
   addMsg("flow-plan", "user", text);
