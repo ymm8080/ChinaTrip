@@ -28,17 +28,13 @@ def _build(cands, mid_by_cid, forced):
     """最小 bundle/enriched：presence 全 1/0 由 forced 钉住，其余自由。"""
     model = cp_model.CpModel()
     days = [1]
-    presence = {
-        (c.cid, 1): model.NewBoolVar(f"p_{c.cid}") for c in cands
-    }
+    presence = {(c.cid, 1): model.NewBoolVar(f"p_{c.cid}") for c in cands}
     for c in cands:
         if c.cid in forced:
             model.Add(presence[(c.cid, 1)] == forced[c.cid])
     tiers = {c.cid: (0, mid_by_cid[c.cid], mid_by_cid[c.cid]) for c in cands}
     bundle = SimpleNamespace(model=model, presence=presence, days=days)
-    enriched = SimpleNamespace(
-        snapshot=SimpleNamespace(candidates=cands), tiers=tiers
-    )
+    enriched = SimpleNamespace(snapshot=SimpleNamespace(candidates=cands), tiers=tiers)
     _r12f_fill_yields_gate(bundle, enriched)
     return model, presence
 
@@ -49,9 +45,7 @@ def test_food_not_counted_in_fill_budget_when_musts_fill_day():
     # 新口径餐馆不进预算 → 仍可在场。
     must = _cand("s1", "museum", rid="must-s1")
     food = _cand("f1", "food")
-    model, presence = _build(
-        [must, food], {"s1": 450, "f1": 60}, {"s1": 1, "f1": 1}
-    )
+    model, presence = _build([must, food], {"s1": 450, "f1": 60}, {"s1": 1, "f1": 1})
     assert cp_model.CpSolver().Solve(model) == cp_model.OPTIMAL
 
 
@@ -59,9 +53,7 @@ def test_sight_fill_still_budgeted():
     # 非餐馆填充 mid=60 仍占预算：720+90=810>750 → 不可行（原闸不废）。
     must = _cand("s1", "museum", rid="must-s1")
     fill = _cand("v1", "museum")
-    model, presence = _build(
-        [must, fill], {"s1": 450, "v1": 60}, {"s1": 1, "v1": 1}
-    )
+    model, presence = _build([must, fill], {"s1": 450, "v1": 60}, {"s1": 1, "v1": 1})
     assert cp_model.CpSolver().Solve(model) == cp_model.INFEASIBLE
 
 
@@ -82,7 +74,5 @@ def test_no_musts_no_gate_fires():
     # 无必去 → 闸提前 return，餐馆与景点填充都自由。
     food = _cand("f1", "food")
     fill = _cand("v1", "museum")
-    model, presence = _build(
-        [food, fill], {"f1": 60, "v1": 60}, {"f1": 1, "v1": 1}
-    )
+    model, presence = _build([food, fill], {"f1": 60, "v1": 60}, {"f1": 1, "v1": 1})
     assert cp_model.CpSolver().Solve(model) == cp_model.OPTIMAL

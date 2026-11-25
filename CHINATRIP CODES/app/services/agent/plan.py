@@ -5932,7 +5932,9 @@ def _absorb_free_card_beside_named(plan: ItineraryPlan) -> list[str]:
             ph_slot = (
                 "lunch"
                 if is_lunch_placeholder(item)
-                else "dinner" if is_dinner_placeholder(item) else None
+                else "dinner"
+                if is_dinner_placeholder(item)
+                else None
             )
             if ph_slot is not None and ph_slot in taken:
                 day.items.remove(item)
@@ -13639,10 +13641,7 @@ def _evict_evening_gate_breachers(plan: ItineraryPlan) -> list[str]:
             "或指定其他天" % (it.name, cap_txt, it.start_time.strftime("%H:%M"))
         )
     for it in kept_musts:
-        _marker = (
-            "必去「%s」保留晚间时刻（必去优先于白天入场带，营业窗照卡）"
-            % it.name
-        )
+        _marker = "必去「%s」保留晚间时刻（必去优先于白天入场带，营业窗照卡）" % it.name
         if _marker not in notes and _marker not in (
             getattr(plan, "assumptions", None) or []
         ):
@@ -19940,9 +19939,7 @@ def heal_non_meal_meal_cards(
             by_name[name] = row
         if not cands:
             continue
-        ranked = rank_by_detour(
-            cands, route_points=pts, dinner_rec=(slot == "dinner")
-        )
+        ranked = rank_by_detour(cands, route_points=pts, dinner_rec=(slot == "dinner"))
         pick = None
         for km in _NON_MEAL_SWAP_KM:
             pick = next(

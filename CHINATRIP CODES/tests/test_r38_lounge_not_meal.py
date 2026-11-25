@@ -76,9 +76,7 @@ def test_restaurant_with_lounge_in_name_not_marked():
             cuisine_group="西餐",
         )
     )
-    assert not is_non_meal_venue(
-        _row("The Georg Restaurant & Bar", 116.4, 39.9, 4.6)
-    )
+    assert not is_non_meal_venue(_row("The Georg Restaurant & Bar", 116.4, 39.9, 4.6))
 
 
 def test_empty_or_missing_fields_no_false_positive():
