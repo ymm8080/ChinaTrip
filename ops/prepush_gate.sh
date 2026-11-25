@@ -54,7 +54,15 @@ fi
 TESTS=${PREPUSH_GATE_TESTS:-tests}
 LOG=$(mktemp 2>/dev/null || echo "/tmp/prepush_gate_$$.log")
 echo "[pre-push gate] running full test suite (e2e excluded)... [$PY]"
-"$PY" -m pytest "$TESTS" -q -p no:cacheprovider > "$LOG" 2>&1
+# 2026-11-24 R36-hours: repo-local basetemp. pytest's tmpdir GC bulk-deletes
+# old run dirs under the system temp root (Temp/pytest-of-*/garbage-*), which
+# collided with the sandbox bulk-delete guard (count 161 > threshold 50) and
+# crashed teardown AFTER 100% green — rc=1 with NO summary line, so the
+# gate's FAILED-line triage had nothing to read ("RED with no FAILED line").
+# A local basetemp confines the GC scan to .pytest_tmp/ (older local runs
+# only, keeps last 3) and never touches the system temp again.
+mkdir -p "$CODE_DIR/.pytest_tmp" 2>/dev/null
+"$PY" -m pytest "$TESTS" -q -p no:cacheprovider --basetemp="$CODE_DIR/.pytest_tmp/gate" > "$LOG" 2>&1
 rc=$?
 cat "$LOG"
 
@@ -95,7 +103,7 @@ while IFS= read -r node; do
     # failure fails both (deterministic by definition).
     ok=0
     for _try in 1 2; do
-        if "$PY" -m pytest "$node" -q -p no:cacheprovider >/dev/null 2>&1; then
+        if "$PY" -m pytest "$node" -q -p no:cacheprovider --basetemp="$CODE_DIR/.pytest_tmp/solo" >/dev/null 2>&1; then
             ok=1
             break
         fi

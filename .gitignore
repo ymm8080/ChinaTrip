@@ -233,3 +233,4 @@ tmp_probe/
 !CHINATRIP CODES/_probe_zjz_tables.py
 !CHINATRIP CODES/_probe_zjz_tables2.py
 !CHINATRIP CODES/_probe_zjz_wish.py
+.pytest_tmp/
