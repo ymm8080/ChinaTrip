@@ -118,8 +118,13 @@ def test_real_hotel_coordinates_win_over_city_anchor():
     assert km == pytest.approx(51.0, abs=3.0)  # not the 13.9 km city-anchor figure
 
 
-def test_hotel_morning_to_scheduled_remote_does_not_stack_a_straight_leg():
-    # 去程接驳链已由打车卡/班次卡呈现——不再叠一条直线腿。
+def test_hotel_morning_to_scheduled_remote_gets_access_chain():
+    """占位晨卡 → 远郊班次点：成对并出接驳链（不是直线打车腿）。
+
+    晨卡位置（城市锚）写回 anchor_location 后，access_breakdown 的起点取得到，
+    算得出「打车到乘车点 + 候车 + 专线」链——与带锚晨卡（test_leg_fares 三条）
+    同形，不需要任何特判。
+    """
     plan = _plan(
         [
             _morning(),
@@ -132,10 +137,15 @@ def test_hotel_morning_to_scheduled_remote_does_not_stack_a_straight_leg():
                 access_mode="shuttle",
                 access_service_minutes=90,
                 access_boarding_stop="前门大街北口",
+                access_boarding=GeoPoint(lon=116.3982, lat=39.8988),
             ),
         ]
     )
-    assert _ids(plan) == []
+    assert _ids(plan) == [("hotel-morning-d1", "r1")]
+    annotate_legs(plan)
+    leg = plan.days[0].items[0]
+    assert leg.next_leg_mode == "access"
+    assert (leg.next_leg_detail or {}).get("direction") != "return"
 
 
 def test_hotel_night_card_stays_transparent():
@@ -363,3 +373,81 @@ def test_morning_with_anchor_keeps_access_chain_to_scheduled_stop():
     leg = plan.days[0].items[0]
     assert leg.next_leg_mode == "access"
     assert (leg.next_leg_detail or {}).get("direction") != "return"
+
+
+def test_hotel_morning_position_written_back_to_anchor_location():
+    """leg_pairs 的契约：成对的卡必有取值点（location 或 anchor_location）。
+
+    R39 线上 500 实锤：晨卡位置只在链内用城市锚算、没写回卡上——读路径
+    _enrich_legs 对成对前卡取 _leg_point(a).lon 做图商实测回填，拿到 None
+    直接 AttributeError，带无坐标晨卡的会话 GET /plan 全部 500。
+    """
+    from app.services.agent.plan import _leg_point
+
+    plan = _plan(
+        [_morning(), _v("s1", "颐和园", time(9, 20), time(11, 55), loc=SUMMER_PALACE)]
+    )
+    assert _ids(plan) == [("hotel-morning-d1", "s1")]
+    morning = plan.days[0].items[0]
+    assert morning.location is None  # 占位晨卡没有真坐标
+    assert morning.anchor_location is not None  # 城市锚写回卡上
+    assert _leg_point(morning) is not None
+
+
+def test_get_plan_with_coordless_morning_card_does_not_500():
+    """读盘路径回归（R39 线上 500 实锤）：agent 带 amap（生产形态）时，
+
+    无坐标晨卡的会话 GET /api/v1/plan/{sid} 必须 200，且晨卡带出到第一个
+    景点的腿。测试环境默认没有 amap，_enrich_legs 开头就 return——必须显式
+    挂一个 amap stub 才覆盖得到炸点。
+    """
+    from fastapi.testclient import TestClient
+
+    from app.api.plan import get_plan_sessions
+    from app.services.agent.plan import PlanningAgent, PlanSession
+    from tests.test_plan_api import StubAdapter, make_app
+
+    class _Amap:
+        vendor = "stub"
+
+        async def walking_route(
+            self, origin, destination, *, origin_id=None, destination_id=None
+        ):
+            return {"distance_m": 16000, "duration_s": 32 * 60}
+
+    agent = PlanningAgent(StubAdapter([]))
+    agent._amap = _Amap()
+    app = make_app(agent)
+    store = app.dependency_overrides[get_plan_sessions]()
+    store.save(
+        PlanSession(
+            session_id="s-r39-morning",
+            device_id="device-r39",
+            state="ready",
+            plan=ItineraryPlan(
+                itinerary_id="it-r39",
+                cities=["北京"],
+                days=[
+                    DayPlan(
+                        day=1,
+                        base_city="北京",
+                        items=[
+                            _morning(),
+                            _v(
+                                "s1",
+                                "颐和园",
+                                time(9, 20),
+                                time(11, 55),
+                                loc=SUMMER_PALACE,
+                            ),
+                        ],
+                    )
+                ],
+            ),
+        )
+    )
+    with TestClient(app, headers={"X-Device-ID": "device-r39"}) as client:
+        r = client.get("/api/v1/plan/s-r39-morning")
+    assert r.status_code == 200, r.text
+    items = {i["item_id"]: i for i in r.json()["plan"]["days"][0]["items"]}
+    assert items["hotel-morning-d1"]["distance_to_next_km"] is not None

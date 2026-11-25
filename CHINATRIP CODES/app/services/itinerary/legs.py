@@ -282,12 +282,6 @@ def _depart_point(last: VisitItem | None) -> GeoPoint | None:
     return _point(last) or _hotel_depart_point(last)
 
 
-def _is_scheduled_stop(item: VisitItem) -> bool:
-    """带班次接驳档案的站点（景区专线/市郊铁路/轮渡）——去程链另成卡。"""
-    mode, _boarding, service, _wait, _last = _access_profile(item)
-    return mode in SCHEDULED_ACCESS_MODES and bool(service)
-
-
 def leg_pairs(plan: ItineraryPlan) -> list[tuple[VisitItem, VisitItem, float]]:
     """Adjacent same-day visit pairs worth measuring, with straight-line km.
 
@@ -320,6 +314,13 @@ def leg_pairs(plan: ItineraryPlan) -> list[tuple[VisitItem, VisitItem, float]]:
                 # 只当出发卡不当目的地（末站→夜卡的回程腿另有回城链口径，
                 # 这里不抢——夜卡仍透明）。
                 cur_pt = _hotel_depart_point(item)
+                if cur_pt is not None:
+                    # 写回卡上（anchor_location）——leg_pairs 的契约是「成对的卡
+                    # 必有取值点」：读路径的图商实测回填 / 缓存回放 / H5 导航
+                    # 起点都按 location 或 anchor_location 取点。只在链内算不写回，
+                    # _enrich_legs 会对 None 取 .lon（R39 线上 500：带无坐标晨卡
+                    # 的会话 GET 全挂）；写回后 access_breakdown 也算得出接驳链。
+                    item.anchor_location = cur_pt
             if cur_pt is None:
                 # 无坐标卡（占位餐卡没锚）不吃链：腿直接连到再下一个带地址
                 # 的卡（2026-11-16 用户口径「餐卡没地址就取再下个景点的地址」）
@@ -330,12 +331,7 @@ def leg_pairs(plan: ItineraryPlan) -> list[tuple[VisitItem, VisitItem, float]]:
                     continue  # 贴下一站：不吃链、也不当出发卡
             if last_pt is not None:
                 km = haversine_km(last_pt, cur_pt)
-                # 晨卡自身没有坐标/锚点（位置是城市锚回退出来的）→ 远郊班次点：算不出
-                # 接驳链，只会出一条误导的直线打车腿——去程接驳已由打车卡/班次卡呈现，
-                # 不叠。晨卡带真坐标或带锚点时照旧成对出接驳链（基线行为）。
-                if km >= MIN_LEG_KM and not (
-                    _point(last) is None and _is_scheduled_stop(item)
-                ):
+                if km >= MIN_LEG_KM:
                     out.append((last, item, km))
             last = item
     return out
