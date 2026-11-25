@@ -606,7 +606,9 @@ def test_tail_return_chain_when_remote_is_last_of_day():
     assert detail["alight"].startswith("前门大街北口")
     assert detail["board_time"] == "14:16"  # 14:08 散场 + 8 分钟走回乘车点
     assert detail["depart_time"] == "14:30"
-    assert detail["arrive_time"] == "16:00"
+    assert (
+        detail["arrive_time"] == "16:08"
+    )  # R38：含下客步行（与 materialize 卡面同口径）
     assert mt.next_leg_minutes == 8 + (14 * 60 + 30 - (14 * 60 + 8 + 8)) + 90
     assert mt.next_leg_cost_cny == access_fare_estimate("shuttle")
 
@@ -659,7 +661,9 @@ def test_return_leg_shuttle_chain_from_remote_stop():
     assert detail["departures"] == ["14:30", "15:30", "16:30"]
     assert detail["board_time"] == "12:46"  # 12:38 散场 + 8 分钟走回乘车点
     assert detail["depart_time"] == "14:30"  # 最快返程班
-    assert detail["arrive_time"] == "16:00"  # 14:30 + 90 车程到市区落点
+    assert (
+        detail["arrive_time"] == "16:08"
+    )  # 14:30 + 90 车程 + 8 下客步行（R38 同口径）
     assert detail["walk_minutes"] == 8
     assert detail["taxi_km"] < 5  # 市区落点→王府井，不是 58km 打车直线
     assert mt.next_leg_minutes == (

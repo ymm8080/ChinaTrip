@@ -2194,7 +2194,10 @@ function planCard(plan) {
       if (it.from_city) { // TransferItem：不可拖；改乘/班次号/订票跳转（2026-11-04 规划页路途行程三件套）
         const inSess = planSession && planSession.session_id;
         const legNo = it.train_no || it.flight_no || "";
-        const legMain = modeLabel(it.mode) + " " + esc(I18N.city(it.from_city)) + " → " + esc(I18N.city(it.to_city)) + (legNo ? " <code>" + esc(legNo) + "</code>" : "");
+        const legStops = (it.from_station || it.to_station)
+          ? ' <span class="muted">' + esc(it.from_station || "") + " → " + esc(it.to_station || "") + "</span>"
+          : "";
+        const legMain = modeLabel(it.mode) + " " + esc(I18N.city(it.from_city)) + " → " + esc(I18N.city(it.to_city)) + legStops + (legNo ? " <code>" + esc(legNo) + "</code>" : "");
         const isLeg = it.mode === "train" || it.mode === "flight";
         let legTail = "";
         if (inSess && isLeg) {
@@ -5259,7 +5262,10 @@ function itinImportPreviewModal(r) {
           car: I18N.tf("itin.impMode.car", "驾车"),
           bus: I18N.tf("itin.impMode.bus", "大巴")
         }[it.mode] || it.mode;
-        return '<div style="margin:2px 0">🚄 ' + t + esc(it.from_city) + " → " + esc(it.to_city) +
+        const legStopsImp = (it.from_station || it.to_station)
+          ? " " + esc(it.from_station || "") + "→" + esc(it.to_station || "")
+          : "";
+        return '<div style="margin:2px 0">🚄 ' + t + esc(it.from_city) + " → " + esc(it.to_city) + legStopsImp +
           I18N.tf("itin.parenPre", "（") + esc(modeLabel) + (it.train_no || it.flight_no ? " " + esc(it.train_no || it.flight_no) : "") + I18N.tf("itin.parenSuf", "）") + "</div>";
       }
       return '<div style="margin:2px 0">• ' + t + esc(it.name) +
@@ -5426,6 +5432,7 @@ async function shareOpen(token) {
       if (it.kind === "transfer") {
         list.appendChild(el('<div class="row"><span class="t">' + (t || "——") + "</span><span>" +
           esc(modeLabel(it.mode)) + " " + esc(it.train_no || it.flight_no || "") + " " + esc(I18N.city(shortCity(it.from_city))) + " → " + esc(I18N.city(shortCity(it.to_city))) +
+          ((it.from_station || it.to_station) ? " (" + esc(it.from_station || "") + "→" + esc(it.to_station || "") + ")" : "") +
           (it.duration_minutes ? " · " + fmtMin(it.duration_minutes) + I18N.tf("card.minutes", " 分钟") : "") + "</span></div>"));
       } else {
         list.appendChild(el('<div class="row"><span class="t">' + (t || "——") + '</span><span style="flex:1;min-width:0">' + esc(it.name) +

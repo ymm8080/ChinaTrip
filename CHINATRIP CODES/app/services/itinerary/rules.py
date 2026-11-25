@@ -655,28 +655,44 @@ def travel_gap_violations(day_no: int, visits: list[VisitItem]) -> list[RuleViol
         key=lambda v: (v.start_time, v.end_time),
     )
     out: list[RuleViolation] = []
-    for prev, cur in zip(timed, timed[1:]):
-        need = travel_gap_needed(prev, cur)
-        if need is None:
-            continue
-        gap = _minutes(cur.start_time) - _minutes(prev.end_time)
-        if gap < need:
-            out.append(
-                RuleViolation(
-                    rule_id=7,
-                    severity=RuleSeverity.error,
-                    message=L(
-                        f"第{day_no}天 {prev.name} {_fmt(prev.end_time)} 散场到"
-                        f" {cur.name} {_fmt(cur.start_time)} 开场仅 {gap} 分钟，"
-                        f"打车约需 {need} 分钟（未计路上时间）",
-                        f"Day {day_no}: only {gap} min between {prev.name} "
-                        f"ending {_fmt(prev.end_time)} and {cur.name} starting "
-                        f"{_fmt(cur.start_time)} — taxi needs ~{need} min",
-                    ),
-                    item_ids=[prev.item_id, cur.item_id],
-                    day=day_no,
-                )
-            )
+    # R38：合成接驳卡（回城卡等，无坐标）插在两站之间时，逐对相邻检查被
+    # 隔断成「带坐标卡→无坐标卡」（need=None）+「无坐标卡→下一站」（同）
+    # ——铁律 7 对引擎远郊日永远失明（day3 慕田峪→(回城卡)→奥园 gap 82<
+    # need 140 零告警实锤）。跨过无坐标卡取上一个带坐标卡，对齐 leg_pairs
+    # 的透明语义。
+    last_real: VisitItem | None = None
+    for cur in timed:
+        prev = last_real
+        if prev is not None:
+            need = travel_gap_needed(prev, cur)
+            if need is not None:
+                gap = _minutes(cur.start_time) - _minutes(prev.end_time)
+                if gap < need:
+                    out.append(
+                        RuleViolation(
+                            rule_id=7,
+                            severity=RuleSeverity.error,
+                            message=L(
+                                f"第{day_no}天 {prev.name} {_fmt(prev.end_time)} 散场到"
+                                f" {cur.name} {_fmt(cur.start_time)}"
+                                f" 开场仅 {gap} 分钟，"
+                                f"打车约需 {need} 分钟（未计路上时间）",
+                                f"Day {day_no}: only {gap} min between {prev.name} "
+                                f"ending {_fmt(prev.end_time)} and {cur.name} starting "
+                                f"{_fmt(cur.start_time)} — taxi needs ~{need} min",
+                            ),
+                            item_ids=[prev.item_id, cur.item_id],
+                            day=day_no,
+                        )
+                    )
+        if getattr(cur, "location", None) is not None:
+            last_real = cur
+        elif (cur.category or "") not in ("transfer", "transport"):
+            # 占位餐卡等无坐标非换乘卡吃掉链检查（旧语义保留：嵌套晚饭案
+            # 的前后对查不了，也不跨它查前对——引擎实测矩阵与打车口径
+            # 有分钟级紧张，跨查会误报）；仅 transfer 合成接驳卡（回城卡）
+            # 跨过查真站对（R38 主修）。
+            last_real = None
     return out
 
 

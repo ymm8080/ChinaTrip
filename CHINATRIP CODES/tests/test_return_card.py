@@ -117,7 +117,9 @@ def test_return_card_is_separate_and_sorted_after_lunch():
     card = next(i for i in out.days[0].items if i.item_id == card_id)
     # ① 开始=最近返程班次发车（午饭 14:08 散场 + 步行 8 → 14:16 → 14:30）
     assert card.start_time == time(14, 30)
-    assert card.end_time == time(16, 0)  # ② 结束=到市区落点
+    assert card.end_time == time(
+        16, 8
+    )  # ② 结束=到市区落点（R38 含下客步行，与卡面 arrive_city 同口径）
     assert card.synthetic is True
     assert card.category == "transfer"
     assert card.next_leg_detail is not None

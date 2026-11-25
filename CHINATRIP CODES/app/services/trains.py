@@ -740,4 +740,7 @@ async def build_transfer_item(
         end_time=end_time,
         duration_minutes=best.duration_minutes,
         train_no=best.train_no,
+        # R38：车站随车次贯通到卡面（北京南 → 上海虹桥，不只城市级）
+        from_station=best.from_station,
+        to_station=best.to_station,
     )

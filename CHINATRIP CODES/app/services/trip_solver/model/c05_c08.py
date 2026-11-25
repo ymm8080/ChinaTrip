@@ -36,7 +36,12 @@ from typing import TYPE_CHECKING
 
 from ortools.sat.python import cp_model
 
-from ...itinerary.rules import SHUTTLE_BOARD_BUFFER_MINUTES, TAXI_HAIL_MINUTES
+from ...itinerary.rules import (
+    SHUTTLE_BOARD_BUFFER_MINUTES,
+    TAXI_HAIL_MINUTES,
+    TRAVEL_GAP_FLOOR_MIN,
+    taxi_leg_min,
+)
 from ..inputs.access import hhmm_to_min
 from .vars import MINUTES_PER_DAY, VarBundle
 
@@ -64,6 +69,35 @@ DEFAULT_GATEWAY_TAXI_MINUTES = 15
 # 班车默认下限 08:30——更早的行不进可排面（fail-open：全滤空时保
 # 留原行防不可解）。
 DEFAULT_FIRST_SHUTTLE_MIN = 8 * 60 + 30
+
+
+def _return_tail_minutes(other) -> int:
+    """回城落点 → 同日下一站的打车尾段（R38，2026-11-25）。
+
+    此前 C-08 的「返程后」支锚在 ``min(rets)+ride+last_mile``（时刻表最早
+    班）且不含尾段：求解器实际选中的返程班更晚时，下一站被允许排到早于
+    真实到达（day3 慕田峪 16:30 班 18:08 到前门、奥园被排 17:30 的实锤；
+    C-06 让位日 C-08 独守顺序，此处是唯一闸）。落点无独立坐标，用城市锚
+    代理（materialize._city_coord 同源 CITY_COORDS）；口径与
+    rules.taxi_leg_min 同式（近距步行 / 打车=车程+叫车 / 毒坐标封顶）。
+    """
+    o_lon = getattr(other, "lon", None)
+    o_lat = getattr(other, "lat", None)
+    if o_lon is None or o_lat is None:
+        return TRAVEL_GAP_FLOOR_MIN
+    from app.services.weather_open_meteo import CITY_COORDS
+
+    anchor = CITY_COORDS.get(str(getattr(other, "city", None) or "").removesuffix("市"))
+    if anchor is None:
+        return TRAVEL_GAP_FLOOR_MIN
+    from ..inputs.travel import haversine_km
+
+    km = haversine_km(anchor[1], anchor[0], o_lon, o_lat)
+    if km <= 0.5:  # SAME_VENUE_KM 同址：出站即到
+        return 0
+    return taxi_leg_min(km)
+
+
 # R12-H24：远郊日「插一个」=小点专用（大必去留城内簇日）
 LEFTOVER_MAX_MINUTES = 120
 
@@ -384,6 +418,21 @@ def add_c08_access(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
             bundle.arrival_vars[(cand.cid, day)] = arrival
             # 接驳到点独立于游览开始：F-22 可在同址先午餐再游览。
             bundle.model.Add(arrival == dep + ride + last_mile).OnlyEnforceIf(lit)
+            # R38：返程班变量提前到 others 循环前创建——返程后支的锚必须用
+            # 「求解器实际选中的班」（active_ret），不是时刻表最早班。
+            ret = None
+            active_ret = None
+            if rets:
+                ret = bundle.model.NewIntVarFromDomain(
+                    cp_model.Domain.FromValues(rets), "ret_%s_%d" % (cand.cid, day)
+                )
+                bundle.ret_vars[(cand.cid, day)] = ret
+                active_ret = bundle.model.NewIntVar(
+                    0, MINUTES_PER_DAY, "aret_%s_%d" % (cand.cid, day)
+                )
+                bundle.model.Add(active_ret == ret).OnlyEnforceIf(lit)
+                bundle.model.Add(active_ret == 0).OnlyEnforceIf(lit.Not())
+                bundle.active_ret_vars[(cand.cid, day)] = active_ret
             # 晨锚必须先结束+打车，才允许赶这一班（C-06 的晨锚例外）
             for other in snapshot.candidates:
                 if other.cid == cand.cid or not other.rid:
@@ -411,8 +460,13 @@ def add_c08_access(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
                         + bundle.dur[other.cid]
                         + board_chain
                     ).OnlyEnforceIf([lit, lo, after.Not()])
+                    # R38：锚=求解器实际选中的返程班+落点→下一站尾段——
+                    # 此前 min(rets)（最早班）且无尾段，选中班更晚时下一站
+                    # 可早于真实到达开场（day3 慕田峪奥园案）。与 C-06
+                    # floor(ret+back)、C-09 晚饭锚同口径。
                     bundle.model.Add(
-                        bundle.start[(other.cid, day)] >= min(rets) + ride + last_mile
+                        bundle.start[(other.cid, day)]
+                        >= active_ret + ride + last_mile + _return_tail_minutes(other)
                     ).OnlyEnforceIf([lit, lo, after])
                 else:
                     bundle.model.Add(
@@ -424,17 +478,8 @@ def add_c08_access(bundle: VarBundle, enriched: "EnrichedSnapshot") -> None:
             bundle.travel_terms.append(lit * (2 * (ride + last_mile) + taxi))
             if not rets:
                 continue
-            ret = bundle.model.NewIntVarFromDomain(
-                cp_model.Domain.FromValues(rets), "ret_%s_%d" % (cand.cid, day)
-            )
-            bundle.ret_vars[(cand.cid, day)] = ret
-            active_ret = bundle.model.NewIntVar(
-                0, MINUTES_PER_DAY, "aret_%s_%d" % (cand.cid, day)
-            )
-            bundle.model.Add(active_ret == ret).OnlyEnforceIf(lit)
-            bundle.model.Add(active_ret == 0).OnlyEnforceIf(lit.Not())
-            bundle.active_ret_vars[(cand.cid, day)] = active_ret
-            # 返程腿：散场+缓冲 → 回城（回城后的非簇件已被 C-06 禁掉）
+            # 返程腿：散场+缓冲 → 回城（回城后的非簇件已被 C-06 禁掉；
+            # ret/active_ret 已提前到 others 循环前创建——R38）
             bundle.model.Add(
                 ret
                 >= bundle.start[(cand.cid, day)]

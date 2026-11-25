@@ -893,6 +893,14 @@ def _return_hint_text(detail: dict) -> str:
     elif alight:
         zh += f" · 到 {alight}"
         en += f" at {alight}"
+    # R38：回城落点 → 下一站的尾段打车是链的一部分——不写出来，用户看到
+    # 「回城 18:08 到前门」后直接跳下一站卡，中间车程凭空消失（day3 慕田
+    # 峪案「回城到下一个点的交通腿没有」）。
+    _tail = detail.get("taxi_minutes")
+    _stop = detail.get("next_stop")
+    if isinstance(_tail, int) and _tail > 0 and _stop:
+        zh += f" · 打车约{_tail}分 → {_stop}"
+        en += f" · taxi ~{_tail} min to {_stop}"
     return L(zh, en)
 
 
@@ -1013,6 +1021,21 @@ def attach_return_cards(plan: ItineraryPlan) -> ItineraryPlan:
             card_detail["board_time"] = _clock(start_min)
             card_detail["arrive_time"] = _clock(_clock_minutes(arrive))
         card.next_leg_detail = card_detail
+        # R38：回城卡带「落点 → 下一站」尾段腿——此前回城卡是裸 transfer
+        # 卡，下一站无来路，时间线上「回城 → 下一站」的交通段整段不可见
+        # （day3 慕田峪案）。卡上腿字段与 H5 导航/CALL TAXI 共用；响应副
+        # 本渲染件，幂等重建、不入库。
+        _tail_min = detail.get("taxi_minutes")
+        _tail_km = float(detail.get("taxi_km") or 0.0)
+        if isinstance(_tail_min, int) and _tail_min > 0 and detail.get("next_stop"):
+            card.distance_to_next_km = round(_tail_km, 2)
+            card.next_walk_minutes = max(
+                1, round(_tail_km * 1000.0 * DETOUR_FACTOR / WALK_METERS_PER_MINUTE)
+            )
+            card.leg_source = "estimate"
+            card.next_leg_mode = "taxi"
+            card.next_leg_minutes = _tail_min
+            card.next_leg_cost_cny = detail.get("taxi_cost")
         hint = _return_hint_text(detail)
         # 明细留在景区卡上（下一轮装配还要用它重算回城卡，幂等）；
         # 摘要行清掉，前端按 return_hint 跳过这整段块（不重复显示）。
@@ -1509,7 +1532,11 @@ def _access_return_detail(a: VisitItem, b: VisitItem, br: dict) -> dict:
         # 下一站卡 id：去程卡上点「返程班次」时按它回推离场（2026-11-16）
         "next_item_id": getattr(b, "item_id", None),
         "depart_time": _clock(depart),
-        "arrive_time": _clock(depart + ride if depart is not None else None),
+        # R38：到达口径与 materialize 卡面对齐（含下客步行）——此前少算
+        # last 分量，hint「约 18:00」与回城卡面「18:08」双口径打架。
+        "arrive_time": _clock(
+            depart + ride + int(br.get("last") or 0) if depart is not None else None
+        ),
         "taxi_cost": estimate_taxi_fare(
             a.city or b.city, float(br.get("taxi_km") or 0.0)
         ),

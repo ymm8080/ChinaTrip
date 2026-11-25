@@ -52,7 +52,9 @@
 // i18n.js en 词典 plan.gen.running）。必须 bump 拉新缓存壳。
 // v138 2026-11-25: 地点确认卡的 chip 接入正式行程卡同款悬停简介浮层（site_pop），
 // 后端在 site_confirm 响应下发 site_cities 供详情查询；必须 bump 拉新缓存壳。
-const VERSION = 'v138';
+// v139 2026-11-25: 回城尾段腿一级化——回城卡带「落点→下一站」尾段打车腿与导航/打车链接，
+// hint 补「打车约N分 → 下一站」；车次卡贯通出发/到达站（北京南 → 上海虹桥，不只城市级）。
+const VERSION = 'v139';
 const CACHE = 'chinatrip-h5-' + VERSION;
 const SHELL = [
   './', './index.html', './i18n.js', './qrcode.min.js', './sortable.min.js', './manifest.webmanifest', './agent.html',

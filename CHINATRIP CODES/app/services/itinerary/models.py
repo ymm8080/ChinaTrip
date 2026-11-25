@@ -310,6 +310,11 @@ class TransferItem(BaseModel):
     duration_minutes: int | None = None
     train_no: str | None = None  # TrainService static-lib hit, if any
     flight_no: str | None = None  # FlightService hit (outbound/return legs)
+    # R38：车站贯通——车次缓存本就带站名（train_cache 全量行），卡面此前
+    # 只到城市级；用户口径「交通腿要有所有地址交通的信息」。合成/导入腿
+    # 无站名=None。
+    from_station: str | None = None
+    to_station: str | None = None
 
 
 class DayPlan(BaseModel):
