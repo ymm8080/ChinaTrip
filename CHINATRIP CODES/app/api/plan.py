@@ -2316,12 +2316,6 @@ def _plan_turn_body(session, reply: str, change, *, alternatives: bool = True) -
         # R39c：keep/both（引擎盘）跳过——会顺延景点给餐卡腾通勤；legacy 照旧。
         if not _keep_seq:
             session.plan.assumptions.extend(_open_meal_leg_gaps(session.plan))
-        # R41b：自由安排午/晚餐卡 → 就近推荐真餐厅。放整条自愈链末尾——
-        # heal_arrival_light/_ensure_meal_cards 会补出新的占位卡，填充必须
-        # 看到它们（否则当次请求里新补的午/晚餐卡仍是「自由安排」）。
-        # keep 盘用户写明日程后当天被必去压满、挤不出独立餐块时，占位卡
-        # 换身份即可、不动景点；打分与引擎同源（评分×评分数×距离），幂等。
-        heal_free_meal_cards(session)
         # R13o③：升旗锚在消息回合出站前同样收口（引擎 replan/edit 的新
         # 计划此前不带旗时）——幂等，先于入场闸跑。
         from app.services.agent.plan import _apply_flag_schedule
@@ -2341,11 +2335,28 @@ def _plan_turn_body(session, reply: str, change, *, alternatives: bool = True) -
         _audit_must_coverage(session)
         # 2026-11-13 快路径：备选 chip 装配是整池扫描（18 件 ~4.5s），
         # 加心愿回合先跳过——卡片本体完整，备选在下次普通回合/打开行程补回。
-        body["plan"] = (
+        _resp_plan = (
             _plan_for_response(session.plan)
             if alternatives
             else _with_gap_bridges(_strip_untimed_items(session.plan))
         )
+        # R41e：自由安排午/晚餐卡 → 就近推荐真餐厅（keep 盘写明日程后当天
+        # 被必去压满、挤不出独立餐块时，占位卡换身份即可、不动景点；打分与
+        # 引擎同源＝评分×评分数×距离）。
+        # 只落在**出站副本**上：会话盘被就地改写会与其它自愈器（卡窗重绑/
+        # 补卡）互相搬卡，同一会话每次刷新的餐厅集合会漂（实测 6↔3 张）；
+        # 副本填充则每次读都是同一结果，也不往会话里堆披露。
+        try:
+            import copy as _copy
+            from types import SimpleNamespace as _SN
+
+            _resp_plan = _copy.deepcopy(_resp_plan)
+            heal_free_meal_cards(
+                _SN(plan=_resp_plan, session_id=getattr(session, "session_id", "?"))
+            )
+        except Exception:  # noqa: BLE001 - 推荐失败绝不能挡住出站
+            logger.warning("plan: free meal fill on response failed", exc_info=True)
+        body["plan"] = _resp_plan
         body["violations"] = current_violations(session)
     if change is not None:
         body["change"] = change
