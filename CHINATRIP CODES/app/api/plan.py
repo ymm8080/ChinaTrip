@@ -2295,10 +2295,6 @@ def _plan_turn_body(session, reply: str, change, *, alternatives: bool = True) -
         # R38b：旧会话午/晚餐卡被酒廊/大堂吧占着（R38 前生成）→ 按评分+
         # 就近换真餐馆，刷新即修（幂等，库里没有达标店就不动）。
         heal_non_meal_meal_cards(session)
-        # R41b：自由安排午/晚餐卡 → 就近推荐真餐厅（keep 盘用户写明日程后
-        # 当天被必去压满、挤不出独立餐块时，占位卡换身份即可，不动景点）。
-        # 打分与引擎同源（评分 × 评分数 × 距离），幂等。
-        heal_free_meal_cards(session)
         # 到达日不再整天没安排（2026-11-13 六拍）：旧行程的空到达日出站前
         # 补一段「城市漫步（自由安排）」+ 缺的餐卡，刷新即修不必重规划。
         heal_arrival_light(session.plan)
@@ -2306,6 +2302,12 @@ def _plan_turn_body(session, reply: str, change, *, alternatives: bool = True) -
         # 餐卡重排（装配/编辑/救急）都可能在收口后抹平间隙，这里在真正
         # 交付的 plan 上补回；幂等——无间隙时不产生备注、不改时刻。
         session.plan.assumptions.extend(_open_meal_leg_gaps(session.plan))
+        # R41b：自由安排午/晚餐卡 → 就近推荐真餐厅。放整条自愈链末尾——
+        # heal_arrival_light/_ensure_meal_cards 会补出新的占位卡，填充必须
+        # 看到它们（否则当次请求里新补的午/晚餐卡仍是「自由安排」）。
+        # keep 盘用户写明日程后当天被必去压满、挤不出独立餐块时，占位卡
+        # 换身份即可、不动景点；打分与引擎同源（评分×评分数×距离），幂等。
+        heal_free_meal_cards(session)
         # R13o③：升旗锚在消息回合出站前同样收口（引擎 replan/edit 的新
         # 计划此前不带旗时）——幂等，先于入场闸跑。
         from app.services.agent.plan import _apply_flag_schedule
