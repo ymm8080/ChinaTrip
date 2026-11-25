@@ -2333,7 +2333,11 @@ function planCard(plan) {
         // open hour 等一长串字符的右边」；2026-11-25 曾并预约信息行右端）：同一 flex 行
         // 右推；transfer 不出（2026-11-23 用户令腿不做点赞）；无地址/时刻行的卡（占位
         // 餐卡等）回落独立图标行。
-        const fbInline = (it.category || "") !== "transfer" ? '<span style="white-space:nowrap;color:var(--muted);font-size:12px">' +
+        const fbSite = it.category === "food" || it.category === "hotel";
+        // 酒店卡/餐卡只有显示了具体地址（和名字）才出赞/踩/点评（2026-11-26 用户令）；
+        // 无地址不出（占位餐卡/未验证酒店），其它卡照旧。
+        const fbShow = (it.category || "") !== "transfer" && (!fbSite || (it.address || "").trim() !== "");
+        const fbInline = fbShow ? '<span style="white-space:nowrap;color:var(--muted);font-size:12px">' +
           '<a class="fb-btn" data-kind="up" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '">👍</a> ' +
           '<a class="fb-btn" data-kind="down" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '">👎</a> ' +
           '<a class="fb-btn" data-kind="review" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '">' + I18N.tf("card.review","✍️ 点评") + "</a></span>" : "";
@@ -2550,7 +2554,7 @@ function planCard(plan) {
         // 乘车/步行腿不做点赞/好评（2026-11-23 用户令「乘车或者步行腿不需要点赞、
         // 打卡、好评功能等」）：腿是转场渲染件不是可评价 POI（「✅ 到了」打卡按钮
         // v41 已全站移除）。
-        if (!fbRowMerged && (it.category || "") !== "transfer") blk.appendChild(el('<div class="muted" style="margin:0 2px 2px ' + ind + ';font-size:12px">' +
+        if (!fbRowMerged && fbShow) blk.appendChild(el('<div class="muted" style="margin:0 2px 2px ' + ind + ';font-size:12px">' +
           '<a class="fb-btn" data-kind="up" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '">👍</a> ' +
           '<a class="fb-btn" data-kind="down" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '">👎</a> ' +
           '<a class="fb-btn" data-kind="review" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '">' + I18N.tf("card.review","✍️ 点评") + "</a></div>"));
