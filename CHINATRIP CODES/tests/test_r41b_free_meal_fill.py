@@ -283,3 +283,62 @@ def test_pois_curated_row_fills_free_card():
     notes = heal_free_meal_cards(session, store=store)
     assert session.plan.days[0].items[1].name == "四季民福烤鸭店（故宫店）"
     assert notes and "四季民福" in notes[0]
+
+
+def _transfer(item_id, name, start, dur):
+    end = time(
+        (start.hour * 60 + start.minute + dur) // 60 % 24, (start.minute + dur) % 60
+    )
+    return VisitItem(
+        item_id=item_id,
+        name=name,
+        category="transfer",
+        city="北京",
+        day=1,
+        start_time=start,
+        end_time=end,
+        duration_minutes=dur,
+    )
+
+
+def test_remote_shuttle_day_lunch_stays_free():
+    """用户实报（2026-11-26）：D3 班车 11:08 到慕田峪，午餐卡却被绑城区的
+    小吊梨汤(新奥店)（0.7km 近鸟巢），产出 49km/186 分假接驳腿。锚不得跨过
+    班次卡——午餐的前邻是班车（无坐标）、后邻是慕田峪（2km 内无店）→ 宁留
+    「自由安排」。"""
+    day = DayPlan(
+        day=1,
+        base_city="北京",
+        items=[
+            _transfer("access-out-v8", "🚌 去程", time(9, 30), 98),
+            _placeholder("meal-lunch-3", "午餐", time(11, 8)),
+            _sight("v8", "慕田峪长城", 116.5598, 40.4267, time(12, 8), dur=240),
+            _sight("v9", "北京奥林匹克公园", 116.3900, 39.9930, time(18, 35), dur=45),
+        ],
+    )
+    session = _session([day])
+    rows = [_row("小吊梨汤(新奥店)", 116.3970, 39.9900, 4.4, 53)]  # 0.7km 近奥园
+    notes = heal_free_meal_cards(session, store=_Store(rows))
+    lunch = session.plan.days[0].items[1]
+    assert lunch.name == "午餐"  # 跨班次的锚无效：保持占位
+    assert notes == []
+
+
+def test_dinner_after_return_shuttle_fills_near_city_sight():
+    # 回城班车之后的晚餐：后邻是城内景点（有坐标）→ 正常就近推荐。
+    day = DayPlan(
+        day=1,
+        base_city="北京",
+        items=[
+            _sight("v8", "慕田峪长城", 116.5598, 40.4267, time(12, 8), dur=240),
+            _transfer("access-return-v8", "🚌 回城", time(16, 30), 98),
+            _placeholder("meal-dinner-1", "晚饭", time(19, 30)),
+            _sight("v9", "北京奥林匹克公园", 116.3900, 39.9930, time(18, 35), dur=45),
+        ],
+    )
+    session = _session([day])
+    rows = [_row("小吊梨汤(新奥店)", 116.3970, 39.9900, 4.4, 53)]
+    notes = heal_free_meal_cards(session, store=_Store(rows))
+    dinner = session.plan.days[0].items[2]
+    assert dinner.name == "小吊梨汤(新奥店)"
+    assert notes and "小吊梨汤" in notes[0]

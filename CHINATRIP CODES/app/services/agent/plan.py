@@ -20112,14 +20112,33 @@ def heal_free_meal_cards(
                 # 卡整体嵌在某个景点块里（「游览途中就地用餐」）：那是同址
                 # 语义，不能塞一家 2km 外的店——保持占位。
                 continue
-        pts = [
-            (p.location.lon, p.location.lat)
-            for p in day.items
-            if isinstance(p, VisitItem)
-            and p.location is not None
-            and str(getattr(p, "category", "") or "")
-            not in ("food", "hotel", "transport", "transfer")
-        ]
+        # R41h（2026-11-26 用户「day3 11am reach mutianyu wall, why restrant
+        # recommend 小吊梨汤。 THEN THERE IS REMOTE TRANSPORTATION AFTER
+        # LUNCH」）：锚=**时间邻位**——紧邻本卡前/后的一张「有坐标的非餐非宿」
+        # 卡，且**不跨过班次/接驳/打车卡**（跨过＝用户被运到了别处）。
+        # 旧口径用全天景点做锚：远郊日（慕田峪班车日）下午/晚上回城的景点会把
+        # 城区店填进 11:08 的午餐卡（实测被绑 0.7km 近鸟巢的小吊梨汤(新奥店)，
+        # 产出 49km/186 分的假接驳腿）。邻位都没有达标店 → 宁留「自由安排」。
+        _idx = next(
+            (k for k, o in enumerate(day.items) if o is item),
+            -1,
+        )
+        pts: list[tuple[float, float]] = []
+        for _step in (-1, 1):
+            _j = _idx + _step
+            while 0 <= _j < len(day.items):
+                _other = day.items[_j]
+                _cat = str(getattr(_other, "category", "") or "")
+                if _cat in ("transfer", "transport"):
+                    break  # 班次/接驳/打车＝用户被运走，锚不能跨过它
+                if (
+                    isinstance(_other, VisitItem)
+                    and _other.location is not None
+                    and _cat not in ("food", "hotel")
+                ):
+                    pts.append((_other.location.lon, _other.location.lat))
+                    break
+                _j += _step
         if not pts:
             continue
         city = item.city or getattr(day, "base_city", "") or ""
