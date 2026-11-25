@@ -1134,9 +1134,12 @@ def test_taxi_leg_shows_on_anchored_lunch_card():
     assert lunch.distance_to_next_km and lunch.distance_to_next_km > 30
     assert lunch.next_leg_mode == "taxi"
     assert lunch.next_leg_minutes and lunch.next_leg_minutes > 30
-    # 景区卡不再背这条腿
-    assert zjj.distance_to_next_km is None
-    assert zjj.next_leg_minutes is None
+    # R39d（2026-11-25 用户令「任何两个 SITES（包括午餐晚餐）之间都要有
+    # 交通腿」）：景区卡到同址午饭现在出 0.0 km 步行腿（此前 MIN_LEG_KM
+    # 把这段整片吃掉）；去静安寺的长腿仍挂在午饭卡上（餐后出发）。
+    assert zjj.distance_to_next_km == 0.0
+    assert zjj.next_leg_mode == "walk"
+    assert zjj.next_leg_minutes == 1
 
 
 # ------------------------------------------- R13m 引擎去程卡班次显示链

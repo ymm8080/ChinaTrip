@@ -109,10 +109,12 @@ def test_blank_lunch_card_inherits_previous_stop_address():
     plan = _plan(site, lunch, nxt)
     annotate_legs(plan)
     assert lunch.address == site.address
-    # 2026-11-17 用户口径反转：去华清宫的车发生在午饭之后——「距下一站」
-    # 挂在午饭卡（餐后出发），景区卡不再背这条腿（回城仍由回城链/独立卡负责）
-    assert site.distance_to_next_km is None
-    assert site.next_leg_minutes is None
+    # 2026-11-17 用户口径：去华清宫的车发生在午饭之后——长腿挂在午饭卡
+    # （餐后出发）。R39d（2026-11-25 用户令「任何两个 SITES（包括午餐晚餐）
+    # 之间都要有交通腿」）：景区卡到同址午饭仍出一行 0.0 km 步行。
+    assert site.distance_to_next_km == 0.0
+    assert site.next_leg_mode == "walk"
+    assert site.next_leg_minutes == 1
     assert lunch.distance_to_next_km is not None
     assert lunch.next_leg_minutes is not None
 

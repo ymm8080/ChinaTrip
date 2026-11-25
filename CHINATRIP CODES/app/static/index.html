@@ -2337,14 +2337,18 @@ function planCard(plan) {
         // R39：紧跟的转场卡（leg-bridge-*）已用同一行带上时刻呈现——上一张卡不再重复
         // 页脚。查找时跳过嵌套在卡内的同址占位卡（卡 13:32 收尾、卡内午饭 12:00-13:00），
         // 命中第一张不早于本卡收尾的卡再判桥卡；否则「景点+卡内午饭→桥卡」会出两行同一段。
+        // R39d：卡内嵌件（12:00 午饭落在 13:32 收尾的游览里）优先出「到它的腿」——
+        // 有嵌套件时不隐藏页脚，桥卡只负责后段（13:32 → 下一站）。
         const bridgeFollows = (() => {
           if (!it.end_time || isBridgeCard) return false;
           const endT = String(it.end_time).slice(0, 5);
+          let nested = false;
           for (let j = idx + 1; j < d.items.length; j++) {
             const c = d.items[j];
             if (!c || !c.start_time) continue;
             const st = String(c.start_time).slice(0, 5);
-            if (st < endT) continue; // 嵌套在卡内（同址占位午饭等）
+            if (st < endT) { nested = true; continue; } // 嵌套在卡内（同址占位午饭等）
+            if (nested) return false;
             return String(c.item_id || "").indexOf("leg-bridge-") === 0 && st === endT;
           }
           return false;
@@ -2353,9 +2357,19 @@ function planCard(plan) {
           const rowParts = legRowParts(it, d.items, idx);
           // R39b：与站点卡同一 .row 栅格——隐藏把手占位对齐时间列；按钮紧跟文字右侧并排
           // （此前 margin-left:auto 把两枚按钮推到行最右，用户要求「right by side」）。
+          // R39d：下一站若嵌在卡内（午饭 12:00 落在 13:32 收尾的游览里），出发
+          // 时刻取嵌套件起点——腿行写「12:00 0.0 km · 步行约 1 分钟」。
+          let depTxt = fmtTime(it.end_time);
+          const nxtItem = d.items[idx + 1];
+          if (
+            nxtItem && nxtItem.start_time && it.end_time &&
+            String(nxtItem.start_time).slice(0, 5) < String(it.end_time).slice(0, 5)
+          ) {
+            depTxt = fmtTime(nxtItem.start_time);
+          }
           blk.appendChild(el('<div class="row leg-row" style="margin:0 0 6px;align-items:center">' +
             timePad +
-            '<span class="t" style="flex:0 0 auto">' + fmtTime(it.end_time) + "</span>" +
+            '<span class="t" style="flex:0 0 auto">' + depTxt + "</span>" +
             '<span class="muted" style="flex:0 1 auto;min-width:0">' + rowParts.text + "</span>" +
             '<span style="flex:0 0 auto;white-space:nowrap">' + rowParts.buttons + "</span></div>"));
         }

@@ -298,10 +298,7 @@ def test_h5_unified_leg_row_wiring_and_syntax(tmp_path):
     assert "const brRow = isBridgeCard ? legRowParts(it, d.items, idx) : null;" in html
     assert "if (isRet && !hasKm && (Number(legD.taxi_km) || 0) > 0.05) {" in html
     # 页脚：出发时刻在前、按钮在右
-    assert (
-        '\'<span class="t" style="flex:0 0 auto">\' + fmtTime(it.end_time) + "</span>"'
-        in html
-    )
+    assert '\'<span class="t" style="flex:0 0 auto">\' + depTxt + "</span>"' in html
     assert (
         "'<span style=\"flex:0 0 auto;white-space:nowrap\">' + rowParts.buttons" in html
     )
@@ -599,3 +596,159 @@ def test_make_room_for_meal_stops_at_night_card(monkeypatch):
     assert ok is False
     assert str(v9.start_time)[:5] == "18:35"
     assert str(v10.end_time)[:5] == "20:38"
+
+
+def _r39c_day():
+    """与用户会话 Day3 同形：午饭 12:00-13:00、晚饭 18:35-19:20 与 45 分钟奥园同窗
+    （不足 3 小时、不算嵌套宿主），鸟巢 19:53-20:38。午/晚餐卡齐全，_ensure_meal_cards
+    不会补卡，只有「重叠对账」会改动该天。"""
+    site = _v("v8", "天坛", time(9, 0), time(11, 30), loc=(116.41, 39.88))
+    lunch = VisitItem(
+        item_id="meal-lunch-3",
+        name="午餐",
+        city="北京",
+        day=1,
+        category="food",
+        start_time=time(12, 0),
+        end_time=time(13, 0),
+        duration_minutes=60,
+    )
+    dinner = VisitItem(
+        item_id="meal-dinner-3",
+        name="晚饭",
+        city="北京",
+        day=1,
+        category="food",
+        start_time=time(18, 35),
+        end_time=time(19, 20),
+        duration_minutes=45,
+    )
+    v9 = _v("v9", "奥林匹克公园", time(18, 35), time(19, 20), loc=(116.39, 40.00))
+    v10 = _v("v10", "鸟巢(国家体育场)", time(19, 53), time(20, 38), loc=(116.39, 40.01))
+    return [site, lunch, dinner, v9, v10]
+
+
+def _starts(plan):
+    return {
+        i.item_id: str(i.start_time)[:5]
+        for i in plan.days[0].items
+        if getattr(i, "start_time", None) is not None
+    }
+
+
+def test_ensure_meal_cards_reconcile_false_keeps_engine_shape():
+    """R39c：keep/both（引擎盘）不跑餐卡重叠对账——引擎排的嵌套/顺延不被读路径重排。"""
+    from app.services.agent.plan import _ensure_meal_cards
+
+    kept = _plan(_r39c_day())
+    base = _starts(kept)
+    _ensure_meal_cards(kept, reconcile=False)
+    assert _starts(kept) == base, "引擎盘：读路径一个时刻都不许改"
+
+    shuffled = _plan(_r39c_day())
+    _ensure_meal_cards(shuffled, reconcile=True)
+    assert _starts(shuffled) != base, (
+        "对照：legacy 对账应改动该天（景点顺延或餐卡另置）"
+    )
+
+
+def test_plan_turn_body_keep_session_does_not_refow_meals():
+    """R39c：GET/回合响应里，keep 会话保持引擎盘时刻；legacy 会话照旧对账。"""
+    from app.api.plan import _plan_turn_body
+    from app.services.agent.plan import PlanSession
+
+    def body_for(seq):
+        session = PlanSession(
+            session_id="s-r39c-%s" % (seq or "legacy"),
+            device_id="dev-r39c",
+            state="ready",
+            sequence_choice=seq,
+            plan=_plan(_r39c_day()),
+        )
+        body = _plan_turn_body(session, None, None)
+        return _starts(body["plan"])
+
+    keep_items = body_for("keep")
+    assert keep_items["v9"] == "18:35"
+    assert keep_items["v10"] == "19:53"
+
+    legacy_items = body_for(None)
+    assert legacy_items != keep_items, "对照：legacy 会话应仍走餐卡对账（时刻有变化）"
+
+
+# ---- R39d（2026-11-25）：任何两个 SITES（含午/晚餐）之间都要有交通腿 ----
+def _r39d_day():
+    """Day1 形状：颐和园 09:32-13:32（卡内 12:00 午饭）→ 圆明园 14:02。"""
+    sight = _v("v1", "颐和园", time(9, 32), time(13, 32), loc=(116.2755, 39.9999))
+    lunch = VisitItem(
+        item_id="food-lunch-ph-d1",
+        name="午饭（自由安排）",
+        city="北京",
+        day=1,
+        category="food",
+        start_time=time(12, 0),
+        end_time=time(13, 0),
+        duration_minutes=60,
+        anchor_from_prev=True,
+        location=GeoPoint(lon=116.2755, lat=39.9999),
+    )
+    after = _v("v2", "圆明园", time(14, 2), time(14, 47), loc=(116.2974, 40.0084))
+    return [sight, lunch, after]
+
+
+def test_leg_pairs_keeps_nested_meal_pair():
+    """卡内午饭（12:00 落在 13:32 收尾的游览里）与上一站同址，仍要成腿。"""
+    from app.services.itinerary.legs import leg_pairs
+
+    plan = _plan(_r39d_day())
+    pairs = [(a.item_id, b.item_id, round(km, 3)) for a, b, km in leg_pairs(plan)]
+    assert ("v1", "food-lunch-ph-d1", 0.0) in pairs, pairs
+
+
+def test_leg_pairs_keeps_same_venue_meal_even_when_not_nested():
+    """同址但不嵌套（午饭排在同一站收尾之后）也要成腿——R39d 用户令。
+
+    例外两种：①上一站是班次点/远郊（回城专线链优先）；②上一站也是餐卡
+    （餐↔餐不连 0km 假腿）。
+    """
+    from app.services.itinerary.legs import leg_pairs
+
+    items = _r39d_day()
+    items[1].start_time = time(13, 32)
+    items[1].end_time = time(14, 2)
+    items[2].start_time = time(14, 32)
+    day = items
+    plan = _plan(day)
+    pairs = [(a.item_id, b.item_id) for a, b, _km in leg_pairs(plan)]
+    assert ("v1", "food-lunch-ph-d1") in pairs, pairs  # 同址也成腿
+    # 午饭→圆明园照常有腿（2.09 km）
+    assert ("food-lunch-ph-d1", "v2") in pairs, pairs
+
+
+def test_annotate_nested_meal_leg_is_zero_km_walk():
+    """嵌套餐卡的腿注解=0.0 km、步行 1 分钟（不是打车）。"""
+    from app.services.itinerary.legs import annotate_legs
+
+    plan = _plan(_r39d_day())
+    annotate_legs(plan)
+    sight, lunch, after = plan.days[0].items
+    # 腿挂在「上一站」卡页脚：颐和园 → 卡内午饭 = 0.0 km 步行
+    assert sight.distance_to_next_km == 0.0, sight.distance_to_next_km
+    assert sight.next_leg_mode == "walk", sight.next_leg_mode
+    assert sight.next_leg_minutes == 1, sight.next_leg_minutes
+    # 午饭自身去下一站照常有腿
+    assert lunch.distance_to_next_km is not None and lunch.distance_to_next_km > 0
+
+
+def test_h5_footer_uses_nested_departure_time():
+    """页脚出发时刻取嵌套件起点（12:00），bridgeFollows 不再隐藏嵌套页脚。"""
+    from pathlib import Path
+
+    html = (
+        Path(__file__).resolve().parents[1] / "app" / "static" / "index.html"
+    ).read_text(encoding="utf-8")
+    assert "let depTxt = fmtTime(it.end_time);" in html
+    assert "depTxt = fmtTime(nxtItem.start_time);" in html
+    assert '\'<span class="t" style="flex:0 0 auto">\' + depTxt' in html
+    # 嵌套存在时不隐藏页脚
+    assert "if (nested) return false;" in html

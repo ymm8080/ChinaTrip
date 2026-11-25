@@ -6053,7 +6053,10 @@ def _place_late_dinner_card(
     return None
 
 
-def _ensure_meal_cards(plan: ItineraryPlan) -> None:
+def _ensure_meal_cards(plan: ItineraryPlan, *, reconcile: bool = True) -> None:
+    # R39c（2026-11-25 用户令「读路径 legacy 自愈器按引擎/keep 会话整体跳过」）：
+    # reconcile=False 时只补缺卡，不跑「餐卡=槽位」重叠对账——keep/both 会话的
+    # 餐位/嵌套/顺序都是求解器排的，读路径不得顺延重排（引擎盘 == 用户所见）。
     """每天都得有午餐卡和晚餐卡，缺卡补「自由安排」占位（转场日不再豁免）。
 
     2026-11-13 拍板「ALL DAYS SHOULD HV LUNCH AND DINNER CARDS」，同日
@@ -6074,7 +6077,9 @@ def _ensure_meal_cards(plan: ItineraryPlan) -> None:
     for day in plan.days:
         # 重叠对账先行（2026-11-14 拍板）：既有餐卡被可动景点压住→景点顺
         # 延到餐后；被钉住件压住→卡按槽位口径另找位；嵌套宿主内不动。
-        _reconcile_meal_site_overlaps(plan, day)
+        # R39c：引擎盘跳过对账（见函数签名注释）。
+        if reconcile:
+            _reconcile_meal_site_overlaps(plan, day)
         # 转场窗（src=None 的 fixed 窗：±90 / 落地 +150）与酒店卡窗作额外
         # 阻挡（口径同旧 gap 通道的 fixed 窗，但可动景点不再算「空地」）。
         fixed, _tight, _flex, _xfer = _day_fixed_windows(day)
@@ -10585,7 +10590,7 @@ def _recruit_arrival_light(
     return None
 
 
-def heal_arrival_light(plan: ItineraryPlan) -> None:
+def heal_arrival_light(plan: ItineraryPlan, *, reconcile: bool = True) -> None:
     """出站自愈（2026-11-13 六拍 / 11-14 二拍）：旧行程的空到达日出站前补
     餐卡（至少晚餐不豁免），刷新即修不必重规划。
 
@@ -10601,7 +10606,7 @@ def heal_arrival_light(plan: ItineraryPlan) -> None:
     自由卡，与已漂过来的真餐厅并排。补卡后按时刻口径吸收同槽占位，一个
     餐卡只留一张（与生成/编辑终装同口径）。幂等：无同槽对时零改动。
     """
-    _ensure_meal_cards(plan)
+    _ensure_meal_cards(plan, reconcile=reconcile)
     # 补卡后按时刻口径吸收同槽占位（真餐厅漂到本槽 → 撤自由卡）。
     _absorb_free_card_beside_named(plan)
 

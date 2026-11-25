@@ -52,6 +52,16 @@ WALK_METERS_PER_MINUTE = 80.0  # ≈ 4.8 km/h sightseeing pace
 MIN_LEG_KM = 0.05  # below this the two stops are effectively co-located
 
 
+def _has_return_chain(item: VisitItem) -> bool:
+    """卡上是否已挂回城明细（direction=return）。
+
+    R39d：守卫不能用「next_leg_minutes 非空」——同址午饭/晚饭会先挂一条
+    0.0 km 步行腿，把回城段整段挡掉（朱家角 40km 打车回城实报回归）。
+    """
+    detail = getattr(item, "next_leg_detail", None)
+    return bool(isinstance(detail, dict) and detail.get("direction") == "return")
+
+
 def _point(item: VisitItem) -> GeoPoint | None:
     """Leg math point: real POI coords, else a meal card's inherited anchor."""
     return item.location or item.anchor_location
@@ -331,21 +341,64 @@ def leg_pairs(plan: ItineraryPlan) -> list[tuple[VisitItem, VisitItem, float]]:
                     continue  # 贴下一站：不吃链、也不当出发卡
             if last_pt is not None:
                 km = haversine_km(last_pt, cur_pt)
-                if km >= MIN_LEG_KM:
+                # R39d（2026-11-25 用户令「任何两个 SITES（包括午餐晚餐）之间
+                # 都要有交通腿」）：餐卡与上一站同址（km≈0）也成对——腿行写
+                # 「0.0 km · 步行约 1 分钟」。此前 MIN_LEG_KM 把两段整片吃掉：
+                # ①卡内午饭（12:00 落在 13:32 收尾的游览里，颐和园实报）；
+                # ②同址晚饭（圆明园 14:47 散场 → 18:59 晚饭同一坐标）。
+                # 「贴下一站」的午饭（锚在下一站上）已在上面 continue 掉，
+                # 远端专线链不会被这里改写成打车；班次卡本身无坐标不吃链。
+                # 但上一站是班次点/远郊时不许抢链（2026-11-17 慕田峪三案）：
+                # 回城三段挂在景区卡上，0km 步行会把它顶掉（test_leg_fares
+                # 回城链 5 测当场抓红）。
+                _last_sched = (
+                    last is not None
+                    and _access_profile(last)[0] in SCHEDULED_ACCESS_MODES
+                )
+                # 餐↔餐不成 0km 对（远郊日午饭与回城后的晚饭同锚时会连出
+                # 「午饭步行到晚饭」的假腿——2026-11-25 test_leg_fares 抓红）。
+                _prev_is_food = getattr(last, "category", "") == "food"
+                _same_venue_meal = (
+                    (is_lunch_placeholder(item) or is_dinner_placeholder(item))
+                    and not _last_sched
+                    and not _prev_is_food
+                )
+                if (
+                    is_lunch_placeholder(item) or is_dinner_placeholder(item)
+                ) and _last_sched:
+                    _same_venue_meal = False
+                if km >= MIN_LEG_KM or _same_venue_meal:
                     out.append((last, item, km))
             last = item
     return out
 
 
-def annotate_legs(plan: ItineraryPlan) -> ItineraryPlan:
-    """Fill/clear the leg fields of every day in ``plan`` (in place)."""
+def _has_leg(item: VisitItem) -> bool:
+    """卡上是否已有腿（实测或估计）——only_missing 模式据此跳过。"""
+    return (
+        getattr(item, "distance_to_next_km", None) is not None
+        or getattr(item, "next_leg_mode", None) is not None
+    )
+
+
+def annotate_legs(plan: ItineraryPlan, *, only_missing: bool = False) -> ItineraryPlan:
+    """Fill/clear the leg fields of every day in ``plan`` (in place).
+
+    ``only_missing=True``：只给「当前没有任何腿」的卡补直线腿，已有腿
+    （尤其 refresh_legs 的高德实测 leg_source=amap）原样保留——读路径补
+    卡后补算是为了新卡有腿，不是把实测覆盖成估计（R39d 回归）。
+    """
     # 空餐卡先贴前一站（地址 + 锚点），腿链才能算出「餐 → 下一站」
     resolve_meal_anchors(plan)
     for day in plan.days:
         for item in day.items:
             if not isinstance(item, TransferItem):
+                if only_missing and _has_leg(item):
+                    continue
                 _clear_leg(item)
     for a, b, km in leg_pairs(plan):
+        if only_missing and _has_leg(a):
+            continue
         a.distance_to_next_km = round(km, 2)
         meters = km * 1000.0 * DETOUR_FACTOR
         a.next_walk_minutes = max(1, round(meters / WALK_METERS_PER_MINUTE))
@@ -608,7 +661,7 @@ def _attach_plain_tail_return(day: DayPlan, timed: list[VisitItem]) -> None:
         if _point(item) is None:
             continue
         last = item
-    if last is None or last.next_leg_minutes is not None:
+    if last is None or _has_return_chain(last):
         return
     last_pt = _point(last)
     if last_pt is None:
@@ -707,7 +760,7 @@ def _attach_tail_return(day: DayPlan, timed: list[VisitItem]) -> None:
         if mode_i in SCHEDULED_ACCESS_MODES and service_i and terminal_i is not None:
             last = item
             break
-    if last is None or last.next_leg_minutes is not None:
+    if last is None or _has_return_chain(last):
         return
     last_pt = _point(last)
     if last_pt is None:
@@ -800,7 +853,7 @@ def _lift_return_over_placeholders(plan: ItineraryPlan) -> ItineraryPlan:
         for pos, a in enumerate(timed):
             if getattr(a, "anchor_from_prev", False):
                 continue  # 占位卡不是回城起点：挂回真实景区卡
-            if a.next_leg_minutes is not None:
+            if _has_return_chain(a):
                 continue
             mode, _terminal, service, _wait, _last = _access_profile(a)
             if mode not in SCHEDULED_ACCESS_MODES or not service:

@@ -721,8 +721,10 @@ async def get_plan_session(
         dedupe_plan_visits(session.plan)
     # 腿间隔读闸（2026-11-03 Day2 大明宫→城墙 15:00 零车程事故）：
     # 11-02 前旧兜底产物带腿重排自愈，钉/餐不动，装不下留空披露。
-    for note in heal_leg_gaps(session.plan):
-        logger.warning("plan/session %s leg-gap heal: %s", session_id, note)
+    # R39c：keep/both=引擎盘，跳过（引擎的接驳链/顺延口径读闸不认）。
+    if not _keep_seq:
+        for note in heal_leg_gaps(session.plan):
+            logger.warning("plan/session %s leg-gap heal: %s", session_id, note)
     # 无时刻卡读闸（2026-11-03 Day4 太平森林公园案）：旧会话混合日的
     # None-None 参访卡（垫在 19:30 演出之后、腿标注画巨腿）打开即清
     # ——非钉移除留痕；钉（build 期必打钉）铁律 19 不动；整日全未排
@@ -740,8 +742,9 @@ async def get_plan_session(
             logger.warning("plan/session %s rain-swap: %s", session_id, note)
     # 空档补点读闸（2026-11-16 上海案）：开页只治「上午空着」——晨卡先回
     # 08:30 日始，上午空出来的天按类型多样性补点；无空上午的行程零成本空转，
-    # 绝不在刷新时往行程里加新卡。
-    await agent.fill_leftover_gaps(session, morning_only=True)
+    # 绝不在刷新时往行程里加新卡。R39c：引擎盘不给读路径加卡。
+    if not _keep_seq:
+        await agent.fill_leftover_gaps(session, morning_only=True)
     await agent.refresh_legs(session)
     # 覆盖审计要在 save 之前跑（2026-11-17）：所有端点都是先落库再组响应，
     # 只在响应层审计会让披露/清脏不落库——GET 是持久化主路径，幂等可重入。
@@ -760,6 +763,10 @@ async def get_plan_session(
     from app.services.agent.plan import _apply_flag_schedule
 
     _apply_flag_schedule(session.plan)
+    # R39d：heal 可能补出午/晚餐卡（补卡晚于 refresh_legs 的 annotate），
+    # 落库前补一次「只补缺腿」的腿——新卡（颐和园→12:00 午饭）才有腿；
+    # 已有实测腿（leg_source=amap）原样保留。
+    annotate_legs(session.plan, only_missing=True)
     store.save(session)
     return _plan_turn_body(session, None, None)
 
@@ -2297,11 +2304,18 @@ def _plan_turn_body(session, reply: str, change, *, alternatives: bool = True) -
         heal_non_meal_meal_cards(session)
         # 到达日不再整天没安排（2026-11-13 六拍）：旧行程的空到达日出站前
         # 补一段「城市漫步（自由安排）」+ 缺的餐卡，刷新即修不必重规划。
-        heal_arrival_light(session.plan)
+        # R39c：keep/both=引擎盘，只补缺卡、不做重叠顺延（见 _ensure_meal_cards）。
+        _keep_seq = str(getattr(session, "sequence_choice", "") or "") in (
+            "keep",
+            "both",
+        )
+        heal_arrival_light(session.plan, reconcile=not _keep_seq)
         # 餐卡与紧邻景点的通勤腿（2026-11-15）：出站最后一道对账。
         # 餐卡重排（装配/编辑/救急）都可能在收口后抹平间隙，这里在真正
         # 交付的 plan 上补回；幂等——无间隙时不产生备注、不改时刻。
-        session.plan.assumptions.extend(_open_meal_leg_gaps(session.plan))
+        # R39c：keep/both（引擎盘）跳过——会顺延景点给餐卡腾通勤；legacy 照旧。
+        if not _keep_seq:
+            session.plan.assumptions.extend(_open_meal_leg_gaps(session.plan))
         # R41b：自由安排午/晚餐卡 → 就近推荐真餐厅。放整条自愈链末尾——
         # heal_arrival_light/_ensure_meal_cards 会补出新的占位卡，填充必须
         # 看到它们（否则当次请求里新补的午/晚餐卡仍是「自由安排」）。
@@ -2316,6 +2330,13 @@ def _plan_turn_body(session, reply: str, change, *, alternatives: bool = True) -
         # 白天入场闸读闸（2026-11-17 二拍）：顺延/贴锚/兜底把非钉普通观光
         # 卡推过 16:00/15:30 开场带的，出站前退回无时刻并披露（幂等）。
         session.plan.assumptions.extend(enforce_entry_gate(session.plan))
+        # R39d：上面的 heal 可能补出午/晚餐卡（引擎盘缺卡时），补卡发生在
+        # refresh_legs 的 annotate 之后——这里补算一次腿（幂等、零网络），
+        # 新卡才有来路/去路腿（颐和园→午饭 实报）。
+        from app.services.itinerary.legs import annotate_legs
+
+        # only_missing：refresh_legs 的高德实测腿原样保留，只补新卡/缺腿卡。
+        annotate_legs(session.plan, only_missing=True)
         # 必去覆盖审计（2026-11-17）：出站闸最后一道——必去无声消失自动补披露。
         _audit_must_coverage(session)
         # 2026-11-13 快路径：备选 chip 装配是整池扫描（18 件 ~4.5s），

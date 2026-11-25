@@ -71,7 +71,9 @@
 // v147 2026-11-25: 同址桥卡改为一段步行腿（0.0 km · 约 1 分钟，无按钮）；餐卡让位链遇夜卡即停。
 // v148 2026-11-25: 交通腿时间对齐站点时间列（隐藏把手占位）；TAXI / ALL TRANSPORTATION 紧跟文字并排。
 // v149 2026-11-25: 无把手卡（合成/钉住）统一补占位，时间列全一致（只读视图不补）。
-const VERSION = 'v149';
+// v150 2026-11-25: 任意两站之间都有交通腿——同址的午饭/晚饭也出一行（0.0 km · 步行约 1 分钟，
+// 出发时刻取卡内嵌件起点，如颐和园 12:00 午饭）；远郊班次点的回城专线链优先于 0 km 步行。
+const VERSION = 'v150';
 const CACHE = 'chinatrip-h5-' + VERSION;
 const SHELL = [
   './', './index.html', './i18n.js', './qrcode.min.js', './sortable.min.js', './manifest.webmanifest', './agent.html',
