@@ -96,7 +96,9 @@
 // 文字改「Please book in RESERVATION page, and transfer confirmation email to <USER ID>@CHINA for plan update.」。
 // v160 2026-11-26: 赞/👎/点评图标从预约信息行改挂景点地址行右端（地址+旗时+开放时间
 // 同一 flex 行右推；无地址/时刻行的卡回落独立图标行）。必须 bump 拉新缓存壳。
-const VERSION = 'v160';
+// v161 2026-11-26: 赞/👎/点评图标紧跟地址/时刻字符串右边（去掉 margin-left:auto，
+// 不再推到行右缘）。必须 bump 拉新缓存壳。
+const VERSION = 'v161';
 const CACHE = 'chinatrip-h5-' + VERSION;
 const SHELL = [
   './', './index.html', './i18n.js', './qrcode.min.js', './sortable.min.js', './manifest.webmanifest', './agent.html',

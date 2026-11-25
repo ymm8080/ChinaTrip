@@ -2333,7 +2333,7 @@ function planCard(plan) {
         // open hour 等一长串字符的右边」；2026-11-25 曾并预约信息行右端）：同一 flex 行
         // 右推；transfer 不出（2026-11-23 用户令腿不做点赞）；无地址/时刻行的卡（占位
         // 餐卡等）回落独立图标行。
-        const fbInline = (it.category || "") !== "transfer" ? '<span style="margin-left:auto;white-space:nowrap;color:var(--muted);font-size:12px">' +
+        const fbInline = (it.category || "") !== "transfer" ? '<span style="white-space:nowrap;color:var(--muted);font-size:12px">' +
           '<a class="fb-btn" data-kind="up" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '">👍</a> ' +
           '<a class="fb-btn" data-kind="down" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '">👎</a> ' +
           '<a class="fb-btn" data-kind="review" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '">' + I18N.tf("card.review","✍️ 点评") + "</a></span>" : "";
