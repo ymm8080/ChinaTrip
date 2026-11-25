@@ -279,10 +279,12 @@ def test_h5_unified_leg_row_wiring_and_syntax(tmp_path):
     """H5 守门：统一腿行的接线在位，且内联脚本语法成立。
 
     站间交通腿只许一种呈现——[出发时刻] 距下一站 X km · 车程/步行/接驳约
-    N 分钟 · 约 ¥Y，行右 TAXI + ALL TRANSPORTATION。接线断言守住三件事：
-    页脚只在「没有紧跟桥卡」时出、桥卡卡名位走同一构造器、回程结构化块里
-    与页脚重复的打车行让位。内联脚本逐块过 ``node --check``——R39 实锤：
-    整段替换吃掉了一个 ``if`` 开括号，只有语法检查能在提交前抓住。
+    N 分钟 · 约 ¥Y 的纯信息行（R41c 2026-11-25 用户令：TAXI / ALL
+    TRANSPORTATION 按钮下线；站点名=高德导航链接，起点=当前位置、终点=所点
+    站点；远郊交通腿信息行原样保留）。接线断言守住：页脚只在「没有紧跟桥卡」
+    时出、桥卡卡名位走同一构造器、回程结构化块里与页脚重复的打车行让位、
+    按钮代码不回潮。内联脚本逐块过 ``node --check``——R39 实锤：整段替换
+    吃掉了一个 ``if`` 开括号，只有语法检查能在提交前抓住。
     """
     import re
     import shutil
@@ -293,26 +295,30 @@ def test_h5_unified_leg_row_wiring_and_syntax(tmp_path):
     html = (static / "index.html").read_text(encoding="utf-8")
 
     assert "function legRowParts(it, items, idx) {" in html
-    assert "function navAllTransportTo(name, lon, lat) {" in html
     assert "if (hasKm && !isBridgeCard && !bridgeFollows) {" in html  # 页脚闸
     assert "const brRow = isBridgeCard ? legRowParts(it, d.items, idx) : null;" in html
     assert "if (isRet && !hasKm && (Number(legD.taxi_km) || 0) > 0.05) {" in html
-    # 页脚：出发时刻在前、按钮在右
+    # 页脚：出发时刻在前、腿文字随后（R41c：按钮 span 已删）
     assert '\'<span class="t" style="flex:0 0 auto">\' + depTxt + "</span>"' in html
-    assert (
-        "'<span style=\"flex:0 0 auto;white-space:nowrap\">' + rowParts.buttons" in html
-    )
-    # R39b：腿行/桥卡用隐藏把手占位，时间列与站点卡对齐；按钮紧跟文字并排
+    # R39b：腿行/桥卡用隐藏把手占位，时间列与站点卡对齐
     assert "const timePad = (planSession && planSession.session_id)" in html
     assert (
         '<span class="drag-handle" style="visibility:hidden" aria-hidden="true">'
         "⠿</span>" in html
     )
-    # 按钮与跳转：TAXI 复用 calltaxi；ALL TRANSPORTATION 落导航页
-    # （起点=当前位置、终点=下一景点）
-    assert 'button[data-action="navall"]' in html
-    assert 'navAllTransportTo(na.getAttribute("data-name")' in html
-    assert '#modeBar button[data-mode="driving"]' in html
+    # R41c（2026-11-25 用户令）：TAXI / ALL TRANSPORTATION 按钮下线——不得回潮
+    assert 'data-action="navall"' not in html
+    assert 'data-action="calltaxi"' not in html
+    assert "navAllTransportTo" not in html
+    assert "rowParts.buttons" not in html
+    assert "brRow.buttons" not in html
+    # R41c：站点名=高德导航链接（URI 无 from=，起点=当前位置；终点=所点站点）
+    assert "const spP = legPoint(it);" in html
+    assert (
+        '(spP ? \'" data-lon="\' + spP.lon + \'" data-lat="\' + spP.lat : "")'
+    ) in html
+    assert 'window.open("https://uri.amap.com/navigation?to=' in html
+    assert "&mode=car&src=chinatrip&coordinate=gaode&callnative=1" in html
     # 同址占位桥卡（两端 <0.05km）：不出按钮、不挂整卡导航；
     # 链接内词条去前导分隔符，免出「· ·」双点
     assert 'it.next_leg_mode === "same_venue"' in html
@@ -320,8 +326,9 @@ def test_h5_unified_leg_row_wiring_and_syntax(tmp_path):
     assert "const stripDot = (s) => String(s).replace(" in html
 
     i18n = (static / "i18n.js").read_text(encoding="utf-8")
-    assert '"card.allTransport": "🧭 ALL TRANSPORTATION"' in i18n
-    assert '"card.allTransport.title": "Open the Navigation tab' in i18n
+    assert '"card.allTransport"' not in i18n
+    assert '"card.callTaxi"' not in i18n
+    assert '"card.callTaxi.noCoord"' in i18n  # 桥卡打车路径的无坐标提示保留
 
     node = shutil.which("node")
     if node is None:

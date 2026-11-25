@@ -79,7 +79,10 @@
 // 开新确认卡前先失效旧卡（旧 ✅ 跨轮可点曾打出 409 死横幅）。必须 bump 拉新缓存壳。
 // v153 2026-11-26: 餐卡「美团订」→「🍚 MORE」，点击直唤美团 App（Android intent:// 包名
 // com.sankuai.meituan / iOS imeituan://；未装 App/桌面回落美团美食频道网页）；跟踪器与出行人挂单不变。
-const VERSION = 'v153';
+// v154 2026-11-25: TAXI / ALL TRANSPORTATION 按钮下线——站点名点击直达高德路线页
+// （起点=当前位置，终点=所点站点；无坐标卡仍入简介气泡）；交通腿行只留时刻与文字，
+// 远郊交通腿信息（专线/购票/尾段打车行）原样保留。必须 bump 拉新缓存壳。
+const VERSION = 'v154';
 const CACHE = 'chinatrip-h5-' + VERSION;
 const SHELL = [
   './', './index.html', './i18n.js', './qrcode.min.js', './sortable.min.js', './manifest.webmanifest', './agent.html',
