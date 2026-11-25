@@ -85,7 +85,9 @@
 // v155 2026-11-25: 酒店卡预订按钮改 Trip / Booking / Agoda 三枚外链（按当天宿城直跳三家官网
 // 搜酒店，替代「🏨 订酒店」渠道卡）；酒店卡不再出「📌 钉住」；酒店卡底加一行
 // 「PLEASE FORWARD CONFIRMATION EMAIL TO <USER ID>@CHINA FOR PLAN UPDATE.」。
-const VERSION = 'v155';
+// v156 2026-11-25: 酒店卡右侧下架 ✏️ 换酒店与 🗑 删除按钮——只留 Trip / Booking / Agoda 三枚外链
+// （R44 去钉住的续刀；set-hotel 的卡上入口随之撤除）。必须 bump 拉新缓存壳。
+const VERSION = 'v156';
 const CACHE = 'chinatrip-h5-' + VERSION;
 const SHELL = [
   './', './index.html', './i18n.js', './qrcode.min.js', './sortable.min.js', './manifest.webmanifest', './agent.html',

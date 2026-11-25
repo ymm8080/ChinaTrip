@@ -2254,10 +2254,10 @@ function planCard(plan) {
             htlLink("Booking", "https://www.booking.com/searchresults.html?ss=" + htlQ) +
             htlLink("Agoda", "https://www.agoda.com/search?textToSearch=" + htlQ)
           : "";
-        if (planSession && planSession.session_id && (!isSynth || isHotelSlot)) { // 会话内：换点/钉住/删除可点（合成卡无编辑入口；酒店卡例外——R21 拍板时间/名字/地址可编辑，R15 物化遗留 synthetic 旗不挡）
-          tail = mtBtn + htlBtn + (mealSlot ? "" : ' <button class="btn mini ghost" data-action="rename" data-item-id="' + esc(it.item_id) + '" data-city="' + esc(it.city) + '" data-name="' + esc(it.name) + '" data-dur="' + (it.duration_minutes || 0) + '"' + (isHotelSlot ? ' data-hotel="1" data-addr="' + esc(it.address || "") + '"' : "") + ' title="' + (isMorning ? I18N.tf("card.hotel.set.title.morning", "输入酒店名，验证后写入晨卡（名称+地址）") : (isNight ? I18N.tf("card.hotel.set.title", "输入酒店名，验证后写入本晚酒店卡（名称+地址）") : I18N.tf("card.rename.title","✏️ 改关键字，从库内匹配替换；无匹配回车留空"))) + '">' + I18N.tf("card.rename","✏️") + "</button>") +
+        if (planSession && planSession.session_id && (!isSynth || isHotelSlot)) { // 会话内：换点/钉住/删除可点（合成卡无编辑入口；酒店卡例外——R21 拍板时间/名字/地址可编辑，R15 物化遗留 synthetic 旗不挡；R44b：酒店卡不出 ✏️/📌/🗑，右侧只留 Trip/Booking/Agoda）
+          tail = mtBtn + htlBtn + ((mealSlot || isHotelCard) ? "" : ' <button class="btn mini ghost" data-action="rename" data-item-id="' + esc(it.item_id) + '" data-city="' + esc(it.city) + '" data-name="' + esc(it.name) + '" data-dur="' + (it.duration_minutes || 0) + '"' + (isHotelSlot ? ' data-hotel="1" data-addr="' + esc(it.address || "") + '"' : "") + ' title="' + (isMorning ? I18N.tf("card.hotel.set.title.morning", "输入酒店名，验证后写入晨卡（名称+地址）") : (isNight ? I18N.tf("card.hotel.set.title", "输入酒店名，验证后写入本晚酒店卡（名称+地址）") : I18N.tf("card.rename.title","✏️ 改关键字，从库内匹配替换；无匹配回车留空"))) + '">' + I18N.tf("card.rename","✏️") + "</button>") +
             (isHotelCard ? "" : ' <button class="btn mini ghost' + (it.pinned ? " on" : "") + '" data-action="pin" data-item-id="' + esc(it.item_id) + '" data-pinned="' + (it.pinned ? "1" : "0") + '">' + (it.pinned ? I18N.t("card.pinned") : I18N.t("card.pin")) + "</button>") + // R44：酒店卡不出钉住（用户令「酒店卡不需要钉住」）
-            ' <button class="btn mini ghost" data-action="del" data-item-id="' + esc(it.item_id) + '">' + I18N.tf("card.del","🗑 删除") + "</button>";
+            (isHotelCard ? "" : ' <button class="btn mini ghost" data-action="del" data-item-id="' + esc(it.item_id) + '">' + I18N.tf("card.del","🗑 删除") + "</button>"); // R44b：酒店卡不出 ✏️/🗑（用户令「删除按钮和修改按钮都不需要了」）
         } else { // 已保存行程回看：仅静态徽标（美团订/订酒店仍可点）
           tail = mtBtn + htlBtn + ((it.pinned && !it.soft_pin) ? ' <span class="badge warn">' + I18N.tf("card.pinned.badge","已钉住") + "</span>" : "");
         }
