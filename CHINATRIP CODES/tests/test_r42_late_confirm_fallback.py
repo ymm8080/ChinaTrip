@@ -9,6 +9,7 @@
 3) planRenderReply 开新确认卡前先失效旧卡（旧 ✅ 跨轮可点是横幅主产口）。
 """
 
+import re
 from pathlib import Path
 
 STATIC = Path(__file__).resolve().parents[1] / "app" / "static"
@@ -61,5 +62,8 @@ def test_i18n_dead_key_removed():
 
 def test_sw_bumped_with_changelog():
     sw = (STATIC / "sw.js").read_text(encoding="utf-8")
-    assert "const VERSION = 'v152';" in sw
-    assert "v152 2026-11-25" in sw  # changelog 行在案
+    m = re.search(r"const VERSION = 'v(\d+)';", sw)
+    assert m, "VERSION line missing"
+    # 下限不钉死：并行会话会继续 bump（R39 教训），本轮底线 v152
+    assert int(m.group(1)) >= 152
+    assert "v152 2026-11-25" in sw  # 本轮 changelog 行在案
