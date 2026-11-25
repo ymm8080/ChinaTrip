@@ -65,6 +65,9 @@ MEAL_GEO_KM_PENALTY = 0.25
 #: 就按先验计，但没有竞争对手时这种行仍会被选中（颐和园/圆明园 2km 内只有
 #: 一家 5.0×1 条的店）——宁留「自由安排」占位，也不拿一条点评充数。
 #: 取 10 而不是 50：审计显示 n≥50 会把什刹海/鸟巢各饿到只剩 1 家、圆明园 0 家。
+#: 例外（R41g，2026-11-26 用户拍板「pois FOOD 就不要用最小样本量闸」）：pois 的
+#: 国际荐点行（rec_tagged=True，curated/ta/lp 等人工背书）不受此闸——精选的
+#: 信任来自人工名单而不是评论条数，四季民福/提督这类店评分数缺失不该被挡。
 MEAL_GEO_MIN_COUNT = 10
 
 # R38（2026-11-25 用户「北京璞瑄酒店·大堂吧既不是娱乐也不是酒店也不是
@@ -168,6 +171,15 @@ def _name_key(row: dict[str, Any]) -> str:
     return re.sub(r"\s+", "", str(row.get("name") or "")).lower()
 
 
+def _rec_exempt(row: dict[str, Any]) -> bool:
+    """人工精选（荐点）行豁免最小样本量闸（R41g 用户拍板）。
+
+    `recommendation_food_in_city` / `prefetch_food_rows` 给 pois 荐点行打
+    `rec_tagged=True`——名单本身就是人工背书，评分数缺失不构成反对证据。
+    """
+    return bool(row.get("rec_tagged"))
+
+
 def _anchor_clusters(
     pts: Sequence[tuple[float, float]], cluster_km: float
 ) -> list[int]:
@@ -225,7 +237,7 @@ def thin_evidence_nearby(
         rating = rating_of(row)
         if coords is None or rating < min_rating:
             continue
-        if _count_of(row) >= max(0, min_count):
+        if _count_of(row) >= max(0, min_count) or _rec_exempt(row):
             continue
         dists = [haversine_m(coords[0], coords[1], p[0], p[1]) / 1000.0 for p in pts]
         if min(dists) > radius_km:
@@ -282,7 +294,7 @@ def select_geo_rated(
         rating = rating_of(row)
         if coords is None or rating < min_rating:
             continue
-        if _count_of(row) < max(0, min_count):
+        if _count_of(row) < max(0, min_count) and not _rec_exempt(row):
             continue
         dists = [haversine_m(coords[0], coords[1], p[0], p[1]) / 1000.0 for p in pts]
         idx = min(range(len(dists)), key=lambda i: dists[i])

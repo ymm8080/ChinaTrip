@@ -263,3 +263,23 @@ def test_same_name_in_both_tables_is_not_duplicated():
     ]
     # 两表同一家：并池后同名校验只留一条，不会同日两卡都是它
     assert names.count("南门涮肉(天坛店)") == 1
+
+
+def test_pois_curated_row_fills_free_card():
+    """读路径两表并池 × R41g 豁免：restaurants 空表时，pois 荐点行（无评
+    分数）也能填卡——人工精选不受最小样本量闸限制。"""
+    day = DayPlan(
+        day=1,
+        base_city="北京",
+        items=[
+            _sight("v1", "故宫博物院", 116.3970, 39.9160, time(9, 0), dur=240),
+            _placeholder("meal-lunch-1", "午餐", time(12, 30)),
+        ],
+    )
+    session = _session([day])
+    curated = _row("四季民福烤鸭店（故宫店）", 116.4028, 39.9146, 5.0, None)
+    curated["rec_tagged"] = True
+    store = _TwoTableStore([], [curated])
+    notes = heal_free_meal_cards(session, store=store)
+    assert session.plan.days[0].items[1].name == "四季民福烤鸭店（故宫店）"
+    assert notes and "四季民福" in notes[0]

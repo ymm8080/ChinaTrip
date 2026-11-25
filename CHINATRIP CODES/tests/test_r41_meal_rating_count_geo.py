@@ -469,3 +469,25 @@ def test_selector_drops_thin_evidence_rows():
     assert thin_evidence_nearby([thin, solid], [(116.4000, 39.9100)]) == [
         "一条评论满分店"
     ]
+
+
+def test_rec_tagged_rows_bypass_min_count():
+    """R41g（用户拍板「pois FOOD 就不要用最小样本量闸」）：人工精选行豁免。
+
+    四季民福这类 curated 店评分数缺失/极少（人工名单=背书），被样本量闸挡掉
+    等于精选永远进不了自动推荐。
+    """
+    from app.services.meal_geo import thin_evidence_nearby
+
+    curated = _row("四季民福烤鸭店（故宫店）", 116.4005, 39.9102, 5.0, None)
+    curated["rec_tagged"] = True
+    plain_thin = _row("一条评论满分店", 116.4010, 39.9105, 5.0, 1)
+    # 荐点行豁免：无评分数也能入选；普通小样本行仍被闸挡
+    picked = select_geo_rated(
+        [curated, plain_thin], [(116.4000, 39.9100)], per_cluster=2
+    )
+    assert [r["name"] for r in picked] == ["四季民福烤鸭店（故宫店）"]
+    # 披露辅助同样豁免：荐点行不算「评论数不足」
+    assert thin_evidence_nearby([curated, plain_thin], [(116.4000, 39.9100)]) == [
+        "一条评论满分店"
+    ]
