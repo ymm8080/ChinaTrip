@@ -1,0 +1,46 @@
+{
+  "date": "2026-11-25",
+  "poi_id": "267c68a0-396b-4451-a228-7beffcf94d9c",
+  "name_zh": "南锣鼓巷",
+  "source": "amap",
+  "source_of_truth": [
+    "Tencent Map: 39.937282,116.403187, 北京市东城区交道口街道前圆恩寺胡同28号",
+    "Wikipedia: 39.9370872,116.403148",
+    "BIGEMAP: 116.403242,39.934576"
+  ],
+  "coordinate_system": "location=GCJ-02, wgs84_location=WGS84 (gcj02_to_wgs84)",
+  "before": {
+    "location": "0101000020E61000008C68CEF47C345D404734DFF70F2F4440",
+    "wgs84_location": "0101000020E61000005EF56A3B19345D40DC905A0DE82E4440",
+    "address": "北京市密云区果园街道老头儿铁板烧(兴云店)兴云小区",
+    "address_en": "Location: Laotie Teppanyaki (Xingyun Branch), Guoyuan Subdistrict, Miyun District, Beijing, Xingyun Residential Community",
+    "access_mode": "bus",
+    "access_minutes": "143",
+    "access_gateway": "密云西大桥站",
+    "access_gateway_minutes": "19",
+    "access_note": "乘 44路外环 → 980路快车（1 次换乘）：台基厂路口西站 → 密云西大桥站（首班 06:00 / 末班 20:00），全程约 2 小时 23 分，下车步行 19 分钟",
+    "access_note_en": "Take 44路外环 → 980路快车 (1 transfer): 台基厂路口西站 → 密云西大桥站 (first 06:00 / last 20:00), about 2 h 23 min, 19 min walk from the stop",
+    "access_source": "baidu-transit",
+    "access_updated_at": "2026-11-15 07:20:26.789503",
+    "access_boarding_lon": "None",
+    "access_boarding_lat": "None"
+  },
+  "after": {
+    "location": "0101000020E610000008CBD8D0CD195D40939048DBF8F74340",
+    "wgs84_location": "0101000020E6100000BC285C7767195D408EC47FD5CAF74340",
+    "address": "北京市东城区交道口街道前圆恩寺胡同28号",
+    "address_en": "Nanluoguxiang Hutong, Jiaodaokou Subdistrict, Dongcheng District, Beijing",
+    "access_mode": "None",
+    "access_minutes": "None",
+    "access_gateway": "None",
+    "access_gateway_minutes": "None",
+    "access_note": "None",
+    "access_note_en": "None",
+    "access_source": "None",
+    "access_updated_at": "None",
+    "access_boarding_lon": "None",
+    "access_boarding_lat": "None"
+  },
+  "backup_table": "pois_nanluoguxiang_addr_bak_20261125",
+  "rollback": "python ops/fix_nanluoguxiang_address_20261125.py --rollback"
+}
