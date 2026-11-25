@@ -20114,33 +20114,39 @@ def heal_free_meal_cards(
                 continue
         # R41h（2026-11-26 用户「day3 11am reach mutianyu wall, why restrant
         # recommend 小吊梨汤。 THEN THERE IS REMOTE TRANSPORTATION AFTER
-        # LUNCH」）：锚=**时间邻位**——紧邻本卡前/后的一张「有坐标的非餐非宿」
-        # 卡，且**不跨过班次/接驳/打车卡**（跨过＝用户被运到了别处）。
+        # LUNCH」+ 定版「LUNCH SHOULD BE EITHER NEAR LAST SITE OR NEAR NEXT
+        # SITE DEPENDING ON TIMING」）：锚=**与餐卡时刻最接近的一张有坐标景点**
+        # （上一站或下一站，按时间就近），餐卡 2km 内贴着它才算「就近」。
         # 旧口径用全天景点做锚：远郊日（慕田峪班车日）下午/晚上回城的景点会把
         # 城区店填进 11:08 的午餐卡（实测被绑 0.7km 近鸟巢的小吊梨汤(新奥店)，
-        # 产出 49km/186 分的假接驳腿）。邻位都没有达标店 → 宁留「自由安排」。
-        _idx = next(
-            (k for k, o in enumerate(day.items) if o is item),
-            -1,
-        )
-        pts: list[tuple[float, float]] = []
-        for _step in (-1, 1):
-            _j = _idx + _step
-            while 0 <= _j < len(day.items):
-                _other = day.items[_j]
-                _cat = str(getattr(_other, "category", "") or "")
-                if _cat in ("transfer", "transport"):
-                    break  # 班次/接驳/打车＝用户被运走，锚不能跨过它
-                if (
-                    isinstance(_other, VisitItem)
-                    and _other.location is not None
-                    and _cat not in ("food", "hotel")
-                ):
-                    pts.append((_other.location.lon, _other.location.lat))
-                    break
-                _j += _step
-        if not pts:
+        # 产出 49km/186 分的假接驳腿）。最近锚也没有达标店 → 宁留「自由安排」。
+        # 注意不能按「紧邻卡片」走查：出站副本插满桥卡（transfer），一碰就断，
+        # 锚恒空（实测 6 张占位卡全数漏填）。
+        _end_min = minutes + int(item.duration_minutes or 60)
+        _best = None  # (时间距离, lon, lat)
+        for other in day.items:
+            if other is item or not isinstance(other, VisitItem):
+                continue
+            cat = str(getattr(other, "category", "") or "")
+            if cat in ("food", "hotel", "transport", "transfer"):
+                continue
+            if other.location is None or not other.duration_minutes:
+                continue
+            if other.start_time is None:
+                continue
+            o_lo = _minutes_of(other.start_time)
+            o_hi = o_lo + int(other.duration_minutes)
+            if minutes <= o_hi and o_lo <= _end_min:
+                gap = 0  # 与餐卡同时段（用户就在这一带）
+            elif minutes > o_hi:
+                gap = minutes - o_hi
+            else:
+                gap = o_lo - _end_min
+            if _best is None or gap < _best[0]:
+                _best = (gap, other.location.lon, other.location.lat)
+        if _best is None:
             continue
+        pts = [(_best[1], _best[2])]
         city = item.city or getattr(day, "base_city", "") or ""
         if city not in rows_cache:
             # R41d（用户 2026-11-25「do you search both pois and restrant two
