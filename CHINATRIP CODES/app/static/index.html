@@ -2328,8 +2328,21 @@ function planCard(plan) {
         // 交通腿只出一行——[出发时刻] 距下一站 X km · 车程/步行/接驳约 N 分钟 · 约 ¥Y，行右
         // 固定 🚕 TAXI + ALL TRANSPORTATION 两枚按钮（legRowParts）。桥卡（leg-bridge-*）
         // 自身就是这一行；紧跟桥卡的上一张卡不再重复出页脚。
-        const afterIt = d.items[idx + 1];
-        const bridgeFollows = !!(afterIt && String(afterIt.item_id || "").indexOf("leg-bridge-") === 0 && it.end_time && String(it.end_time).slice(0, 5) === String(afterIt.start_time || "").slice(0, 5));
+        // R39：紧跟的转场卡（leg-bridge-*）已用同一行带上时刻呈现——上一张卡不再重复
+        // 页脚。查找时跳过嵌套在卡内的同址占位卡（卡 13:32 收尾、卡内午饭 12:00-13:00），
+        // 命中第一张不早于本卡收尾的卡再判桥卡；否则「景点+卡内午饭→桥卡」会出两行同一段。
+        const bridgeFollows = (() => {
+          if (!it.end_time || isBridgeCard) return false;
+          const endT = String(it.end_time).slice(0, 5);
+          for (let j = idx + 1; j < d.items.length; j++) {
+            const c = d.items[j];
+            if (!c || !c.start_time) continue;
+            const st = String(c.start_time).slice(0, 5);
+            if (st < endT) continue; // 嵌套在卡内（同址占位午饭等）
+            return String(c.item_id || "").indexOf("leg-bridge-") === 0 && st === endT;
+          }
+          return false;
+        })();
         if (hasKm && !isBridgeCard && !bridgeFollows) {
           const rowParts = legRowParts(it, d.items, idx);
           blk.appendChild(el('<div class="leg-row" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:0 2px 6px ' + ind + '">' +
