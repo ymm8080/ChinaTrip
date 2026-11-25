@@ -445,3 +445,27 @@ def test_meal_polish_returns_none_without_meal_candidates():
 
     enriched = SimpleNamespace(snapshot=SimpleNamespace(candidates=[]))
     assert _polish_meal_bindings(None, enriched, None, None, None, wall_s=1.0) is None
+
+
+def test_selector_drops_thin_evidence_rows():
+    """R41c：评分数不足（<MEAL_GEO_MIN_COUNT）的店不进自动推荐。
+
+    用户 2026-11-25「D1 怎么会选一个只有一条评论的餐厅」：颐和园/圆明园 2km
+    内只有一家 5.0×1 条的店时，宁留「自由安排」占位，也不拿一条点评充数。
+    """
+    from app.services.meal_geo import MEAL_GEO_MIN_COUNT
+
+    thin = _row("一条评论满分店", 116.4005, 39.9102, 5.0, 1)
+    solid = _row("口碑店", 116.4010, 39.9105, 4.4, 50)
+    assert MEAL_GEO_MIN_COUNT > 1
+    # 有达标店时只选达标的
+    picked = select_geo_rated([thin, solid], [(116.4000, 39.9100)], per_cluster=2)
+    assert [r["name"] for r in picked] == ["口碑店"]
+    # 只有小样本店时宁缺
+    assert select_geo_rated([thin], [(116.4000, 39.9100)]) == []
+    # 披露辅助：能列出被这条闸挡下的店名
+    from app.services.meal_geo import thin_evidence_nearby
+
+    assert thin_evidence_nearby([thin, solid], [(116.4000, 39.9100)]) == [
+        "一条评论满分店"
+    ]

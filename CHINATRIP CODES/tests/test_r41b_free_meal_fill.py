@@ -76,7 +76,8 @@ def _session(days):
 # 天坛 (116.4128, 39.8836)。1.11km 外的高评论数店 vs 1.9km 外的小样本满分店。
 _ROWS = [
     _row("南门涮肉(天坛店)", 116.4120, 39.8840, 4.5, 106),
-    _row("刘记炙子烤肉(虎坊桥店)", 116.4010, 39.8790, 4.8, 4),
+    _row("提督·TIDU(北京坊店)", 116.4010, 39.8790, 4.5, 60),
+    _row("一条评论满分店", 116.4129, 39.8837, 5.0, 1),
     _row("远郊满分店", 117.2000, 40.3000, 5.0, 999),
 ]
 
@@ -104,7 +105,9 @@ def test_free_cards_fill_with_nearby_restaurants_by_score():
     assert lunch.location is not None and lunch.poi_id
     assert lunch.start_time == time(12, 10)  # 卡号/时刻不动
     # 晚餐拿第二家（同日不重复）
-    assert dinner.name == "刘记炙子烤肉(虎坊桥店)"
+    assert dinner.name == "提督·TIDU(北京坊店)"
+    # 一条评论的 5.0 分店：评分数闸挡下，绝不进卡
+    assert all(i.name != "一条评论满分店" for i in session.plan.days[0].items)
     assert len(notes) == 2 and "南门涮肉" in notes[0]
     # 幂等：填完的卡不再是占位件
     assert heal_free_meal_cards(session, store=_Store(_ROWS)) == []
@@ -188,3 +191,75 @@ def test_card_nested_inside_sight_block_is_left_free():
     session = _session([day])
     assert heal_free_meal_cards(session, store=_Store(_ROWS)) == []
     assert session.plan.days[0].items[1].name == "午餐"
+
+
+def test_only_thin_evidence_nearby_keeps_placeholder_and_discloses():
+    # 用户 D1 形态：颐和园 2km 无店、圆明园 2km 只有一家 5.0×1 条 → 留占位，
+    # 并在 assumptions 披露「附近只有评论数不足的餐馆」。
+    day = DayPlan(
+        day=1,
+        base_city="北京",
+        items=[
+            _sight("v1", "颐和园", 116.2749, 39.9987, time(9, 0), dur=240),
+            _sight("v2", "圆明园", 116.3137, 40.0021, time(13, 37), dur=45),
+            _placeholder("meal-dinner-1", "晚饭", time(18, 30)),
+        ],
+    )
+    session = _session([day])
+    thin_rows = [_row("天厨妙香素食餐厅(清华店)", 116.3100, 40.0100, 5.0, 1)]
+    notes = heal_free_meal_cards(session, store=_Store(thin_rows))
+    assert session.plan.days[0].items[2].name == "晚饭"  # 保持占位
+    assert notes and "评论数不足" in notes[0]
+    assert "天厨妙香" in notes[0]
+    # 披露进 assumptions
+    assert any("评论数不足" in a for a in session.plan.assumptions)
+
+
+class _TwoTableStore(_Store):
+    """restaurants 表为空、pois 荐点行有一家——两表都得查。"""
+
+    def __init__(self, rows, rec_rows):
+        super().__init__(rows)
+        self._rec_rows = list(rec_rows)
+
+    def recommendation_food_in_city(self, city):
+        return list(self._rec_rows)
+
+
+def test_both_tables_are_searched():
+    day = DayPlan(
+        day=1,
+        base_city="北京",
+        items=[
+            _sight("v1", "天坛", 116.4128, 39.8836, time(9, 0)),
+            _placeholder("meal-lunch-1", "午餐", time(12, 10)),
+        ],
+    )
+    session = _session([day])
+    store = _TwoTableStore(
+        [], [_row("四季民福烤鸭店(天坛店)", 116.4120, 39.8840, 4.9, 300)]
+    )
+    notes = heal_free_meal_cards(session, store=store)
+    assert session.plan.days[0].items[1].name == "四季民福烤鸭店(天坛店)"
+    assert notes
+
+
+def test_same_name_in_both_tables_is_not_duplicated():
+    day = DayPlan(
+        day=1,
+        base_city="北京",
+        items=[
+            _sight("v1", "天坛", 116.4128, 39.8836, time(9, 0)),
+            _placeholder("meal-lunch-1", "午餐", time(12, 10)),
+            _placeholder("meal-dinner-1", "晚饭", time(18, 30)),
+        ],
+    )
+    session = _session([day])
+    same = _row("南门涮肉(天坛店)", 116.4120, 39.8840, 4.5, 106)
+    store = _TwoTableStore([same], [dict(same, rating_count=90)])
+    heal_free_meal_cards(session, store=store)
+    names = [
+        i.name for i in session.plan.days[0].items if i.item_id.startswith("meal-")
+    ]
+    # 两表同一家：并池后同名校验只留一条，不会同日两卡都是它
+    assert names.count("南门涮肉(天坛店)") == 1

@@ -20047,7 +20047,11 @@ def heal_free_meal_cards(
         return []
     try:
         from app.services.coords import haversine_m
-        from app.services.meal_geo import select_geo_rated
+        from app.services.meal_geo import (
+            MEAL_GEO_MIN_COUNT,
+            select_geo_rated,
+            thin_evidence_nearby,
+        )
         from app.services.poi_details import get_poi_detail_store
         from app.services.restaurants import candidate_from_poi_dict
         from app.services.trip_solver.inputs.cuisine import cuisine_key
@@ -20120,13 +20124,27 @@ def heal_free_meal_cards(
             continue
         city = item.city or getattr(day, "base_city", "") or ""
         if city not in rows_cache:
+            # R41d（用户 2026-11-25「do you search both pois and restrant two
+            # tables?」）：与引擎同源、**两表并池**——`restaurants` 表给评分/
+            # 评分数（自动推荐的主供给），`pois` 的国际荐点行（curated/ta/lp…）
+            # 给人工精选兜底（引擎的 recommendation_food_in_city 同款）；同名
+            # 由选择器去重，评分/评分数/坐标口径一致。
+            rows: list[dict] = []
             try:
-                rows_cache[city] = list(store.restaurant_rows_in_city(city) or [])
+                rows = list(store.restaurant_rows_in_city(city) or [])
             except Exception:  # noqa: BLE001 - 单城失败只跳过该卡
                 logger.warning(
                     "plan: restaurant rows failed for %s", city, exc_info=True
                 )
-                rows_cache[city] = []
+            try:
+                _reco = getattr(store, "recommendation_food_in_city", None)
+                if callable(_reco):
+                    rows += list(_reco(city) or [])
+            except Exception:  # noqa: BLE001 - 荐点表不可用只是少了兜底
+                logger.warning(
+                    "plan: reco food rows failed for %s", city, exc_info=True
+                )
+            rows_cache[city] = rows
         pick = None
         # 候选给宽一点：同一天两张卡，前几名可能已被别的卡占用/撞菜系
         picked_rows = select_geo_rated(rows_cache[city], pts, limit=4)
@@ -20145,6 +20163,28 @@ def heal_free_meal_cards(
             pick = (row, cand)
             break
         if pick is None:
+            thin = thin_evidence_nearby(rows_cache[city], pts)
+            if thin:
+                notes.append(
+                    L(
+                        "第%d天%s：附近 2km 内只有评论数不足（<%d 条）的餐馆，"
+                        "未自动推荐（%s）"
+                        % (
+                            day.day,
+                            _meal_card_label(slot),
+                            MEAL_GEO_MIN_COUNT,
+                            "、".join(thin[:2]),
+                        ),
+                        "Day %d %s: only low-sample restaurants nearby "
+                        "(< %d reviews); kept 'on your own' (%s)"
+                        % (
+                            day.day,
+                            slot,
+                            MEAL_GEO_MIN_COUNT,
+                            ", ".join(thin[:2]),
+                        ),
+                    )
+                )
             continue
         row, cand = pick
         km = (

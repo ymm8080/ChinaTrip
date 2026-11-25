@@ -58,7 +58,7 @@ class _GeoStore(SitesStore):
 
 def test_select_geo_rated_keeps_best_rated_within_radius():
     rows = [
-        _row("近低分", 116.4000, 39.9100, 4.1),
+        _row("近低分", 116.4000, 39.9100, 4.1, 20),  # R41c：样本量闸需 ≥10
         _row("近高分", 116.4010, 39.9110, 4.9, 800),
         _row("远高分", 116.7000, 39.9100, 5.0, 3000),  # ~25km 外，出 2km 闸
         _row("无评分", 116.4020, 39.9120, None),

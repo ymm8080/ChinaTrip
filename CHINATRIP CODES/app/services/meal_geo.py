@@ -60,6 +60,12 @@ MEAL_GEO_RATING_PRIOR_WEIGHT = 20.0
 # R41 距离折价：每多 1km 扣 0.25 个评分点——「4.5 分隔壁店」约等于
 # 「4.9 分 1.8km 外」，距离从此真实参与排序而不是只做最后的并列键。
 MEAL_GEO_KM_PENALTY = 0.25
+#: R41c 最小样本量：评分数（评论条数）低于此值的行不进自动推荐（2026-11-25
+#: 用户「D1 怎么会选一个只有一条评论的餐厅」）。可信度折后评分对小样本本来
+#: 就按先验计，但没有竞争对手时这种行仍会被选中（颐和园/圆明园 2km 内只有
+#: 一家 5.0×1 条的店）——宁留「自由安排」占位，也不拿一条点评充数。
+#: 取 10 而不是 50：审计显示 n≥50 会把什刹海/鸟巢各饿到只剩 1 家、圆明园 0 家。
+MEAL_GEO_MIN_COUNT = 10
 
 # R38（2026-11-25 用户「北京璞瑄酒店·大堂吧既不是娱乐也不是酒店也不是
 # 餐厅 / 当作餐厅为什么后面还有一个晚餐自由卡」）：酒廊 / 大堂吧 / 酒吧
@@ -191,6 +197,45 @@ def _anchor_clusters(
     return [find(i) for i in range(len(pts))]
 
 
+def thin_evidence_nearby(
+    rows: Iterable[dict[str, Any]],
+    anchors: Sequence[tuple[float, float]],
+    *,
+    radius_km: float = MEAL_GEO_RADIUS_KM,
+    min_rating: float = MEAL_GEO_MIN_RATING,
+    min_count: int = MEAL_GEO_MIN_COUNT,
+) -> list[str]:
+    """半径内「评分达标但评论数不足」的店名（披露为什么没给这家卡推荐）。
+
+    与 `select_geo_rated` 同一套闸，只把评分数闸反过来取——用于出站披露：
+    「附近 2km 内只有评论数不足的餐馆，未自动推荐」。
+    """
+    pts = [
+        (float(a[0]), float(a[1]))
+        for a in (anchors or ())
+        if isinstance(a, (tuple, list)) and len(a) >= 2
+    ]
+    if not rows or not pts:
+        return []
+    out: list[str] = []
+    for row in rows:
+        if is_non_meal_venue(row):
+            continue
+        coords = _coords(row)
+        rating = rating_of(row)
+        if coords is None or rating < min_rating:
+            continue
+        if _count_of(row) >= max(0, min_count):
+            continue
+        dists = [haversine_m(coords[0], coords[1], p[0], p[1]) / 1000.0 for p in pts]
+        if min(dists) > radius_km:
+            continue
+        name = str(row.get("name") or "")
+        if name and name not in out:
+            out.append(name)
+    return out
+
+
 def select_geo_rated(
     rows: Iterable[dict[str, Any]],
     anchors: Sequence[tuple[float, float]],
@@ -199,12 +244,14 @@ def select_geo_rated(
     per_cluster: int = MEAL_GEO_PER_CLUSTER,
     limit: int = MEAL_GEO_LIMIT,
     min_rating: float = MEAL_GEO_MIN_RATING,
+    min_count: int = MEAL_GEO_MIN_COUNT,
     cluster_km: float = MEAL_GEO_CLUSTER_KM,
 ) -> list[dict[str, Any]]:
     """按「可信度评分 × 距离」+ 地理簇配额选餐候选（纯函数，确定性）。
 
     规则：
-    1. 无坐标 / 无评分（< min_rating）/ 距所有锚点 > radius_km 的行不选；
+    1. 无坐标 / 无评分（< min_rating）/ 评分数 < min_count（小样本不推荐）/
+       距所有锚点 > radius_km 的行不选；
     2. 每行归到**最近**的锚点，锚点再按 cluster_km 聚成可同日簇；
     3. 行总分 = `credible_rating`（评分 × 评分数）− 距离×MEAL_GEO_KM_PENALTY；
        同名行只留总分最高的一条（跨源重复）；
@@ -234,6 +281,8 @@ def select_geo_rated(
         coords = _coords(row)
         rating = rating_of(row)
         if coords is None or rating < min_rating:
+            continue
+        if _count_of(row) < max(0, min_count):
             continue
         dists = [haversine_m(coords[0], coords[1], p[0], p[1]) / 1000.0 for p in pts]
         idx = min(range(len(dists)), key=lambda i: dists[i])
