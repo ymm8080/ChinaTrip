@@ -111,7 +111,12 @@
 // 后端纯打车回城明细的接驳空槽改发 null（R49）。必须 bump 拉新缓存壳。
 // v167 2026-11-26: 同址 0 公里/1 分钟的步行腿不再显示（页脚与桥卡同一判定）；
 // 数据层照旧成对，只是不渲染这一行噪声。
-const VERSION = 'v167';
+// v168 2026-11-26: 预订页火车/机票分区加「＋ Trip」直达键（Trip.com 路线页/机票页预填
+// 城市+日期，码表在 i18n.js）——改了 index.html + i18n.js，必须 bump 拉新缓存壳。
+// v169 2026-11-26: 规划页酒店卡点酒店名/卡底指路行 → 预订页 🏨 分区，顶部钉住所选酒店
+//（酒店名 + 城市/地址 + Trip/Booking/Agoda 三家按钮，按「酒店名 城市」搜）——R52，
+// 改了 index.html + i18n.js，必须 bump 拉新缓存壳。
+const VERSION = 'v169';
 const CACHE = 'chinatrip-h5-' + VERSION;
 const SHELL = [
   './', './index.html', './i18n.js', './qrcode.min.js', './sortable.min.js', './manifest.webmanifest', './agent.html',

@@ -136,6 +136,8 @@
       "card.hotel.done": "✅ Hotel verified and set", "card.hotel.addrPh": "📍 Address (type to override)", "card.hotel.addrDone": "Hotel address updated",
       "card.hotel.noAnchor": "Can't locate tonight yet: verify the hotel with ✏️ first, or add a located sight to this day",
       "card.hotel.stay": "{n}-night stay", "card.hotel.stayRange": " ({ci} → {co})",
+      "card.hotel.rsv.title": "Tap the hotel name → RESERVATION page (compare Trip / Booking / Agoda)",
+      "card.hotel.rsvNote": "🏨 Book on the RESERVATION page (Trip / Booking / Agoda); forward the confirmation email and the itinerary updates itself.",
       "card.tmode.flight.title": "Switch to flight: re-query flights and update times automatically",
       "card.tmode.train.title": "Switch to train: re-query trains and update times automatically",
       "card.tno": "🔢 Flight/Train no.", "card.tno.title": "Enter a flight or train number (e.g. CA1234 / G1234); times are validated and updated automatically",
@@ -325,6 +327,10 @@
       "book.phShowCity": "e.g. Xi'an", "book.phShowKw": "e.g. The Everlasting Regret (optional)",
       "book.site": "🎫 Sights", "book.siteKw": "Sight name", "book.siteGoBtn": "🎫 Find sight tickets",
       "book.phSiteCity": "e.g. Beijing", "book.phSiteKw": "e.g. Forbidden City (blank = top sights)",
+      "book.tripTitle": "Open Trip.com directly with the cities and date above pre-filled; on mobile the page offers the Trip.com app",
+      "book.tripNeedCity": "Fill in both cities first, then tap ＋ Trip",
+      "book.tripNoRoute": "No Trip.com route page for that city yet — opened Trip.com trains home, pick stations there",
+      "book.tripNoCode": "No airport code on file for that city — opened Trip.com flights home, pick cities there",
       "bk.backfill": "📋 Order Backfill", "bk.refresh": "🔄 Refresh handoffs", "bk.alliance": "🤝 Alliance sync demo",
       "bk.stateFlow": "State machine: opened → user_confirmed → alliance_verified → settled (returned = refund path)",
       "bk.sms": "Order SMS verbatim",
@@ -338,6 +344,8 @@
       "bk.hotelNoDate": "No「trip start date」 set above: set it to auto-derive check-in/out for day {d}.",
       "bk.hotelThis": "🏨 Hotels near this one",
       "bk.hotel.cityFirst": "Pick a stay city above first, then tap Trip / Booking / Agoda.",
+      "bk.hotelSel.clear": "✕ Another hotel",
+      "bk.hotelSel.note": "Pick a platform to compare and book; forward the confirmation email and the itinerary updates itself.",
       "bk.prefillTo": "Prefilled {f} → {t} — pick dates and search",
       "bk.prefillFrom": "Prefilled departure city {f}; please fill the arrival city",
       "bk.trainBtn": "🚄 Book trains", "bk.flightBtn": "✈️ Book flights", "bk.hotelBtn": "🏨 Book hotels",
@@ -1147,6 +1155,49 @@
     "龙口": "Longkou",
     "龙岩": "Longyan"
   };
+  /* 机场 IATA 码表（2026-11-26 预订页「＋ Trip」机票直达键）：Trip.com showfarefirst 的
+   * dcity/acity 只认三字码，传城市英文名会被打回首页（实测）——故按「小写英文拼写」建表，
+   * 查表前先用 cityEn() 把中文城市名换成英文再归一（iataKey）。无机场城市（如苏州）不收录，
+   * 未收录由调用点回落 Trip.com 机票首页并提示手选，绝不给死链。 */
+  var IATA = {
+    "beijing": "BJS", "shanghai": "SHA", "guangzhou": "CAN", "shenzhen": "SZX",
+    "chengdu": "CTU", "chongqing": "CKG", "xian": "XIY", "hangzhou": "HGH",
+    "nanjing": "NKG", "wuhan": "WUH", "changsha": "CSX", "zhengzhou": "CGO",
+    "tianjin": "TSN", "qingdao": "TAO", "dalian": "DLC", "shenyang": "SHE",
+    "changchun": "CGQ", "harbin": "HRB", "jinan": "TNA", "taiyuan": "TYN",
+    "shijiazhuang": "SJW", "hefei": "HFE", "nanchang": "KHN", "fuzhou": "FOC",
+    "xiamen": "XMN", "nanning": "NNG", "guilin": "KWL", "guiyang": "KWE",
+    "kunming": "KMG", "lijiang": "LJG", "sanya": "SYX", "haikou": "HAK",
+    "lanzhou": "LHW", "xining": "XNN", "yinchuan": "INC", "urumqi": "URC",
+    "hohhot": "HET", "lhasa": "LXA", "dunhuang": "DNH", "zhangjiajie": "DYG",
+    "ningbo": "NGB", "wenzhou": "WNZ", "wuxi": "WUX", "yantai": "YNT",
+    "weihai": "WEH", "luoyang": "LYA", "huangshan": "TXN", "dali": "DLU",
+    "zhuhai": "ZUH", "shantou": "SWA", "yichang": "YIH", "jiuzhaigou": "JZH",
+    "hongkong": "HKG", "macau": "MFM", "taipei": "TPE"
+  };
+  /* 中文城市名 → 英文拼写（无视当前语言；city() 在 zh 下原样返回，深链必须强制英译）。 */
+  function cityEn(raw) {
+    var s = String(raw == null ? "" : raw).trim().replace(/市$/, "");
+    if (!s) return "";
+    var k = s.replace(/^(.*?)(自治州|地区)/, "");
+    return CITY_EN[k] || CITY_EN[s] || s;
+  }
+  /* 拼音 slug：小写、去撇号/空格/连字符（Xi'an → xian），非英文字母返回空串（调用点降级）。 */
+  function slug(raw) {
+    var s = cityEn(raw).toLowerCase().replace(/[^a-z]/g, "");
+    return s || "";
+  }
+  /* 城市名或直接输入的 IATA 码 → 三字码；查不到返回空串（调用点回落首页，不猜）。 */
+  function iata(raw) {
+    var s = String(raw == null ? "" : raw).trim();
+    if (!s) return "";
+    if (/^[A-Za-z]{3}$/.test(s)) {
+      var up = s.toUpperCase(), k;
+      for (k in IATA) if (IATA[k] === up) return up;
+      return "";
+    }
+    return IATA[slug(s)] || "";
+  }
 
   /* LANGS 注册表（design nlang §2.2）：code = localStorage/DICT 短码，htmlTag =
    * <html lang>（标注正确才能引导浏览器对 L3 内容整页翻译），native = picker 里的
@@ -1289,6 +1340,7 @@
   /* 旧 toggle 语义升级为「开/关语言 picker」；index.html #localeToggle 点击原样接这里 */
   function toggle() { if (MENU) closeMenu(); else openMenu(); }
 
-  window.I18N = { t: t, tf: tf, pick: pick, city: city, locale: locale, setLocale: setLocale, toggle: toggle, apply: apply };
+  window.I18N = { t: t, tf: tf, pick: pick, city: city, locale: locale, setLocale: setLocale, toggle: toggle, apply: apply,
+    cityEn: cityEn, slug: slug, iata: iata };
   document.addEventListener("DOMContentLoaded", apply);
 })();

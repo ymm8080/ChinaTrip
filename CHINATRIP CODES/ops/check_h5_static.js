@@ -464,6 +464,63 @@ function gateF() {
   ok("接驳两行班次门 去程+返程两行用 frag() 挂载（" + good.length + " 处）");
 }
 
+/* ---------- G. 预订页「＋ Trip」直达键门（2026-11-26 用户令） ----------
+ * 火车/机票的 ＋ Trip 是纯前端拼链：城市名译错一位就跳空页或首页。抽真身 bkTripUrl
+ * 在 stub 里跑（document 只回三个 input 的值，I18N 用真 i18n.js 真表），钉四件事：
+ *   ① 火车落中国火车「城市对」路线页，日期走 ?departdate=（实测可预填搜索框）；
+ *   ② 机票落 showfarefirst，dcity/acity 必须是 IATA 码（传英文城市名会被打回首页）；
+ *   ③ 城市缺失 → 返回 null + 提示，不跳转；
+ *   ④ 未收录城市 → 回落官网首页（绝不出死链）。
+ */
+function gateG() {
+  const p = path.join(STATIC_DIR, "index.html");
+  if (!fs.existsSync(p)) { fail("Trip 门: index.html 不存在"); return; }
+  const src = fs.readFileSync(p, "utf8");
+  const m = src.match(/function bkTripUrl\(kind\) \{[\s\S]*?\r?\n\}\r?\n/);
+  if (!m) { fail("Trip 门: 找不到 bkTripUrl（改名？同步更新本门）"); return; }
+  let I18N = null;
+  try { I18N = loadI18n("zh"); }
+  catch (e) { fail("Trip 门: i18n.js 加载失败: " + e.message); return; }
+  const vals = {};
+  const toasts = [];
+  const sandbox = {
+    document: { getElementById: (id) => ({ value: vals[id] == null ? "" : vals[id] }) },
+    I18N: I18N,
+    toast: (t) => { toasts.push(t); },
+  };
+  sandbox.globalThis = sandbox;
+  const vm = require("vm");
+  vm.createContext(sandbox);
+  try { vm.runInContext(m[0] + "\nthis.bkTripUrl = bkTripUrl;", sandbox); }
+  catch (e) { fail("Trip 门: bkTripUrl 无法执行: " + e.message); return; }
+
+  const before = failed;
+
+  vals.bkTrainFrom = "北京"; vals.bkTrainTo = "上海"; vals.bkTrainDate = "2026-12-05";
+  const train = sandbox.bkTripUrl("train");
+  if (train !== "https://www.trip.com/trains/china/route/beijing-to-shanghai/?departdate=2026-12-05")
+    fail("Trip 门: 火车深链不对: " + train);
+
+  vals.bkFlightFrom = "北京"; vals.bkFlightTo = "上海"; vals.bkFlightDate = "2026-12-05";
+  const flight = sandbox.bkTripUrl("flight");
+  if (flight !== "https://www.trip.com/flights/showfarefirst?dcity=BJS&acity=SHA&ddate=2026-12-05&triptype=ow&class=y&quantity=1")
+    fail("Trip 门: 机票深链不对（中文城市名没换成 IATA？）: " + flight);
+
+  vals.bkTrainDate = ""; // 日期留空 → 不带日期参数，Trip.com 用默认日
+  if (sandbox.bkTripUrl("train") !== "https://www.trip.com/trains/china/route/beijing-to-shanghai/")
+    fail("Trip 门: 火车空日期不该带 departdate: " + sandbox.bkTripUrl("train"));
+
+  toasts.length = 0; vals.bkFlightTo = ""; // 缺城市 → 拦截
+  if (sandbox.bkTripUrl("flight") !== null || !toasts.length)
+    fail("Trip 门: 缺到达城市应拦截并提示，实得 " + sandbox.bkTripUrl("flight"));
+
+  vals.bkFlightFrom = "某某镇"; vals.bkFlightTo = "上海"; // 无 IATA → 首页兜底
+  if (sandbox.bkTripUrl("flight") !== "https://www.trip.com/flights/")
+    fail("Trip 门: 无 IATA 城市应回落机票首页，实得 " + sandbox.bkTripUrl("flight"));
+
+  if (failed === before) ok("Trip 门 火车路线页/机票 IATA 深链正确，缺城市拦截、未收录城市回落首页");
+}
+
 /* ---------- 入口：直接运行才执行；被 require 时只导出分词器供 harness 复用 ---------- */
 function main() {
   gateA();
@@ -472,6 +529,7 @@ function main() {
   gateD();
   gateE();
   gateF();
+  gateG();
   if (failed) { console.error("\n" + failed + " 项未过——见上方 FAIL"); process.exit(1); }
   console.log("\nH5 静态守门全部通过");
 }

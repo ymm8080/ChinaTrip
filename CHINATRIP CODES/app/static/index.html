@@ -805,6 +805,7 @@
           <label class="fld"><span data-i18n="book.to">到达城市</span> <input type="text" id="bkTrainTo" placeholder="如：上海" data-i18n-ph="book.phSh"></label>
           <label class="fld"><span data-i18n="book.date">日期</span> <input type="date" id="bkTrainDate"></label>
           <button class="btn" id="bkTrainGo" data-i18n="book.trainGo">🔍 查班次</button>
+          <button class="btn ghost mini" id="bkTrainTrip" title="直接打开 Trip.com 火车页：按上方出发/到达城市与日期预填；手机端可跳 Trip.com App 下单" data-i18n-title="book.tripTitle">＋ Trip</button>
         </div>
         <div class="flow" id="flow-book-train"></div>
       </div>
@@ -815,6 +816,7 @@
           <label class="fld"><span data-i18n="book.to">到达城市</span> <input type="text" id="bkFlightTo" placeholder="如：上海" data-i18n-ph="book.phSh"></label>
           <label class="fld"><span data-i18n="book.date">日期</span> <input type="date" id="bkFlightDate"></label>
           <button class="btn" id="bkFlightGo" data-i18n="book.flightGo">🔍 去渠道比价</button>
+          <button class="btn ghost mini" id="bkFlightTrip" title="直接打开 Trip.com 机票页：按上方出发/到达城市与日期预填；手机端可跳 Trip.com App 下单" data-i18n-title="book.tripTitle">＋ Trip</button>
         </div>
         <div class="flow" id="flow-book-flight"></div>
       </div>
@@ -832,6 +834,23 @@
           <button class="btn ghost mini" id="bkHotelTrip">Trip</button>
           <button class="btn ghost mini" id="bkHotelBooking">Booking</button>
           <button class="btn ghost mini" id="bkHotelAgoda">Agoda</button>
+        </div>
+        <!-- R52（2026-11-26 用户令「点酒店要跳到预订页，页上有酒店名 + Trip/Booking/Agoda 三个按钮」）：
+             规划页酒店卡点进来后，顶部钉住这一家：酒店名 + 城市/地址 + 三家平台按钮。 -->
+        <div id="bkHotelSel" class="card" style="display:none;padding:10px 12px;margin:0 0 8px">
+          <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">
+            <b style="font-size:15px">🏨 <span id="bkHotelSelName"></span></b>
+            <span class="muted" id="bkHotelSelCity"></span>
+            <span style="flex:1"></span>
+            <button class="btn mini plain" id="bkHotelSelClear" data-i18n="bk.hotelSel.clear">✕ 换一家</button>
+          </div>
+          <div class="muted" id="bkHotelSelAddr" style="margin-top:2px"></div>
+          <div class="dirbar" style="margin-top:8px">
+            <button class="btn" id="bkHotelSelTrip">Trip.com</button>
+            <button class="btn" id="bkHotelSelBooking">Booking.com</button>
+            <button class="btn" id="bkHotelSelAgoda">Agoda</button>
+          </div>
+          <div class="muted" style="font-size:11px;margin-top:6px" data-i18n="bk.hotelSel.note">选一家平台比价下单；订完把确认邮件转给我们，行程会自动更新。</div>
         </div>
         <div id="bkHotelDays"></div>
         <div class="flow" id="flow-book-hotel"></div>
@@ -2316,7 +2335,7 @@ function planCard(plan) {
         // R51：同址 0km/1 分钟的桥卡不出腿行（卡名「同址 · 就在附近」仍在）。
         const brRow = isBridgeCard && !trivialLeg(it) ? legRowParts(it, d.items, idx) : null;
         const spP = legPoint(it); // R41c：站点名=高德导航链接（起点=当前位置，终点=所点站点）
-        const blk = el('<div class="visit-block" data-id="' + esc(it.item_id) + '"' + bridgeAttrs + '><div class="row">' + (handle || timePad) + timeCell + (isBridgeCard ? '<span class="muted" style="flex:0 1 auto;min-width:0">' + brRow + "</span>" : '<span style="flex:1 1 auto;min-width:170px">' + ((isTransferLeg || it.category === "hotel") ? esc(I18N.pick(it, "name", "name_en")) : '<a class="site-link" data-action="brief" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '" data-addr="' + esc(it.address || "") + '" data-hours="' + esc(it.opening_hours || "") + (spP ? '" data-lon="' + spP.lon + '" data-lat="' + spP.lat : "") + '">' + esc(I18N.pick(it, "name", "name_en")) + "</a>") + I18N.tf("card.paren.pre","（") + esc(I18N.city(it.city)) + I18N.tf("card.paren.suf","）") + (isNight ? hotelStayLabel(plan, it) : isMorning ? "" : (it.duration_minutes || 0) + I18N.t("card.minutes")) + tail + "</span>") + altChips + "</div></div>");
+        const blk = el('<div class="visit-block" data-id="' + esc(it.item_id) + '"' + bridgeAttrs + '><div class="row">' + (handle || timePad) + timeCell + (isBridgeCard ? '<span class="muted" style="flex:0 1 auto;min-width:0">' + brRow + "</span>" : '<span style="flex:1 1 auto;min-width:170px">' + (isTransferLeg ? esc(I18N.pick(it, "name", "name_en")) : it.category === "hotel" ? '<a class="site-link hotel-link" data-action="hotelbook" data-name="' + esc(it.name) + '" data-name-en="' + esc(it.name_en || "") + '" data-city="' + esc(it.city) + '" data-addr="' + esc(it.address || "") + '" title="' + I18N.tf("card.hotel.rsv.title", "点酒店名 → 预订页（Trip / Booking / Agoda 三家比价）") + '">' + esc(I18N.pick(it, "name", "name_en")) + "</a>" : '<a class="site-link" data-action="brief" data-name="' + esc(it.name) + '" data-city="' + esc(it.city) + '" data-addr="' + esc(it.address || "") + '" data-hours="' + esc(it.opening_hours || "") + (spP ? '" data-lon="' + spP.lon + '" data-lat="' + spP.lat : "") + '">' + esc(I18N.pick(it, "name", "name_en")) + "</a>") + I18N.tf("card.paren.pre","（") + esc(I18N.city(it.city)) + I18N.tf("card.paren.suf","）") + (isNight ? hotelStayLabel(plan, it) : isMorning ? "" : (it.duration_minutes || 0) + I18N.t("card.minutes")) + tail + "</span>") + altChips + "</div></div>");
         // 同街族并卡（2026-11-07 拍板「同街族合成一卡，时长取最大」）：
         // 子站折在主卡名下只读展示（删除/换点作用于整卡），主卡时长已
         // 是族内最长一站，不再叠加。二拍（并卡不消失案）：每子站独立
@@ -2353,7 +2372,9 @@ function planCard(plan) {
         }
         // R44d（2026-11-25 用户令）：酒店卡底文字改指路预订页 + 转发确认邮件（<USER ID> 是
         // 字面占位——plan 链路不下发用户 ID，后端无此概念）。
-        if (it.category === "hotel") blk.appendChild(el('<div class="muted" style="margin:0 2px 6px ' + ind + ';font-size:11px">Please book in RESERVATION page, and transfer confirmation email to &lt;USER ID&gt;@CHINA for plan update.</div>'));
+        // R52（2026-11-26 用户令「点酒店 → 预订页」）：卡底整行也是入口（手机小名不好点），
+        // 文案指路预订页三家平台；确认邮件转回后行程自动更新（原 <USER ID> 是字面占位）。
+        if (it.category === "hotel") blk.appendChild(el('<div class="muted" style="margin:0 2px 6px ' + ind + ';font-size:11px"><a class="site-link hotel-link" data-action="hotelbook" data-name="' + esc(it.name) + '" data-name-en="' + esc(it.name_en || "") + '" data-city="' + esc(it.city) + '" data-addr="' + esc(it.address || "") + '">' + I18N.tf("card.hotel.rsvNote", "🏨 进预订页下单（Trip / Booking / Agoda）；订完把确认邮件转给我们，行程会自动更新。") + "</a></div>"));
         // 回城段独立成卡后，景区卡只留一行提示（2026-11-16 用户拍板「回程卡应该是独立卡」）
         if (it.return_hint) blk.appendChild(el('<div class="muted" style="margin:0 2px 6px ' + ind + '">' + esc(it.return_hint) + "</div>"));
         // R51（2026-11-26 用户令「如果 TRANSPORTATION LEG 是 ↓ 距下一站 0.0 km ·
@@ -2654,6 +2675,12 @@ function planCard(plan) {
         toast(I18N.tf("plan.fb.recorded","已记录，谢谢反馈"));
         fb.style.opacity = 0.4;
       } catch (e) { failToast(e); }
+      return;
+    }
+    const hlink = ev.target.closest ? ev.target.closest('a.hotel-link') : null;
+    if (hlink && box.contains(hlink)) { // R52（2026-11-26 用户令「点酒店 → 预订页」）：酒店卡点名/点卡底指路行 → 预订页 🏨 分区，钉住所选酒店 + 三家平台按钮
+      sitePopHideNow();
+      hotelGotoBook(hlink.getAttribute("data-name"), hlink.getAttribute("data-city"), hlink.getAttribute("data-addr"), hlink.getAttribute("data-name-en"));
       return;
     }
     const link = ev.target.closest ? ev.target.closest('a.site-link') : null;
@@ -5654,7 +5681,7 @@ document.querySelector('.nav-item[data-tab="itin"]').addEventListener("click", (
 
 /* ================= Tab 5：预订（铁律 22 只 handoff / 铁律 23 退改摘要先行） ================= */
 
-const BOOK = { plan: null }; // 最近一次规划结果（酒店按天卡片吃它）
+const BOOK = { plan: null, hotelPick: null }; // 最近一次规划结果（酒店按天卡片吃它）；hotelPick=规划页点进来的那家酒店
 
 function bkStartDate() { return document.getElementById("bookStartDate").value || ""; }
 
@@ -5806,6 +5833,7 @@ function bkShow(kind) {
   document.querySelectorAll("#tab-book .bk-pane").forEach(p => p.classList.toggle("on", p.id === "bk-" + kind));
   if (kind === "hotel") {
     bkRenderPlanDays();
+    bkHotelSelPaint();
     const hc = document.getElementById("bkHotelCity");
     if (hc && !hc.value.trim() && BOOK.plan && BOOK.plan.cities && BOOK.plan.cities[0]) hc.value = BOOK.plan.cities[0]; // R44d：默认住宿城市=行程首城
   }
@@ -5818,13 +5846,54 @@ document.querySelectorAll("#bookTabs .chip").forEach(c => {
   c.addEventListener("click", () => bkShow(c.dataset.bk));
 });
 document.getElementById("bookStartDate").addEventListener("change", bkRenderPlanDays);
+
+/* ---- R52（2026-11-26 用户令「点酒店 → 预订页，页上有酒店名 + Trip/Booking/Agoda 三个按钮」）----
+   规划页酒店卡（入住/夜/晨三类）点酒店名 → 切「🎫 预订」页 🏨 分区，顶部选中卡钉住这一家：
+   酒店名 + 城市/地址 + 三家平台按钮；三家按钮按「酒店名 + 城市」搜，没选中就按城市搜。 */
+
+function bkHotelPickText() { // 选中酒店的搜索词（酒店名 + 城市）；没选中返回空串，三家按钮回落纯城市搜
+  const p = BOOK.hotelPick || {};
+  const name = ((I18N.locale() !== "zh" && p.name_en) ? p.name_en : (p.name || "")).trim();
+  if (!name) return "";
+  const cityRaw = (p.city || "").trim();
+  const city = (I18N.locale() !== "zh" && I18N.city) ? (I18N.city(cityRaw) || cityRaw) : cityRaw;
+  return city ? name + " " + city : name;
+}
+
+function bkHotelSelPaint() {
+  const p = BOOK.hotelPick || {};
+  const box = document.getElementById("bkHotelSel");
+  const nameEl = document.getElementById("bkHotelSelName");
+  if (!box || !nameEl) return;
+  const has = !!(p.name || "").trim();
+  box.style.display = has ? "" : "none";
+  if (!has) return;
+  nameEl.textContent = p.name;
+  document.getElementById("bkHotelSelCity").textContent = p.city ? "· " + I18N.city(p.city) : "";
+  document.getElementById("bkHotelSelAddr").textContent = p.addr ? "📍 " + p.addr : "";
+}
+
+/* 规划页酒店卡 → 预订页（会话内外都可用：预订不依赖会话，同 CALL TAXI 口径） */
+function hotelGotoBook(name, city, addr, nameEn) {
+  BOOK.hotelPick = { name: name || "", name_en: nameEn || "", city: city || "", addr: addr || "" };
+  switchTab("book");
+  bkShow("hotel");
+  const hc = document.getElementById("bkHotelCity");
+  if (hc && city) hc.value = city; // 住宿城市跟随所选酒店，三家按钮同城搜
+  bkHotelSelPaint();
+  const sel = document.getElementById("bkHotelSel");
+  if (sel && sel.scrollIntoView) sel.scrollIntoView({ block: "start" });
+}
+
 /* R44d（2026-11-25 用户令「酒店三个预定按钮应该放到预定页面」）：Trip / Booking / Agoda
-   按上方住宿城市直开三家官网搜酒店（新窗口，无联盟参数）；规划页酒店卡不再出外链。 */
+   按选中酒店（没选中则按住宿城市）直开三家官网搜酒店（新窗口，无联盟参数）。 */
 function bkHotelOutbound(site) {
+  const pickQ = bkHotelPickText();
   const raw = (document.getElementById("bkHotelCity").value || "").trim();
-  if (!raw) { toast(I18N.tf("bk.hotel.cityFirst", "先填住宿城市，再点 Trip / Booking / Agoda")); return; }
-  const city = (I18N.locale() !== "zh" && I18N.city) ? (I18N.city(raw) || raw) : raw;
-  const q = encodeURIComponent(city);
+  const cityRaw = raw || ((BOOK.hotelPick || {}).city || "").trim();
+  if (!pickQ && !cityRaw) { toast(I18N.tf("bk.hotel.cityFirst", "先填住宿城市，再点 Trip / Booking / Agoda")); return; }
+  const city = (I18N.locale() !== "zh" && I18N.city) ? (I18N.city(cityRaw) || cityRaw) : cityRaw;
+  const q = encodeURIComponent(pickQ || city);
   const url = site === "trip"
     ? "https://www.trip.com/hotels/list?keyword=" + q
     : site === "booking"
@@ -5835,6 +5904,54 @@ function bkHotelOutbound(site) {
 document.getElementById("bkHotelTrip").addEventListener("click", () => bkHotelOutbound("trip"));
 document.getElementById("bkHotelBooking").addEventListener("click", () => bkHotelOutbound("booking"));
 document.getElementById("bkHotelAgoda").addEventListener("click", () => bkHotelOutbound("agoda"));
+
+/* R47（2026-11-26 用户令「预订页火车/机票要有 ＋ 按钮直接转 Trip.com」）：官网直开键。
+   口径与酒店 Trip/Booking/Agoda（R44d 先例）一致：无联盟参数、不代客下单、不落 handoff
+   ——所以不过铁律 23 退改浮层（那是渠道比价/联盟跳转的闸，见 bkChannelBtn）；
+   支付永远在 Trip.com 侧（铁律 22 只 handoff）。
+   · 火车：Trip.com 中国火车「城市对」路线页 https://www.trip.com/trains/china/route/a-to-b/
+     实测 ?departdate= 能把搜索框日期预填（2026-11-26 复核 beijing-to-shanghai + 2026-12-05）。
+   · 机票：showfarefirst 的 dcity/acity 只认 IATA 码（传英文城市名会被打回首页，实测），
+     码表在 i18n.js 的 IATA 表；未收录城市回落机票首页并提示手选。
+   · 手机端同标签逻辑不变（新窗口打开）：Trip.com 页面自带「打开 App」唤起，
+     装了 Trip.com App 可跳 App 下单，没装就网页下单。 */
+function bkTripUrl(kind) {
+  const train = kind === "train";
+  const from = (document.getElementById(train ? "bkTrainFrom" : "bkFlightFrom").value || "").trim();
+  const to = (document.getElementById(train ? "bkTrainTo" : "bkFlightTo").value || "").trim();
+  const date = (document.getElementById(train ? "bkTrainDate" : "bkFlightDate").value || "").trim();
+  if (!from || !to) { toast(I18N.tf("book.tripNeedCity", "先填出发和到达城市，再点 ＋ Trip")); return null; }
+  const qd = /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : ""; // 日期空着就用 Trip.com 默认（今天）
+  if (train) {
+    const a = I18N.slug(from), b = I18N.slug(to);
+    if (!a || !b) { // 库里没收录英文名的小城：不给死链，落中国火车首页手选
+      toast(I18N.tf("book.tripNoRoute", "该城市暂无 Trip.com 路线页，已打开 Trip.com 火车首页，请手动选站"));
+      return "https://www.trip.com/trains/china/";
+    }
+    return "https://www.trip.com/trains/china/route/" + a + "-to-" + b + "/" + (qd ? "?departdate=" + qd : "");
+  }
+  const ca = I18N.iata(from), cb = I18N.iata(to);
+  if (!ca || !cb) {
+    toast(I18N.tf("book.tripNoCode", "该城市未收录机场代码，已打开 Trip.com 机票首页，请手动选城市"));
+    return "https://www.trip.com/flights/";
+  }
+  return "https://www.trip.com/flights/showfarefirst?dcity=" + ca + "&acity=" + cb
+    + (qd ? "&ddate=" + qd : "") + "&triptype=ow&class=y&quantity=1";
+}
+function bkTripOpen(kind) {
+  const url = bkTripUrl(kind);
+  if (url) window.open(url, "_blank", "noopener");
+}
+document.getElementById("bkTrainTrip").addEventListener("click", () => bkTripOpen("train"));
+document.getElementById("bkFlightTrip").addEventListener("click", () => bkTripOpen("flight"));
+// 选中酒店卡上的大按钮（同一套出口，选中态优先）
+document.getElementById("bkHotelSelTrip").addEventListener("click", () => bkHotelOutbound("trip"));
+document.getElementById("bkHotelSelBooking").addEventListener("click", () => bkHotelOutbound("booking"));
+document.getElementById("bkHotelSelAgoda").addEventListener("click", () => bkHotelOutbound("agoda"));
+document.getElementById("bkHotelSelClear").addEventListener("click", () => { // 换一家：清掉选中态，回到按城市搜
+  BOOK.hotelPick = null;
+  bkHotelSelPaint();
+});
 
 /* ---- 💳 客户付款层（/api/v1/payments；公司↔客户收款，铁律 22 渠道 handoff 不变） ---- */
 
