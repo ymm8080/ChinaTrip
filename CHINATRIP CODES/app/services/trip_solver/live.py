@@ -804,7 +804,10 @@ def _latest_must_start(outcome, snapshot) -> tuple[int, int] | None:
     for day in getattr(plan, "days", ()) or ():
         for item in getattr(day, "items", ()) or ():
             if (getattr(item, "category", None) or "") in (
-                "food", "hotel", "transport", "transfer"
+                "food",
+                "hotel",
+                "transport",
+                "transfer",
             ):
                 continue
             if str(getattr(item, "name", "") or "") not in must_names:
@@ -833,7 +836,10 @@ def _latest_must_start(outcome, snapshot) -> tuple[int, int] | None:
             continue
         cand = next((c for c in snapshot.candidates if c.cid == item.cid), None)
         if cand is not None and (getattr(cand, "category", None) or "") in (
-            "food", "hotel", "transport", "transfer"
+            "food",
+            "hotel",
+            "transport",
+            "transfer",
         ):
             continue
         start_min = getattr(item, "start_min", None)
@@ -882,7 +888,8 @@ def _earliest_shuttle_snapshot(snapshot, day: int, plan) -> tuple | None:
         # earliest bus at/after the R12-H4 default floor (07:30 excluded)
         earliest = next(
             (
-                d for d in sorted(getattr(prof, "departures"))
+                d
+                for d in sorted(getattr(prof, "departures"))
                 if int(d.split(":")[0]) * 60 + int(d.split(":")[1])
                 >= DEFAULT_FIRST_SHUTTLE_MIN
             ),
@@ -893,8 +900,7 @@ def _earliest_shuttle_snapshot(snapshot, day: int, plan) -> tuple | None:
             continue
         # only pin remotes actually placed on the reported day
         placed = any(
-            isinstance(it, VisitItem)
-            and it.poi_id == getattr(cand, "poi_id", None)
+            isinstance(it, VisitItem) and it.poi_id == getattr(cand, "poi_id", None)
             for it in day_plan.items
         )
         if not placed:
@@ -953,7 +959,10 @@ def _recover_outcome(snapshot, outcome, budget_s):
     if late is not None and late[1] >= TAIL_LATE_START_MINUTES:
         logger.info(
             "R40 tail-late detected: day=%d start=%d trigger=%s early_snapshot=%s",
-            late[0], late[1], tail_retry, early_snapshot is not None,
+            late[0],
+            late[1],
+            tail_retry,
+            early_snapshot is not None,
         )
     if (
         outcome.engine == ENGINE_CPSAT
@@ -1000,19 +1009,17 @@ def _recover_outcome(snapshot, outcome, budget_s):
         # 只有当重解确实把末尾必去提前（更早开场）且没丢必去时才采用，
         # 否则保留原盘。两个条件缺一不可，绝不倒退。
         improved = (
-            retry_late is not None
-            and late is not None
-            and retry_late[1] < late[1]
+            retry_late is not None and late is not None and retry_late[1] < late[1]
         )
         if (retry_missing >= 0 and retry_missing > 0) or not improved:
             return outcome
         retry.disclosures = list(getattr(retry, "disclosures", None) or []) + [
             {
                 "zh": "当天末尾必去开场过晚，已将首个景点去程班次提前至最早可排班车，"
-                      "整段行程相应前移",
+                "整段行程相应前移",
                 "en": "The day's last must-visit started too late — moved the "
-                      "first site's outbound shuttle to the earliest available "
-                      "departure and pulled the whole day earlier.",
+                "first site's outbound shuttle to the earliest available "
+                "departure and pulled the whole day earlier.",
             }
         ]
     return retry
