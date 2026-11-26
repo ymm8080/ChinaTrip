@@ -116,7 +116,10 @@
 // v169 2026-11-26: 规划页酒店卡点酒店名/卡底指路行 → 预订页 🏨 分区，顶部钉住所选酒店
 //（酒店名 + 城市/地址 + Trip/Booking/Agoda 三家按钮，按「酒店名 城市」搜）——R52，
 // 改了 index.html + i18n.js，必须 bump 拉新缓存壳。
-const VERSION = 'v169';
+// v170 2026-11-26: 修复渲染中断「Cannot access 'trivialLeg' before initialization」——
+// trivialLeg 的 const 定义被写在 brRow 首次引用之后，暂时性死区在渲染期抛
+// ReferenceError（数据已返回但整页卡死）；定义前移到所有引用之前。必须 bump 拉新缓存壳。
+const VERSION = 'v170';
 const CACHE = 'chinatrip-h5-' + VERSION;
 const SHELL = [
   './', './index.html', './i18n.js', './qrcode.min.js', './sortable.min.js', './manifest.webmanifest', './agent.html',

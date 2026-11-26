@@ -27,3 +27,18 @@ def test_h5_trivial_walk_keeps_real_legs():
     html = _html()
     assert "km < 0.05" in html
     assert "min <= 1" in html
+
+
+def test_h5_trivial_leg_declared_before_first_use():
+    """TDZ 守门：const trivialLeg 必须在首次 trivialLeg(it) 引用之前定义。
+
+    2026-11-26 用户实报「数据已返回但渲染中断：Cannot access 'trivialLeg'
+    before initialization」——定义被挪到 brRow 引用之后，const 暂时性死区
+    在渲染期抛 ReferenceError，整页卡死。只查字符串存在的旧测试漏掉了顺序。
+    """
+    html = _html()
+    decl = html.index("const trivialLeg = (x) => {")
+    first_use = html.index("trivialLeg(it)")
+    assert decl < first_use, (
+        "trivialLeg 定义在首次使用之后（TDZ）：decl=%d first_use=%d" % (decl, first_use)
+    )
