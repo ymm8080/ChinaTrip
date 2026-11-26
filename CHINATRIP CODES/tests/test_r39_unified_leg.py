@@ -347,8 +347,13 @@ def test_h5_unified_leg_row_wiring_and_syntax(tmp_path):
         f = tmp_path / ("inline_%d.js" % len(targets))
         f.write_text(m.group("body"), encoding="utf-8")
         targets.append(f)
+    # 并行会话可能正在改 index.html / i18n.js / sw.js：node --check 必须检查
+    # 与本用例断言同一份字节。先快照到 tmp_path，避免读到写到一半的脚本
+    # （全量跑偶发 red、单跑绿的根因之一）。
     for name in ("sw.js", "i18n.js"):
-        targets.append(static / name)
+        snap = tmp_path / name
+        snap.write_text((static / name).read_text(encoding="utf-8"), encoding="utf-8")
+        targets.append(snap)
     assert targets, "no inline script block found"
     for f in targets:
         r = subprocess.run(
