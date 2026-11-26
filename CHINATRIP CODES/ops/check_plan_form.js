@@ -24,6 +24,14 @@ function loadForm() {
   return m[0];
 }
 
+function loadFn(name) {
+  const src = fs.readFileSync(HTML, "utf8");
+  const re = new RegExp("function " + name + "\\([^)]*\\) \\{[\\s\\S]*?\\n\\}");
+  const m = src.match(re);
+  if (!m) throw new Error("index.html 里没有找到 " + name + "（提取规则失效？）");
+  return m[0];
+}
+
 function build(values) {
   const nodes = {};
   const document = {
@@ -101,6 +109,68 @@ check(
   { planStartCity: "北京", planEndCity: "杭州", planVia1: "上海", planVia1Days: "2", planVia2: "上海", planVia2Days: "4", planEndDays: "1" },
   { cities: ["北京", "上海", "杭州"], cityDays: { 上海: 4, 杭州: 1 }, total: 5 }
 );
+
+/* 7. 开始日期来源（2026-11-23 用户实报「表单填了日期仍弹行前卡」）：
+ *    行前卡日期优先；表单开局带表单日期；纯文字开局不注入表单默认值。 */
+function checkStartDate(label, intakeDate, formDate, useFormParams, expect) {
+  const fn = new Function(loadFn("planResolveStartDate") + "\nreturn planResolveStartDate;")();
+  const got = fn(intakeDate, formDate, useFormParams);
+  if (got !== expect) fail(label + " → " + JSON.stringify(got) + " 期望 " + JSON.stringify(expect));
+  else ok(label);
+}
+checkStartDate("开始日期：行前卡优先", "2026-12-01", "2026-11-26", true, "2026-12-01");
+checkStartDate("开始日期：表单开局带表单日期", "", "2026-11-26", true, "2026-11-26");
+checkStartDate("开始日期：纯文字开局不注默认值", "", "2026-11-26", false, "");
+
+/* 8. 行前卡值回写规划快照（2026-11-23 用户实报「行前卡 → 文字/窗口差异确认
+ *    → 选完又弹行前卡」）：确认卡重发只读 planLastStart，卡值没落快照 →
+ *    重发缺必填出发日期 → 后端再弹一张空卡，用户永远出不来行程。 */
+function checkIntakeSnapshot(label, snapshot, vals, expect) {
+  const fn = new Function("planLastStart", loadFn("planMergeIntake") + "\nreturn planMergeIntake;")(snapshot);
+  fn(vals);
+  const got = snapshot.intake || {};
+  const problems = [];
+  Object.keys(expect.intake || {}).forEach(k => {
+    if (got[k] !== expect.intake[k]) problems.push("intake." + k + "=" + JSON.stringify(got[k]) + " 期望 " + JSON.stringify(expect.intake[k]));
+  });
+  if (expect.absent) expect.absent.forEach(k => {
+    if (got[k] !== undefined) problems.push("intake." + k + " 不该被空值覆盖");
+  });
+  if (expect.startDate !== undefined && snapshot.startDate !== expect.startDate) {
+    problems.push("startDate=" + JSON.stringify(snapshot.startDate) + " 期望 " + JSON.stringify(expect.startDate));
+  }
+  if (problems.length) fail(label + " → " + problems.join("; "));
+  else ok(label);
+}
+checkIntakeSnapshot(
+  "行前卡值：开局 {skipped} 快照写入卡值",
+  { intake: { skipped: true }, startDate: "" },
+  { start_date: "2026-11-20", arrival_date: "2026-11-20", arrival_no: "MU5101", departure_date: "2026-11-21", arrival_time: "" },
+  { intake: { start_date: "2026-11-20", arrival_date: "2026-11-20", arrival_no: "MU5101", departure_date: "2026-11-21" }, absent: ["arrival_time"], startDate: "2026-11-20" }
+);
+checkIntakeSnapshot(
+  "行前卡值：服务端回显补齐不覆盖已有卡值",
+  { intake: { start_date: "2026-11-20", arrival_no: "MU5101" }, startDate: "2026-11-20" },
+  { start_date: "2026-11-20", arrival_date: "2026-11-20", departure_date: "2026-11-21" },
+  { intake: { arrival_no: "MU5101", arrival_date: "2026-11-20", departure_date: "2026-11-21" }, startDate: "2026-11-20" }
+);
+checkIntakeSnapshot(
+  "行前卡值：空回显不动快照",
+  { intake: { start_date: "2026-11-20" }, startDate: "2026-11-20" },
+  {},
+  { intake: { start_date: "2026-11-20" }, startDate: "2026-11-20" }
+);
+
+/* 8b. 调用点守门：快照写入必须挂在两条真实路径上（写好了函数却没调用 =
+ *     同一 bug 复现）。删掉任一调用本守门即红。 */
+const htmlSrc = fs.readFileSync(HTML, "utf8");
+[
+  ["state=intake 提交后落快照", /if \(ov\.intakeValues\) planMergeIntake\(ov\.intakeValues\);/],
+  ["confirm_route 回显并入快照", /planMergeIntake\(body\.intake\);/],
+].forEach(([label, re]) => {
+  if (re.test(htmlSrc)) ok(label + "：调用点在");
+  else fail(label + "：调用点丢失（行前卡值会再次丢，确认卡选边后又弹卡）");
+});
 
 if (failed) {
   console.error("\n规划表单守门失败 " + failed + " 项");

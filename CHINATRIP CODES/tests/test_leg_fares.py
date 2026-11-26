@@ -278,7 +278,11 @@ def test_access_leg_detail_has_taxi_leg_shuttle_and_urls():
 
 
 def test_service_options_rank_fewer_transfers_then_shorter():
-    """多方式分块：默认推荐=换乘少，其次时间短（2026-11-16 用户拍板）。"""
+    """多方式分块：默认推荐=换乘少，其次时间短（2026-11-16 用户拍板）。
+
+    2026-11-23 用户拍板「any bus should be replaced by taxi」后，换乘选项改用
+    铁路接驳（非 bus）——常规公交已在 ``services_for`` 单点剔除，不再进候选。
+    """
     from app.services import access_services
 
     direct_slow = _svc_row(
@@ -289,9 +293,9 @@ def test_service_options_rank_fewer_transfers_then_shorter():
         fare_cny=50.0,
     )
     transfer_fast = _svc_row(
-        service_name="57路 → 通游专线21路（1 次换乘）",
-        mode="bus",
-        boarding_stop="东城三里河站",
+        service_name="市郊铁路 S2线 → 八达岭接驳车（1 次换乘）",
+        mode="train",
+        boarding_stop="黄土店站",
         ride_minutes=60,
         fare_cny=10.0,
     )
@@ -310,7 +314,7 @@ def test_service_options_rank_fewer_transfers_then_shorter():
         access_services.configure_store(None)
     assert [o["service_name"] for o in opts] == [
         "前门旅游专线",
-        "57路 → 通游专线21路（1 次换乘）",
+        "市郊铁路 S2线 → 八达岭接驳车（1 次换乘）",
     ]
     assert opts[0]["recommended"] is True
     assert opts[0]["transfers"] == 0
@@ -340,10 +344,10 @@ def test_access_breakdown_multi_mode_options_and_clear_gateway():
         last_mile_minutes=10,
         outbound_times=["07:26", "08:26", "09:26"],
     )
-    bus = _svc_row(
+    coach = _svc_row(
         poi_name="八达岭长城",
-        service_name="877路",
-        mode="bus",
+        service_name="北京旅游集散中心直通车",
+        mode="shuttle",
         boarding_stop="德胜门站",
         boarding_lon=116.385,
         boarding_lat=39.949,
@@ -353,7 +357,22 @@ def test_access_breakdown_multi_mode_options_and_clear_gateway():
         last_mile_minutes=10,
         outbound_times=["06:30", "07:30", "08:30"],
     )
-    access_services.configure_store(_FakeStore([train, bus]))
+    # 常规公交（mode=bus）：2026-11-23 用户拍板「any bus should be replaced by
+    # taxi」——进档案即被剔除，下面的断言钉住它绝不作为 option 露出。
+    bus = _svc_row(
+        poi_name="八达岭长城",
+        service_name="877路",
+        mode="bus",
+        boarding_stop="北土城站",
+        boarding_lon=116.402,
+        boarding_lat=39.978,
+        alight_stop="八达岭站",
+        ride_minutes=90,
+        fare_cny=12.0,
+        last_mile_minutes=10,
+        outbound_times=["06:30", "07:30", "08:30"],
+    )
+    access_services.configure_store(_FakeStore([train, coach, bus]))
     a = VisitItem(
         item_id="hotel-morning-d1",
         name="🏨 从酒店出发",
@@ -390,6 +409,8 @@ def test_access_breakdown_multi_mode_options_and_clear_gateway():
     detail = a.next_leg_detail
     opts = detail["options"]
     assert len(opts) == 2
+    # 常规公交不出现（2026-11-23 拍板一律改打车）
+    assert "877路" not in [o["service_name"] for o in opts]
     assert opts[0]["recommended"] is True
     # 乘车点是清晰单站名（不是三站拼一串），且与推荐块一致
     assert detail["gateway"] == opts[0]["boarding_stop"]
@@ -585,7 +606,9 @@ def test_tail_return_chain_when_remote_is_last_of_day():
     assert detail["alight"].startswith("前门大街北口")
     assert detail["board_time"] == "14:16"  # 14:08 散场 + 8 分钟走回乘车点
     assert detail["depart_time"] == "14:30"
-    assert detail["arrive_time"] == "16:00"
+    assert (
+        detail["arrive_time"] == "16:08"
+    )  # R38：含下客步行（与 materialize 卡面同口径）
     assert mt.next_leg_minutes == 8 + (14 * 60 + 30 - (14 * 60 + 8 + 8)) + 90
     assert mt.next_leg_cost_cny == access_fare_estimate("shuttle")
 
@@ -638,7 +661,9 @@ def test_return_leg_shuttle_chain_from_remote_stop():
     assert detail["departures"] == ["14:30", "15:30", "16:30"]
     assert detail["board_time"] == "12:46"  # 12:38 散场 + 8 分钟走回乘车点
     assert detail["depart_time"] == "14:30"  # 最快返程班
-    assert detail["arrive_time"] == "16:00"  # 14:30 + 90 车程到市区落点
+    assert (
+        detail["arrive_time"] == "16:08"
+    )  # 14:30 + 90 车程 + 8 下客步行（R38 同口径）
     assert detail["walk_minutes"] == 8
     assert detail["taxi_km"] < 5  # 市区落点→王府井，不是 58km 打车直线
     assert mt.next_leg_minutes == (
@@ -1109,6 +1134,203 @@ def test_taxi_leg_shows_on_anchored_lunch_card():
     assert lunch.distance_to_next_km and lunch.distance_to_next_km > 30
     assert lunch.next_leg_mode == "taxi"
     assert lunch.next_leg_minutes and lunch.next_leg_minutes > 30
-    # 景区卡不再背这条腿
-    assert zjj.distance_to_next_km is None
-    assert zjj.next_leg_minutes is None
+    # R39d（2026-11-25 用户令「任何两个 SITES（包括午餐晚餐）之间都要有
+    # 交通腿」）：景区卡到同址午饭现在出 0.0 km 步行腿（此前 MIN_LEG_KM
+    # 把这段整片吃掉）；去静安寺的长腿仍挂在午饭卡上（餐后出发）。
+    assert zjj.distance_to_next_km == 0.0
+    assert zjj.next_leg_mode == "walk"
+    assert zjj.next_leg_minutes == 1
+
+
+# ------------------------------------------- R13m 引擎去程卡班次显示链
+
+
+def _engine_remote_day_items():
+    from datetime import time as dtime
+
+    mt = _v(
+        "v1",
+        "慕田峪长城",
+        116.5598,
+        40.4267,
+        start_time=dtime(10, 8),
+        end_time=dtime(13, 28),
+        duration_minutes=200,
+        access_mode="shuttle",
+        access_boarding=GeoPoint(lon=116.3982, lat=39.8988),
+        access_service_minutes=98,  # 引擎盖卡口径：ride+last_mile
+        access_ride_minutes=90,
+        access_last_mile_minutes=8,
+        access_boarding_stop="前门大街北口",
+        access_service_name="前门旅游专线",
+        access_depart_times=["07:30", "08:30", "09:30", "10:30"],
+        access_return_times=["14:30", "15:30", "16:30"],
+    )
+    out = VisitItem(
+        item_id="access-out-v1",
+        name="🚌 去程 · 前门大街北口 → 班车约98分",
+        category="transfer",
+        city="北京",
+        day=1,
+        start_time=dtime(8, 30),
+        end_time=dtime(10, 8),
+        duration_minutes=98,
+        synthetic=True,
+        access_mode="access",
+        address="前门大街北口",
+    )
+    lunch = VisitItem(
+        item_id="meal-lunch-1",
+        name="午餐",
+        category="food",
+        city="北京",
+        day=1,
+        start_time=dtime(13, 28),
+        end_time=dtime(14, 28),
+        duration_minutes=60,
+        anchor_location=GeoPoint(lon=116.5598, lat=40.4267),
+    )
+    ret = VisitItem(
+        item_id="access-return-v1",
+        name="回城",
+        category="transfer",
+        city="北京",
+        day=1,
+        start_time=dtime(14, 30),
+        end_time=dtime(16, 8),
+        duration_minutes=98,
+        synthetic=True,
+    )
+    # 锚在景区的占位晚餐（真实引擎日形状：回城卡在场 + 晚餐同址——
+    # 没有城内下一站，_attach_tail_return 按同址档位挂返程链）。
+    dinner = VisitItem(
+        item_id="meal-dinner-1",
+        name="晚饭",
+        category="food",
+        city="北京",
+        day=1,
+        start_time=dtime(17, 0),
+        end_time=dtime(18, 30),
+        duration_minutes=90,
+        anchor_from_prev=True,
+    )
+    return [out, mt, lunch, ret, dinner], out, mt, lunch
+
+
+def test_engine_outbound_card_gets_chips_and_no_bogus_taxi_tail():
+    """R13m：引擎远郊日——去程卡挂班次 chips 数据；景区卡挂班车回城链；
+    同址午餐卡不再被误挂「打车回城」假块（回城卡在场时尾部打车闸关闭）。
+    """
+    items, out, mt, lunch = _engine_remote_day_items()
+    plan = ItineraryPlan(
+        itinerary_id="x",
+        cities=["北京"],
+        days=[DayPlan(day=1, base_city="北京", items=items)],
+        assumptions=[],
+    )
+    annotate_legs(plan)
+    # 去程卡：班次显示链（chips 数据）
+    d = out.next_leg_detail or {}
+    assert out.next_leg_mode == "access"
+    assert d["service_name"] == "前门旅游专线"
+    assert d["departures"] == ["07:30", "08:30", "09:30", "10:30"]
+    assert d["returns"] == ["14:30", "15:30", "16:30"]
+    assert d["depart_time"] == "08:30"
+    assert d["owner_item_id"] == "access-out-v1"
+    assert d["next_item_id"] == "v1"
+    # 景区卡：班车回城链（_attach_tail_return 逐档取「仍有返程班的
+    # 最后一档」= 午餐散场 13:28 + 走回 8 → 首班 14:30）
+    m = mt.next_leg_detail or {}
+    assert m["direction"] == "return"
+    assert m["service_name"] == "前门旅游专线"
+    assert m["departures"] == ["14:30", "15:30", "16:30"]
+    # 逐档取「仍有返程班的最后一档」：午餐散场 14:28 + 走回 8 = 14:36
+    # → 下一班 15:30（不是按景区散场 13:36 的 14:30）。
+    assert m["depart_time"] == "15:30"
+    # 同址午餐卡：无打车回城假块（R13m 尾部打车闸被回城卡挡住）
+    assert lunch.next_leg_detail is None
+    assert lunch.next_leg_mode is None
+
+
+def test_engine_placeholder_dinner_anchors_to_city_stop():
+    """R13m：引擎占位晚餐 id（meal-dinner-<day>）也走「散场后跟下一站吃」
+    锚定——此前 food-dinner-ph* 字面前缀认不出引擎 id，晚饭错锚远郊点。
+    """
+    from app.services.itinerary.legs import resolve_meal_anchors
+
+    items, _out, mt, _lunch = _engine_remote_day_items()
+    night = VisitItem(
+        item_id="hotel-night-d1",
+        name="🏨 回酒店·夜间休息",
+        category="hotel",
+        city="北京",
+        day=1,
+        start_time=time(21, 0),
+        end_time=time(22, 0),
+        duration_minutes=60,
+        soft_pin=True,
+        location=GeoPoint(lon=116.4074, lat=39.9042),
+    )
+    dinner = VisitItem(
+        item_id="meal-dinner-1",
+        name="晚饭",
+        category="food",
+        city="北京",
+        day=1,
+        start_time=time(17, 30),
+        end_time=time(18, 30),
+        duration_minutes=60,
+        anchor_from_prev=True,
+    )
+    plan = ItineraryPlan(
+        itinerary_id="x",
+        cities=["北京"],
+        days=[DayPlan(day=1, base_city="北京", items=[mt, dinner, night])],
+        assumptions=[],
+    )
+    resolve_meal_anchors(plan)
+    d = next(i for i in plan.days[0].items if i.item_id == "meal-dinner-1")
+    assert d.anchor_location is not None
+    assert d.anchor_location.lon == 116.4074  # 跟下一站（酒店）吃
+    assert (d.access_mode or None) is None  # 不再继承远郊点档案
+
+
+# ------------------------------------------- R13o⑨ 同址嵌套宿主收尾
+
+
+def test_plain_tail_return_waits_for_same_venue_host_end():
+    """R13o⑨：同址嵌套餐（F-22）下回城段从宿主散场起算——798 游到
+    20:16 时回城不得从晚饭 19:28 起算。"""
+    from datetime import time as dtime
+
+    host = _v(
+        "host798",
+        "798艺术区",
+        116.5847,
+        39.9842,
+        start_time=dtime(16, 46),
+        end_time=dtime(20, 16),
+        duration_minutes=210,
+    )
+    dinner = VisitItem(
+        item_id="meal-dinner-2",
+        name="晚饭",
+        category="food",
+        city="北京",
+        day=1,
+        start_time=dtime(17, 58),
+        end_time=dtime(19, 28),
+        duration_minutes=90,
+        anchor_location=GeoPoint(lon=116.5847, lat=39.9842),
+    )
+    plan = ItineraryPlan(
+        itinerary_id="x",
+        cities=["北京"],
+        days=[DayPlan(day=1, base_city="北京", items=[host, dinner])],
+        assumptions=[],
+    )
+    annotate_legs(plan)
+    d = dinner.next_leg_detail or {}
+    assert d.get("direction") == "return"
+    assert d.get("depart_time") is None or d["depart_time"] >= "20:16"
+    assert d.get("board_time") >= "20:16"

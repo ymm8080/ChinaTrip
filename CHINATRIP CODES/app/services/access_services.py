@@ -39,6 +39,13 @@ STRICT_OFFICIAL = True
 #: 流水发车但只给了首末班时的默认发车间隔（分钟）。15 分钟是景区专线常见档。
 DEFAULT_HEADWAY_MINUTES = 15
 
+#: 2026-11-23 用户拍板「any bus should be replaced by taxi」：常规公交
+#: （mode=bus）一律不进候选与排期——某点只剩公交时 ``services_for`` 返回空，
+#: 调用方自然回落打车链（hotel → 景点整段出租车）。景区直通车/旅游专线是
+#: ``shuttle``、城际铁路是 ``train``、轮渡是 ``ferry``，均不在排除之列。
+#: 与 ``app.services.trip_solver.live.BUS_MODES`` 保持同步（引擎侧同一口径）。
+BUS_MODES = frozenset({"bus", "city_bus", "public_bus"})
+
 
 def _minutes(hhmm: str | None) -> int | None:
     """'07:30' → 450；脏值返回 None。"""
@@ -284,12 +291,23 @@ def city_services(city: str | None) -> dict[tuple[str, str], list[Service]]:
     return out
 
 
+def is_bus_service(svc: Service) -> bool:
+    """是否常规公交（用户 2026-11-23 拍板：一律改打车，不进候选）。"""
+    return (getattr(svc, "mode", "") or "").strip().lower() in BUS_MODES
+
+
 def services_for(city: str | None, name: str | None) -> list[Service]:
-    """某点全部班次（先 (city, name)，再同名跨城兜底）。"""
+    """某点全部班次（先 (city, name)，再同名跨城兜底）。
+
+    2026-11-23 用户拍板「any bus should be replaced by taxi」：常规公交
+    （mode=bus）在此单点剔除，best_service / fastest_service / service_options
+    等全部消费方口径一致——某点只剩公交时返回空表，调用方回落打车链。
+    """
     if not name:
         return []
     table = city_services(city)
-    return table.get((str(city or ""), name)) or table.get(("", name)) or []
+    items = table.get((str(city or ""), name)) or table.get(("", name)) or []
+    return [svc for svc in items if not is_bus_service(svc)]
 
 
 def best_service(city: str | None, name: str | None) -> Service | None:

@@ -103,6 +103,10 @@ def haversine_km(a: GeoPoint, b: GeoPoint) -> float:
 # 矩阵/兜底锚窗四家共用 taxi_leg_min，调用点不得另算口径。
 TRAVEL_LEG_CAP_MIN = 180
 TAXI_HAIL_MINUTES = 15
+# R16（2026-11-21 用户拍板「遇到强约束的 SHUTTLE BUS 再加 15 分钟强约束
+# 时间」）：打车接硬班次的到点缓冲——打车必须提前这么多到乘车点候车，
+# 晨卡离店（materialize R16）与去程打车卡同式；C-08 前序卡余量/C-13 晨锚同源。
+SHUTTLE_BOARD_BUFFER_MINUTES = 15
 TAXI_MIN_PER_KM = 1.3 / 70 * 60  # ≈1.11 分钟/公里（直线×绕行÷70km/h）
 TAXI_WALK_MAX_KM = 1.5  # 此距内步行更合理，不打车
 #: 步行估算分钟/公里（×1.3 绕行 / 80m/min）——近距腿与卡片展示共用。
@@ -651,28 +655,44 @@ def travel_gap_violations(day_no: int, visits: list[VisitItem]) -> list[RuleViol
         key=lambda v: (v.start_time, v.end_time),
     )
     out: list[RuleViolation] = []
-    for prev, cur in zip(timed, timed[1:]):
-        need = travel_gap_needed(prev, cur)
-        if need is None:
-            continue
-        gap = _minutes(cur.start_time) - _minutes(prev.end_time)
-        if gap < need:
-            out.append(
-                RuleViolation(
-                    rule_id=7,
-                    severity=RuleSeverity.error,
-                    message=L(
-                        f"第{day_no}天 {prev.name} {_fmt(prev.end_time)} 散场到"
-                        f" {cur.name} {_fmt(cur.start_time)} 开场仅 {gap} 分钟，"
-                        f"打车约需 {need} 分钟（未计路上时间）",
-                        f"Day {day_no}: only {gap} min between {prev.name} "
-                        f"ending {_fmt(prev.end_time)} and {cur.name} starting "
-                        f"{_fmt(cur.start_time)} — taxi needs ~{need} min",
-                    ),
-                    item_ids=[prev.item_id, cur.item_id],
-                    day=day_no,
-                )
-            )
+    # R38：合成接驳卡（回城卡等，无坐标）插在两站之间时，逐对相邻检查被
+    # 隔断成「带坐标卡→无坐标卡」（need=None）+「无坐标卡→下一站」（同）
+    # ——铁律 7 对引擎远郊日永远失明（day3 慕田峪→(回城卡)→奥园 gap 82<
+    # need 140 零告警实锤）。跨过无坐标卡取上一个带坐标卡，对齐 leg_pairs
+    # 的透明语义。
+    last_real: VisitItem | None = None
+    for cur in timed:
+        prev = last_real
+        if prev is not None:
+            need = travel_gap_needed(prev, cur)
+            if need is not None:
+                gap = _minutes(cur.start_time) - _minutes(prev.end_time)
+                if gap < need:
+                    out.append(
+                        RuleViolation(
+                            rule_id=7,
+                            severity=RuleSeverity.error,
+                            message=L(
+                                f"第{day_no}天 {prev.name} {_fmt(prev.end_time)} 散场到"
+                                f" {cur.name} {_fmt(cur.start_time)}"
+                                f" 开场仅 {gap} 分钟，"
+                                f"打车约需 {need} 分钟（未计路上时间）",
+                                f"Day {day_no}: only {gap} min between {prev.name} "
+                                f"ending {_fmt(prev.end_time)} and {cur.name} starting "
+                                f"{_fmt(cur.start_time)} — taxi needs ~{need} min",
+                            ),
+                            item_ids=[prev.item_id, cur.item_id],
+                            day=day_no,
+                        )
+                    )
+        if getattr(cur, "location", None) is not None:
+            last_real = cur
+        elif (cur.category or "") not in ("transfer", "transport"):
+            # 占位餐卡等无坐标非换乘卡吃掉链检查（旧语义保留：嵌套晚饭案
+            # 的前后对查不了，也不跨它查前对——引擎实测矩阵与打车口径
+            # 有分钟级紧张，跨查会误报）；仅 transfer 合成接驳卡（回城卡）
+            # 跨过查真站对（R38 主修）。
+            last_real = None
     return out
 
 
@@ -824,6 +844,18 @@ def _check_transfer_sequence(
 # --- iron rule 6: pace (walk distance + effective tour ratio) -------------
 
 
+def _is_walk_segment(a: VisitItem) -> bool:
+    """步行段口径（2026-11-18 八城普查收口）：腿模式已知时以模式为
+    准——taxi/access 是乘车腿（远郊/跨区段，如 昭陵→市区 41.8km
+    打车、班车站接驳），不计入「步行距离」；腿未标注（LLM 旁路、
+    读侧旧计划）维持直线近似全计的旧口径，保留无标注 sprawl 检测
+    力（test_rule6_walk_over_limit_warns 锁定的行为）。"""
+    mode = getattr(a, "next_leg_mode", None)
+    if mode in ("taxi", "access"):
+        return False
+    return True
+
+
 def _check_pace(
     day_no: int,
     day_items: list[VisitItem | TransferItem],
@@ -833,10 +865,16 @@ def _check_pace(
     out = []
     # walking distance: adjacent same-day visits, straight-line (haversine)
     # approximation; segments touching a location-less item are skipped.
+    # 接驳/回城类卡是乘车腿（iter3：对齐 legacy TransferItem 语义），
+    # 不计入步行近似
     km = sum(
         haversine_km(a.location, b.location)
         for a, b in zip(visits, visits[1:])
-        if a.location is not None and b.location is not None
+        if a.location is not None
+        and b.location is not None
+        and (a.category or "") not in ("transport", "transfer")
+        and (b.category or "") not in ("transport", "transfer")
+        and _is_walk_segment(a)
     )
     located = [v for v in visits if v.location is not None]
     limit = WALK_KM_PER_DAY_MAX * CROWD_COEFFICIENTS[crowd_profile]
@@ -890,13 +928,48 @@ def _check_pace(
 # --- iron rule 3 (simplified): geography sanity ---------------------------
 
 
+def _day_city_scope(day: DayPlan) -> set[str]:
+    """当天骨架能容的城市（基准城 + 当天城际腿两端）。
+
+    2026-11-22 上海→西安→北京案：旧校验只问「景点城市在不在行程城市表
+    里」——外滩（上海）在表里、北京景点也在表里，于是「北京行程里排上海
+    外滩」一条告警都不报。城市必须和**当天的城**对齐。
+    """
+    scope = {_norm_city(day.base_city)} - {""}
+    for it in day.items:
+        if not isinstance(it, TransferItem):
+            continue
+        for c in (_norm_city(it.from_city), _norm_city(it.to_city)):
+            if c:
+                scope.add(c)
+    return scope
+
+
 def _check_visit_cities(
     plan: ItineraryPlan, day: DayPlan, visits: list[VisitItem]
 ) -> list[RuleViolation]:
     out = []
     plan_cities = {_norm_city(c) for c in plan.cities}
+    scope = _day_city_scope(day)
     for v in visits:
-        if _norm_city(v.city) not in plan_cities:
+        city = _norm_city(v.city)
+        if scope and city and city not in scope:
+            out.append(
+                RuleViolation(
+                    rule_id=3,
+                    severity=RuleSeverity.warning,
+                    message=L(
+                        f"第{day.day}天在{day.base_city or '未知城'}，却排了"
+                        f"{city}的{v.name}",
+                        f"Day {day.day} is in {day.base_city or 'an unknown city'} "
+                        f"but schedules {v.name} in {city}",
+                    ),
+                    item_ids=[v.item_id],
+                    day=day.day,
+                )
+            )
+            continue
+        if city not in plan_cities:
             out.append(
                 RuleViolation(
                     rule_id=3,

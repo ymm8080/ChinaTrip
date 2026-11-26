@@ -616,3 +616,52 @@ def test_trip_item_upsert_updates_payload_hit_without_rewriting_pk():
     assert existing.name == "陕西历史博物馆"
     assert existing.status == "wishlist"
     assert existing.payload == payload
+
+
+# --- 2026-11-23 启动报错：purge_stale_drafts 参数类型不明 --------------------
+
+
+class _PurgeSession:
+    """捕获 purge_stale_drafts 发出的裸 SQL（CI 无 PG，不连库）。"""
+
+    def __init__(self, captured):
+        self._captured = captured
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def begin(self):
+        return self
+
+    def execute(self, statement, params=None):
+        self._captured.append((str(statement), params))
+
+        class _Result:
+            rowcount = 0
+
+        return _Result()
+
+
+def test_purge_stale_drafts_casts_ambiguous_params():
+    """过期草稿清理 SQL 曾在启动时抛 AmbiguousParameter：dtime / ddate_iso
+    是 Python str，落在 any 型的 jsonb_build_object 实参里无法推断类型。
+    所有此类参数必须显式 CAST（列侧 TIME、payload 侧 TEXT），否则 psycopg
+    拒绝整条语句——该报错在 :8000 启动日志里反复出现。"""
+    captured = []
+    svc = PgTripItemService.__new__(PgTripItemService)
+    TripItemService.__init__(svc)
+    svc._session_factory = lambda: _PurgeSession(captured)
+    svc._pg_ok = True
+
+    assert svc.purge_stale_drafts(days=7) == 0
+    assert len(captured) == 1
+    sql, params = captured[0]
+    assert "CAST(:dtime AS TIME)" in sql
+    assert "CAST(:dtime AS TEXT)" in sql
+    assert "CAST(:ddate_iso AS TEXT)" in sql
+    # 列侧 ddate 是 Date 型、原生 date 对象可推断，无需 CAST
+    assert "deletion_date = :ddate," in sql
+    assert params["days"] == 7

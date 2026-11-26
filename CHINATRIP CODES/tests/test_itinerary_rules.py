@@ -318,8 +318,12 @@ def test_rule3_base_city_jump_without_transfer_warns():
     ]
     rep = validate_plan(plan(days), poi_hours=[])
     hits = rule_hits(rep, 3)
-    assert len(hits) == 1
-    assert "跳变" in hits[0].message
+    # 2026-11-22 城市日一致性：这条盘面同时踩两个 rule 3——①基准城跳变无腿；
+    # ②第 2 天在苏州却排了上海的点（旧校验只问城市在不在行程表里，这类
+    # 「北京行程里排上海外滩」全程静默）。跳变那条按语义单独认。
+    jumps = [h for h in hits if "跳变" in str(h.message)]
+    assert len(jumps) == 1
+    assert any("苏州" in str(h.message) and "b" in str(h.item_ids) for h in hits)
 
 
 def test_rule3_base_city_jump_with_transfer_clean():
@@ -360,7 +364,13 @@ def test_rule3_base_city_jump_transfer_on_departure_day_clean():
                 visit("a", 1, time(14), time(15), city="苏州"),
             ],
         ),
-        DayPlan(day=2, base_city="苏州", items=[visit("b", 2, time(9), time(10))]),
+        # day2 在苏州：卡片城市必须也是苏州（2026-11-22 城市日一致性——
+        # 默认 city="上海" 的老 fixture 本身就是混城盘面）
+        DayPlan(
+            day=2,
+            base_city="苏州",
+            items=[visit("b", 2, time(9), time(10), city="苏州")],
+        ),
     ]
     rep = validate_plan(plan(days), poi_hours=[])
     assert rule_hits(rep, 3) == []
@@ -494,3 +504,23 @@ def test_rule19_pinned_intact_clean():
     rep = validate_pinned(old, new)
     assert rep.ok
     assert rep.violations == []
+
+
+def test_rule6_riding_legs_do_not_count_as_walk():
+    """R6b（2026-11-18 八城普查）：taxi/access 乘车腿不计步行——
+    远郊日（昭陵→市区 41.8km 打车）不再误报「步行 41.8km」。"""
+    a = visit("a", 1, time(9), time(10), loc=pt(31.20))
+    b = visit("b", 1, time(11, 30), time(12, 30), loc=pt(31.40))  # ~22 km
+    a.next_leg_mode = "taxi"
+    d = DayPlan(day=1, base_city="上海", items=[a, b])
+    rep = validate_plan(plan([d]), poi_hours=[])
+    assert all("步行距离" not in v.message for v in rule_hits(rep, 6))
+
+
+def test_rule6_access_legs_do_not_count_as_walk():
+    a = visit("a", 1, time(9), time(10), loc=pt(31.20))
+    b = visit("b", 1, time(11, 30), time(12, 30), loc=pt(31.40))
+    a.next_leg_mode = "access"
+    d = DayPlan(day=1, base_city="上海", items=[a, b])
+    rep = validate_plan(plan([d]), poi_hours=[])
+    assert all("步行距离" not in v.message for v in rule_hits(rep, 6))

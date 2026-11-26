@@ -1,11 +1,11 @@
 {
-  "generated_at": "2026-11-16T06:57:20+00:00",
-  "source": "app.jobs.verify_access_links",
+  "generated_at": "2026-11-23T06:10:08+00:00",
+  "source": "app.services.link_audit",
   "counts": {
-    "total": 78,
+    "total": 79,
     "dead": 7,
     "ok": 61,
-    "blocked_bot": 10
+    "blocked_bot": 11
   },
   "links": {
     "http://www.bjsupervision.gov.cn/lzdt/202101/t20210105_72326.html": {
@@ -1214,6 +1214,21 @@
         "pois.website:七彩丹霞景区"
       ],
       "checked_at": "2026-11-16T06:57:20+00:00"
+    },
+    "http://mp.weixin.qq.com/s?__biz=MzA3OTc1NjIyMw==&mid=2651049269&idx=1&sn=eec74571044d5be28c8beec3ae22a5b7": {
+      "verdict": "blocked_bot",
+      "display_url": "",
+      "detail": {
+        "status": 200,
+        "final_url": "https://mp.weixin.qq.com/mp/wappoc_appmsgcaptcha?poc_token=HIrYA2ujAnDS34T2ufw7xR5zRo415DA3t6q-dS3g&target_url=https%3A%2F%2Fmp.weixin.qq.com%2Fs%3F__biz%3DMzA3OTc1NjIyMw%3D%3D%26mid%3D2651049269%26idx%3D1%26sn%3Deec74571044d5be28c8beec3ae22a5b7",
+        "ok": true,
+        "title": "",
+        "error": "captcha_wall: 301 → 200 落到公众号验证码页（非正文），浏览器人工可开；python urllib 直连 TLS 握手超时，本条 verdict 由 curl 实测得出"
+      },
+      "sources": [
+        "access.official:前门旅游专线（北京旅游集散中心直通车 · 前门发车中心 → 八达岭）"
+      ],
+      "checked_at": "2026-11-23T06:10:08+00:00"
     }
   }
 }

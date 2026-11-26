@@ -2,6 +2,8 @@
    策略对齐 surmai (github.com/rohitkumbhar/surmai) 的 workbox 配置：
    app-shell 缓存优先+后台刷新，autoUpdate（skipWaiting+claim）；
    API NetworkFirst + 3s 超时回落缓存，离线可看最近一次成功的数据。 */
+// v124 2026-11-23: 表单「开始日期」随请求发送——planStartCore 之前只认行前卡，表单日期被丢掉，后端拿不到 start_date 明明信息给足仍弹行前卡（用户实报）；同批后端日期读取并入 preferences 分栏文本。旧缓存壳仍会丢日期，必须 bump 拉新。
+// v123 2026-11-22: 起始城市游玩天数启用（2026-11-22 拍板「起始城市也要能够选游玩日期数」）——天数框去掉 disabled（0=出发日只排交通；≥1=出发城先玩 k 天再转场，k 计入合计随 origin_days 出参回显）；同批：确认卡选保留侧（用表单/保留行前卡班次）不再二次弹卡。旧缓存壳天数框恒为 0，必须 bump 拉新。
 // v84 2026-11-13: 重新规划不再回到上次行程——自由输入框里的一整句新行程（换城市/换天数）优先于表单回填值；后端换局时返回新 session_id，前端跟随并同步表单，旧行程不被改动。
 // v87 2026-11-14: 文字/视频简报与图片读点先确认再落心愿单——起步页长描述读出的地点不再自动钉必去，改走「必去/可选」确认轮；聊天框相机按钮上传图片（笔记截图/行程照片）读地点，同一轮待确认（默认全选，点掉不要的）。
 // v118 2026-11-16: 末站回城段——当天最后一站是远郊班次点时（Day1 只有慕田峪），没有下一站可配对也出「回城」块（步行回乘车点→返程班→到市区落点），腿行前缀「回城」。
@@ -36,7 +38,88 @@
 // v110 2026-11-16: 接驳腿改成结构化卡片（固定三行：打车段/专线段/购票与官网，图标+段名+量化值），不再把三段挤成一行灰字；线名/运营方/班次/返程/票价原文进 title。
 // v111 2026-11-16: 接驳三行不再自带底色/左边框/强调色，与卡内其它行同色同字号（只保留图标+段名两列对齐）。
 // v107 2026-11-15: 行前卡信息不足=缺出发日期或天数/结束日（卡预填文字日期）；卡提交后由日期跨度推导天数，不再追问玩几天。
-const VERSION = 'v122'; // v122 2026-11-16: 朱家角回城腿挂回景区卡（用户实报「从朱家角回去回程又没了」）——同址占位餐卡上的腿搬回景区卡，导航/打车链接跳过同址占位卡，不再指向 0 公里的本站午饭。 //  // v121 2026-11-16: 行程卡 ✏️ 编辑面板除换点外可改停留时长——面板顶部「⏱ 停留时长」数值框+快捷档（45/60/90/120/150/180），提交走 POST /plan/{sid}/items/{id}/duration：保留开始时刻、结束=开始+新时长，当天其余卡按序顺延（酒店卡时长由入住/退房算，不亮） // v120 2026-11-16: 回城=独立卡（用户拍板「回程卡应该是独立卡」）——回城段从景区卡明细升成当天时间轴里的一张合成卡：开始=最近返程班次发车（无时刻表回落上一段结束），结束=到市区落点，按时间排在同址午饭/晚饭卡之后（回城 14:30 晚于午饭 14:08）；景区卡只留一行「🚌 回城 14:30 · 约 16:00 到 前门大街北口」。合成卡不出 ✏️/📌/🗑/拖动，班次 chip 仍按景区卡重排 // v119 2026-11-16: 接驳卡返程班次行不渲染修复——hopPickRow 返回「去程行+返程行」两段 HTML，调用处 el() 只取首节点（d.firstChild）把返程行吞掉，晨卡只见「去程班次」；改 frag() 多节点挂载，去程/返程各自一行 // v86 2026-11-14: 多语言骨架（DESIGN language_nlang_switch_design_2026-11-03 §2.2，P1 机制 + L2 ja/ko 种子）——①i18n.js 字典改短码键（zh-CN→zh，存量 ct_locale 读侧归一）、新增 ja/ko 种子词典与回退链 loc→en→zh（半翻译语言按 key 逐条回退，en 为 pivot）、LANGS 注册表、二元 toggle 升级语言 picker（底部弹层，母语名+当前项勾选）、city/pick 非 zh 走 en 源、<html lang> 按 LANGS.htmlTag 标注；②index.html X-Lang/plan:start lang/share ?lang 直通 I18N.locale() 短码（后端 BCP47 归一），城市下拉 ja/ko 显示英文名，提醒时间线日期按 locale 格式化；③后端 lang_ctx 支持位置制 L(zh,en,…)+SUPPORTED（zh=0/en=1 冻结，ja/ko append）+normalize_lang，plan 会话 lang 白名单走 SUPPORTED，ja/ko 提示词档直生成。字典变更必须 bump 版本拉新缓存 // v85 2026-11-13: 「点重新规划还是上次行程」修复——①autoOpenLatestItin 载入最近行程要 1–28 秒，期间用户一旦重新规划/开始规划/发消息（planTouch 代号）就整段放弃，不再把旧行程画回对话流；②SW controllerchange 自动整页重载遇到在途请求（planWorking）或屏上有会话（planSession）只提示不重载，不再把刚生成的行程冲掉；③planRouteForm 结束城市「（不经过）」不再把空城串塞进 cities。 // v84 2026-11-13: 规划「网络错误：无法连接 API」修复——断线重试梯 1.5s/4s(≈5.5s)→1.2/2.5/5/10/20s(≈39s)，覆盖 keepalive 判活 20s+进程拉起窗（旧窗内点规划只会看到网络错误），首轮重试提示「服务未响应，正在自动重试…」；生成中文案 10s→约 30 秒（实测单次 30-40s） // v82 2026-11-13: 空餐卡腿渲染中断修复——自由安排的午饭/晚饭无 POI（只有 anchor_location），旧码百度分支读 from.location.lat 抛 TypeError 整卡「数据已返回但渲染中断」；腿链接/TAXI 按钮/导航终点/预订锚点统一走 legPoint()（location→anchor_location，缺坐标降级纯文字不出死链） // v80 2026-11-11: 照片回源接线（F2/F4，DESIGN poi_photos_functional_design）——①简介气泡空图态「🔍 找图」按钮（brief.findPhoto 中英）：POST /api/pois/photos/fetch 触发服务端确定性回源（amap v5→amap 按名搜→wikimedia，24h 冷却服务端把关），成功就地渲染首两张并接灯箱，拉空「🔍 暂无图」1.5s 后恢复可点；②死图上报 reportDeadPhoto：简介双图/悬停首图/灯箱 onerror 摘除同时 fire-and-forget POST /api/pois/photos/report-dead（poi_id 维度计数，≥3 由刷新 job 重拉）；openPhotoLB 加 poiId 参数 // v79 2026-11-11: 简介气泡并排双图——enrichBrief 有 ≥2 张时 photos 前两张 flex 并排（各 max-height 140px、object-fit:cover、cursor:pointer），第 3 张起仍点图开灯箱翻看；仅 1 张（如华清宫维基源）维持单图 // v78 2026-11-11: 照片灯箱（多张图入口）——悬停首图与简介气泡首图均可点开 openPhotoLB 看全部 photos：左右 40% 点击/←→键切换、底部 名称+序号/总数+来源小字、✕/中点/Esc 关闭，纯前端零请求 // v77 2026-11-11: 「想排未排」备选 chip——可替代品跨品类（2026-11-11 拍板）：规划器必去让位/弃排点结构化留痕 plan.unplaced，装配期挂上同城相关卡右侧 chip 区（原 day_hint 天优先），亮「想去/Want」徽标（card.alt.lv.want 中英）与同级备选区分，点击走同一换点端点；想排 chip 排最前、总量仍 ≤3 // v76 2026-11-11: 悬停简介浮层加首图——sitePopShow 渲染 detail 响应里的 photos[0]（本就随接口到达，纯渲染零额外请求；max-height 100px、loading=lazy、referrerpolicy=no-referrer、onerror 原地摘除不留占位） // v75 2026-11-10: 站点简介气泡透出点评综述（P7b 证据链）——/api/pois/detail 出参并出 review_summary/_en/_source（enrich 管道已入库，纯读侧），简介气泡在 📖 简介行后加 💬 综述行（双语 I18N.pick，source 小字标注复用 brief.sourcePre/Close；未蒸馏点不渲染） // v74 2026-11-08: 规划表单「交通」下拉从起始城市与中间城市1之间挪到中间城市1与中间城市2之间（控件与语义不变：全程城际段统一口径，规划后单段仍可改乘）；结束城市默认从杭州改为上海（planCityRender 兜底值） // v73 2026-11-07: 同街族并卡二拍「并卡不消失」——子站不再挤一行灰字，每站独立一行（名+时长，card.family.pre/dur 中英）；后端族卡 bvt 聚合（夜档成员信号>锚值，十二时辰夜档把大雁塔并卡拉到下午/晚场） // v72 2026-11-07: 同街族并卡上卡面——直线 ≤1km 的同日站点折进首件主卡（PlanStop chips），主卡名下只读一行「🚶 同街联游：子站（时长）· …」，主卡时长=族内最长一站不再叠加；删除/换点/拖拽作用于整卡（card.family.pre 中英） // v71 2026-11-07: 规划起始页精简+交通选择——中间城市3 移除（保留中间城市1/2），起始城市与中间城市1之间加「交通」下拉（按距离自动=后端距离闸 600km/🚄火车/✈️飞机，全程城际段去程/途经/返程统一口径，规划后单段仍可改乘）；plan/start 请求与 origin 重建带 intercity_mode，落 PlanSession持久（i18n plan.transport* 中英） // v70 2026-11-06: 悬停简介覆盖备选 chip——备选按钮 hover 同款 .site-pop（首行 ↺ 换点提示 card.alt.popHint 中英、次行档号·时长·距离 data-bits，原 title 信息搬入浮层）；chip 挂 data-city/data-bits、原生 title 摘除防双 tooltip，点击换点即收浮层；主点 hover 行为不变 // v69 2026-11-06: 站点悬停简介浮层——光标停在站点名 350ms 弹 .site-pop 卡（📖简介/⭐评分/⏱建议时长/📍地址/🕐开放时间），/api/pois/detail 同端点 (city,name) 内存缓存、EN 语境读 intro_en（detail 出参新增 intro_en 并出）；移入浮层可续读 250ms 宽限，滚屏/改窗/点击即关，点击仍开完整简介气泡，触屏无 hover 不受影响；站点名原生 title 摘除防双 tooltip（i18n 复用 brief.addr/hours/none；zh 词典补 brief.none 一条，EN 已有） // v68 2026-11-06: 行程卡预约信息全覆盖——后端 _reservation_hint 在「库列>名单v0」后接入 09 热门预约景点表（data/reservation_pois.csv 167 点读侧索引：需预约=提前N天+渠道+放票时刻，无需预约=渠道+外籍护照购票口径，中英双语框）；卡上仍无预约数据的非餐/非酒店条目兜底显示「预约信息无」（i18n card.resv.none 中英），餐位/酒店不显示预约行 // v67 2026-11-05: CALL TAXI 两改——①按钮从行最右挪回车程文字右侧内联（去掉 space-between 拉边布局），文案「CALL TAXI」→「🚕 TAXI」（打车标志+TAXI，中英同形）；②点击后手机端手势链内同步拼 amapuri://drive/taxi/（起点 NAV.meReal 时带 slon/slat/sname 截 6 位，终点 dlon/dlat/dname）经 openHandoff 直唤高德打车页——免「打开高德App」二次按键，未装 App 2s 探测落提示，桌面端不跳 scheme 仍走导航页扫码桥 // v66 2026-11-04: 行程卡「CALL TAXI」按钮——已算好公里数+打车时间的站间段（>1.5km）右侧一键转导航页打车：起点=当前位置（手动改过则复位定位点），终点=下一站坐标，复用导航页 deeplink+扫码桥全流程（callTaxiTo；i18n card.callTaxi* 中英） // v65 2026-11-04: 预订页 🎭演出/🎫景点 目录卡显示场次/营业时间——后端 ShowCard 透传 poi.opening_hours(+_en)，目录卡 🕐 行渲染（演出行库内 47/48 有场次文本；修「营业时间和演出场次都没有显示」反馈的目录侧） // v64 2026-11-03: 星级饭店标签读侧补全——BRIEF_TAGS 与 i18n 加 star_1…star_5（五星级饭店…一星级饭店 / 5-star hotel…1-star hotel），配合库内 mct 打标 230 行 // v63 2026-11-03: 开始日期默认下周一（2026-11-03 拍板，原 v62 前默认今天）——规划表单初始化与旧行程✏️修改无存档日期的兜底都改为 nextMondayBeijingIso()（(8-周几)%7 周一归 7，恒为未来 1-7 天内的周一，北京口径）：当天出发来不及订票/预约，下周一给足预订窗口 // v62 2026-11-01: 天头天气两修——①城市/天气按当天活动城（dayActivityCity：非转场条目城市，纯转场天回落醒来城 base_city），修「首日行程在落地城、天头却显示出发城」；②无预报的天（行程从历史日期开始，预报 casts 都从今天起）在今天/历史日回落实况（live +（实况）标注），未来日期仍等 forecast14 // v61 2026-11-01: 载入行程（auto-open/✏️修改）同步参数表单——预填城市/逐城天数/出发日期，修「选了西安参数摘要却显示 上海→杭州·共1天」、以及✏️展开表单点🚀按默认杭州路线开新规划的隐患 // v60 2026-11-01: 行程卡「✏️ 换景点」——每个景点名可编辑（系统餐位除外）：点 ✏️ 原地变输入框，关键字实时检索 POI 库（/api/pois/search）下拉候选（名字/评分/层级/无坐标标注），选中即原位替换并重排当天时链（/items/{id}/replace）；库内无匹配或清空后回车=留空（当天只保留午餐/晚餐），Esc/失焦取消 // v59 2026-10-31: 行程导入追加 .doc 与 OCR——.doc（Word97 二进制）按 FIB/分段表抽正文，扫描版 PDF 与图片（png/jpg/webp/bmp）自动走 GLM 视觉 OCR（glm-4.6v-flash，429 切备用池），OCR 仍无文字才报错 // v58 2026-10-31: v58 2026-10-31: 行程页新增 📥 导入行程文件（PDF/Word/Excel/文本/HTML → 服务端解析+AI 结构化 → 预览弹层逐天逐站 → 确认后生成新行程，列表行标注 📄 源文件名+文件ID，每次导入新文件ID） // v57 2026-10-31: v57 2026-10-31: 行程卡回合的 reply 文字压到行程卡下面渲染——行程卡一长，顶部的说明/追问整段被顶出视野用户看不见（看熊猫案用户拍板「问题移到最下面」） // v56 2026-10-31: 行程中心看板每次进入都刷新——聊天排期后 TRIP.loaded 旧壳不再钉死看板（看水利工程案：已排期心愿不显示） // v55 2026-10-31: 删行程时名下已排期心愿自动回心愿单（后端 scheduled→wishlist，booked 不动）——行程页删除确认文案同步提示（itin.delConfirmSuf 中英） // v54 2026-10-30: 行程中心已排期/已订卡标注所属行程——🧳 行程ID·行程名（/api/v1/trip-items 回填 itinerary_name=城市链） // v53 2026-10-30: 修 plan 渲染中断——v52 改名 legSeg 漏改拼接处（walkSeg is not defined，行程卡不出） // v52 2026-10-31: 卡片站间出行默认出租车口径——距离+车程（含半小时叫车，≤1.5km 仍步行），导航链接切驾车 // v51 2026-10-30: SW 接管自愈——controllerchange 时页面自动重载换新壳（旧壳赖站事故根治，发版后一次刷新即更新） // v50 2026-10-30: 夜间雨不再完全忽略——天头天气右侧补「🌙夜间<夜天气>」标注（如 🌙夜间小雨，与夜间横幅同 wxWetText 口径）；白天主图标/横幅/自动室内仍只看 day_weather // v49 2026-10-30: 雨天横幅文案带时段与量级——「白天小雨」「夜间小雨」（取 cast.day/night_weather 原文，EN 语境为读侧翻译文本） // v48 2026-10-30: 雨天双窗——夜间雨只影响夜间露天活动（游船观景/夜游等 evening 点自动换到晴夜+夜间横幅），白天雨不再动夜间点 // v47 2026-10-30: 英文版 clarify 追问卡死修复（偏好轮关键词加英文匹配 /prefer|sightsee/i + 提交文本本地化 + 提示不再限首轮） // v46 2026-10-30: 行程卡站点删除按钮加「🗑 删除」字样（card.del zh/en 词条） // v45 2026-10-30: 雨天判定改白天窗——夜间雨不影响白天行程（横幅/自动室内/图标只看 day_weather，用户拍板「避免露天活动与下雨时间段一致」） // v44 2026-10-30: 雨天收口——天头天气图标与雨天横幅同口径（夜间雨白天晴显 🌦️，修「横幅有雨图标晴」）+ 规划自动雨天排室内（整段有雨室内优先/部分日有雨自动对调，不问用户）+ 横幅去「回复重排」改备伞提示 // v43 2026-10-30: 桌面排版修复（#scrim 基础 display:none，v42 遮罩占掉 grid 第一格致侧栏/主区错位） + 布局按设备两套（断点叠加 pointer:coarse）+ 打开页面=行程页最近行程（去 localStorage 会话恢复） + 保存行程右边兜底重新规划 //  // v42 2026-10-30: 移动端（≤760px）左栏改抽屉菜单：左上角 ☰ 开关 + 遮罩，桌面端不变 // v41 2026-10-27: 行程卡片删除「✅ 到了」打卡按钮（fb-btn data-kind=visit），仅留 👍/👎/✍️ 点评；清理 visit 分支与 card.visited/plan.fb.checked* 文案
+// v132 2026-11-23: 时间编辑失败码转人话（用户实报「there is error msg」）——行程已更新请刷新/当天无班次表/结构锁定三类给明确文案；餐卡双家族 id（meal-lunch-N ↔ food-lunch-ph-dN）后端按别名解析不再 404（后端随下次重启生效）；编辑态改双控件=直输框（9:30/0930，Enter 提交）+右侧时钟选择器加回（选完即存，用户令保留）。必须 bump 拉新缓存壳。
+// v131 2026-11-23: 时间编辑铺到全部卡型（用户令「酒店、打车、晚餐等所有卡的时间也要能改」）——酒店晨/夜卡与打车卡出时间编辑钮：打车卡/班次日晨卡按意图时刻落班次链（链起点最近一班整链重锚），酒店夜卡/城内日晨卡普通改时；餐卡本就可改。必须 bump 拉新缓存壳。
+// v130 2026-11-23: 卡片时间编辑改直输文本框（用户实报两条：「改完时间按 Enter 不生效」「只能点时钟选不能直接敲」）——点时间戳原地输入 9:30 / 09:30 / 930 / 2130，Enter 提交、Esc 取消、失焦还原，非法值留编辑态提示；桥卡「乘车去下一站」与观光卡同一控件。必须 bump 拉新缓存壳。
+// v129 2026-11-23: 乘车/步行腿卡（「前往下一站」桥卡）的时刻也能编辑了（用户令「乘车去下一站的时间应该也可以编辑」）——点桥卡时间戳原地改出发时刻（POST /departure direction=out；桥卡出发=上一站结束：普通站时长伸缩、午餐/酒店等骨架卡平移，后续卡只顺延真被压住的）；整卡导航点击与时间编辑互不抢（卡内按钮/输入优先）。必须 bump 拉新缓存壳。
+// v128 2026-11-23: 乘车/步行腿卡（「前往下一站」）整卡可点——乘车卡直唤高德打车（起点=当前位置，终点=下一景点），步行/自由安排卡直唤高德步行导航（callnative=1 打开即拉起 App）；交通腿卡不再显示点赞/点评行（用户令「乘车或者步行腿不需要点赞、打卡、好评功能等」）。必须 bump 拉新缓存壳。
+// v136 2026-11-23: 行前卡值写回开规划快照（用户实报「行前卡填完日期 → 文字/窗口差异确认 → 选完边规划不继续、行前卡又弹」）——确认卡重发只读 planLastStart，快照仍停在开局 {skipped:true}，用户在卡上填的起止日期/班次全丢 → 后端按「出发日期必填」再弹一张空卡；现在卡值（用户提交 / confirm_route 服务端回显）一律并入快照，选完边直接生成。必须 bump 拉新缓存壳。
+// v135 2026-11-23: API GET 不再被 3 秒超时掐死（networkFirst 只在缓存有兜底时提前让路，无缓存就继续等网络）——慢实例上 >3s 的行程/规划大 GET 此前直接 Failed to fetch 且无恢复路径。必须 bump 拉新缓存壳。
+// v133 2026-11-23: 时间编辑失败码转人话+时钟选择器加回（用户实报「there is error msg」「时钟选、点击保存要保留」）——已知失败码转明确文案（行程已更新请刷新/当天无班次表/结构锁定）；编辑态双控件=直输框（9:30/0930，Enter 提交）+右侧时钟选择器（选完即存）；餐卡双家族 id（meal-lunch-N ↔ food-lunch-ph-dN）后端按别名解析不再 404（后端随下次重启生效）。必须 bump 拉新缓存壳。
+// v132 2026-11-23: 确认卡必须逐行选完才能点 ✅（用户实报「选了一行点 ✅ 又弹卡」）——带文字开局差异卡有多行（days/numbers/card_days），只答部分行点 ✅ → 未答行不在 resolved_diffs → 后端重新检出再弹卡；✅ 未选完置灰+剩余行数提示，选完即亮。必须 bump 拉新缓存壳。
+// v137 2026-11-25: 首版生成提示时长文案纠正——实测 CP-SAT 端到端约 6–8s（最坏约 12s），
+// 原「约 30–60 秒/30–60 s」严重高估，改「约 5–15 秒/5–15 s」（index.html 两处 tf 回退原文 +
+// i18n.js en 词典 plan.gen.running）。必须 bump 拉新缓存壳。
+// v142 2026-11-25: 确认卡悬停简介支持中英文与别名正名——chip/句子里的地点名带
+// site_kinds 调 /api/pois/detail（kind=sight 排除酒店餐馆），后端按 name_aliases
+// 命中「故宫→故宫博物院」「鸟巢→鸟巢(国家体育场)」；英文读 intro_en，标题回正名。
+// 必须 bump 拉新缓存壳。
+// v141 2026-11-25: 确认卡回复文字里的地点名也接入悬停简介（此前只有 chip 可悬停，
+// 用户悬停句子里的地名无反应）；必须 bump 拉新缓存壳。
+// v139 2026-11-25: 确认卡悬停标题城市兜底——site_cities 未下发（旧会话/后端未重启）时
+// 用 /api/pois/detail 返回的 city 回填，不再依赖服务重启；必须 bump 拉新缓存壳。
+// v138 2026-11-25: 地点确认卡的 chip 接入正式行程卡同款悬停简介浮层（site_pop），
+// 后端在 site_confirm 响应下发 site_cities 供详情查询；必须 bump 拉新缓存壳。
+// v139 2026-11-25: 回城尾段腿一级化——回城卡带「落点→下一站」尾段打车腿与导航/打车链接，
+// hint 补「打车约N分 → 下一站」；车次卡贯通出发/到达站（北京南 → 上海虹桥，不只城市级）。
+// v144 2026-11-25: 交通腿统一成一种——站点页脚/桥卡/回程打车行三种呈现并成一行「出发时刻 距下一站 X km ·
+// 车程约 N 分钟 · 约 ¥Y」，行右固定 TAXI + ALL TRANSPORTATION（去导航页看全部交通方式）；
+// 酒店晨卡出到第一个景点的交通腿。必须 bump 拉新缓存壳。
+// v145 2026-11-25: 交通腿统一行——同址占位桥卡（午饭就在刚逛完的景点里）显示「同址 · 就在附近」
+// 且不出打车/导航按钮；打车文案去掉重复的间隔点。必须 bump 拉新缓存壳。
+// v146 2026-11-25: 页脚去重跨过嵌套占位卡（卡内午饭夹在景点与同刻桥卡之间时，同一段不再出两行）。
+// v147 2026-11-25: 同址桥卡改为一段步行腿（0.0 km · 约 1 分钟，无按钮）；餐卡让位链遇夜卡即停。
+// v148 2026-11-25: 交通腿时间对齐站点时间列（隐藏把手占位）；TAXI / ALL TRANSPORTATION 紧跟文字并排。
+// v149 2026-11-25: 无把手卡（合成/钉住）统一补占位，时间列全一致（只读视图不补）。
+// v150 2026-11-25: 任意两站之间都有交通腿——同址的午饭/晚饭也出一行（0.0 km · 步行约 1 分钟，
+// 出发时刻取卡内嵌件起点，如颐和园 12:00 午饭）；远郊班次点的回城专线链优先于 0 km 步行。
+// v151 2026-11-25: 赞/👎/点评图标并入预约信息行右端（同一行右侧，不再独占一行）；
+// transfer 腿不出；无预约信息行的卡（餐饮/酒店）保持原独立行。必须 bump 拉新缓存壳。
+// v152 2026-11-25: 必去确认卡迟到确认不再出死横幅——勾选地点自动转成消息走对话续排（没勾就静默收卡）；
+// 开新确认卡前先失效旧卡（旧 ✅ 跨轮可点曾打出 409 死横幅）。必须 bump 拉新缓存壳。
+// v153 2026-11-26: 餐卡「美团订」→「🍚 MORE」，点击直唤美团 App（Android intent:// 包名
+// com.sankuai.meituan / iOS imeituan://；未装 App/桌面回落美团美食频道网页）；跟踪器与出行人挂单不变。
+// v154 2026-11-25: TAXI / ALL TRANSPORTATION 按钮下线——站点名点击直达高德路线页
+// （起点=当前位置，终点=所点站点；无坐标卡仍入简介气泡）；交通腿行只留时刻与文字，
+// 远郊交通腿信息（专线/购票/尾段打车行）原样保留。必须 bump 拉新缓存壳。
+// v155 2026-11-25: 酒店卡预订按钮改 Trip / Booking / Agoda 三枚外链（按当天宿城直跳三家官网
+// 搜酒店，替代「🏨 订酒店」渠道卡）；酒店卡不再出「📌 钉住」；酒店卡底加一行
+// 「PLEASE FORWARD CONFIRMATION EMAIL TO <USER ID>@CHINA FOR PLAN UPDATE.」。
+// v156 2026-11-25: 酒店卡右侧下架 ✏️ 换酒店与 🗑 删除按钮——只留 Trip / Booking / Agoda 三枚外链
+// （R44 去钉住的续刀；set-hotel 的卡上入口随之撤除）。必须 bump 拉新缓存壳。
+// v157 2026-11-25: 餐卡右侧下架 ✏️ 修改 / 📌 钉住 / 🗑 删除（系统餐位与命名餐厅一体，🍚 MORE 保留）
+// ——接 v156 酒店卡同款收口。必须 bump 拉新缓存壳。
+// v158 2026-11-25: 酒店→乘车点的 🚕 打车卡紧跟晨卡时，晨卡不再重复出一行同段车程
+// （用户实报「transportation from hotel to mutianyu is duplicate」）。
+// v159 2026-11-25: 酒店三外链按钮（Trip/Booking/Agoda）从规划页挪到「🎫 预订」页 🏨 酒店
+// 分区（按上方住宿城市直开三家官网，切到酒店分区自动预填行程首城）；规划页酒店卡底
+// 文字改「Please book in RESERVATION page, and transfer confirmation email to <USER ID>@CHINA for plan update.」。
+// v160 2026-11-26: 赞/👎/点评图标从预约信息行改挂景点地址行右端（地址+旗时+开放时间
+// 同一 flex 行右推；无地址/时刻行的卡回落独立图标行）。必须 bump 拉新缓存壳。
+// v161 2026-11-26: 赞/👎/点评图标紧跟地址/时刻字符串右边（去掉 margin-left:auto，
+// 不再推到行右缘）。必须 bump 拉新缓存壳。
+// v162 2026-11-26: 无预约信息的卡不再出「🎫 预约信息无」占位行（card.resv.none 死键 zh/en/ja/ko 一并下架）。必须 bump 拉新缓存壳。
+// v163 2026-11-26: 午餐后「步行 18 分钟到景山」双显修复——桥卡起点是出发时刻
+//（13:21，前面是自由活动），不再要求等于上一卡收尾（13:00）；后面跟桥卡时页脚让位。
+// v164 2026-11-26: 酒店卡/餐卡只有显示了具体地址（和名字）才出赞/踩/点评图标
+// （无地址占位餐卡/未验证酒店不再出；其它卡不变）。必须 bump 拉新缓存壳。
+// v165 2026-11-26: 酒店卡/餐卡的赞/踩/点评再收紧——地址之外还须绑定真实实体
+//（poi_id，即显示具体名字）：只有地址但仍是「午餐/晚饭」占位名的不出。
+// 必须 bump 拉新缓存壳。
+// v166 2026-11-26: 纯打车回城腿不再渲染「🎟 购票 / 打车约 ¥X + 接驳约 ¥0」退化块——
+// 购票行只在真有可购接驳段（专线名/运营方/班次/票价/接驳费任一非空）时出；打车费用仍在卡底腿行。
+// 后端纯打车回城明细的接驳空槽改发 null（R49）。必须 bump 拉新缓存壳。
+// v167 2026-11-26: 同址 0 公里/1 分钟的步行腿不再显示（页脚与桥卡同一判定）；
+// 数据层照旧成对，只是不渲染这一行噪声。
+// v168 2026-11-26: 预订页火车/机票分区加「＋ Trip」直达键（Trip.com 路线页/机票页预填
+// 城市+日期，码表在 i18n.js）——改了 index.html + i18n.js，必须 bump 拉新缓存壳。
+// v169 2026-11-26: 规划页酒店卡点酒店名/卡底指路行 → 预订页 🏨 分区，顶部钉住所选酒店
+//（酒店名 + 城市/地址 + Trip/Booking/Agoda 三家按钮，按「酒店名 城市」搜）——R52，
+// 改了 index.html + i18n.js，必须 bump 拉新缓存壳。
+// v170 2026-11-26: 修复渲染中断「Cannot access 'trivialLeg' before initialization」——
+// trivialLeg 的 const 定义被写在 brRow 首次引用之后，暂时性死区在渲染期抛
+// ReferenceError（数据已返回但整页卡死）；定义前移到所有引用之前。必须 bump 拉新缓存壳。
+const VERSION = 'v170';
 const CACHE = 'chinatrip-h5-' + VERSION;
 const SHELL = [
   './', './index.html', './i18n.js', './qrcode.min.js', './sortable.min.js', './manifest.webmanifest', './agent.html',
@@ -56,18 +139,41 @@ self.addEventListener('activate', (e) => {
 });
 
 function networkFirst(req) {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 3000);
-  return fetch(req, { signal: ctrl.signal })
-    .then((res) => {
-      clearTimeout(timer);
-      if (res && res.status === 200 && (res.type === 'basic' || res.type === 'cors')) {
-        const copy = res.clone();
-        caches.open(CACHE).then((c) => c.put(req, copy));
-      }
-      return res;
-    })
-    .catch(() => caches.match(req));
+  // R28 (2026-11-23): the 3s timer only hands the response over to the
+  // cached copy when one exists; with no cached fallback we must NOT
+  // abort the in-flight request. The old shape (abort -> caches.match ->
+  // undefined) turned every >3s API GET (big plan payloads on a loaded
+  // instance) into a hard 'Failed to fetch' with no recovery.
+  return new Promise((resolve) => {
+    let settled = false;
+    const timer = setTimeout(() => {
+      caches.match(req).then((hit) => {
+        if (hit && !settled) {
+          settled = true;
+          resolve(hit);
+        }
+      });
+    }, 3000);
+    fetch(req)
+      .then((res) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        if (res && res.status === 200 && (res.type === 'basic' || res.type === 'cors')) {
+          const copy = res.clone();
+          caches.open(CACHE).then((c) => c.put(req, copy));
+        }
+        resolve(res);
+      })
+      .catch(() => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        caches.match(req)
+          .then((hit) => resolve(hit || Response.error()))
+          .catch(() => resolve(Response.error()));
+      });
+  });
 }
 
 self.addEventListener('fetch', (e) => {
@@ -89,10 +195,30 @@ self.addEventListener('fetch', (e) => {
     return;
   }
 
-  // 页面导航与同源静态：缓存优先，后台刷新
-  if (req.mode === 'navigate' || url.origin === self.location.origin) {
+  // 页面导航：网络优先（2026-11-23 修「改了 index.html 刷新还是旧页」）——
+  // 旧策略是缓存优先+后台刷新：磁盘/服务端已经更新，用户按一次刷新仍拿旧
+  // HTML，要按第二次才换新（实测：改文件后第 1 次 reload 旧、第 2 次才新）。
+  // 后果是前端每次修完让用户刷新都白刷，窄窗布局塌缩（地址 0 宽）看着像
+  // 「修了也没用」。导航改网络优先后一次刷新即最新；断网回落缓存。
+  if (req.mode === 'navigate') {
     e.respondWith(
-      caches.match(req, { ignoreSearch: req.mode === 'navigate' }).then((hit) => {
+      fetch(req)
+        .then((res) => {
+          if (res && res.status === 200) {
+            const copy = res.clone();
+            caches.open(CACHE).then((c) => c.put(req, copy));
+          }
+          return res;
+        })
+        .catch(() => caches.match(req, { ignoreSearch: true }))
+    );
+    return;
+  }
+
+  // 同源静态资源（js/css/图标）：缓存优先，后台刷新（首屏快，版本靠 VERSION 拉新）
+  if (url.origin === self.location.origin) {
+    e.respondWith(
+      caches.match(req).then((hit) => {
         const refresh = fetch(req)
           .then((res) => {
             if (res && res.status === 200) {

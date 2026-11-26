@@ -46,8 +46,11 @@ DAY_END_MINUTES = 21 * 60 + 30
 # 2026-11-17 拍板「晚闸是 16:30」：与 solver._GENERIC_ENTRY_CAP_MINUTES
 # 对齐拨回（16:00→16:30）。
 ENTRY_CAP_MINUTES = 16 * 60 + 30
+# R12-H23（2026-11-20 用户拍板「入场闸改成 16:00，然后又有入场闸的
+# 弹性调整」）：大点 960；检查含 +30 弹性（引擎 C-02/读闸同口径）。
+ENTRY_CAP_BIG_MINUTES = 16 * 60
+ENTRY_FLEX_MINUTES = 30
 # 大点开场带（11-04 拍板；2026-11-07 开场闸下保持并列上限）
-ENTRY_CAP_BIG_MINUTES = 15 * 60 + 30
 AFTERNOON_START_MINUTES = 13 * 60  # 下午起点（2026-11-04 拍板「下午单大点」）
 # CITYWALK 下午场带（2026-11-06 二拍；与 solver 同名常量同口径）
 CITYWALK_AFTERNOON_MINUTES = 13 * 60
@@ -108,11 +111,13 @@ PEN_VENUE_STRAND = 60  # 场馆亲和拆簇罚（2026-11-08 远郊演出案）�
 
 def _is_big_visit(v: VisitItem) -> bool:
     """大点判定（与 solver._is_big_site 同口径，2026-11-04 拍板）：
-    时长>80min、非街区（tier8）、非餐/酒店/演出、非夜属性；用户自钉
-    且有时刻（铁律 19）不计。"""
+    时长>80min、非街区（tier8）、非餐/酒店/演出/转场、非夜属性；用户
+    自钉且有时刻（铁律 19）不计。R13b（2026-11-19）：transfer（合成
+    接驳卡 access-out-/access-return-）是转场投影不是游览件——大点/
+    轻点/负载全链豁免（legacy 录制件从不带这些卡，豁免后两侧同口径）。"""
     if v.pinned and v.start_time is not None:
         return False
-    if str(v.category or "") in ("food", "hotel", "entertainment"):
+    if str(v.category or "") in ("food", "hotel", "entertainment", "transfer"):
         return False
     if str(v.best_visit_time or "") in ("evening", "sunset", "show"):
         return False
@@ -122,10 +127,11 @@ def _is_big_visit(v: VisitItem) -> bool:
 
 
 def _is_light_visit(v: VisitItem) -> bool:
-    """轻点判定（大点先排另一侧，与 solver._is_light_sight 同口径）。"""
+    """轻点判定（大点先排另一侧，与 solver._is_light_sight 同口径）。
+    R13b：transfer 转场投影同 _is_big_visit 豁免。"""
     if v.pinned and v.start_time is not None:
         return False
-    if str(v.category or "") in ("food", "hotel", "entertainment"):
+    if str(v.category or "") in ("food", "hotel", "entertainment", "transfer"):
         return False
     return not _is_big_visit(v)
 
@@ -253,7 +259,7 @@ def plan_score(
         untimed += sum(1 for v in visits if v.start_time is None)
         # 活动日空白上午（hotel-only 日不算活动日——入住卡不占上午）
         has_activity = any(
-            str(v.category or "") not in ("food", "hotel") for v in visits
+            str(v.category or "") not in ("food", "hotel", "transfer") for v in visits
         )
         if has_activity and not _morning_occupied(day):
             blank += 1
@@ -276,7 +282,7 @@ def plan_score(
             if v.start_time is not None
             and not (v.pinned and v.start_time is not None)
             and _minutes(v.start_time) < LUNCH_ANCHOR_MINUTES
-            and str(v.category or "") not in ("food", "hotel")
+            and str(v.category or "") not in ("food", "hotel", "transfer")
         )
         morning_crowd += max(0, morning_sites - 1)
         # 下午单大点 + 大点先排（2026-11-04 拍板）：与 solver 插入/CP
@@ -382,7 +388,7 @@ def plan_score(
         load = sum(
             v.duration_minutes or 0
             for v in visits
-            if str(v.category or "") not in ("food", "hotel")
+            if str(v.category or "") not in ("food", "hotel", "transfer")
         )
         over = load - (DAY_VISIT_BUDGET_MINUTES + BUDGET_SLACK_MINUTES)
         if over > 0:
@@ -434,7 +440,7 @@ def plan_score(
             # 可跨界收尾（营业窗+日终照卡）；大点（>80min，tier8 街区
             # 豁免同 solver._is_big_site）走 15:30 开场带并列上限。
             if (
-                cat not in ("entertainment", "food", "hotel")
+                cat not in ("entertainment", "food", "hotel", "transport", "transfer")
                 and bvt not in ("show", "evening", "sunset")
                 # 主题街区整类开晚场（2026-11-08 拍板「所有街区都可以
                 # 作为夜场，也可以白天」）——不吃白天入场闸，同 solver
@@ -449,7 +455,24 @@ def plan_score(
                     dur_v = 0
                 if dur_v > BIG_SITE_MIN_MINUTES and getattr(v, "tier", None) != 8:
                     entry_cap = ENTRY_CAP_BIG_MINUTES
-                if (v.start_time.hour * 60 + v.start_time.minute) > entry_cap:
+                # R12-H22 parity：远郊日返程后的「插一个」设计位——引擎
+                # C-06 豁免入场闸（用户拍板「回城有富裕时间回插小景点」），
+                # 打分器同口径：当日有回城卡且该卡紧随其后（≤30 分钟）。
+                _after_return = False
+                for _t in day.items:
+                    if (
+                        str(getattr(_t, "category", "") or "") == "transfer"
+                        and _t.end_time is not None
+                        and v.start_time is not None
+                    ):
+                        _te = _t.end_time.hour * 60 + _t.end_time.minute
+                        _vs = v.start_time.hour * 60 + v.start_time.minute
+                        if _te >= 14 * 60 and 0 <= _vs - _te <= 30:
+                            _after_return = True
+                if not _after_return and (
+                    v.start_time.hour * 60 + v.start_time.minute
+                    > entry_cap + ENTRY_FLEX_MINUTES
+                ):
                     late_entries += 1
             # 远郊件午后开场（2026-11-15）：远郊景点最佳游览时段=上午。
             if (
@@ -484,6 +507,14 @@ def plan_score(
     # 圈内伴=拆离场馆簇——LNS/挪天修复为消超载拆簇要付大代价，溢出先
     # 溢簇外/低档弱卡。城市缺信号不罚（宁漏勿错）。
     for _di, (_dcity, _dvisits, _darr) in enumerate(geo_days):
+        # 远郊日的城内件是接驳几何绑定的晨锚/回城收尾（C-06 认可形态），
+        # remote-day anchors are shuttle-bound, not venue sprawl
+        _remote_day = any(
+            getattr(_vv, "remote", False) or getattr(_vv, "access_mode", None)
+            for _vv in _dvisits
+        )
+        if _remote_day:
+            continue
         for _v in _dvisits:
             if _near_mate_km(_v, _dvisits) is not None:
                 continue  # 当前日圈内成伴=锚定

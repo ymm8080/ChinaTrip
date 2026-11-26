@@ -14,7 +14,7 @@
 | **B-02** Unrequested fillers (梵高星空艺术馆, 老舍茶馆) occupy slots while a must has none | Lexicographic objective: tier-① = requested coverage (weighted), tier-② = preference/diversity/**fill reward**. A fill candidate's presence can never trade against requested coverage. Plus a hard gate: no fill on a day while a seatable requested item is unseated (F-21 C-14, F-23). | **Yes, by construction** (this is precisely what the cascade cannot express). |
 | **B-03a** Unrequested filler before the remote departure | Hard constraint: on a remote day, no unrequested item may precede the remote visit's access leg (F-21 C-15). 天安门 → direct departure is the only legal shape unless the user asks for more. | Yes. |
 | **B-03b** Lunch as a hard gate in the city before the remote leg | Lunch is a **conditional interval**: on a remote day it must nest inside the remote site's same-venue window (先午餐后游览 decision) or follow the visit; it may not sit between the previous city item and the access leg (F-22). Departure time is chosen by the solver, not by the lunch card. | Yes (constraint semantics). |
-| **B-03c** Card times ≠ access-leg times (12:38 card vs board 12:45/arrive 14:33) | Access legs are **explicit intervals inside the model**; F-30 materialises cards from the *same* intervals the constraints used. Card ≡ leg by construction. | Model provides the intervals; **consistency is F-30's contract** (assembly). |
+| **B-03c** Card times ≠ access-leg times (12:38 card vs board 12:45/arrive 14:33) | Access legs are **explicit intervals inside the model**; F-30 materialises cards from the *same* intervals the constraints used. Card ≡ leg by construction — or card = arrival + same-venue meal (F-22: remote arrival 11:00–13:00 seats lunch at the site, visit starts at meal end; the shadow B-03c detector honours exactly this bridge: meal hosted at the remote site, spanning [arrival, visit start]). | Model provides the intervals; **consistency is F-30's contract** (assembly). |
 | **B-03b′** Lunch anchored to the wrong address (city teahouse instead of 慕田峪) | F-31 anchors meal cards at solution locations (remote site), never at "previous city item". | **Assembly function, not the model** — specified here so it is not forgotten. |
 | **B-19** 颐和园 duration 300 min makes the day near-infeasible | F-15 duration tiers (min/typ/max) + clamp-with-disclosure policy; F-26 certificate explains infeasibility instead of dropping. | **Data/policy, not the model** — F-15 + F-26 together. |
 
@@ -44,7 +44,7 @@ Solution           presence[cid,day], start[cid], dur[cid], day[cid], access int
 
 **Module boundary rules (audit M2)**: `trip_solver/` may import read-only pure helpers from `app/services/itinerary/` (hours/access/fare/geo math) and nothing from `app/services/agent/plan.py`. No DB or network I/O inside solve — everything the solver reads comes from the immutable `FactSnapshot`; I/O happens only in snapshot construction (F-03) and in assembly/edit adapters.
 
-**Snapshot & fixture versioning (audit M3)**: `FactSnapshot.schema_version = 1` (bump on any field change). Golden fixtures are **anonymized** (device/account/session ids stripped) and committed to the repo (`tests/golden/*.json`); when the POI library evolves (hours/durations backfills), fixtures are regenerated and re-blessed in the same commit as the expectation update — never silently.
+**Snapshot & fixture versioning (audit M3)**: `FactSnapshot.schema_version = 2` (2026-11-18 P1-D：新增 meal/family/diversity/pin 等求解读取字段；任何字段变更继续 bump). Golden fixtures are **anonymized** (device/account/session ids stripped) and committed to the repo (`tests/golden/*.json`); when the POI library evolves (hours/durations backfills), fixtures are regenerated and re-blessed in the same commit as the expectation update — never silently.
 
 ## 3. Design functions
 
@@ -109,8 +109,8 @@ Covers D3/D4. Resolves **B-01** (no invisible state exists), B-06 (an item is ei
 | C-06 | Remote-day exclusivity: day with remote cluster item → other items same cluster or none | `_separate_remote_must_days`, `_day_already_remote`, third-cluster eviction (B-08) |
 | C-07 | Same city / same river-side per day; multi-city day ranges | `_enforce_day_zones`, `_city_side_ok` |
 | C-08 | Access legs as intervals: board windows, ride, last mile, return-last | `_access_profiles`, shuttle timetables (B-03c) |
-| C-09 | Meal anchors: lunch/dinner windows; real-restaurant binding immovable; same-venue nesting | `_meal_anchor`, `_bind_real_food_to_cards`, palace rulings |
-| C-10 | Lunch-before-visit on destination days (≥15km, arrival 10:30-13:00) | `_lunch_before_destination_visit` (b909d60) |
+| C-09 | Meal anchors: lunch/dinner windows; real-restaurant binding immovable; same-venue nesting; **晚饭通常优先室内；远郊日默认回城晚饭，回城开席 >19:30 时允许远郊同址晚饭（2026-11-18 用户拍板）** | `_meal_anchor`, `_bind_real_food_to_cards`, palace rulings |
+| C-10 | Lunch-before-visit on destination days (≥15km; Q4 分界：arrival 11:00-13:00 午餐先行，<11:00 先游后餐) | `_lunch_before_destination_visit` (b909d60) + Q4 |
 | C-11 | Show sessions / one show per day / sessionless shows excluded | `effective_show_sessions`, `_enforce_show_per_day` |
 | C-12 | Must family same day; day load budget; weekend/weather day preferences | `_assign_must_family_days` family |
 | C-13 | Hotel anchors / night return | `_reanchor_nights_hook`, `_head_hotel_anchor` |
@@ -124,6 +124,8 @@ Every group carries **assumption literals** so F-26 can name exactly which rule 
 On a remote day, lunch is a conditional interval that must either (a) nest in the remote site's same-venue window at arrival (C-10 case) or (b) start after the visit ends; it may **not** be placed between the previous city item and the outbound access interval. Lunch duration/anchor never constrains the outbound departure.
 Resolves **B-03b**; replaces the lunch-first swap + city-anchor patch (b909d60's assembly bug is covered by F-31).
 
+**Remote dinner（2026-11-18 用户拍板）**：远郊晚饭由时间与返程交通共同决定，通常优先室内餐厅。默认回城吃晚饭；若按所选返程班次回城后的最早开席时刻晚于 **19:30**，则允许在远郊同址吃晚饭，返程班次须晚于晚饭结束+缓冲，夜宿锚按实际回城时刻顺延。**19:30 压线仍回城**。用户显式绑定的远郊餐厅不受默认回城偏好限制，真实餐厅绑定不可移动。
+
 **F-23 `objectives(model) -> lexicographic tiers`**
 ① requested coverage, weighted by importance (must ≫ wish) — **strictly dominates everything**;
 ② preference/diversity/quality score + weather-conditioned penalties + **fill reward** (fill can only ever win inside tier ②);
@@ -135,15 +137,33 @@ Resolves **B-02** (with C-14); replaces `_morning_extra_cost/_big_first_cost/...
 **F-24 `solve_budgeted(model, budget=3s, workers=1, seed=fixed, hint?) -> Solution|INFEASIBLE`**
 Fixed workers+seed; optional previous-solution hint (edits); returns solution or tagged-infeasible — **never** a sequential fallback.
 Covers D14. Resolves B-05 (determinism), removes B-04's fallback path.
+**✅ 2026-11-18 (P1-E)**: `model/solve.py` — tier loop keeps workers=1 +
+seed + per-tier deterministic budgets (wall stays a safety hat);
+`solve_snapshot(enriched, budget_s, hint=…)` accepts a previous solution
+as a warm-start hint (P4 edit re-solve); `hint_used`/`n_vars`/`n_cons`
+ride on `Solution` for F-36 telemetry.
 
 **F-25 `slack_ladder(model) -> relaxation steps`**
 Declared order, each step logged for disclosure: drop fill candidates → relax diversity caps → relax soft time-of-day preferences → relax weather penalties → relax remote-day exclusivity **only with disclosure** → (never relax: open windows, entry cap, user pins, timed legs, requested-coverage disclosure link).
 Each relaxation emits a structured reason; the last resort is infeasibility with certificate, not a silently degraded plan.
 Resolves B-04 (fallback replaced by explicit, disclosed relaxation).
+**✅ 2026-11-18 (P1-E)**: `model/slack.py` — `SlackFlags` cumulative rungs
+(drop fill → diversity caps → time-of-day → weather → remote
+exclusivity, disclosed); INFEASIBLE re-solves rebuilt relaxed models
+under a smaller deterministic cap; every applied rung renders a
+bilingual `slack_reasons` line; `NEVER_RELAX` is the hard floor
+(C-01/C-02/C-04/C-08/F-20 link).
 
 **F-26 `infeasibility_certificate(model, assumption tags) -> reason set`**
 `sufficient_assumptions_for_infeasibility` → minimal conflicting rule set → reason codes (e.g. 「故宫 15:30 停止检票 + 颐和园需 ≥240min + 天坛 150min ⇒ D2 不可全排」). Reason codes attach to `unplaced_var[rid]`.
 Resolves B-01/E-4 (honest "why"), B-04 (no 「未收敛」 hand-wave).
+**✅ 2026-11-18 (P1-E)**: `model/certificate.py` — deterministic static
+analysis (no extra solves): 7 reason codes
+(window/entry-cap/pin/remote-exclusive/family/day-capacity/
+no-seatable-day) attach to `unplaced[rid]` (`reason_codes` + zh text)
+and to `Solution.certificate` on terminal INFEASIBLE; bilingual
+templates in `trip_solver/disclosure_templates.json` with a 100% coverage test against the literal EMITTED_CODES set (audit M13, non-circular). The static analysis **replaces** the originally named `sufficient_assumptions_for_infeasibility` mechanism — deterministic, zero extra solves; a minimality proof is not claimed.
+coverage test (audit M13).
 
 ### Performance envelope (audit M4)
 
@@ -156,27 +176,36 @@ Resolves B-01/E-4 (honest "why"), B-04 (no 「未收敛」 hand-wave).
 **F-30 `materialize_plan(Solution, FactSnapshot) -> ItineraryPlan`**
 Cards start/end come from solution intervals; access-leg cards come from the **same** F-14 intervals (card ≡ leg by construction); a requested item not present becomes an `unplaced` entry with reason + disclosure — **an untimed requested card is a type error** (assert in tests).
 Resolves B-01, B-03c. Assembly entry points retained and driven by the same solution intervals: `annotate_legs` (leg/fare materialisation) and `attach_return_cards`; reservation-hint helpers attach here.
+**✅ 2026-11-18 (P1-F)**: `assembly/materialize.py` — cards from solution intervals; access fields + independent synthetic return cards from the same F-14 intervals (card≡leg by construction); unplaced rows carry F-26 reasons; `assemble()` runs F-30→31→32→33; entry cpsat path materialises a servable plan (`SolveOutcome.plan`). Fares/services attach from `AccessProfile.fare_text/operator`; legacy `annotate_legs` runs in `assemble()` for display legs + fare materialisation (pure reuse).
 
 **F-31 `meal_card_assembly(Solution) -> meal cards + anchors`**
 Meal cards anchored at solution locations: remote-day lunch at the remote site (or post-visit), city meals at the neighbouring visit; address from the POI record, never "previous city item".
 Resolves B-03b′ (the 老舍茶馆-anchor defect).
+**✅ 2026-11-18 (P1-F)**: `assembly/meals.py` — meal cards from `Solution.meal_anchors`; anchors from the host record (remote site or model host), never the previous city item; hostless city meals keep the legacy previous-stop anchor.
 
 **F-32 `alternatives_chips(plan, pool) -> response extras`**
 Unchanged: 0.3 km alternative pairing, insert-alt support, reservation hints, bilingual fields.
 Covers D9/D11/D13 assembly.
+**✅ 2026-11-18 (P1-F)**: `assembly/chips.py` — v1 geometry rule on the snapshot pool (same city, ≤0.3 km, not seated, cap 3); 「想去」chips stay on `plan.unplaced` (dedicated want surface). Named deferral to the P3 api seam (data lives in the POI library, not FactSnapshot v2): insert-alt payloads, reservation hints, bilingual chip name fields.
 
 **F-33 `disclosure_renderer(slack log, certificate, weather, coverage) -> bilingual lines`**
 All disclosures from structured reasons (not LLM invention); bilingual by `lang`; 「求解器未收敛，时间已按顺序兜底排列」 is **deleted** — replaced by certificate/relaxation lines.
 Resolves B-04 wording + B-01/E-3 visibility. Reason-code → bilingual text lives in `trip_solver/disclosure_templates.json`; every certificate reason code must have both-lang entries, and a test asserts 100% code coverage (audit M13).
+**✅ 2026-11-18 (P1-F)**: `assembly/disclosures.py` — renders from slack rungs + certificate codes + coverage counts per `lang`; the 「求解器未收敛」 wording is unrepresentable (the model has no fallback). Weather input closed 2026-11-18 review: seated outdoor requested stops on forecast-rain days render a bilingual weather line.
 
 **F-34 `session_trip_center_sync(plan, session) -> synced stores`**
 Session persistence and trip-center (行程中心) sync: `sync_trip_rows`, `_sync_wish_rows`, `_sync_planned_rows`, `sync_removals_to_trip_items`, `ensure_unique_item_ids`, session-store plumbing (`get_plan_session_store`, `live_itinerary_ids`, `alloc_item_id`). Wish rows mirror scheduled/unplaced state with disclosures; removals propagate; item ids stay unique.
 Covers D10/D13. Engine-independent; behavior unchanged, driven by F-30's materialised plan.
+**✅ 2026-11-18 (P1-F)**: `assembly/sync.py` — wish/planned row projections + item-id self-healing (reused verbatim); session writes stay with the legacy agent sync, invoked at the P3 seam.
 
 ### Module E — Acceptance & runtime invariants (stay outside)
 
 **F-40 `runtime_gates(plan, request) -> violations`** — P0 gates retained verbatim: must三分律, double-presence dedupe, entry-cap read gate, rain_outdoor, twin-substitution disclosure. Any generation path (old or new) must pass; on the new engine these should be vacuously green (proof of "class eliminated").
 **F-41 `determinism_guard(snapshot) -> bool`** — same snapshot → byte-identical plan; red-line test in CI.
+**✅ 2026-11-18 (P1-E)**: `model/solve.py` — `determinism_guard` +
+`canonical_solution` (plan-bearing content minus `wall_ms`); hint-
+aware; asserted on synthetic snapshots and by the corpus's two-run
+byte-identity checks.
 **F-42 `runtime_offload`** — solver runs in `to_thread` (or a worker); event-loop freeze budget ≤ today's post-fix level (p95 target ≤ ~250 ms during generation).
 Covers D11/D14; resolves B-15 regression risk.
 

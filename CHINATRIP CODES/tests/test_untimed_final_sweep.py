@@ -359,9 +359,9 @@ def test_finalize_retries_moved_stray_on_other_city_days():
         duration_minutes=240,
         location=xy,
     )
-    # day1 到达日：落地地板 14:30 + 武侯祠占 14:30-16:00 → 240min 大块
-    # 越大点 15:30 带无档；day2 结构可行（3 件）但傍晚演出钉死、fallback
-    # 排不出；day3 只有一件 → rehome 挪 day2 仍无时刻，回头重试落 day3。
+    # R12-H23 后口径：大点带 16:00+30 弹性=16:30——武侯祠推到 15:00-
+    # 16:30，240min 大块最早 17:00 开场 > 16:30 无档；day2 结构可行
+    # （3 件）但傍晚演出钉死；day3 只有一件 → 回头重试落 day3。
     day1 = DayPlan(
         day=1,
         base_city="成都",
@@ -376,7 +376,7 @@ def test_finalize_retries_moved_stray_on_other_city_days():
                 start_time=_t(8, 0),
                 end_time=_t(12, 0),
             ),
-            _mk("武侯祠", 1, 90, 14),
+            _mk("武侯祠", 1, 90, 15),
             big,
         ],
     )

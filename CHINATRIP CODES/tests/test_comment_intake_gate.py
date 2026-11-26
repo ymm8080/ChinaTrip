@@ -9,7 +9,7 @@ DATE, TIME DURATION ETC）；LLM 也读不出才弹行前卡。只写一个日�
 
 import json
 
-from test_plan_api import client_for, start
+from test_plan_api import DEVICE_HEADERS, V0_JSON, StubAdapter, client_for, start
 
 from app.services.agent.plan import PlanningAgent
 
@@ -52,6 +52,25 @@ class _GateStore:
 
     def name_city_spread(self, name):
         return ["上海"] if name == "朱家角古镇" else []
+
+    # 表单开局要真跑到生成：给空底库实现，避免桩缺方法 500（非本闸断言对象）。
+    def db_degraded(self):
+        return False
+
+    def top_pois_in_city(self, city, limit=30, *, exclude_food=True):
+        return []
+
+    def search_keyword(self, city, tokens, *, limit=5):
+        return []
+
+    def get_by_name(self, city, name):
+        return None
+
+    def get(self, source_poi_id):
+        return None
+
+    def upsert(self, *a, **k):
+        return None
 
 
 def _sites(name="朱家角古镇"):
@@ -119,13 +138,75 @@ def test_intake_still_shown_when_llm_also_blank():
     assert body.get("start_date_hint") is None
 
 
-def test_intake_still_shown_for_date_range_without_days():
-    # 起止两个日期但没写天数：单日期=一日游的拍板不适用，仍要问
+def test_intake_not_shown_for_date_range_days_derived():
+    # 起止两个日期=完整信息（2026-11-23 用户拍板「IF I INPUT ENOUGH
+    # INFORMATION, THERE SHOULD BE NO POP UP WINDOW」）：天数=首末跨度正则
+    # 直推（Nov 20 to Nov 22=3），不弹行前卡；缺的是城市 → 走追问城市，
+    # 不弹卡。旧口径「区间没写天数仍要问」被本拍板取代（11-23 早实锤：
+    # LLM 周配额 429 全灭，区间句被弹卡、用户被迫手填卡里已有的日期）。
     agent = PlanningAgent(None, amap_client=None, poi_details=_GateStore())
     resp = start(client_for(agent), {"preferences": "trip from Nov 20 to Nov 22"})
     body = resp.json()
-    assert body["state"] == "intake"
-    assert body.get("start_date_hint")  # 首日期预填卡
+    assert body["state"] != "intake"
+
+
+def test_intake_not_shown_for_form_with_preferences_date_range():
+    # 表单已填城市/天数 + 偏好文本写起止日期（H5 常规开局把自由输入折进
+    # preferences）：日期仍在用户给的信息里，不能因为表单有值就把日期
+    # 文本置空、再弹行前卡（2026-11-23 实报 form+pref range ⇒ intake）。
+    agent = PlanningAgent(
+        StubAdapter([V0_JSON]), amap_client=None, poi_details=_GateStore()
+    )
+    resp = start(
+        client_for(agent),
+        {
+            "cities": ["北京"],
+            "days": 8,
+            "preferences": "Nov 30 to Dec 7 Beijing",
+        },
+    )
+    body = resp.json()
+    assert body["state"] != "intake"
+    assert body.get("start_date_hint") is None
+
+
+def test_intake_not_shown_for_form_cities_with_preferences_date_range():
+    # 表单只给城市、没给天数/日期，偏好文本给起止日期：跨度既是天数也是
+    # 出发日依据，仍属信息给足——不弹行前卡。
+    agent = PlanningAgent(
+        StubAdapter([V0_JSON]), amap_client=None, poi_details=_GateStore()
+    )
+    resp = start(
+        client_for(agent),
+        {"cities": ["北京"], "preferences": "Nov 30 to Dec 7"},
+    )
+    body = resp.json()
+    assert body["state"] != "intake"
+    assert body.get("start_date_hint") is None
+
+
+def test_intake_not_shown_when_date_only_in_preferences_with_brief_city():
+    # 主输入只写城市、日期写在偏好栏（H5 分栏输入；brief=北京，
+    # preferences=Nov 30 to Dec 7）：日期仍在用户给的信息里，不能只看
+    # brief 就判信息不足再弹卡。
+    agent = PlanningAgent(
+        StubAdapter([V0_JSON]), amap_client=None, poi_details=_GateStore()
+    )
+    # 直发 client：test_plan_api.start() 会给表单用例补 start_date，掩盖
+    # 「日期只在 preferences」这条缝。
+    resp = client_for(agent).post(
+        "/api/v1/plan/start",
+        json={
+            "cities": ["北京"],
+            "brief": "北京",
+            "preferences": "Nov 30 to Dec 7",
+        },
+        headers=DEVICE_HEADERS,
+    )
+    body = resp.json()
+    assert body["state"] != "intake"
+    assert body.get("start_date_hint") is None
+    assert (body.get("plan") or {}).get("start_date") == "2026-11-30"
 
 
 def test_intake_not_shown_when_form_days_present():

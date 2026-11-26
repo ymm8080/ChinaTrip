@@ -3156,11 +3156,16 @@
    "name_zh": "资深咖啡厅",
    "name_en": "",
    "reviews": 0
+  },
+  "34809210": {
+   "name_zh": "Seven Mile Paddy Café",
+   "name_en": "",
+   "reviews": 0
   }
  },
  "gid": "298556",
  "pages_crawled": {
-  "attractions": 13,
-  "restaurants": 5
+  "attractions": 26,
+  "restaurants": 20
  }
 }

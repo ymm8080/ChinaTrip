@@ -18,8 +18,9 @@ anything the agent still raises.
 import asyncio
 import base64
 import logging
+import re
 import uuid
-from datetime import date, datetime, time, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from functools import partial
 from time import monotonic
 from typing import Literal
@@ -48,21 +49,35 @@ from app.api.trip_items import get_trip_item_service
 from app.config import Settings, get_settings
 from app.db import get_session_factory
 from app.services.agent.hotel_stays import (
+    _hotel_placeholder,
+    _morning_card_of,
+    _night_card_of,
+    _same_hotel,
     attach_hotel_mornings,
     attach_hotel_nights,
     hotel_morning_label,
+    hotel_stay_bounds,
     is_hotel_morning,
     is_hotel_night,
     paired_hotel_card,
     reanchor_hotel_cards,
     sync_hotel_stay,
+    sync_stay_cities,
 )
 from app.services.agent.plan import (
+    _EN_DAY_MONTH_RE,
+    _EN_MONTH_DAY_RE,
+    _EN_MONTHS,
+    _MIN_BRIEF_TEXT,
+    _TEXT_MD_RE,
+    _TEXT_YMD_RE,
     PlanningAgent,
     PlanSession,
     PlanSessionStore,
     PoiStoreUnavailableError,
+    _brief_is_route_declaration,
     _count_text_dates,
+    _enforce_city_coherence,
     _extract_transport_numbers,
     _find_transfer_item,
     _leg_date_iso,
@@ -78,9 +93,11 @@ from app.services.agent.plan import (
     drop_dangling_visits,
     enforce_entry_gate,
     heal_arrival_light,
+    heal_free_meal_cards,
     heal_item_ids,
     heal_leg_gaps,
     heal_meal_cards,
+    heal_non_meal_meal_cards,
 )
 from app.services.agent.wish_fast import consume_fast_turn
 from app.services.ctrip_hours import get_ctrip_hours
@@ -92,6 +109,9 @@ from app.services.itinerary import DiffOp, GeoPoint, VisitItem, mutate
 from app.services.itinerary.hotfix_1117 import (
     evict_fillers_when_must_unseated,
     evict_pre_remote_fillers,
+    fold_restaurant_visit_cards,
+    rescue_entry_gated_musts,
+    restore_evicted_fillers,
     retime_remote_day_from_access,
 )
 from app.services.itinerary.legs import annotate_legs, attach_return_cards
@@ -128,6 +148,10 @@ from app.services.state_persist import (
 from app.services.task_queue import TaskStore, get_task_store
 from app.services.trains import get_train_service
 from app.services.translate import TranslationService
+from app.services.trip_orchestrator.nlu import (
+    _restart_named_musts,
+    _restart_route_only,
+)
 from app.services.weather import daily_weather_text
 from app.services.web_reader import find_urls
 
@@ -144,6 +168,112 @@ _ALLOWED_IMAGE_MIME = {
     "image/webp",
     "image/bmp",
 }
+
+
+# 区间第二端点裸日号（2026-11-23 审计补）：「12月10日到13号」「Dec 10 to
+# 13」——第二端点省略月份/「日」字。裸号后跟「月」或数字的不匹配
+# （「11月30号-12月7号」由完整日期族处理，防 \d{1,2} 回溯吃「1」）。
+_CN_RANGE_BARE_RE = re.compile(
+    r"(\d{1,2})月(\d{1,2})[日号]\s*[到至~～\-–—]{1,2}\s*"
+    r"(\d{1,2})(?![\d月年])(?:[日号])?"
+)
+_EN_RANGE_BARE_RE = re.compile(
+    r"\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|"
+    r"jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|"
+    r"dec(?:ember)?)[.\s/]*(\d{1,2})(?:st|nd|rd|th)?\s*"
+    r"(?:to|till|until|through|[~–—-])\s*"
+    r"(\d{1,2})(?:st|nd|rd|th)?(?!\d)",
+    re.IGNORECASE,
+)
+
+
+def _text_date_span_days(text: str) -> int | None:
+    """文内起止日期区间 → 天数（2026-11-23 用户拍板「IF I INPUT ENOUGH
+    INFORMATION, THERE SHOULD BE NO POP UP WINDOW」）。
+
+    文里带 ≥2 个绝对日期（11月30号到12月7号 / 2026-11-30~12-07 /
+    Nov 30 to Dec 7）时，行程天数=首末日期跨度——起止都给了就是完整信息，
+    正则直推、不依赖 LLM（11-23 早实锤 LLM 周配额 429 全灭，trip_facts
+    兜底失效，「11月30号到12月7号」类区间句被弹行前卡）。年份口径与
+    _parse_text_start_date 一致：月日缺省年份=今年、已过进下一年，YMD
+    绝对日期不滚动；相对词（今天/明天/下周X）不参与区间推断，仍走 LLM
+    兜底。不同日期 <2 或跨度出 1..30 → None（走既有信息不足闸）。"""
+    t = str(text or "")
+    if not t:
+        return None
+    today = (datetime.now(timezone.utc) + timedelta(hours=8)).date()
+    days: list[date] = []
+    # 区间第二端点裸日号先扫、命中即掩（2026-11-23 审计）：
+    # 首端点按既有滚年规则；末端裸号 <首日 → 次月（「11月30号到2号」）。
+    for _rex in (_CN_RANGE_BARE_RE, _EN_RANGE_BARE_RE):
+        _hit = False
+        for _m in _rex.finditer(t):
+            try:
+                if _rex is _CN_RANGE_BARE_RE:
+                    _mon = int(_m.group(1))
+                    _d1, _d2 = int(_m.group(2)), int(_m.group(3))
+                else:
+                    _mon = _EN_MONTHS.get(_m.group(1).lower()[:3])
+                    if _mon is None:
+                        continue
+                    _d1, _d2 = int(_m.group(2)), int(_m.group(3))
+                _first = date(today.year, _mon, _d1)
+                if _first < today:
+                    _first = date(today.year + 1, _mon, _d1)
+                _mon2 = _mon + 1 if _d2 < _d1 else _mon
+                _yr2 = _first.year + 1 if _mon2 > 12 else _first.year
+                if _mon2 > 12:
+                    _mon2 -= 12
+                days.append(_first)
+                days.append(date(_yr2, _mon2, _d2))
+                _hit = True
+            except ValueError:
+                continue
+        if _hit:
+            t = _rex.sub("□", t)
+    # 逐族扫描、命中即掩：防「2026年11月30号」被 YMD+MD 各计一次。
+    for m in _TEXT_YMD_RE.finditer(t):
+        try:
+            days.append(date(int(m.group(1)), int(m.group(2)), int(m.group(3))))
+        except ValueError:
+            continue
+    masked = _TEXT_YMD_RE.sub("□", t)
+    for m in _TEXT_MD_RE.finditer(masked):
+        try:
+            cand = date(today.year, int(m.group(1)), int(m.group(2)))
+        except ValueError:
+            continue
+        if cand < today:
+            cand = date(today.year + 1, int(m.group(1)), int(m.group(2)))
+        days.append(cand)
+    masked = _TEXT_MD_RE.sub("□", masked)
+    for m in _EN_MONTH_DAY_RE.finditer(masked):
+        mon = _EN_MONTHS.get(m.group(1).lower()[:3])
+        if mon is None:
+            continue
+        try:
+            cand = date(today.year, mon, int(m.group(2)))
+        except ValueError:
+            continue
+        if cand < today:
+            cand = date(today.year + 1, mon, int(m.group(2)))
+        days.append(cand)
+    masked = _EN_MONTH_DAY_RE.sub("□", masked)
+    for m in _EN_DAY_MONTH_RE.finditer(masked):
+        mon = _EN_MONTHS.get(m.group(2).lower()[:3])
+        if mon is None:
+            continue
+        try:
+            cand = date(today.year, mon, int(m.group(1)))
+        except ValueError:
+            continue
+        if cand < today:
+            cand = date(today.year + 1, mon, int(m.group(1)))
+        days.append(cand)
+    if len(set(days)) < 2:
+        return None
+    span = (max(days) - min(days)).days + 1
+    return span if 1 <= span <= 30 else None
 
 
 def _decode_image_payloads(items: list[str] | None) -> list[tuple[bytes, str]]:
@@ -172,6 +302,9 @@ class PlanStartRequest(BaseModel):
     days: int | None = None
     preferences: str = ""
     city_days: dict[str, int] | None = None  # 目的地 → 停留天数（H5 每城天数）
+    # 起始城市游玩天数（2026-11-22 用户拍板「起始城市也要能够选游玩日期数」）：
+    # ≥1 = 出发城是真实首站（Day1..k 活动）；0/缺省 = 出发日只排交通（旧口径）
+    origin_days: int | None = None
     start_date: str | None = None  # 出发日期 ISO（可空）——随快照持久化
     # 城际交通方式（2026-11-07 拍板）：auto=距离闸（>600km 航班、≤600km 火车），
     # train/flight=H5 起始页用户指定；全程城际段统一口径
@@ -200,6 +333,11 @@ class PlanStartRequest(BaseModel):
     days_override: int | None = None
     arrival_no_override: str | None = None
     departure_no_override: str | None = None
+    # 已答过的差异键（2026-11-22 用户实报「行前卡 vs 表单选了表单还再弹卡」）：
+    # 覆写字段只承载「落点值」，选保留侧（用表单/保留行前卡班次）落点=请求
+    # 原值、没有覆写可言——重发时同一处差异会被重新检出再弹卡，规划不自动
+    # 继续。客户端把用户答过的 what 键（days/numbers/card_days）显式带回来。
+    resolved_diffs: list[str] = Field(default_factory=list)
 
 
 class PlanMessageRequest(BaseModel):
@@ -208,6 +346,8 @@ class PlanMessageRequest(BaseModel):
 
 class PlanSitesConfirmRequest(BaseModel):
     mandatory: list[str] = Field(default_factory=list)  # 点选的必去地点名
+    # R25 顺序选边（同一张站点卡）：keep=按文字日程的天下钉；replan=天气/地理重排
+    sequence: str | None = None
 
 
 class PlanPinRequest(BaseModel):
@@ -340,13 +480,20 @@ async def save_plan(
     _apply_flag_schedule(plan)
     if request.start_date and request.start_date != plan.start_date:
         plan = plan.model_copy(update={"start_date": request.start_date})
+        # 换日期后必须再对齐一次（2026-11-22）：上面那次是按旧日期算的，
+        # 不重跑就把旧旗时冻进冻结快照（11-25 07:10 存成 12-21 的行程）。
+        _apply_flag_schedule(plan)
         session.plan = plan
         store.save(session)
         # 出发日期变更即预热票务（2026-10-28）：城市在计划里已齐，火车查询
         # 立刻开跑，下一次组装/重排直接吃缓存。
         _warm = asyncio.create_task(
             agent.prefetch_transfer_schedules(
-                plan.cities, len(plan.days), request.start_date
+                plan.cities,
+                len(plan.days),
+                request.start_date,
+                getattr(session, "city_days", None),
+                getattr(session, "origin_days", 0) or 0,
             )
         )
         _BG_PREFETCH_TASKS.add(_warm)
@@ -378,7 +525,11 @@ async def save_plan(
     # 雨日调换终闸（2026-11-11 拍板「打开行程自动更新天气，同时根据雨
     # 天走调换逻辑」）：冻结前现查天气库——雨日不耐雨组合与干日耐雨组
     # 合对调，钉/场次/餐酒店不动，披露进 assumptions。
-    rain_notes = agent.rain_rebalance_days(session)
+    rain_notes = (
+        []
+        if str(getattr(session, "sequence_choice", "") or "") in ("keep", "both")
+        else agent.rain_rebalance_days(session)
+    )
     if rain_notes:
         for note in rain_notes:
             logger.warning("plan/save %s rain-swap: %s", session_id, note)
@@ -478,6 +629,10 @@ async def start_plan_from_itinerary(
     ):
         plan.assumptions.extend(attach_hotel_nights(plan.days))
         plan.assumptions.extend(attach_hotel_mornings(plan.days))
+    # 2026-11-22（用户实录「第四天西安→北京，酒店应该住北京，测试显示西安」）：
+    # 老行程快照/引擎物化的酒店卡可能带着「出发城」——开档统一按实际住哪儿
+    # 拨回（占位卡才改，手输真实酒店不动）。
+    sync_stay_cities(plan.days)
     session = PlanSession(
         session_id=uuid.uuid4().hex,
         device_id=x_device_id,
@@ -531,7 +686,7 @@ async def start_plan_from_itinerary(
     # 翻已排期，已排期里本行程没有的回心愿单。
     agent.sync_trip_rows(session)
     body: dict = {"session_id": session.session_id, "state": session.state}
-    body["plan"] = _plan_for_response(session.plan)
+    body["plan"] = _with_free_meal_fill(_plan_for_response(session.plan), session)
     body["assumptions"] = session.assumptions
     body["violations"] = current_violations(session)
     return body
@@ -554,13 +709,22 @@ async def get_plan_session(
         raise HTTPException(status_code=404, detail="session_not_found")
     if session.plan is None:
         raise HTTPException(status_code=400, detail="no_plan")
+    # R25c：KEEP 会话的盘面由引擎负责（快照期已按 POI 去重、按天气选天）——
+    # 读路径不再做同站合并/雨日对调，免得拆掉用户写明的整天块。
+    _keep_seq = str(getattr(session, "sequence_choice", "") or "") in (
+        "keep",
+        "both",
+    )
     # 同站合并读闸（2026-10-28 变脸 x4 事故）：历史脏数据打开即自愈，
     # 与下方实测腿刷新同模式（读路径修复 + store.save 持久化）。
-    dedupe_plan_visits(session.plan)
+    if not _keep_seq:
+        dedupe_plan_visits(session.plan)
     # 腿间隔读闸（2026-11-03 Day2 大明宫→城墙 15:00 零车程事故）：
     # 11-02 前旧兜底产物带腿重排自愈，钉/餐不动，装不下留空披露。
-    for note in heal_leg_gaps(session.plan):
-        logger.warning("plan/session %s leg-gap heal: %s", session_id, note)
+    # R39c：keep/both=引擎盘，跳过（引擎的接驳链/顺延口径读闸不认）。
+    if not _keep_seq:
+        for note in heal_leg_gaps(session.plan):
+            logger.warning("plan/session %s leg-gap heal: %s", session_id, note)
     # 无时刻卡读闸（2026-11-03 Day4 太平森林公园案）：旧会话混合日的
     # None-None 参访卡（垫在 19:30 演出之后、腿标注画巨腿）打开即清
     # ——非钉移除留痕；钉（build 期必打钉）铁律 19 不动；整日全未排
@@ -573,21 +737,49 @@ async def get_plan_session(
     # 雨日调换读闸（2026-11-11 拍板「天气真值每日漂移，打开行程自动更
     # 新天气，同时根据雨天走调换逻辑」）：现查天气库——雨日不耐雨组合
     # 与干日耐雨组合对调，钉/场次/餐酒店不动；双语披露进 assumptions。
-    for note in agent.rain_rebalance_days(session):
-        logger.warning("plan/session %s rain-swap: %s", session_id, note)
+    if not _keep_seq:
+        for note in agent.rain_rebalance_days(session):
+            logger.warning("plan/session %s rain-swap: %s", session_id, note)
     # 空档补点读闸（2026-11-16 上海案）：开页只治「上午空着」——晨卡先回
     # 08:30 日始，上午空出来的天按类型多样性补点；无空上午的行程零成本空转，
-    # 绝不在刷新时往行程里加新卡。
-    await agent.fill_leftover_gaps(session, morning_only=True)
+    # 绝不在刷新时往行程里加新卡。R39c：引擎盘不给读路径加卡。
+    if not _keep_seq:
+        await agent.fill_leftover_gaps(session, morning_only=True)
     await agent.refresh_legs(session)
     # 覆盖审计要在 save 之前跑（2026-11-17）：所有端点都是先落库再组响应，
     # 只在响应层审计会让披露/清脏不落库——GET 是持久化主路径，幂等可重入。
     # 白天入场闸读闸（2026-11-17 二拍）同位落库：越闸非钉普通观光卡退回
     # 无时刻+披露（幂等；豁免面与 solver.generic_entry_cap 同源）。
     session.plan.assumptions.extend(enforce_entry_gate(session.plan))
+    # 住宿卡收口（2026-11-22 二拍）：GET 也是恢复口——老快照的酒店卡城/
+    # 时刻可能是按错城算出来的（D5 晨卡 05:15 = 用西安酒店算北京班车）。
+    # 只动占位卡、幂等；城真被拨正的那天，晨卡时刻同步复位到日始窗口。
+    sync_stay_cities(session.plan.days)
     _audit_must_coverage(session)
+    # 升旗锚读闸（R18，2026-11-22 用户令「不可能没有升旗时间」）：GET 是
+    # 刷新/重开页面的唯一恢复口，此前独缺这一道——其它出站口（生成首屏 /
+    # 消息回合 / 开档 / 保存）都跑过旗时对齐，刷新一次就只剩行编辑后的
+    # 旧时刻，卡上再无升旗。幂等（有 fixed 即按真值纠正）。
+    from app.services.agent.plan import _apply_flag_schedule
+
+    _apply_flag_schedule(session.plan)
+    # R39d：heal 可能补出午/晚餐卡（补卡晚于 refresh_legs 的 annotate），
+    # 落库前补一次「只补缺腿」的腿——新卡（颐和园→12:00 午饭）才有腿；
+    # 已有实测腿（leg_source=amap）原样保留。
+    annotate_legs(session.plan, only_missing=True)
     store.save(session)
     return _plan_turn_body(session, None, None)
+
+
+def _next_monday_beijing_iso() -> str:
+    """下一个周一（ISO，东八区墙钟）——与 H5 nextMondayBeijingIso 同口径。
+
+    2026-11-03 拍板：开始日期默认下周一（当天出发来不及订票/预约）。这里给
+    后端补齐用，保证与表单上显示的那一天一致。
+    """
+    today = (datetime.now(timezone.utc) + timedelta(hours=8)).date()
+    ahead = (7 - today.weekday()) or 7  # 周一 0 → 7 天后；周日 6 → 1 天后
+    return (today + timedelta(days=ahead)).isoformat()
 
 
 @router.post("/plan/start")
@@ -600,6 +792,23 @@ async def start_plan(
 ) -> dict:
     if not x_device_id:
         raise HTTPException(status_code=400, detail="missing_device_id")
+    # 行前卡闸门取证（2026-11-23 用户第三次实报「信息给足仍弹窗」）：把进线
+    # 报文与判定依据打成一行 INFO——此前只有 usage 日志（path/status），
+    # 无法从日志判断弹窗到底由哪个字段缺失触发，修一次猜一次。
+    logger.info(
+        "plan/start req: dev=%s cities=%s days=%s start=%s arr_date=%s "
+        "dep_date=%s route_src=%s intake=%s brief=%r pref=%r",
+        x_device_id,
+        request.cities,
+        request.days,
+        request.start_date,
+        request.arrival_date,
+        request.departure_date,
+        request.route_source,
+        request.intake,
+        (request.brief or "")[:120],
+        (request.preferences or "")[:120],
+    )
     # 行前卡只在「文字输入且信息不足」时弹出（2026-11-15 用户拍板）：文字里
     # 读得出出发日期=信息足够，直接生成；读不出且行前卡信息也没给 → 先弹卡
     # （state=intake，不开会话）。
@@ -615,11 +824,36 @@ async def start_plan(
     fact_text = brief_text or pref_text
     if find_urls(fact_text):  # 链接流不走行前卡（链接自己进读点管线）
         fact_text = ""
-    text_date = _parse_text_start_date(fact_text) if fact_text else None
+    # 日期专用文本（2026-11-23 用户再拍板「IF I INPUT ENOUGH INFORMATION,
+    # THERE SHOULD BE NO POP UP WINDOW」）：上面 pref_text 为「表单用户不
+    # 打扰」在 cities/days 已填时置空，但 H5 常规路径会把自由输入折进
+    # preferences——起止日期写在那里同样是用户给足的信息，不能因为表单
+    # 有值就装没看见、再弹行前卡。这里只用于日期/天数读取，不参与路线
+    # diff（文字路线仍只认 brief，避免偏好文本误触发 confirm_route）。
+    pref_raw = (request.preferences or "").strip()
+    date_text = brief_text
+    # brief 读不出日期时把 preferences 并进来（2026-11-23 用户实报）：H5 把
+    # 城市写在主输入、日期写在偏好栏时，只取 brief 会漏掉日期再弹行前卡。
+    if pref_raw and (not date_text or _parse_text_start_date(date_text) is None):
+        date_text = f"{date_text} {pref_raw}".strip() if date_text else pref_raw
+    if find_urls(date_text):
+        date_text = ""
+    text_date = _parse_text_start_date(date_text) if date_text else None
     parsed_brief = _trip_brief(brief_text) if brief_text else None
     text_days = parsed_brief[1] if parsed_brief else None
-    if text_days is None and fact_text:
-        text_days = _parse_days(fact_text)
+    if text_days is None and date_text:
+        text_days = _parse_days(date_text)
+    # 起止日期区间 ⇒ 天数（2026-11-23 用户拍板「IF I INPUT ENOUGH
+    # INFORMATION, THERE SHOULD BE NO POP UP WINDOW」）：文字给了起止
+    # 两个日期就是完整信息，天数=首末跨度正则直推——LLM 429/不可用
+    # 不再把完整信息弹成行前卡。区间天数只喂生成（range_days），不折
+    # 进 request.days：卡跨度差异时避免与「days」行重复出「card_days」行。
+    range_days: int | None = None
+    if text_days is None and date_text:
+        range_days = _text_date_span_days(date_text)
+        if range_days is not None:
+            text_days = range_days
+    # 文字明说的天数
     # 文字明说的天数（拍板③「行前卡信息和文字不同要摆差异」的文字侧）：
     # 正则口径（brief 天数 → 原句天数兜底）。下面「单日期⇒一日游」只是行前
     # 卡闸门的推断，不算文字陈述——用户在卡上挑了别的跨度不算和文字打架，
@@ -631,16 +865,67 @@ async def start_plan(
         text_date is not None
         and text_days is None
         and not request.days
-        and _count_text_dates(fact_text) <= 1
+        and _count_text_dates(date_text) <= 1
     ):
         text_days = 1
+    # 2026-11-23 三拍（用户原话「IF I INPUT ENOUGH INFORMATION, THERE SHOULD
+    # BE NO POP UP WINDOW」，实报「弹的是行前卡」）：表单已经把路线给定（城市
+    # +天数）却没带出发日期——H5 老壳缓存仍按 v123 的
+    # `PLAN.startDate = intake.start_date || ""` 发请求，或用机 webview 的
+    # date 控件没落值，表单上明明有日期，后端只收到城市/天数 → 两道闸都会把
+    # 它弹回行前卡。表单本身默认下周一（2026-11-03 拍板），后端按同一口径
+    # 补齐并在 assumptions 披露，不再弹卡。
+    # 判据只看「路线是否已由表单给定」：城市+天数齐就是够——brief/preferences
+    # 里多写一句（带娃、慢节奏）不改变路线，不能因此把已填好的表单当信息不
+    # 足。纯文字开局（cities/days 都空）不适用：那种情况日期只能从文字里读，
+    # 读不出该问。必须放在两道闸之前，否则第一道闸已经把 start_date 当缺失。
+    _has_link = find_urls(f"{brief_text} {pref_raw}")
+    _defaulted_start = False
+    # 2026-11-23 用户实报「贴文字让 LLM 读点，必填的日期没问」：长文本会进
+    # LLM 读点流程（_mine_brief_sites 的 LLM 通道，≥ _MIN_BRIEF_TEXT）→
+    # site_confirm 必达交互轮，日期是行程必填信息，缺了要先弹行前卡收集，
+    # 不能被「默认下周一」静默吞掉。短偏好句（带娃、慢节奏——本日早些拍板
+    # 「表单给足信息不弹卡」）与路线声明不在此列，默认口径保持不变。
+    _will_mine_sites_via_llm = (
+        bool(brief_text)
+        and len(brief_text) >= _MIN_BRIEF_TEXT
+        and not find_urls(brief_text)
+        and not _brief_is_route_declaration(brief_text, request.cities)
+    )
+    if (
+        not request.start_date
+        and not request.arrival_date
+        and request.cities
+        and (request.days or request.city_days)
+        and not request.images
+        and not _has_link
+        and not _will_mine_sites_via_llm
+    ):
+        request = request.model_copy(update={"start_date": _next_monday_beijing_iso()})
+        _defaulted_start = True
+        logger.info(
+            "plan/start: 表单开局缺出发日期，按下周一 %s 起排（dev=%s）",
+            request.start_date,
+            x_device_id,
+        )
     # 信息不足=缺「任何必填项」（2026-11-15 用户拍板二拍「不止是出发日期」）：
     # 文字读不出出发日期、或读得出日期却读不出天数/结束日 → 都弹行前卡
     # （响应带 start_date_hint，卡上的开始日期用文字日期预填）。
-    insufficient = text_date is None or text_days is None
+    # 表单已给 days（H5 常规开局）时天数不缺——不再因为读不出原句天数
+    # 就白弹卡；唯一还要补的是出发日期。
+    # 出发日期三源（2026-11-23「4 天贴文仍被弹卡」案）：文字读出、
+    # 请求自带（H5 常规携带/上一程会话回填 start_date）、卡上到达日——
+    # 任一在即不算缺日期；缺的只剩天数且文字/表单都读不出才弹卡。
+    _req_has_date = bool(request.start_date) or bool(request.arrival_date)
+    insufficient = (text_date is None and not _req_has_date) or (
+        text_days is None and not request.days
+    )
     if (
         request.route_source is None
-        and fact_text
+        and date_text
+        # 出发日期+天数都已给足才跳过 LLM（自然语言「三晚」还要 LLM 读天数）；
+        # 只有日期没天数仍属信息不足，不能默默按 0 天生成。
+        and not (request.start_date and (request.days or request.city_days))
         and not request.arrival_date
         and not request.departure_date
         and insufficient
@@ -648,7 +933,7 @@ async def start_plan(
         # LLM 先读懂日期/天数（2026-11-17 拍板「LLM UNDERSTAND DATE, TIME
         # DURATION ETC」）：正则读不出的（next Friday / around New Year /
         # 三晚）交给 LLM；LLM 也读不出才弹行前卡。
-        facts = await agent.trip_facts_from_llm(fact_text) or {}
+        facts = await agent.trip_facts_from_llm(date_text) or {}
         if text_date is None and facts.get("start_date"):
             text_date = str(facts["start_date"])
         if text_days is None and facts.get("days"):
@@ -657,11 +942,23 @@ async def start_plan(
             text_date is not None
             and text_days is None
             and not request.days
-            and _count_text_dates(fact_text) <= 1
+            and _count_text_dates(date_text) <= 1
         ):
             text_days = 1
-        insufficient = text_date is None or text_days is None
+        insufficient = (text_date is None and not _req_has_date) or (
+            text_days is None and not request.days
+        )
         if insufficient:
+            logger.info(
+                "plan/start gate=intake: dev=%s date_text=%r text_date=%s "
+                "text_days=%s req_days=%s req_start=%s",
+                x_device_id,
+                date_text[:120],
+                text_date,
+                text_days,
+                request.days,
+                request.start_date,
+            )
             return {"state": "intake", "start_date_hint": text_date}
         if facts.get("city") and not request.cities:
             # LLM 读出的城市一并预填——agent.start 不再二次读句（一次 LLM
@@ -695,9 +992,16 @@ async def start_plan(
         resolved = _resolve_brief_cities(
             [_normalize_city(c) for c in parsed[0]], request.cities
         )
+        # 区间推导的天数与 brief 明说天数同级参与 text vs form 对比
+        # （拍板②：表单和文字都填了 → 摆出差异让用户确认）。
+        text_days_claim = parsed[1] if parsed[1] is not None else range_days
         if {_normalize_city(c) for c in resolved} != {
             _normalize_city(c) for c in request.cities
-        } or (parsed[1] is not None and request.days and parsed[1] != request.days):
+        } or (
+            text_days_claim is not None
+            and request.days
+            and text_days_claim != request.days
+        ):
             diffs.append(
                 {
                     "what": "route",
@@ -719,6 +1023,7 @@ async def start_plan(
         and card_span
         and stated_days != card_span
         and request.days_override is None
+        and "days" not in request.resolved_diffs
     ):
         # 文字天数 vs 行前卡日期跨度（用户拍板③：行前卡信息和文字不同也要摆）。
         # 文字侧用 stated_days：brief 只认正则明说的天数，客户端丢简报把它折
@@ -739,6 +1044,7 @@ async def start_plan(
         and {n.upper() for n in text_nos} != set(card_nos)
         and request.arrival_no_override is None
         and request.departure_no_override is None
+        and "numbers" not in request.resolved_diffs
     ):
         # 班次差异；覆写=确认卡已选边（选文字班次的落点），不再二次弹卡
         diffs.append({"what": "numbers", "text": text_nos, "intake": card_nos})
@@ -747,6 +1053,7 @@ async def start_plan(
         and request.days
         and card_span != request.days
         and request.days_override is None
+        and "card_days" not in request.resolved_diffs
     ):
         # 行前卡日期跨度 vs 表单天数（用户改过行前卡结束日期时如实呈现）；
         # days_override=确认卡已选边，不再二次弹卡
@@ -760,67 +1067,366 @@ async def start_plan(
                 "days": stated_days,
             },
             "form_route": {"cities": request.cities, "days": request.days},
+            # 行前卡回显（2026-11-23 用户实报「卡→差异确认→选完又弹卡」）：
+            # 确认卡选边后客户端要重发一枪 /plan/start，但行前卡值只存在客户端
+            # 快照里——快照丢了日期，重发就缺必填出发日期，后端只好再弹一次空
+            # 卡。把本轮收到的日期/班次原样回显，客户端补齐后重发即可直达生成。
+            # 纯回显，不参与任何判定。
+            "intake": {
+                k: v
+                for k, v in (
+                    ("start_date", request.start_date),
+                    ("arrival_date", request.arrival_date),
+                    ("arrival_time", request.arrival_time),
+                    ("arrival_no", request.arrival_no),
+                    ("departure_date", request.departure_date),
+                    ("departure_time", request.departure_time),
+                    ("departure_no", request.departure_no),
+                )
+                if v
+            },
         }
     # 用户在确认卡上选了边：brief=按文字路线（表单参数作废，路线全从文字解析）；
     # form=按表单参数（文字只当偏好文本，不再当简报改写路线）。
     if request.route_source == "brief":
         # 按文字路线：表单参数作废，但出发城上下文仍传给 start——简报只报
         # 目的地时出发城沿用表单（2026-11-13「成都 3 天」口径）；分城天数
-        # 作废（city_days=None），文字天数才能生效。
+        # 作废（city_days=None），文字天数才能生效。起始城天数同作废
+        # （文字路线暂无「出发城玩几天」语法，2026-11-22）。
         start_cities = request.cities
-        start_days = request.days or 0
+        # 文字路线：文字明说天数（词句/骨架）优先，区间次之——与
+        # 本分支注释「表单参数作废，文字天数才能生效」对齐（2026-11-23）。
+        start_days = stated_days or range_days or request.days or 0
         start_brief = request.brief
         start_city_days = None
+        start_origin_days = None
     elif request.route_source == "form":
         start_cities = request.cities
         start_days = request.days or 0
         start_brief = None
         start_city_days = request.city_days
+        start_origin_days = request.origin_days
     else:
         start_cities = request.cities or []
-        start_days = request.days or 0
+        # 文字明说的天数（词句/行程骨架）在表单/区间都缺省时兜底进生成
+        # （2026-11-23「Day1..Day4 贴文塌 1 天」案：此前在此处被丢弃，
+        # 只剩 legacy 二次解析救援）。
+        start_days = request.days or range_days or stated_days or 0
         start_brief = request.brief
         start_city_days = request.city_days
+        start_origin_days = request.origin_days
+    # R8（2026-11-18 拍板「全量切引擎」）：确认卡 override=用户已选边，
+    # 折算后透传给引擎——与 legacy agent.start 的 session 落位同口径
+    # （days_override 同时作废分城天数）。
+    ts_days = (
+        max(1, int(request.days_override)) if request.days_override else start_days
+    )
+    ts_city_days = {} if request.days_override else start_city_days
+    ts_arrival_no = (
+        str(request.arrival_no_override).strip().upper()
+        if request.arrival_no_override
+        else request.arrival_no
+    )
+    ts_departure_no = (
+        str(request.departure_no_override).strip().upper()
+        if request.departure_no_override
+        else request.departure_no
+    )
+    # R18 续（2026-11-22 用户拍板「date is mandatory field」）：出发日期必填。
+    # 纯表单提交（城市+天数、日期空、无 brief/preferences 文字）此前绕过行
+    # 前卡闸直接生成——升旗/天气/订票预热全失去日期锚（天安门回落 06:30 且
+    # 无披露）。行前卡信息里的到达日可以先折成出发日；走到生成这一步还没有
+    # 出发日期的一律回行前卡，不再放行。链接/带图流豁免（确认轮由 agent.
+    # start 开，日期随读点/行前卡补齐；2026-11-15 拍板「链接流不走行前卡」）。
+    if not request.start_date and request.arrival_date:
+        request = request.model_copy(update={"start_date": request.arrival_date})
+    # 连路线信息都没有的空开局（{}）仍走 legacy clarify（它会连城市/天数
+    # 一起问，2026-11-15 口径）；有路线信息才轮到「日期必填」闸。
+    _no_route_info = not (
+        request.cities
+        or request.days
+        or request.city_days
+        or (request.brief or "").strip()
+        or (request.preferences or "").strip()
+    )
+    if (
+        not request.start_date
+        and not request.images
+        and not _has_link
+        and not _no_route_info
+    ):
+        return {"state": "intake", "start_date_hint": text_date}
+    # P3 seam (F-35/F-42, default legacy = zero behavior change): when
+    # TRIP_SOLVER=cpsat and the serving stack is ready, generate through
+    # the model engine in a worker thread; any failure falls back to the
+    # legacy cascade with a disclosure (M8 rollback shape).
+    trip_session = None
+    trip_outcome = None
+    # 2026-11-21 成都环球中心案（心愿单被引擎缝吞掉）：R8 全量切引擎后，
+    # 纯开局走 generate_session_via_trip_solver(musts=[]) 硬编码空必去，
+    # 绕开 legacy 的 _generate_v0 → _absorb_wishlist——行程中心心愿单里属于
+    # 本次城市的心愿（如「成都环球中心」city=成都）静默不进规划、也无披露。
+    # 走缝前复用同一权威吸收逻辑（城市闸/排除/meta/跨城披露），把结果并进
+    # musts 交给引擎；跨城跳过披露随会话带出。legacy 路径不受影响（它自己
+    # 在 _generate_v0 里吸收），这里只在引擎缝分支生效。
+    seam_wish_musts: list[str] = []
+    seam_wish_notes: list[str] = []
     try:
-        session = await agent.start(
-            device_id=x_device_id,
-            cities=start_cities,
-            days=start_days,
-            preferences=request.preferences or "",
-            city_days=start_city_days,
-            start_date=request.start_date,
-            intercity_mode=request.intercity_mode,
-            lang=request.lang,
-            brief=start_brief,
-            arrival_no=request.arrival_no,
-            arrival_time=request.arrival_time,
-            departure_no=request.departure_no,
-            departure_time=request.departure_time,
-            arrival_date=request.arrival_date,
-            departure_date=request.departure_date,
-            intake=request.intake,
-            days_override=request.days_override,
-            arrival_no_override=request.arrival_no_override,
-            departure_no_override=request.departure_no_override,
-            images=_decode_image_payloads(request.images),
+        from app.services.trip_solver.entry import (
+            ENGINE_CPSAT,
+            engine_flag,
+            seam_plain_shape,
+            serving_ready,
+            set_seam_attempted,
         )
-    except PoiStoreUnavailableError:
-        # 库降级（DB 锁存+空内存）不出占位假行程——干净 503 让前端
-        # 提示稍后重试（2026-10-25 占位事故门禁）。
-        logger.warning("plan/start poi_store_unavailable")
-        raise HTTPException(status_code=503, detail="poi_store_unavailable")
-    except LLMError as exc:
-        # LLMError messages are sanitized (never contain the API key).
-        logger.exception("plan/start llm_error: %s", exc)
-        raise HTTPException(status_code=502, detail="llm_error") from exc
+        from app.services.trip_solver.live import (
+            _intake_day_no,
+            generate_session_via_trip_solver,
+        )
+
+        if (
+            engine_flag() == ENGINE_CPSAT
+            and serving_ready()[0]
+            # R8 形状闸收窄（2026-11-18「全量切引擎」）：映射类字段
+            # （城际方式/班次 override/行前卡标志）透传直连；仍留 legacy
+            # 的唯 brief/带图（读点确认轮）。分城天数（C-17）与起始城
+            # 停留（C-17 shift，2026-11-22 拆闸）均已进引擎。
+            and seam_plain_shape(
+                brief=start_brief,
+                images=request.images,
+                arrival_date=request.arrival_date,
+                departure_date=request.departure_date,
+                start_date=request.start_date,
+                days=ts_days,
+                cities=start_cities,
+                origin_days=start_origin_days,
+            )
+        ):
+            # 二期：本请求已由 api 缝尝试引擎——_generate_v0 重解钩子
+            # 不再重试（防双跑/双披露）；失败回落由缝自带披露
+            set_seam_attempted()
+
+            # 复用 agent 的心愿吸收（与 legacy _generate_v0 同一函数）：构造
+            # 轻会话只带设备/城市，读心愿单得到本行程城市心愿名 + 跨城披露。
+            # 取返回值即可，不污染引擎缝随后自建的真正规划会话。
+            try:
+                wish_probe = PlanSession(
+                    session_id="wish-absorb-probe",
+                    device_id=x_device_id,
+                    cities=list(start_cities or []),
+                    account_id=account,
+                )
+                seam_wish_musts, seam_wish_notes = await agent._absorb_wishlist(
+                    wish_probe
+                )
+            except Exception:
+                logger.warning("plan/start seam wishlist absorb failed", exc_info=True)
+                seam_wish_musts, seam_wish_notes = [], []
+
+            # R13q（gap #1）：引擎侧餐饮候选搜索补位——legacy `_assemble_plan`
+            # 按餐窗调 recommend_restaurants，CP-SAT 此前只顶已有 food 行。
+            # async 侧预取（DB 荐点 + amap，legacy 同源、默认关），随缝入
+            # 快照；任何失败在 prefetch 内降级空列表，绝不拦生成。
+            _food_rows: list[dict] = []
+            try:
+                from app.services.trip_solver.enrich_food import prefetch_food_rows
+
+                _food_rows = await prefetch_food_rows(
+                    cities=list(start_cities or []),
+                    amap_client=getattr(agent, "_amap", None),
+                    store=get_poi_detail_store(),
+                    enabled=get_settings().plan_restaurant_search_enabled,
+                )
+            except Exception:
+                logger.warning("plan/start: food prefetch failed", exc_info=True)
+
+            def _ts_generate():
+                return generate_session_via_trip_solver(
+                    device_id=x_device_id,
+                    cities=list(start_cities or []),
+                    days=ts_days or 0,
+                    start_date=request.start_date,
+                    musts=list(seam_wish_musts),
+                    store=get_poi_detail_store(),
+                    # R13j：live 引擎雨天约束接线（此前两缝均不传
+                    # weather_lookup——legacy 有天气/corpus 有 baked 天气、
+                    # 唯独 live 引擎瞎排雨天）。同 legacy 注入口径
+                    # （agent._weather_lookup=api:255 同款 partial）。
+                    weather_lookup=partial(daily_weather_text, get_session_factory()),
+                    preferences=request.preferences or "",
+                    arrival_time=request.arrival_time,
+                    departure_time=request.departure_time,
+                    arrival_no=ts_arrival_no,
+                    departure_no=ts_departure_no,
+                    intercity_mode=request.intercity_mode,
+                    city_days=dict(ts_city_days) if ts_city_days else None,
+                    # 2026-11-22 起始城停留拆闸：origin_days 语义已进引擎
+                    # （C-17 shift 窗 + 到达端点右移 k+1）——随缝透传，
+                    # 不再回落 legacy。
+                    origin_days=start_origin_days or 0,
+                    lang=request.lang,
+                    # R13p（2026-11-22 审计修复）：原始行前日期也随缝落地——
+                    # 重排 _session_snapshot 从会话 arrival_date/departure_date
+                    # 用 _intake_day_no 重算中途转移日，只传 arrival_day 不够。
+                    arrival_date=request.arrival_date,
+                    departure_date=request.departure_date,
+                    # R9-2：中途转移日——行前日期折天序入快照（C-05 地板/
+                    # 顶盖挪到该日；端点日=None 保持旧形状）
+                    arrival_day=_intake_day_no(
+                        request.arrival_date,
+                        request.start_date,
+                        ts_days or 0,
+                        1,
+                    ),
+                    departure_day=_intake_day_no(
+                        request.departure_date,
+                        request.start_date,
+                        ts_days or 0,
+                        ts_days or 1,
+                    ),
+                    food_rows=_food_rows,
+                )
+
+            trip_session, trip_outcome = await asyncio.to_thread(_ts_generate)
+            # R13q（gap #2 挂账）：引擎结构腿自动回填真实车次/航班号——
+            # 只在引擎已服务时跑；用户已填班次（intake/manual）由 helper
+            # 内部跳过。失败保留占位卡，不造号、不拦生成。
+            if trip_session is not None and trip_session.plan is not None:
+                try:
+                    from app.services.trip_solver.leg_numbers import (
+                        fill_structural_leg_numbers,
+                    )
+
+                    _leg_notes = await fill_structural_leg_numbers(
+                        trip_session.plan,
+                        start_date=trip_session.start_date,
+                        trains=getattr(agent, "_trains", None),
+                        flights=getattr(agent, "_flights", None),
+                    )
+                    if _leg_notes:
+                        trip_session.assumptions.extend(_leg_notes)
+                    # R13q 挂账「实测腿配额/时延决策」= opt-in（默认关，
+                    # 读侧 refresh_legs 仍兜），开则生成期有界回填并暖缓存。
+                    from app.services.trip_solver.leg_numbers import (
+                        enrich_measured_legs_if_enabled,
+                    )
+
+                    await enrich_measured_legs_if_enabled(agent, trip_session.plan)
+                except Exception:
+                    logger.warning("plan/start: leg backfill failed", exc_info=True)
+    except Exception:
+        logger.exception("plan/start trip_solver seam failed; legacy serves")
+    if trip_session is not None:
+        session = trip_session
+    else:
+        # R12 质量营救（2026-11-19 用户拍板）：引擎失败 → agent.start
+        # （legacy）服务 + 缝披露随附（下方 append）——绝不静默。
+        try:
+            session = await agent.start(
+                device_id=x_device_id,
+                cities=start_cities,
+                days=start_days,
+                preferences=request.preferences or "",
+                city_days=start_city_days,
+                origin_days=start_origin_days,
+                start_date=request.start_date,
+                intercity_mode=request.intercity_mode,
+                lang=request.lang,
+                brief=start_brief,
+                arrival_no=request.arrival_no,
+                arrival_time=request.arrival_time,
+                departure_no=request.departure_no,
+                departure_time=request.departure_time,
+                arrival_date=request.arrival_date,
+                departure_date=request.departure_date,
+                intake=request.intake,
+                days_override=request.days_override,
+                arrival_no_override=request.arrival_no_override,
+                departure_no_override=request.departure_no_override,
+                images=_decode_image_payloads(request.images),
+                # 换设备登录心愿归属：会话创建即带账号，legacy
+                # _generate_v0 → _absorb_wishlist 能按 owner_account_id 读行
+                account_id=account,
+            )
+        except PoiStoreUnavailableError:
+            # 库降级（DB 锁存+空内存）不出占位假行程——干净 503 让前端
+            # 提示稍后重试（2026-10-25 占位事故门禁）。
+            logger.warning("plan/start poi_store_unavailable")
+            raise HTTPException(status_code=503, detail="poi_store_unavailable")
+        except LLMError as exc:
+            # LLMError messages are sanitized (never contain the API key).
+            logger.exception("plan/start llm_error: %s", exc)
+            raise HTTPException(status_code=502, detail="llm_error") from exc
+        if (
+            trip_outcome is not None
+            and getattr(trip_outcome, "fallback", False)
+            and trip_outcome.disclosures
+        ):
+            # R12：legacy 营救的披露随附（绝不静默换引擎）
+            session.assumptions.append(trip_outcome.disclosures[0].get("zh", ""))
+            # R19（2026-11-23 兵马俑案）：缝回落 legacy 时点名必去不丢。
+            # 引擎缝从 preferences 收「必去」类短语（live 与 message 换局
+            # 缝同源 _restart_named_musts），legacy 回落路径此前不带——
+            # 回落会话 must_visits 空、必去只剩软偏好，覆盖审计整链盲
+            # （隔离实例 C3 探针实锤：陕历博被 geo 闸移出后无横幅、无
+            # 想去 chip）。同源抽取并进会话 must_visits，紧随其后的
+            # _audit_must_coverage 营救/让位/披露链照常兜底；缝未尝试
+            # （形状闸/旗未开）不折叠——纯 legacy 口径不变。
+            try:
+                _fb_musts = _restart_named_musts(
+                    request.preferences or "",
+                    store=get_poi_detail_store(),
+                    cities=list(start_cities or []),
+                )
+            except Exception:
+                logger.warning(
+                    "plan/start fallback named-must parse failed", exc_info=True
+                )
+                _fb_musts = []
+            if _fb_musts:
+                session.must_visits = list(
+                    dict.fromkeys([*(session.must_visits or []), *_fb_musts])
+                )
     # 2026-11-14（用户拍板「心愿单/已排期按 USER ID 出内容」）：会话记住
     # 登录账号——会话里建的心愿行落 owner_account_id
     session.account_id = account or session.account_id
+    # 2026-11-21 心愿吸收披露：引擎缝成功时把 absorbed/skip 带出（legacy
+    # 路径已在 _generate_v0 自报，不重复）。must_visits 也补记，供后续
+    # message/replan 的 _session_snapshot 继续认这些心愿为必去。
+    if trip_session is not None and (seam_wish_musts or seam_wish_notes):
+        session.must_visits = list(
+            dict.fromkeys([*(session.must_visits or []), *seam_wish_musts])
+        )
+        if seam_wish_musts:
+            session.assumptions.append(
+                L(
+                    "已从行程中心心愿单带入必去：" + "、".join(seam_wish_musts),
+                    "Must-visits brought in from the trip-center wishlist: "
+                    + "、".join(seam_wish_musts),
+                )
+            )
+        if seam_wish_notes:
+            session.assumptions.extend(seam_wish_notes)
+    # R13o③（R13n 审计）：升旗锚接 start 缝尾——旗时最高优先（2026-11-14
+    # UAT 拍板）此前只接在 save/from-itinerary 开档缝，全新引擎会话首屏
+    # 不跑升旗链（北京新单天安门排 12:00 中午场）。幂等（R12-G 重叠推平
+    # 已内建）。
+    if session.plan is not None:
+        from app.services.agent.plan import _apply_flag_schedule
+
+        _apply_flag_schedule(session.plan)
     # 同款：save 前审计，生成首屏的披露/清脏直接落库（下方响应层的
     # _audit_must_coverage 保留为兜底，幂等无副作用）。
     # 白天入场闸读闸同位：生成首屏的越闸卡先清时刻再落库。
     if session.plan is not None:
         session.plan.assumptions.extend(enforce_entry_gate(session.plan))
+        # 城市日一致性出站闸（2026-11-22 上海→西安→北京案）：生成首屏
+        # 不许把北京景点排进西安天、上海外滩排进北京天——落库前最后收口。
+        for _note in _enforce_city_coherence(session.plan):
+            if _note not in session.plan.assumptions:
+                session.plan.assumptions.append(_note)
+            if _note not in session.assumptions:
+                session.assumptions.append(_note)
     _audit_must_coverage(session)
     store.save(session)
     body: dict = {"session_id": session.session_id, "state": session.state}
@@ -838,15 +1444,54 @@ async def start_plan(
     if session.state == "site_confirm":
         body["sites"] = session.pending_sites
         body["sites_source"] = session.pending_sites_source
+        body["site_cities"] = {
+            n: (getattr(session, "site_cities", None) or {}).get(n, "")
+            for n in session.pending_sites
+        }
+        body["site_kinds"] = {
+            n: (getattr(session, "site_kinds", None) or {}).get(n, "sight")
+            for n in session.pending_sites
+        }
+        body["site_names_en"] = _site_names_en_payload(session)
+        # R25：文字日程（site_days 非空）→ 同一张卡上问顺序选边
+        _sd = {
+            str(n): int(d)
+            for n, d in (getattr(session, "site_days", None) or {}).items()
+            if str(n) in set(session.pending_sites) and isinstance(d, int) and d > 0
+        }
+        if _sd:
+            body["sequence_ask"] = {
+                "days": _sd,
+                "options": ["keep", "replan", "both"],
+            }
         if session.history and session.history[-1].role == "assistant":
             body["reply"] = session.history[-1].content
         body["clarify"] = clarify_questions(session)
         return body
+    # R25d：both 选边后的引擎自排版会话号（H5 据此渲染「查看引擎版」）
+    if getattr(session, "alt_session_id", None):
+        body["alt_session_id"] = session.alt_session_id
+        body["alt_role"] = getattr(session, "alt_role", None) or "primary"
     if session.state == "resto_confirm":
         body["restos"] = [r.model_dump() for r in session.pending_restos]
         if session.history and session.history[-1].role == "assistant":
             body["reply"] = session.history[-1].content
-    body["plan"] = _plan_for_response(session.plan)
+    body["plan"] = _with_free_meal_fill(_plan_for_response(session.plan), session)
+    # 缺日期补齐的披露（2026-11-23）：默认下周一不是用户给的日期，必须写在
+    # assumptions 里，不能让「下周一」悄悄成为行程起点。
+    if _defaulted_start:
+        _note = L(
+            f"表单未提供出发日期，已按下周一 {request.start_date} 起排；"
+            "要换日期，改表单「开始日期」重新规划即可。",
+            f"No start date was supplied, so the trip starts "
+            f"{request.start_date} (next Monday) by default — change the "
+            "start date in the form to re-plan.",
+        )
+        if session.plan is not None and _note not in session.plan.assumptions:
+            session.plan.assumptions.append(_note)
+        if _note not in session.assumptions:
+            session.assumptions.append(_note)
+        body["plan"] = _with_free_meal_fill(_plan_for_response(session.plan), session)
     body["assumptions"] = session.assumptions
     body["violations"] = current_violations(session)
     return body
@@ -873,11 +1518,206 @@ async def message_plan(
         raise HTTPException(status_code=404, detail="session_not_found")
     # 2026-11-14（用户拍板「心愿单按 USER ID 出内容」）：会话记住登录账号
     session.account_id = account or session.account_id
+    # R28b（2026-11-24 用户令「继续开发」，live 实测）：站点/餐厅确认轮里用户在
+    # 回答卡片——此前「按我写的顺序」被车道分类判成重排意图直接入队异步
+    # 重排，根本到不了 _answer_site_confirm（选择静默丢失）。确认轮的消息就是在回答
+    # 卡片，不进换局闸/车道分类，直接交 agent 对话入口（含链接读取）。
+    if session.state in ("site_confirm", "resto_confirm") and not find_urls(
+        request.text
+    ):
+        try:
+            session, reply, change = await agent.message(session, request.text)
+        except PoiStoreUnavailableError:
+            logger.warning("plan/message poi_store_unavailable")
+            raise HTTPException(status_code=503, detail="poi_store_unavailable")
+        except LLMError as exc:
+            logger.exception("plan/message llm_error: %s", exc)
+            raise HTTPException(status_code=502, detail="llm_error") from exc
+        if session.plan is not None and not consume_fast_turn(session.session_id):
+            await agent.refresh_legs(session)
+        store.save(session)
+        body = _plan_turn_body(session, reply, change)
+        body["lane"] = {"lane": "main", "intent": "confirm_round"}
+        return body
     # 换局闸（2026-11-13「重新规划却回到上次行程」）：这句话本身是另一趟完整
     # 行程（换城市/换天数）时重开会话出新车，旧行程一个字段都不动；必须先于
     # 车道分类——否则慢车道会把「重新规划」当后台重排塞回旧行程。
     brief = agent.new_trip_brief(session, request.text)
     if brief is not None:
+        restart_cities, restart_days = brief
+        # 二期（消息轮换引擎，2026-11-18）：换局语句重开的新行程走模型
+        # 引擎——纯路线声明或点名长句 + auto 城际（会话班次/语言随缝透
+        # 传）。点名长句由 _restart_named_musts 离线读「必去」类短语进
+        # musts，绑定走快照绑定链（精确名→文本匹配→骨架兜底，缝不吞
+        # 点、B-01）；短语读不出/引擎失败仍落 legacy（读点确认轮管线）。
+        restart_named_musts: list[str] = []
+        try:
+            restart_named_musts = _restart_named_musts(
+                request.text,
+                store=get_poi_detail_store(),
+                cities=list(restart_cities or []),
+            )
+        except Exception:
+            logger.exception("plan/message restart named-must parse failed")
+        trip_session = None
+        trip_outcome = None
+        restart_wish_musts: list[str] = []
+        restart_wish_notes: list[str] = []
+        try:
+            from app.services.trip_solver.entry import (
+                ENGINE_CPSAT,
+                engine_flag,
+                serving_ready,
+                set_seam_attempted,
+            )
+            from app.services.trip_solver.live import (
+                generate_session_via_trip_solver,
+            )
+
+            # R13q：换局缝同 gap #1 补位（餐饮候选预取，失败降级空）。
+            _restart_food_rows: list[dict] = []
+            try:
+                from app.services.trip_solver.enrich_food import prefetch_food_rows
+
+                _restart_food_rows = await prefetch_food_rows(
+                    cities=list(restart_cities or []),
+                    amap_client=getattr(agent, "_amap", None),
+                    store=get_poi_detail_store(),
+                    enabled=get_settings().plan_restaurant_search_enabled,
+                )
+            except Exception:
+                logger.warning(
+                    "plan/message restart: food prefetch failed", exc_info=True
+                )
+
+            if (
+                engine_flag() == ENGINE_CPSAT
+                and serving_ready()[0]
+                and (
+                    _restart_route_only(request.text, restart_cities)
+                    or restart_named_musts
+                )
+                and (session.intercity_mode or "auto") == "auto"
+            ):
+                # 二期：换局缝已尝试引擎——回落 restart_with_brief 内的
+                # _generate_v0 钩子不再重试
+                set_seam_attempted()
+
+                # 2026-11-22（换局缝吞心愿案）：与 start 缝同口径——换局
+                # 重开同样吸收行程中心心愿单。此前 musts 只带点名短语，
+                # 引擎成功时心愿静默不进规划、失败回落 legacy 反而吸收
+                # （restart_with_brief → _generate_v0），行为分叉。复用
+                # 同一权威吸收函数（城市闸/exclusion/跨城披露）。
+                try:
+                    wish_probe = PlanSession(
+                        session_id="wish-absorb-probe-restart",
+                        device_id=session.device_id,
+                        cities=list(restart_cities or []),
+                        account_id=account or session.account_id,
+                    )
+                    (
+                        restart_wish_musts,
+                        restart_wish_notes,
+                    ) = await agent._absorb_wishlist(wish_probe)
+                except Exception:
+                    logger.warning(
+                        "plan/message restart seam wishlist absorb failed",
+                        exc_info=True,
+                    )
+                    restart_wish_musts, restart_wish_notes = [], []
+
+                def _ts_restart():
+                    # R13k：镜像 legacy restart_with_brief 的 fresh-start
+                    # 语义——旧行程的行前信息（班次/时刻）不带入新局
+                    # （此前引擎缝多传 session.arrival_*/departure_*：
+                    # 换城市重启带着旧航班号=与 legacy 分歧；且传了
+                    # no/time 却不传 arrival_day（_intake_day_no 只在
+                    # start 缝算）——参数集自相矛盾）。
+                    return generate_session_via_trip_solver(
+                        device_id=session.device_id,
+                        cities=list(restart_cities or []),
+                        days=restart_days or session.days or 0,
+                        start_date=session.start_date,
+                        # 点名短语 + 心愿单（同一权威吸收，去重不双卡）
+                        musts=list(
+                            dict.fromkeys([*restart_named_musts, *restart_wish_musts])
+                        ),
+                        store=get_poi_detail_store(),
+                        weather_lookup=partial(
+                            daily_weather_text, get_session_factory()
+                        ),
+                        preferences=request.text,
+                        lang=session.lang,
+                        food_rows=_restart_food_rows,
+                    )
+
+                trip_session, trip_outcome = await asyncio.to_thread(_ts_restart)
+                if trip_session is not None and trip_session.plan is not None:
+                    try:
+                        from app.services.trip_solver.leg_numbers import (
+                            fill_structural_leg_numbers,
+                        )
+
+                        _leg_notes = await fill_structural_leg_numbers(
+                            trip_session.plan,
+                            start_date=trip_session.start_date,
+                            trains=getattr(agent, "_trains", None),
+                            flights=getattr(agent, "_flights", None),
+                        )
+                        if _leg_notes:
+                            trip_session.assumptions.extend(_leg_notes)
+                        from app.services.trip_solver.leg_numbers import (
+                            enrich_measured_legs_if_enabled,
+                        )
+
+                        await enrich_measured_legs_if_enabled(agent, trip_session.plan)
+                    except Exception:
+                        logger.warning(
+                            "plan/message restart: leg backfill failed", exc_info=True
+                        )
+        except Exception:
+            logger.exception("plan/message restart seam failed; legacy serves")
+        if trip_session is not None:
+            session = trip_session
+            session.account_id = account or session.account_id
+            # 换局缝心愿披露（与 start 缝同款）：引擎只带 plan.assumptions，
+            # absorbed/skip 需 API 层补上卡；must_visits 已由 live.py 用
+            # 合并后的 musts 写好，这里只做去重兜底。
+            if restart_wish_musts or restart_wish_notes:
+                session.must_visits = list(
+                    dict.fromkeys([*(session.must_visits or []), *restart_wish_musts])
+                )
+                if restart_wish_musts:
+                    session.assumptions.append(
+                        L(
+                            "已从行程中心心愿单带入必去："
+                            + "、".join(restart_wish_musts),
+                            "Must-visits brought in from the trip-center "
+                            "wishlist: " + ", ".join(restart_wish_musts),
+                        )
+                    )
+                if restart_wish_notes:
+                    session.assumptions.extend(restart_wish_notes)
+            reply = L(
+                "已按你刚说的新行程重开一局："
+                f"{'→'.join(session.cities) or '（城市待定）'}，"
+                f"{session.days or '?'} 天（上一趟行程没有被改动）。",
+                "Started a new trip from your latest message: "
+                f"{' → '.join(session.cities) or '(city TBC)'}, "
+                f"{session.days or '?'} days "
+                "(the previous itinerary was left untouched).",
+            )
+            store.save(session)
+            body = _plan_turn_body(session, reply, None)
+            body["new_trip"] = True
+            body["lane"] = {
+                "lane": "main",
+                "intent": "new_trip",
+                "engine": "cpsat",
+            }
+            return body
+        # R12（换局营救）：引擎失败 → restart_with_brief（legacy）服务
+        # + 披露随附（旧会话原样不动的语义不变——重开新会话）。
         try:
             session, reply = await agent.restart_with_brief(
                 session, request.text, brief
@@ -888,6 +1728,32 @@ async def message_plan(
         except LLMError as exc:
             logger.exception("plan/message llm_error: %s", exc)
             raise HTTPException(status_code=502, detail="llm_error") from exc
+        if (
+            trip_outcome is not None
+            and getattr(trip_outcome, "fallback", False)
+            and trip_outcome.disclosures
+        ):
+            # R12：legacy 营救的披露随附
+            session.assumptions.append(trip_outcome.disclosures[0].get("zh", ""))
+            # R19（2026-11-23 兵马俑案）：换局缝回落 legacy 时点名必去
+            # 同样不丢——restart_with_brief 走 self.start(preferences=text)，
+            # 必去短语只剩软偏好、审计盲。同源抽取并进 must_visits，
+            # _plan_turn_body 里的覆盖审计照常兜底。
+            try:
+                _fb_musts = _restart_named_musts(
+                    request.text,
+                    store=get_poi_detail_store(),
+                    cities=list(session.cities or []),
+                )
+            except Exception:
+                logger.warning(
+                    "plan/message fallback named-must parse failed", exc_info=True
+                )
+                _fb_musts = []
+            if _fb_musts:
+                session.must_visits = list(
+                    dict.fromkeys([*(session.must_visits or []), *_fb_musts])
+                )
         store.save(session)
         body = _plan_turn_body(session, reply, None)
         body["new_trip"] = True
@@ -914,13 +1780,22 @@ async def message_plan(
             body["lane"] = {"lane": "fast", "intent": decision.intent}
             return body
         # 快车道答不出（宁缺毋错）：落主车道继续，不虚构。
-    elif decision.lane is Lane.slow:
+    # R28（2026-11-24 用户实报「贴文确认卡变纯文本」）：慢车道的语义是
+    # 「重排已有行程」——无盘会话（clarify/intake 阶段）没有任何可重排的
+    # 盘，贴入的完整行程文字是读点确认轮的输入，必须落主车道
+    # （7089d612 在 _answer_clarification 的开卡挂点），不能被慢车道
+    # 吸成后台重排任务后只剩一句纯文本回复。
+    elif decision.lane is Lane.slow and session.plan is not None:
+        # R20③ 异步重排基线：入队瞬间固化会话修订号。快车道用户操作会
+        # 经 store.save 推进 rev；后台执行时若 rev 已前进，说明盘面被用户
+        # 改过，旧快照的重排必须丢弃，不能覆盖用户最新手排状态。
         task = tasks.enqueue(
             "replan",
             {
                 "session_id": session.session_id,
                 "device_id": x_device_id,
                 "text": request.text,
+                "baseline_rev": session.rev,
             },
             device_id=x_device_id,
         )
@@ -981,6 +1856,17 @@ async def message_plan(
 # 保护名册只保「不删除」，不保「下发显示」——下发层一律滤掉。
 _UNTIMED_KEEP_CATEGORIES = frozenset({"food", "hotel"})
 
+#: R19: access-chain render cards -- kept like skeleton even
+#: when untimed; demoting them to unplaced made the picked
+#: shuttle card vanish from the timeline and polluted the
+#: alternatives pool.
+_LEG_RENDER_PREFIXES = (
+    "leg-bridge-",
+    "access-out-",
+    "access-return-",
+    "taxi-board-",
+)
+
 
 def _strip_untimed_items(plan):
     """API 出口过滤（2026-11-13 用户拍板「未安排（无时刻灰卡）不要显示」
@@ -1004,6 +1890,7 @@ def _strip_untimed_items(plan):
                 and item.start_time is None
                 and not item.pinned
                 and (item.category or "") not in _UNTIMED_KEEP_CATEGORIES
+                and not str(item.item_id or "").startswith(_LEG_RENDER_PREFIXES)
             ):
                 stripped.append(item)
                 changed = True
@@ -1042,6 +1929,59 @@ def _strip_untimed_items(plan):
     return plan.model_copy(update={"days": days, "unplaced": unplaced})
 
 
+def _with_gap_bridges(plan):
+    """R12 响应件：>=45 分钟同日空档挂「前往下一站」交通桥卡（幂等、
+    非变异链路下游再挂一次也安全）。展示糖——挂挂失守绝不挂挂挂挂
+    坏行程。"""
+    from app.services.trip_solver.assembly.bridges import (
+        attach_gap_bridges,
+    )
+
+    try:
+        return attach_gap_bridges(plan)
+    except Exception:
+        logger.warning("plan gap bridges attach failed", exc_info=True)
+        return plan
+
+
+def _dedupe_plan_assumptions(plan):
+    """R19: content-dedupe the assumptions block (order-preserving,
+    non-mutating). Heal passes re-emit notes on every gate and the
+    plan/session double-write plus background replan races can
+    stamp the same line twice (live 07:30 pick: 6 lines x 2).
+    """
+    if plan is None:
+        return plan
+    lines = list(getattr(plan, "assumptions", None) or [])
+    seen = set()
+    deduped = [a for a in lines if not (a in seen or seen.add(a))]
+    if len(deduped) == len(lines):
+        return plan
+    return plan.model_copy(update={"assumptions": deduped})
+
+
+def _with_free_meal_fill(plan, session):
+    """R41h-b：出站计划统一过一遍「自由餐卡 → 就近真餐厅」填充。
+
+    只落在 **deepcopy 的出站副本** 上（R41e：就地改会话盘会与卡窗重绑/补卡
+    自愈器互相搬卡，同一会话每次刷新的餐厅集合会漂）；失败原样返回、绝不
+    挡出站。所有下发完整行程的出口（GET / start / turn）统一走本助手——
+    只接消息回合会让 H5 刷新（GET）看到的盘没有推荐。
+    """
+    try:
+        import copy as _copy
+        from types import SimpleNamespace as _SN
+
+        _resp = _copy.deepcopy(plan)
+        heal_free_meal_cards(
+            _SN(plan=_resp, session_id=getattr(session, "session_id", "?"))
+        )
+        return _resp
+    except Exception:  # noqa: BLE001 - 推荐失败绝不能挡住出站
+        logger.warning("plan: free meal fill on response failed", exc_info=True)
+        return plan
+
+
 def _plan_for_response(plan):
     """行程下发出口装配（2026-11-13 拍板「未安排卡不显示」）：先剔无时刻
     非钉参访卡（剔除件转 plan.unplaced，亮成宿主卡「想去」chip——只有
@@ -1049,12 +1989,83 @@ def _plan_for_response(plan):
     「早晨卡只有出发时间，没有 DURATION」），最后挂同级备选 chip。所有
     返回完整行程的端点（start / from-itinerary / _plan_turn_body 一族）
     统一走本入口，禁止旁路。"""
-    plan = _plan_with_alternatives(_morning_point_cards(_strip_untimed_items(plan)))
+    plan = _dedupe_plan_assumptions(plan)
+    plan = _plan_with_alternatives(
+        _morning_point_cards(_hotel_cards_front_back(_strip_untimed_items(plan)))
+    )
     try:
-        return attach_return_cards(plan)
+        plan = attach_return_cards(plan)
     except Exception:  # 展示糖：绝不能把行程卡拉挂
         logger.warning("plan return cards attach failed", exc_info=True)
+    # R14（2026-11-21 用户令「打车应该在酒店和去程之间」FIX）：引擎远郊日
+    # 去程卡里的打车段拆成独立 🚕 卡插在晨卡与去程卡之间——响应副本渲染件
+    # （幂等先清后挂；会话本体零打车卡），交通桥卡在最终形状上重挂。
+    from app.services.itinerary.legs import attach_outbound_taxi_cards
+
+    try:
+        plan = attach_outbound_taxi_cards(plan)
+    except Exception:  # 展示糖：绝不能把行程卡拉挂
+        logger.warning("plan outbound taxi cards attach failed", exc_info=True)
+    # R12（2026-11-19 拍板「天安门后应该在去下一个景点的路上，而不是
+    # 空着等到午餐卡」）：>=45 分钟的同日空档挂可见「前往下一站」交通
+    # 桥卡——与回城卡同契约（响应副本、幂等先清后挂），session 本体
+    # 与持久会话零桥卡。
+    from app.services.trip_solver.assembly.bridges import (
+        attach_gap_bridges,
+    )
+
+    try:
+        return attach_gap_bridges(plan)
+    except Exception:  # 展示糖：绝不能把行程卡拉挂
+        logger.warning("plan gap bridges attach failed", exc_info=True)
         return plan
+
+
+def _hotel_cards_front_back(plan):
+    """R13p（2026-11-21 用户拍板「酒店卡不应该出现在天安门后；酒店卡如果
+    出现应该是第一位的」）：出站副本终态归位——晨卡（hotel-morning-）恒排
+    当天最前、夜卡（hotel-night-）恒排最后，其余卡按开始时刻稳定重排。
+    修两形状：①升旗锚缝尾 realign 只改时刻不动位次（天安门 07:10 曾显示
+    在 day 中部、前面还是 09:30 的八达岭）；②旧快照里被误推到锚后的晨卡
+    在此钳回首个非酒店卡之前（start = 首卡 start − 30，C-13 打包窗口径）。
+    非变异：会话本体与持久快照不动（同 _morning_point_cards 契约）。"""
+    if plan is None:
+        return plan
+    out = plan.model_copy(deep=True)
+    for d in out.days:
+        if not d.items:
+            continue
+        mornings = [
+            i
+            for i in d.items
+            if isinstance(i, VisitItem)
+            and (i.item_id or "").startswith("hotel-morning")
+        ]
+        nights = [
+            i
+            for i in d.items
+            if isinstance(i, VisitItem) and (i.item_id or "").startswith("hotel-night")
+        ]
+        ids_m = {id(i) for i in mornings}
+        ids_n = {id(i) for i in nights}
+        others = [i for i in d.items if id(i) not in ids_m and id(i) not in ids_n]
+        others.sort(key=lambda i: (i.start_time is None, i.start_time or time(0, 0)))
+        if mornings:
+            first = next((i for i in others if i.start_time is not None), None)
+            m = mornings[0]
+            if (
+                first is not None
+                and m.start_time is not None
+                and (m.start_time.hour * 60 + m.start_time.minute)
+                > (first.start_time.hour * 60 + first.start_time.minute)
+            ):
+                f_min = first.start_time.hour * 60 + first.start_time.minute
+                new_start = max(0, f_min - 30)
+                dur = int(m.duration_minutes or 30)
+                m.start_time = time(new_start // 60 % 24, new_start % 60)
+                m.end_time = time((new_start + dur) // 60 % 24, (new_start + dur) % 60)
+        d.items = mornings + others + nights
+    return out
 
 
 def _morning_point_cards(plan):
@@ -1095,6 +2106,43 @@ def _plan_with_alternatives(plan):
         return plan
 
 
+def _resolve_must_poi_ids(
+    must_names: list[str], cities: list[str] | None
+) -> dict[str, str | None]:
+    """点名必去 → POI 行键（2026-11-23 兵马俑案）。
+
+    覆盖审计的名字匹配只认全等/双胞胎互含——别名必去（兵马俑 ↔
+    秦始皇帝陵博物院）恒 miss：引擎明明把它排成了天卡，unarranged_musts
+    横幅却报「必去未排上」、ensure_must_disclosure 还误补「未排入行程」。
+    按引擎快照绑定同源（snapshot_from_request 的两步口径：
+    candidate_by_name → match_text_names 兜底）解析行键；poi_id 命中
+    已排卡即视为已排。解析失败/无库 → None（回落纯名匹配，行为与旧版
+    一致）。纯内存查表，无 DB IO。
+    """
+    if not must_names:
+        return {}
+    try:
+        store = get_poi_detail_store()
+    except Exception:  # noqa: BLE001 - 键解析失败回落名匹配（审计不因库降级而炸）
+        logger.warning("must poi-id resolve: store unavailable", exc_info=True)
+        return {}
+    out: dict[str, str | None] = {}
+    for name in must_names:
+        row = None
+        for city in cities or []:
+            row = store.candidate_by_name(city, name)
+            if row:
+                break
+        if row is None:
+            for city in cities or []:
+                hits = store.match_text_names(city, name, limit=1)
+                if hits:
+                    row = hits[0]
+                    break
+        out[name] = str(row.get("id") or row.get("source_poi_id")) if row else None
+    return out
+
+
 def _audit_must_coverage(session: PlanSession) -> None:
     """必去覆盖审计（2026-11-17 豫园/外滩静默丢失案）：出站闸最后一道。
 
@@ -1108,12 +2156,44 @@ def _audit_must_coverage(session: PlanSession) -> None:
     # 2026-11-17 事故热修（会话 24379abd）：必去优先三闸 + 灰卡降级。
     lang = getattr(session, "lang", "zh") or "zh"
     must_names = getattr(session, "must_visits", None) or []
+    # 2026-11-23 兵马俑案：别名必去键解析（见 _resolve_must_poi_ids）——
+    # 兵马俑已被引擎排为「秦始皇帝陵博物院」卡，纯名匹配恒报「未排上」。
+    must_poi_ids = _resolve_must_poi_ids(must_names, getattr(session, "cities", None))
+    # R12-E（2026-11-19 用户令「指定的天坛为什么漏了，没指定的景山
+    # 插进去了」）：先营救——被入场闸剥掉的必去顶进让出的填充窗口；
+    # 营救不了再走必让位清场。
     notes: list[str] = list(
-        evict_fillers_when_must_unseated(session.plan, must_names=must_names, lang=lang)
+        rescue_entry_gated_musts(session.plan, must_names=must_names, lang=lang)
+    )
+    # 让位清单（2026-11-22 上海→西安→北京案，用户「兵马俑 PRIORITY 最高，
+    # 再怎么删也不会删它」）：让位不是撤完就算——撤不成就得放回，否则 D2
+    # 只剩华清宫、下午空 5 小时，兵马俑/秦俑情凭空消失。
+    evicted: list[tuple[int, int, object]] = []
+    yield_notes = evict_fillers_when_must_unseated(
+        session.plan, must_names=must_names, lang=lang, evicted=evicted
     )
     notes += evict_pre_remote_fillers(session.plan, lang=lang)
     notes += retime_remote_day_from_access(session.plan, lang=lang)
+    # R12-C（2026-11-19 拍板「餐厅放午餐/晚餐卡上」）：存量/回退计划
+    # 里观光卡形态的餐馆折进餐卡——读闸自愈，刷新即正。
+    notes += fold_restaurant_visit_cards(session.plan, lang=lang)
     untimed = demote_untimed_musts(session.plan, lang=lang)
+    if evicted:
+        # 读闸不做重解行程（2026-11-22 复核）：让位腾出的窗口只交给
+        # rescue_entry_gated_musts 那条带入场闸/邻卡约束的安全通道（它在
+        # 本闸最前面跑）；它没坐上的必去，任何「硬塞」都只会造出闭馆日
+        # 的故宫 16:00-20:00、到达日 14:30-19:30 的颐和园这种假排期。
+        # 所以这里只认「没坐上就把撤掉的放回」，宁可必去落想去。
+        back: list = []
+        notes += restore_evicted_fillers(
+            session.plan, evicted, lang=lang, restored_out=back
+        )
+        # 放回的件不再说「已让位移出」——两句互相打架的文案只留真相那句；
+        # 被别的口径（远郊日清场）挡住没放回的，移出文案照旧成立。
+        back_names = {f"「{getattr(i, 'name', '')}」" for i in back}
+        notes += [
+            line for line in yield_notes if not any(name in line for name in back_names)
+        ]
     if notes or untimed:
         # 热修动了盘面（撤补点/挪卡/降级灰卡）→ 腿字段按新布局重算：
         # annotate 只在生成期跑过，读闸改形后卡面还挂着撤掉的前补点腿、
@@ -1121,19 +2201,41 @@ def _audit_must_coverage(session: PlanSession) -> None:
         # 已被移出的老舍茶馆打车腿，09:30 专线无卡可挂）。幂等，重算
         # 只覆写展示腿字段。
         annotate_legs(session.plan)
-    session.plan.assumptions.extend(notes)
+    # 让位→回座→放回是一条会「来回试探」的链：同一个盘面每次过闸都会重算
+    # 一遍，文案必须按内容去重（2026-11-22），否则刷新几次假设区就刷出一串
+    # 重复的「已让位移出/已放回原时段」。幂等只指盘面，文案这里单独收口。
+    seen = set(session.plan.assumptions)
+    for line in notes:
+        if line in seen:
+            continue
+        seen.add(line)
+        session.plan.assumptions.append(line)
+    # 已按「闭馆」单独披露过的必去，不再补一条「当天排不下」（2026-11-22
+    # 故宫案：周一闭馆 × 暂未排上时刻 两句互相打架，用户看不出到底为什么）。
+    closed_mentioned: set[str] = set()
+    for line in session.plan.assumptions:
+        if "闭馆" in line:
+            match = re.search(r"「(.+?)」", line)
+            if match:
+                closed_mentioned.add(match.group(1))
     for line in untimed:
         logger.warning(
             "plan/session %s untimed must demoted: %s",
             session.session_id,
             line,
         )
-        session.plan.assumptions.append(line)
+        match = re.search(r"「(.+?)」", line)
+        if match and match.group(1) in closed_mentioned:
+            continue
+        if line not in seen:
+            seen.add(line)
+            session.plan.assumptions.append(line)
     for line in ensure_must_disclosure(
         session.plan,
         getattr(session, "must_visits", None) or [],
         disclosed=session.assumptions or [],
         lang=lang,
+        must_poi_ids=must_poi_ids,
     ):
         logger.warning(
             "plan/session %s must-visit silent drop: %s", session.session_id, line
@@ -1152,7 +2254,25 @@ def _audit_must_coverage(session: PlanSession) -> None:
     # 未排上必去名册（2026-11-17 一日游案）：H5 非折叠横幅的数据面——
     # 假设块折叠着用户不看，「必去未排上」必须一眼可见（想去 chip 只是
     # 次要面，无宿主卡时连 chip 都没有）。每次过闸重算，编辑后自愈。
-    session.plan.unarranged_musts = unarranged_must_visits(session.plan, must_names)
+    session.plan.unarranged_musts = unarranged_must_visits(
+        session.plan, must_names, must_poi_ids=must_poi_ids
+    )
+
+
+def _site_names_en_payload(session) -> dict[str, str]:
+    """确认卡站点英文名（2026-11-25「选英文时站点还是中文」）。
+
+    chips/句子由前端与问句层按 UI 语言消费；zh 请求直接空表零开销。
+    现场解析不落会话结构——旧会话（无档案）同样获得英文名显示。
+    """
+    names = [n for n in (getattr(session, "pending_sites", None) or []) if n]
+    if not names or get_lang() == "zh":
+        return {}
+    try:
+        return get_poi_detail_store().display_names_en(names) or {}
+    except Exception:
+        logger.warning("plan: site_names_en payload lookup failed", exc_info=True)
+        return {}
 
 
 def _plan_turn_body(session, reply: str, change, *, alternatives: bool = True) -> dict:
@@ -1167,6 +2287,30 @@ def _plan_turn_body(session, reply: str, change, *, alternatives: bool = True) -
     if session.state == "site_confirm":
         body["sites"] = session.pending_sites
         body["sites_source"] = session.pending_sites_source
+        body["site_cities"] = {
+            n: (getattr(session, "site_cities", None) or {}).get(n, "")
+            for n in session.pending_sites
+        }
+        body["site_kinds"] = {
+            n: (getattr(session, "site_kinds", None) or {}).get(n, "sight")
+            for n in session.pending_sites
+        }
+        body["site_names_en"] = _site_names_en_payload(session)
+        # R25：文字日程（site_days 非空）→ 同一张卡上问顺序选边
+        _sd = {
+            str(n): int(d)
+            for n, d in (getattr(session, "site_days", None) or {}).items()
+            if str(n) in set(session.pending_sites) and isinstance(d, int) and d > 0
+        }
+        if _sd:
+            body["sequence_ask"] = {
+                "days": _sd,
+                "options": ["keep", "replan", "both"],
+            }
+    # R25d：both 选边后的引擎自排版会话号（H5 据此渲染「查看引擎版」）
+    if getattr(session, "alt_session_id", None):
+        body["alt_session_id"] = session.alt_session_id
+        body["alt_role"] = getattr(session, "alt_role", None) or "primary"
     if session.state == "resto_confirm":
         body["restos"] = [r.model_dump() for r in session.pending_restos]
     if session.state == "clarify":
@@ -1177,25 +2321,50 @@ def _plan_turn_body(session, reply: str, change, *, alternatives: bool = True) -
         heal_item_ids(session)
         # 餐卡=槽位、餐厅=数据：旧会话漂在卡窗外的餐厅在出站前回填
         heal_meal_cards(session)
+        # R38b：旧会话午/晚餐卡被酒廊/大堂吧占着（R38 前生成）→ 按评分+
+        # 就近换真餐馆，刷新即修（幂等，库里没有达标店就不动）。
+        heal_non_meal_meal_cards(session)
         # 到达日不再整天没安排（2026-11-13 六拍）：旧行程的空到达日出站前
         # 补一段「城市漫步（自由安排）」+ 缺的餐卡，刷新即修不必重规划。
-        heal_arrival_light(session.plan)
+        # R39c：keep/both=引擎盘，只补缺卡、不做重叠顺延（见 _ensure_meal_cards）。
+        _keep_seq = str(getattr(session, "sequence_choice", "") or "") in (
+            "keep",
+            "both",
+        )
+        heal_arrival_light(session.plan, reconcile=not _keep_seq)
         # 餐卡与紧邻景点的通勤腿（2026-11-15）：出站最后一道对账。
         # 餐卡重排（装配/编辑/救急）都可能在收口后抹平间隙，这里在真正
         # 交付的 plan 上补回；幂等——无间隙时不产生备注、不改时刻。
-        session.plan.assumptions.extend(_open_meal_leg_gaps(session.plan))
+        # R39c：keep/both（引擎盘）跳过——会顺延景点给餐卡腾通勤；legacy 照旧。
+        if not _keep_seq:
+            session.plan.assumptions.extend(_open_meal_leg_gaps(session.plan))
+        # R13o③：升旗锚在消息回合出站前同样收口（引擎 replan/edit 的新
+        # 计划此前不带旗时）——幂等，先于入场闸跑。
+        from app.services.agent.plan import _apply_flag_schedule
+
+        _apply_flag_schedule(session.plan)
         # 白天入场闸读闸（2026-11-17 二拍）：顺延/贴锚/兜底把非钉普通观光
         # 卡推过 16:00/15:30 开场带的，出站前退回无时刻并披露（幂等）。
         session.plan.assumptions.extend(enforce_entry_gate(session.plan))
+        # R39d：上面的 heal 可能补出午/晚餐卡（引擎盘缺卡时），补卡发生在
+        # refresh_legs 的 annotate 之后——这里补算一次腿（幂等、零网络），
+        # 新卡才有来路/去路腿（颐和园→午饭 实报）。
+        from app.services.itinerary.legs import annotate_legs
+
+        # only_missing：refresh_legs 的高德实测腿原样保留，只补新卡/缺腿卡。
+        annotate_legs(session.plan, only_missing=True)
         # 必去覆盖审计（2026-11-17）：出站闸最后一道——必去无声消失自动补披露。
         _audit_must_coverage(session)
         # 2026-11-13 快路径：备选 chip 装配是整池扫描（18 件 ~4.5s），
         # 加心愿回合先跳过——卡片本体完整，备选在下次普通回合/打开行程补回。
-        body["plan"] = (
+        _resp_plan = (
             _plan_for_response(session.plan)
             if alternatives
-            else _strip_untimed_items(session.plan)
+            else _with_gap_bridges(_strip_untimed_items(session.plan))
         )
+        # R41e/R41h-b：自由餐卡就近推荐只落出站副本（不动会话盘），所有
+        # 出站口（GET/start/turn）统一走 _with_free_meal_fill。
+        body["plan"] = _with_free_meal_fill(_resp_plan, session)
         body["violations"] = current_violations(session)
     if change is not None:
         body["change"] = change
@@ -1220,14 +2389,27 @@ async def confirm_plan_sites(
         raise HTTPException(status_code=404, detail="session_not_found")
     if session.state != "site_confirm" or not session.pending_sites:
         raise HTTPException(status_code=409, detail="not_awaiting_sites")
+    # R25d both：主盘按 keep（写明顺序）生成，另产一份引擎自排版。
+    _seq_raw = str(request.sequence or "").strip().lower()
+    _both = _seq_raw == "both"
+    _primary_seq = "keep" if _both else (request.sequence or None)
     try:
-        session, reply, change = await agent.confirm_sites(session, request.mandatory)
+        session, reply, change = await agent.confirm_sites(
+            session, request.mandatory, _primary_seq
+        )
     except PoiStoreUnavailableError:
         logger.warning("plan/sites_confirm poi_store_unavailable")
         raise HTTPException(status_code=503, detail="poi_store_unavailable")
     except LLMError as exc:
         logger.exception("plan/sites_confirm llm_error: %s", exc)
         raise HTTPException(status_code=502, detail="llm_error") from exc
+    if _both:
+        try:
+            _alt = await _make_alt_engine_plan(agent, session, store)
+            if _alt is not None:
+                session.alt_session_id = _alt.session_id
+        except Exception:
+            logger.warning("plan/sites_confirm alt-plan failed", exc_info=True)
     store.save(session)
     return _plan_turn_body(session, reply, change)
 
@@ -1268,6 +2450,40 @@ async def plan_session_images(
         raise HTTPException(status_code=502, detail="llm_error") from exc
     store.save(session)
     return _plan_turn_body(session, reply, None)
+
+
+async def _make_alt_engine_plan(agent, session, store):
+    """R25d both：同一贴文再产一份「引擎自排」行程。
+
+    复制会话（sequence_choice=replan、清空盘面）→ 重排缝（引擎原生）→
+    落一个新会话（alt-*）并存储；引擎未服务时返回 None（主盘不受影响）。"""
+    from app.services.trip_solver.live import replan_session_via_trip_solver
+
+    alt = session.model_copy(deep=True)
+    alt.session_id = "alt-%s" % uuid.uuid4().hex[:16]
+    alt.state = "planning"
+    alt.plan = None
+    alt.assumptions = []
+    alt.pending_sites = []
+    alt.pending_sites_source = "link"
+    alt.sequence_choice = "replan"
+    alt.alt_role = "engine"
+    # R28 回链：引擎版上「回到我写的顺序」指回主会话。
+    alt.alt_session_id = session.session_id
+    outcome = await asyncio.to_thread(
+        replan_session_via_trip_solver,
+        alt,
+        store=get_poi_detail_store(),
+        weather_lookup=partial(daily_weather_text, get_session_factory()),
+    )
+    plan = getattr(outcome, "plan", None)
+    if plan is None:
+        return None
+    alt.plan = plan
+    alt.assumptions = list(getattr(plan, "assumptions", []) or [])
+    alt.state = "ready"
+    store.save(alt)
+    return alt
 
 
 def _find_visit_item(plan, item_id: str) -> VisitItem | None:
@@ -1521,10 +2737,59 @@ async def set_plan_item_duration(
     return _plan_turn_body(session, reply, None)
 
 
+def _resolve_taxi_chain(plan, taxi_id: str) -> tuple[str, int]:
+    """打车卡 → (去程班次卡 id, 班次起−链起点 gap)。
+
+    taxi-board-* 是响应副本渲染件（legs.attach_outbound_taxi_cards 派生：
+    id = 前缀 + 去程卡后缀；起点可能被前卡钳位）。在响应同形状盘面上实测
+    班次起−打车起 的 gap（含缓冲15/叫车15/车程），agent.set_chain_time 用
+    同一 gap 反推每班候选的链起点。解析不到=盘面已变 → item_not_found。
+    """
+    from app.services.itinerary.legs import TAXI_BOARD_PREFIX
+    from app.services.trip_solver.assembly.materialize import (
+        OUTBOUND_CARD_PREFIX,
+    )
+
+    tid = str(taxi_id or "")
+    if not tid.startswith(TAXI_BOARD_PREFIX):
+        raise ValueError("item_not_found")
+    owner_id = OUTBOUND_CARD_PREFIX + tid[len(TAXI_BOARD_PREFIX) :]
+    for day in getattr(plan, "days", None) or []:
+        taxi = next(
+            (i for i in day.items or [] if str(getattr(i, "item_id", "") or "") == tid),
+            None,
+        )
+        if taxi is None:
+            continue
+        owner = next(
+            (
+                i
+                for i in day.items or []
+                if str(getattr(i, "item_id", "") or "") == owner_id
+            ),
+            None,
+        )
+        if owner is None or taxi.start_time is None or owner.start_time is None:
+            raise ValueError("item_not_found")
+        gap = (
+            owner.start_time.hour * 60
+            + owner.start_time.minute
+            - taxi.start_time.hour * 60
+            - taxi.start_time.minute
+        )
+        if gap <= 0:
+            raise ValueError("item_not_found")
+        return owner_id, gap
+    raise ValueError("item_not_found")
+
+
 class PlanDepartureRequest(BaseModel):
     item_id: str
     direction: Literal["out", "return"] = "out"
     depart: str  # "HH:MM"
+    # bus=点选班次/桥卡语义（默认，chips 与 R20 桥卡不变）；leave=意图时刻
+    # 落班次链（打车卡/班次日晨卡，R26「酒店、打车等时间也要能改」）。
+    mode: Literal["bus", "leave"] = "bus"
 
 
 @router.post("/plan/{session_id}/departure")
@@ -1540,6 +2805,14 @@ async def select_plan_departure(
     去程点选 → 晨卡按该班次回算离店时刻（离店 = 班次 − 打车含早高峰）；
     返程点选 → 景区卡按该返程班次回推离场时刻；当天其余件按序重排。
     点选值落卡，后续重建不被默认班次覆盖。
+    leg-bridge-* 桥卡（响应副本渲染件）也走本端点：出发时刻=上一站结束——
+    在响应同形状探针盘面上解析桥卡→上一站（bridges.resolve_bridge_prev），
+    落 agent.set_leg_departure（R20 2026-11-23「乘车去下一站的时间应该
+    也可以编辑」）。
+    mode="leave"（R26 2026-11-23「酒店、打车等所有卡的时间都要能改」）：
+    打车卡/班次日晨卡给意图时刻 → 解析打车卡到去程卡 + 实测链 gap，落
+    agent.set_chain_time（按班次链取最近一班整链重锚）；城内日晨卡回落
+    plain retime。
     """
     if not x_device_id:
         raise HTTPException(status_code=400, detail="missing_device_id")
@@ -1555,12 +2828,45 @@ async def select_plan_departure(
     except (TypeError, ValueError):
         raise HTTPException(status_code=422, detail="bad_depart") from None
     try:
-        _, summary, notes = agent.set_access_departure(
-            session,
-            request.item_id,
-            direction=request.direction,
-            depart=depart_at,
-        )
+        if request.mode == "leave":
+            # R26（2026-11-23 用户令「酒店、打车、晚餐的时间也应该同样能改」）：
+            # 打车卡/班次日晨卡给意图时刻 → 按班次链落最近一班（整链重锚）。
+            target = request.item_id
+            taxi = False
+            gap = None
+            if (request.item_id or "").startswith("taxi-board-"):
+                taxi = True
+                target, gap = _resolve_taxi_chain(
+                    _plan_for_response(session.plan), request.item_id
+                )
+            _, summary, notes = agent.set_chain_time(
+                session, target, depart=depart_at, taxi=taxi, chain_gap=gap
+            )
+        elif (request.item_id or "").startswith("leg-bridge-"):
+            # R20（2026-11-23 用户令「乘车去下一站的时间应该也可以编辑」）：
+            # 桥卡只活在响应副本（幂等先清后挂、卡上无可编辑实体）——在
+            # 响应同形状的探针盘面上解析桥卡 → 上一站，改出发时刻=把上一
+            # 站调成「结束于所选时刻」（见 agent.set_leg_departure）。
+            # id 解析不到=盘面已变/过期 → 404 让前端刷新重试，不静默吞。
+            if request.direction != "out":
+                raise ValueError("bad_direction")
+            from app.services.trip_solver.assembly.bridges import (
+                resolve_bridge_prev,
+            )
+
+            prev = resolve_bridge_prev(
+                _plan_for_response(session.plan), request.item_id
+            )
+            _, summary, notes = agent.set_leg_departure(
+                session, prev.item_id, depart=depart_at
+            )
+        else:
+            _, summary, notes = agent.set_access_departure(
+                session,
+                request.item_id,
+                direction=request.direction,
+                depart=depart_at,
+            )
     except ValueError as exc:
         code = str(exc)
         if code == "item_not_found":
@@ -1826,11 +3132,14 @@ async def insert_plan_alternative(
 
 
 class PlanSetHotelRequest(BaseModel):
-    # 验证下拉选中的候选（H5 /api/v1/hotels/search 选中后携带）。仅 name
-    # 必填：客户端带坐标=已在下拉验证过，直接落卡；缺坐标由服务端重走
-    # 检索链验证——绝不落未验证裸名（2026-11-07 用户指令「NEED TO VERIFY
-    # THE NAME AND SHOW ADDRESS ACCORDINGLY」）。
-    name: str = Field(min_length=1, max_length=64)
+    # 验证下拉选中的候选（H5 /api/v1/hotels/search 选中后携带）。
+    # 2026-11-23 R21（用户拍板「WE ONLY ALLOW USER TO INPUT HOTEL NAME
+    # AND ADDRESS」）：name 改可选——只改地址时省略 name（服务端不验证、
+    # 只写地址，名称/坐标/身份不动；卡面「（城市）住 N 晚（日期）」等
+    # 注释是系统派生文本，永不落用户输入）；name+坐标=直接落卡；name
+    # 缺坐标=服务端重走检索链验证——绝不落未验证裸名（2026-11-07 拍板
+    # 保持不变）。名称与地址都为空=422 empty_request。
+    name: str | None = Field(default=None, max_length=64)
     source_poi_id: str | None = Field(default=None, max_length=64)
     address: str | None = Field(default=None, max_length=200)
     opening_hours: str | None = Field(default=None, max_length=120)
@@ -1867,11 +3176,15 @@ async def set_plan_hotel(
         raise HTTPException(status_code=404, detail="item_not_found")
     if not (is_hotel_night(item) or is_hotel_morning(item)):
         raise HTTPException(status_code=422, detail="not_hotel_slot")
-    name = request.name.strip()
+    name = (request.name or "").strip()
     lon, lat = request.lon, request.lat
-    address, opening_hours = request.address, request.opening_hours
+    address = (request.address or "").strip() or None
+    opening_hours = request.opening_hours
     poi_id = request.source_poi_id
-    if lon is None or lat is None:
+    if not name and not address:
+        # R21：名称与地址都为空=没有可写内容（只收这两个输入面）。
+        raise HTTPException(status_code=422, detail="empty_request") from None
+    if name and (lon is None or lat is None):
         hits = await search_hotel_candidates(chain, settings, name, item.city or None)
         best = next((h for h in hits if h["is_hotel"]), hits[0] if hits else None)
         if best is None or not best.get("name"):
@@ -1883,16 +3196,40 @@ async def set_plan_hotel(
         loc = best.get("location")
         if isinstance(loc, dict):
             lon, lat = loc.get("lon"), loc.get("lat")
-    item.name = hotel_morning_label(name) if is_hotel_morning(item) else name
-    item.poi_id = poi_id
-    item.address = address
-    item.opening_hours = opening_hours
-    item.location = (
-        GeoPoint(lon=lon, lat=lat) if lon is not None and lat is not None else None
-    )
-    # 2026-11-13 续：一次 ✏️ 铺开整段住宿（夜卡↔晨卡对 + 同城连续夜里
-    # 尚未验证的占位卡一起写上同一家酒店），随后全卡按当天首/末件顺延。
-    _, filled = sync_hotel_stay(session.plan.days, item, hotel_name=name)
+    if name:
+        item.name = hotel_morning_label(name) if is_hotel_morning(item) else name
+        item.poi_id = poi_id
+        item.address = address
+        item.opening_hours = opening_hours
+        item.location = (
+            GeoPoint(lon=lon, lat=lat) if lon is not None and lat is not None else None
+        )
+        # 2026-11-13 续：一次 ✏️ 铺开整段住宿（夜卡↔晨卡对 + 同城连续夜里
+        # 尚未验证的占位卡一起写上同一家酒店），随后全卡按当天首/末件顺延。
+        _, filled = sync_hotel_stay(session.plan.days, item, hotel_name=name)
+    else:
+        # R21 地址直输（2026-11-23 拍板「WE ONLY ALLOW USER TO INPUT HOTEL
+        # NAME AND ADDRESS」）：只写地址——名称/坐标/营业时间/身份一律
+        # 不动（「回酒店·夜间休息（城市）住 N 晚（日期）」是前端
+        # hotelStayLabel 的系统派生文本，不在可编辑面内）。地址按住宿段
+        # 铺开：占位卡继承；已验证卡=同一家（poi/坐标同源）才同步地址，
+        # 别家酒店绝不覆盖。
+        item.address = address
+        night_day = item.day if is_hotel_night(item) else item.day - 1
+        stay_lo, stay_hi = hotel_stay_bounds(session.plan.days, night_day)
+        by_day = {dp.day: dp for dp in session.plan.days}
+        filled = 0
+        for d in range(stay_lo, stay_hi + 1):
+            cards = [_night_card_of(by_day.get(d))]
+            morning = _morning_card_of(by_day.get(d + 1))
+            if morning is not None:
+                cards.append(morning)
+            for card in cards:
+                if card is None or card is item:
+                    continue
+                if _hotel_placeholder(card) or _same_hotel(card, item):
+                    card.address = address
+                    filled += 1
     reanchor_hotel_cards(session.plan.days)
     try:
         await agent.refresh_legs(session)
@@ -1904,8 +3241,14 @@ async def set_plan_hotel(
     addr_en = f" ({address})" if address else ""
     extra_zh = f"，同段住宿其余 {filled} 张卡已同步" if filled else ""
     extra_en = f", synced {filled} more card(s) of this stay" if filled else ""
-    reply = L(
-        f"已验证并填入酒店「{name}」" + addr_zh + extra_zh,
-        f'Verified hotel "{name}"' + addr_en + extra_en,
-    )
+    if name:
+        reply = L(
+            f"已验证并填入酒店「{name}」" + addr_zh + extra_zh,
+            f'Verified hotel "{name}"' + addr_en + extra_en,
+        )
+    else:
+        reply = L(
+            "已更新酒店地址" + addr_zh + extra_zh,
+            "Hotel address updated" + addr_en + extra_en,
+        )
     return _plan_turn_body(session, reply, None)

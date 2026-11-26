@@ -20,7 +20,7 @@ import html as html_mod
 import ipaddress
 import json
 import re
-from urllib.parse import urlparse
+from urllib.parse import parse_qsl, urlparse
 
 import httpx
 from pydantic import BaseModel
@@ -32,6 +32,15 @@ MAX_LINKS_PER_MESSAGE = 2
 FETCH_TIMEOUT_SECONDS = 6.0
 MAX_HTML_CHARS = 2_000_000
 MAX_TEXT_CHARS = 4_000
+
+# Trip.com 的 AI 行程页（/webapp/tripmap/tripplanner?chatId=…）：2026-11-23
+# 用真实浏览器探针实测，网页端加载后只渲染产品介绍文案，页面脚本请求的
+# startChat 对非创建者会话返回 errCode "NOT_YOUR_CHAT"（带 signature 也
+# 不改变结果）；服务端直连还会被 whaleguard 拦。即便用户看到的是公开分享，
+# 服务端也拿不到行程正文。所以这类链接不要假装读到了：标记为「分享壳页，
+# 无正文」，由对话层回复并请用户粘贴内容（用户 2026-11-23 拍板）。
+_TRIP_PLANNER_HOSTS = ("trip.com", "ctrip.com")
+_TRIP_PLANNER_PATH_MARKERS = ("tripmap/tripplanner", "tripplanner", "tripmap/routeplan")
 
 # Literal-IP / local-name guard only: DNS-rebinding resistance (resolving
 # then pinning the IP) is out of MVP scope.
@@ -89,10 +98,26 @@ class LinkDigest(BaseModel):
     title: str = ""
     text: str = ""
     error: str | None = None
+    # 结构性不可读原因（区别于临时网络/HTTP 失败）：
+    # "share_shell"=分享页只有产品壳，服务端拿不到行程正文。
+    reason: str = ""
 
     @property
     def ok(self) -> bool:
         return self.error is None and bool(self.text.strip())
+
+
+def trip_planner_share_link(url: str) -> bool:
+    """Trip.com/携程的 AI 行程分享页（chatId 查询参数）。"""
+    parsed = urlparse(url)
+    host = (parsed.hostname or "").lower()
+    if not any(host == h or host.endswith("." + h) for h in _TRIP_PLANNER_HOSTS):
+        return False
+    path = parsed.path.lower()
+    if not any(marker in path for marker in _TRIP_PLANNER_PATH_MARKERS):
+        return False
+    query = {k.lower(): v for k, v in parse_qsl(parsed.query, keep_blank_values=True)}
+    return bool(query.get("chatid"))
 
 
 def find_urls(text: str) -> list[str]:
@@ -220,6 +245,16 @@ class HttpLinkReader:
             return LinkDigest(url=url, error="无效链接")
         if not host or _host_blocked(host):
             return LinkDigest(url=url, error="不允许访问该地址")
+        if trip_planner_share_link(url):
+            # 不抓页面：抓到的只是产品介绍页，会把营销文案当行程内容喂给
+            # 抽取链（2026-11-23 用户实报「引擎不读链接、照旧问问题」的
+            # 直接成因）。标记为结构性不可读，由对话层如实回复并请用户
+            # 粘贴行程正文。
+            return LinkDigest(
+                url=url,
+                reason="share_shell",
+                error="Trip.com 行程页在网页端只返回产品介绍，读不到行程内容",
+            )
         try:
             async with httpx.AsyncClient(
                 follow_redirects=True,

@@ -307,7 +307,7 @@ _GENERIC_ENTRY_CAP_MINUTES = 16 * 60 + 30
 # ③ 大点先排：同日「大点开场晚于轻点」的逆序对计罚（大点先、
 #    轻点后）——插入/打磨双向对称，与插入次序无关。
 BIG_SITE_MIN_MINUTES = 80
-BIG_SITE_ENTRY_CAP_MINUTES = 15 * 60 + 30
+BIG_SITE_ENTRY_CAP_MINUTES = 16 * 60  # R12-H23 大点入场闸 16:00
 AFTERNOON_START_MINUTES = 13 * 60
 # 近距同日圈（2026-11-07 用户拍板 5km 口径，plan 兜底层 _NEAR_SAMEDAY_KM
 # 同源——本常量是唯一真值，agent.plan 引用它）：圈内=同片区连游，大点
@@ -425,7 +425,13 @@ def _is_big_site(item: VisitItem) -> bool:
     用户自钉且有时刻（铁律 19）不计。"""
     if item.pinned and item.start_time is not None:
         return False
-    if (item.category or "") in ("food", "hotel", "entertainment"):
+    if (item.category or "") in (
+        "food",
+        "hotel",
+        "entertainment",
+        "transport",  # iter3：接驳/回城卡=乘车腿（对齐 TransferItem 语义）
+        "transfer",
+    ):
         return False
     if (item.best_visit_time or "") in _EVENING_OK_BEST:
         return False
@@ -699,6 +705,10 @@ def generic_entry_cap(item: VisitItem, window: PoiHours | None) -> int | None:
         return None
     if _hours_evening_only(window):
         return None
+    if (item.best_visit_time or "") == "sunrise":
+        # R12-H11 镜像（与引擎 hours_caps 同口径）：升旗卡=晨锁带
+        # ≤08:30 开场（锚=升旗真值，_apply_flag_schedule 落时刻）
+        return 8 * 60 + 30
     if _is_theme_block(item):
         # 主题街区整类开晚场（2026-11-08 拍板「所有街区都可以作为夜场，
         # 也可以白天」）：不吃白天开场闸/大点 15:30 带——主题街区 240min
@@ -719,7 +729,7 @@ def _after_transfer_buffer(transfer: TransferItem, visit: VisitItem) -> int:
     if transfer.mode not in ("train", "flight"):
         return INTERCITY_BUFFER_MINUTES
     if (visit.category or "") in ("hotel", "food"):
-        # 酒店入住卡按落地缓冲落（飞机 3h/火车 2h，2026-11-14）
+        # 酒店入住卡按落地缓冲落（飞机 2.5h/火车 2h，2026-11-14）
         return arrival_buffer_minutes(transfer.mode)
     return arrival_floor_minutes(transfer.mode)
 
@@ -767,6 +777,8 @@ def _city_side(item: VisitItem, transfer: TransferItem) -> str | None:
 # 天然豁免——铁律 19。
 LEAVING_MORNING_END_MINUTES = 12 * 60
 _LEAVING_DAY_MODES = frozenset({"train", "bus", "flight"})
+#: 夜晚发车放开下午的门槛（2026-11-22 拍板）：≥18:00 发车收尾=发车−缓冲
+_LEAVING_NIGHT_FREEDOM_MINUTES = 18 * 60
 
 
 def _leaving_morning_cap(mode: str | None, dep_min: int) -> int | None:
@@ -775,7 +787,14 @@ def _leaving_morning_cap(mode: str | None, dep_min: int) -> int | None:
         return None
     if dep_min < LEAVING_MORNING_END_MINUTES:
         return DAY_START_MINUTES
-    # 离城侧按交通方式留缓冲（飞机 3h / 火车 2h，2026-11-14）
+    # 夜晚发车放开下午（2026-11-22 拍板，北京 Day8 案）：≥18:00 发车不再
+    # 一刀切正午收尾——21:30 航班把整个下午锁死空排（慕田峪被降级后
+    # 13:00-19:00 谁也补不进）。改为「发车−缓冲」：21:30 航班 → 19:00
+    # 收尾，午后空档交补点层按市区圈填近点。12:00-18:00 发车维持旧口径
+    # min(12:00, 发车−缓冲)，午后留白赶车不变。
+    if dep_min >= _LEAVING_NIGHT_FREEDOM_MINUTES:
+        return dep_min - departure_buffer_minutes(mode)
+    # 离城侧按交通方式留缓冲（飞机 2.5h / 火车 2h，2026-11-14）
     return min(LEAVING_MORNING_END_MINUTES, dep_min - departure_buffer_minutes(mode))
 
 

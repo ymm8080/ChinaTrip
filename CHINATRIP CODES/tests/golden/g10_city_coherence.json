@@ -1,0 +1,179 @@
+{
+ "schema_version": 2,
+ "source": "golden-fixture",
+ "library_version": "poi-snapshot-2026-11-17",
+ "request": {
+  "days": 3,
+  "cities": [
+   "上海",
+   "杭州"
+  ],
+  "start_date": "2026-11-25",
+  "musts": [
+   {
+    "rid": "r1",
+    "name": "外滩",
+    "importance": 5,
+    "duration_tier": null,
+    "poi_id": "ct_上海_20"
+   },
+   {
+    "rid": "r2",
+    "name": "豫园",
+    "importance": 4,
+    "duration_tier": null,
+    "poi_id": "ct_上海_21"
+   },
+   {
+    "rid": "r3",
+    "name": "西湖风景名胜区",
+    "importance": 5,
+    "duration_tier": null,
+    "poi_id": "unesco_WestLake"
+   }
+  ],
+  "wishes": [],
+  "avoid": [],
+  "arrival_time": null,
+  "departure_time": null,
+  "day1_start": null,
+  "lang": "zh"
+ },
+ "candidates": [
+  {
+   "cid": "c1",
+   "name": "外滩",
+   "poi_id": "ct_上海_20",
+   "kind": "requested",
+   "category": "sight",
+   "tier": 1,
+   "lon": 121.4903,
+   "lat": 31.2335,
+   "opening_hours": "08:00-18:00",
+   "best_visit_time": "any",
+   "suggested_duration_min": 90,
+   "remote": false,
+   "city": "上海",
+   "rid": "r1"
+  },
+  {
+   "cid": "c2",
+   "name": "豫园",
+   "poi_id": "ct_上海_21",
+   "kind": "requested",
+   "category": "sight",
+   "tier": 2,
+   "lon": 121.4921,
+   "lat": 31.2273,
+   "opening_hours": "08:00-18:00",
+   "best_visit_time": "any",
+   "suggested_duration_min": 90,
+   "remote": false,
+   "city": "上海",
+   "rid": "r2"
+  },
+  {
+   "cid": "c3",
+   "name": "西湖风景名胜区",
+   "poi_id": "unesco_WestLake",
+   "kind": "requested",
+   "category": "park",
+   "tier": 1,
+   "lon": 120.1494,
+   "lat": 30.2459,
+   "opening_hours": "08:00-18:00",
+   "best_visit_time": "any",
+   "suggested_duration_min": 180,
+   "remote": false,
+   "city": "杭州",
+   "rid": "r3"
+  },
+  {
+   "cid": "c4",
+   "name": "南京路步行街",
+   "poi_id": "poi_c4",
+   "kind": "fill",
+   "category": "citywalk",
+   "tier": 6,
+   "lon": 121.4756,
+   "lat": 31.2334,
+   "opening_hours": "08:00-18:00",
+   "best_visit_time": "any",
+   "suggested_duration_min": 90,
+   "remote": false,
+   "city": "上海"
+  },
+  {
+   "cid": "c5",
+   "name": "田子坊",
+   "poi_id": "poi_c5",
+   "kind": "fill",
+   "category": "citywalk",
+   "tier": 7,
+   "lon": 121.4692,
+   "lat": 31.2103,
+   "opening_hours": "08:00-18:00",
+   "best_visit_time": "any",
+   "suggested_duration_min": 75,
+   "remote": false,
+   "city": "上海"
+  },
+  {
+   "cid": "c6",
+   "name": "清河坊",
+   "poi_id": "poi_c6",
+   "kind": "fill",
+   "category": "citywalk",
+   "tier": 7,
+   "lon": 120.1666,
+   "lat": 30.2433,
+   "opening_hours": "08:00-18:00",
+   "best_visit_time": "any",
+   "suggested_duration_min": 75,
+   "remote": false,
+   "city": "杭州"
+  },
+  {
+   "cid": "c7",
+   "name": "断桥残雪",
+   "poi_id": "poi_c7",
+   "kind": "fill",
+   "category": "sight",
+   "tier": 5,
+   "lon": 120.1502,
+   "lat": 30.2589,
+   "opening_hours": "08:00-18:00",
+   "best_visit_time": "any",
+   "suggested_duration_min": 60,
+   "remote": false,
+   "city": "杭州"
+  }
+ ],
+ "access_profiles": [],
+ "travel": [],
+ "weather": [],
+ "expect": [
+  {
+   "type": "requested_coverage",
+   "args": {}
+  },
+  {
+   "type": "city_coherence",
+   "args": {
+    "note": "C-07: no day mixes cities"
+   }
+  },
+  {
+   "type": "deterministic",
+   "args": {
+    "runs": 2
+   }
+  }
+ ],
+ "provenance": {
+  "incident": "multi-city family (C-07): 上海+杭州 3 天",
+  "built_at": "2026-11-18",
+  "builder": "tests/golden/build_corpus_v2.py",
+  "note": "city order across days is an intent-layer input (Q6); this scenario pins only the per-day single-city invariant."
+ }
+}

@@ -254,3 +254,189 @@ def test_register_default_handlers_registers_both_kinds():
     worker = TaskWorker(store)
     register_default_handlers(worker)
     assert worker.kinds == ["bulk_extract", "replan"]
+
+
+# --- R20③ replan baseline race (乐观锁：排队期窗口 A + 执行期窗口 B) ---
+
+
+def _replan_fixture(monkeypatch, *, drift_on_call: int | None = None):
+    """内存会话 store + 可控漂移的假 agent。drift_on_call=N 表示第 N 次
+    agent.message 内部模拟「用户在异步窗口拖卡」：主车道 store.save 推进
+    rev 并写入用户手排痕迹。返回 (sessions, agent, task, baseline)。"""
+    from app.services.task_queue import TaskRecord
+    from app.services.trip_orchestrator.session import PlanSession, PlanSessionStore
+
+    sessions = PlanSessionStore()
+    sess = PlanSession(session_id="s1", device_id="d")
+    sessions.save(sess)  # rev: 0 -> 1
+    baseline = sess.rev
+
+    class FakeAgent:
+        def __init__(self):
+            self.calls = 0
+
+        async def message(self, session, text):
+            self.calls += 1
+            out = session.model_copy(deep=True)
+            if drift_on_call is not None and self.calls == drift_on_call:
+                live = sessions.get("s1", device_id="d")
+                live.preferences = "user hand-edit"
+                sessions.save(live)
+            return out, "reply", None
+
+        async def refresh_legs(self, session):
+            pass
+
+    agent = FakeAgent()
+    task = TaskRecord(
+        task_id="t1",
+        kind="replan",
+        device_id="d",
+        status="running",
+        created_at="",
+        updated_at="",
+    )
+    monkeypatch.setattr("app.api.plan.get_plan_sessions", lambda: sessions)
+    monkeypatch.setattr("app.api.plan.get_planning_agent", lambda: agent)
+    return sessions, agent, task, baseline
+
+
+def test_replan_no_drift_saves_normally(monkeypatch):
+    from app.services.task_queue import _replan_handler
+
+    sessions, agent, task, baseline = _replan_fixture(monkeypatch)
+    result = run(
+        _replan_handler(
+            {
+                "session_id": "s1",
+                "device_id": "d",
+                "text": "重排",
+                "baseline_rev": baseline,
+            },
+            task,
+        )
+    )
+    assert result["reply"] == "reply"
+    assert agent.calls == 1
+    assert sessions.get("s1", device_id="d").rev == baseline + 1
+
+
+def test_replan_baseline_drift_during_execution_reruns_on_latest(monkeypatch):
+    """窗口 B：agent.message 异步期间用户拖卡 → 丢弃过期快照，按最新基线
+    重跑，用户手排痕迹必须保留在落盘结果里（07:23 vs 06:30 漂移根因）。"""
+    from app.services.task_queue import _replan_handler
+
+    sessions, agent, task, baseline = _replan_fixture(monkeypatch, drift_on_call=1)
+    result = run(
+        _replan_handler(
+            {
+                "session_id": "s1",
+                "device_id": "d",
+                "text": "重排",
+                "baseline_rev": baseline,
+            },
+            task,
+        )
+    )
+    assert result["reply"] == "reply"
+    assert agent.calls == 2  # 第一次结果被丢弃，重跑一次
+    saved = sessions.get("s1", device_id="d")
+    assert saved.preferences == "user hand-edit"  # 用户手排未被后台盖掉
+    assert saved.rev == baseline + 2  # 用户拖卡 +1，重跑落盘 +1
+
+
+def test_replan_baseline_drift_before_start_reruns_without_burning_quota(monkeypatch):
+    """窗口 A：排队期用户已操作 → 就地对齐最新基线，仍只跑一次 agent。"""
+    from app.services.task_queue import _replan_handler
+
+    sessions, agent, task, baseline = _replan_fixture(monkeypatch)
+    # 排队期间用户在主车道改了盘面
+    live = sessions.get("s1", device_id="d")
+    live.preferences = "user queued edit"
+    sessions.save(live)
+    queued_rev = live.rev
+
+    result = run(
+        _replan_handler(
+            {
+                "session_id": "s1",
+                "device_id": "d",
+                "text": "重排",
+                "baseline_rev": baseline,
+            },
+            task,
+        )
+    )
+    assert result["reply"] == "reply"
+    assert agent.calls == 1  # 窗口 A 对齐不消耗重跑额度
+    saved = sessions.get("s1", device_id="d")
+    assert saved.preferences == "user queued edit"
+    assert saved.rev == queued_rev + 1
+
+
+def test_replan_baseline_legacy_payload_skips_checks(monkeypatch):
+    """无 baseline_rev 的旧 payload 跳过校验，保持向后兼容。"""
+    from app.services.task_queue import _replan_handler
+
+    sessions, agent, task, _ = _replan_fixture(monkeypatch, drift_on_call=1)
+    result = run(
+        _replan_handler(
+            {"session_id": "s1", "device_id": "d", "text": "重排"},
+            task,
+        )
+    )
+    assert result["reply"] == "reply"
+    assert agent.calls == 1  # 无基线 → 不重跑
+    assert sessions.get("s1", device_id="d").preferences == ""  # 旧行为：覆盖
+
+
+def test_replan_rebase_exhausted_when_session_keeps_changing(monkeypatch):
+    """用户持续拖卡导致每次落盘前都漂移 → 重跑次数封顶，明确 fail，
+    不无限重投（防任务风暴）。"""
+    from app.services.task_queue import TaskRecord, _replan_handler
+    from app.services.trip_orchestrator.session import PlanSession, PlanSessionStore
+
+    sessions = PlanSessionStore()
+    sess = PlanSession(session_id="s1", device_id="d")
+    sessions.save(sess)
+
+    class AlwaysDriftAgent:
+        def __init__(self):
+            self.calls = 0
+
+        async def message(self, session, text):
+            self.calls += 1
+            out = session.model_copy(deep=True)
+            live = sessions.get("s1", device_id="d")
+            live.preferences = f"drag-{self.calls}"
+            sessions.save(live)
+            return out, "reply", None
+
+        async def refresh_legs(self, session):
+            pass
+
+    agent = AlwaysDriftAgent()
+    task = TaskRecord(
+        task_id="t1",
+        kind="replan",
+        device_id="d",
+        status="running",
+        created_at="",
+        updated_at="",
+    )
+    monkeypatch.setattr("app.api.plan.get_plan_sessions", lambda: sessions)
+    monkeypatch.setattr("app.api.plan.get_planning_agent", lambda: agent)
+
+    with pytest.raises(ValueError, match="replan_rebase_exhausted"):
+        run(
+            _replan_handler(
+                {
+                    "session_id": "s1",
+                    "device_id": "d",
+                    "text": "重排",
+                    "baseline_rev": sess.rev,
+                },
+                task,
+            )
+        )
+    assert agent.calls == 4  # _REPLAN_MAX_REBASE(3) + 1 次尝试

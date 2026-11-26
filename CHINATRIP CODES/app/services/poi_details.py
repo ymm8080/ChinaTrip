@@ -17,9 +17,10 @@ import time
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
+from geoalchemy2 import Geometry
 from sqlalchemy import String, and_, cast, func, or_
 
-from app.models import Poi
+from app.models import Poi, Restaurant, TripadvisorLocation
 from app.services.coords import gcj02_to_wgs84, make_point
 from app.services.poi_classify import duration_upgradable
 from app.services.poi_names import (
@@ -41,6 +42,12 @@ from app.services.source_tier import (
 )
 
 logger = logging.getLogger(__name__)
+
+#: geography → geometry 强转(ST_X/ST_Y 只接 geometry;直接上
+#: geography 会报 function st_x(geography) does not exist)。
+#: R28(2026-11-23)档案行带 POI 本体坐标——attach_access 沿坐标
+#: 给合名/并卡卡继承近邻成员合格档案时用。
+_GEOM_POINT = Geometry("POINT", srid=4326)
 
 
 def _token_span(positions: dict[str, list[int]], tokens: list[str]) -> int | None:
@@ -413,6 +420,9 @@ class PoiDetailStore:
                     Poi.access_service_minutes,
                     Poi.access_wait_minutes,
                     Poi.access_last_mile_minutes,
+                    # R28:POI 本体坐标(geography → geometry 强转后取 XY)
+                    func.ST_X(cast(Poi.location, _GEOM_POINT)).label("poi_lon"),
+                    func.ST_Y(cast(Poi.location, _GEOM_POINT)).label("poi_lat"),
                 ).filter(Poi.access_mode.isnot(None))
                 if cities:
                     variants: list[str] = []
@@ -435,6 +445,9 @@ class PoiDetailStore:
                 "access_service_minutes": row[6],
                 "access_wait_minutes": row[7],
                 "access_last_mile_minutes": row[8],
+                # R28:POI 本体坐标(NULL 防护同乘车点坐标口径)
+                "poi_lon": float(row[9]) if row[9] is not None else None,
+                "poi_lat": float(row[10]) if row[10] is not None else None,
             }
             name = (row[1] or "").strip()
             if not name:
@@ -890,6 +903,91 @@ class PoiDetailStore:
         hay = f"{name_zh or ''} {name_en or ''}".lower()
         return any(mark in hay for mark in cls._TEXT_STAY_MARKS)
 
+    def display_names_en(self, names: list[str]) -> dict[str, str]:
+        """批量站点名 → 库内英文名（2026-11-25「选英文时站点还是中文」）。
+
+        确认卡 chips 与回复句子的 EN 显示面：name_zh 精确等值优先，别名
+        （JSONB 数组元素等值）承接——「国家体育场」由 鸟巢(国家体育场) 行
+        接住。只取 active 行（与 search_keyword 同口径）；DB 失败/内存路
+        无档一律空表，调用方回落中文名。显示糖：不改动任何数据层键名。
+        """
+        wanted: list[str] = []
+        seen: set[str] = set()
+        for n in names or []:
+            t = (n or "").strip()
+            if t and t not in seen:
+                seen.add(t)
+                wanted.append(t)
+        out: dict[str, str] = {}
+        if not wanted:
+            return out
+        if self._db_available():
+            try:
+                with self._factory() as session:
+                    rows = (
+                        session.query(Poi.name_zh, Poi.name_en, Poi.name_aliases)
+                        .filter(
+                            (Poi.status.is_(None)) | (Poi.status == "active"),
+                            Poi.name_zh.in_(wanted),
+                        )
+                        .all()
+                    )
+            except Exception:
+                self._note_db_failure()
+                logger.warning("poi_details: en-name read failed", exc_info=True)
+                return out
+            for zh, en, _al in rows:
+                if zh and en and zh not in out:
+                    out[zh] = en
+            miss = [w for w in wanted if w not in out]
+            # 别名承接：JSONB 数组 cast text 后元素形如 "别名"，锚定引号的
+            # LIKE 即元素级等值；LIKE 通配符/引号入名的行跳过（站名不含）。
+            esc = [m for m in miss if not any(c in m for c in ("%", "_", '"'))]
+            if esc:
+                try:
+                    with self._factory() as session:
+                        alias_rows = (
+                            session.query(Poi.name_en, Poi.name_aliases)
+                            .filter(
+                                (Poi.status.is_(None)) | (Poi.status == "active"),
+                                or_(
+                                    *[
+                                        cast(Poi.name_aliases, String).like(f'%"{m}"%')
+                                        for m in esc
+                                    ]
+                                ),
+                            )
+                            .all()
+                        )
+                except Exception:
+                    self._note_db_failure()
+                    logger.warning(
+                        "poi_details: en-name alias read failed", exc_info=True
+                    )
+                    alias_rows = []
+                for en, al in alias_rows:
+                    if not en:
+                        continue
+                    for a in al or []:
+                        t = str(a or "").strip()
+                        if t in seen and t not in out:
+                            out[t] = en
+            return out
+        # 内存路（测试桩/DB 降级窗口）：_memory 行带 name_en/name_aliases
+        # 才命中（upsert 常规链路不写这两键 → 空表回落中文，语义不变）。
+        for v in self._memory.values():
+            en = (v.get("name_en") or "").strip()
+            if not en:
+                continue
+            nm = (v.get("name") or "").strip()
+            if nm in seen and nm not in out:
+                out[nm] = en
+            for a in v.get("name_aliases") or []:
+                t = str(a or "").strip()
+                if t in seen and t not in out:
+                    out[t] = en
+        return out
+
     def match_text_names(
         self, city: str | None, text: str, *, limit: int = 8
     ) -> list[dict]:
@@ -1044,7 +1142,18 @@ class PoiDetailStore:
                 return None
             return core
 
-        def consider(name_zh, name_en, aliases, category, row_city) -> None:
+        # R13o④/⑦a：命中行的完整列（source_poi_id/预约购票）——轻量行
+        # 带键，live 缝的别名兜底（match_text_names 路径）此前拿不到。
+        hit_rows: dict[str, dict] = {}
+
+        def consider(
+            name_zh,
+            name_en,
+            aliases,
+            category,
+            row_city,
+            extra=None,
+        ) -> None:
             name = (name_zh or "").strip()
             if not name or self._text_row_is_stay(name_zh, name_en, category):
                 return
@@ -1064,6 +1173,7 @@ class PoiDetailStore:
             prev = hits.get(name)
             if prev is None or score > prev[0]:
                 hits[name] = (score, name, name_en, row_city, category, fuzzy_word)
+                hit_rows[name] = dict(extra or {})
 
         if self._db_available():
             try:
@@ -1074,11 +1184,48 @@ class PoiDetailStore:
                         Poi.name_aliases,
                         Poi.category,
                         Poi.city,
+                        # R13o④/⑦a：带全列供命中行回填（source_poi_id/预约
+                        # 购票）。
+                        Poi.source_poi_id,
+                        Poi.booking_url,
+                        Poi.website,
+                        Poi.reservation_required,
+                        Poi.reservation_advance_days,
                     ).filter((Poi.status.is_(None)) | (Poi.status == "active"))
                     if city_names:
                         q = q.filter(Poi.city.in_(city_names))
                     for row in q.all():
-                        consider(*row)
+                        _row = tuple(row or ())
+                        if len(_row) < 10:
+                            # 短行容错（测试假会话只镜像旧 5 列形状）：
+                            # 右侧补 None 保命——不因解包炸整段退内存兜底。
+                            _row = _row + (None,) * (10 - len(_row))
+                        (
+                            _n_zh,
+                            _n_en,
+                            _n_alias,
+                            _n_cat,
+                            _n_city,
+                            _n_pid,
+                            _n_book,
+                            _n_web,
+                            _n_req,
+                            _n_adv,
+                        ) = _row[:10]
+                        consider(
+                            _n_zh,
+                            _n_en,
+                            _n_alias,
+                            _n_cat,
+                            _n_city,
+                            extra={
+                                "source_poi_id": _n_pid,
+                                "booking_url": _n_book,
+                                "website": _n_web,
+                                "reservation_required": _n_req,
+                                "reservation_advance_days": _n_adv,
+                            },
+                        )
             except Exception:
                 self._note_db_failure()
                 logger.warning(
@@ -1097,6 +1244,13 @@ class PoiDetailStore:
                 value.get("name_aliases") or value.get("aliases"),
                 value.get("category"),
                 value.get("city"),
+                extra={
+                    "source_poi_id": value.get("source_poi_id"),
+                    "booking_url": value.get("booking_url"),
+                    "website": value.get("website"),
+                    "reservation_required": value.get("reservation_required"),
+                    "reservation_advance_days": value.get("reservation_advance_days"),
+                },
             )
         # 近距档（2026-11-17 ZHUJIAZUI 案用户拍板「GIVE 模糊匹配结果 …
         # PROPOSE FOR CONFIRMATION」）：前缀容错认过的词，其另一个近距映射
@@ -1122,16 +1276,27 @@ class PoiDetailStore:
             for h in ranked
             if not any(h[1] != other and h[1] in other for other in names)
         ]
-        return [
-            {
-                "name": name,
-                "name_en": name_en,
-                "city": row_city,
-                "category": category,
-                "fuzzy_word": fuzzy_word,
-            }
-            for _score, name, name_en, row_city, category, fuzzy_word in kept[:limit]
-        ]
+        out_rows = []
+        for _score, name, name_en, row_city, category, fuzzy_word in kept[:limit]:
+            extra = hit_rows.get(name) or {}
+            out_rows.append(
+                {
+                    "name": name,
+                    "name_en": name_en,
+                    "city": row_city,
+                    "category": category,
+                    "fuzzy_word": fuzzy_word,
+                    # R13o④/⑦a：轻量行带全列——live 缝别名兜底此前拿不到
+                    # source_poi_id/预约购票列（长安十二时辰有名无 poi、
+                    # 别名命中的必去全无预约提示的根）。
+                    "source_poi_id": extra.get("source_poi_id"),
+                    "booking_url": extra.get("booking_url"),
+                    "website": extra.get("website"),
+                    "reservation_required": extra.get("reservation_required"),
+                    "reservation_advance_days": extra.get("reservation_advance_days"),
+                }
+            )
+        return out_rows
 
     def name_city_spread(self, name: str) -> list[str]:
         """同名行分布在哪些城市（active）——城市推断的歧义闸（2026-11-17
@@ -1490,6 +1655,105 @@ class PoiDetailStore:
             reverse=True,
         )
         return hits[:limit]
+
+    def restaurant_rows_in_city(self, city: str) -> list[dict]:
+        """R29：「评分 × 地理」选餐的独立餐厅库行（2026-11-24 用户令
+        「WE HV RESTRANTS IN BOTH POIS AND RESTRANT TABLES」）。
+
+        `restaurants` 表（北京 550 行，267 行有 TripAdvisor 评分，米其林 67
+        + 黑珍珠 22）此前只被读营业时间/菜系，从不进候选——选餐只能看见
+        pois 里带荐点标的 4 条北京行。本方法把同城餐厅行投影成
+        top_pois_in_city 同形状（category="food"），下游
+        candidate_from_poi_dict / live._row_to_candidate / meals 零改动。
+
+        评分口径：主 rating 优先；缺则折 ta_rating（rating_source="ta"——
+        引擎 _quality 只对 baidu 评分 ×0.9），评分人数同取 TA 镜像。
+        location 用 GCJ-02 列（与 pois.location 同一坐标系，测距不串味）。
+        无库/失败 → []（调用方保持旧池，零行为变化）。
+        """
+        c = (city or "").strip().removesuffix("市")
+        if not c:
+            return []
+        city_names = {c, f"{c}市"} - {""}
+        if not self._db_available():
+            return []
+        try:
+            with self._factory() as session:
+                # ta_location_id 是 varchar、TA 表 location_id 是 bigint ——
+                # 显式 cast（审计 SQL 同口径 t.location_id::text = r.ta_location_id）
+                ta_count = (
+                    session.query(func.max(TripadvisorLocation.rating_count))
+                    .filter(
+                        cast(TripadvisorLocation.location_id, String)
+                        == Restaurant.ta_location_id
+                    )
+                    .scalar_subquery()
+                )
+                rows = (
+                    session.query(
+                        Restaurant,
+                        func.ST_AsText(Restaurant.location).label("loc_txt"),
+                        ta_count.label("ta_count"),
+                    )
+                    .filter(
+                        Restaurant.city.in_(city_names),
+                        (Restaurant.status.is_(None)) | (Restaurant.status == "active"),
+                    )
+                    .limit(2000)
+                    .all()
+                )
+        except Exception:
+            self._note_db_failure()
+            logger.warning(
+                "poi_details: restaurant rows query failed for %s",
+                city,
+                exc_info=True,
+            )
+            return []
+        out: list[dict] = []
+        for row, loc_txt, ta_count in rows:
+            name = row.name_zh or row.name_en
+            if not name:
+                continue
+            rating = row.rating
+            rating_source = row.rating_source
+            count = row.rating_count
+            if rating is None and row.ta_rating is not None:
+                rating = row.ta_rating
+                rating_source = "ta"
+                count = ta_count
+            try:
+                rating_f = float(rating) if rating is not None else None
+            except (TypeError, ValueError):
+                rating_f = None
+            m = _POINT_WKT_RE.match(loc_txt or "")
+            out.append(
+                {
+                    "source_poi_id": row.source_poi_id,
+                    "name": name,
+                    "name_en": row.name_en,
+                    "city": row.city,
+                    "category": "food",
+                    "address": row.address,
+                    "address_en": row.address_en,
+                    "opening_hours": row.opening_hours,
+                    "opening_hours_en": row.opening_hours_en,
+                    "source": row.source,
+                    "rating": rating_f,
+                    "rating_count": count,
+                    "rating_source": rating_source,
+                    "tags": list(row.tags or []),
+                    "cuisine": row.cuisine,
+                    "cuisine_group": row.cuisine_group,
+                    "intro": (row.intro or "")[:60] or None,
+                    "best_visit_time": None,
+                    # 一餐 1h 起底：引擎 C-09 绑定槽时 dur 取 MEAL_DURATIONS
+                    # 域（午 60/45/30、晚 90/60/45），默认 90 会把午餐收窄。
+                    "suggested_duration_min": 60,
+                    "location": ((float(m.group(1)), float(m.group(2))) if m else None),
+                }
+            )
+        return out
 
     def alternatives_pool(self, city: str) -> list[dict]:
         """同城全量候选池（备选功能 2026-11-05 专用，与 top_pois_in_city

@@ -124,7 +124,9 @@ jobs:
     name: Test
     needs: [lint, adr-validate]
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # trip_solver 影子套件（15 语料×双解+plan_score 烧录）全量 ≥ 22 分钟，
+    # 15 分钟会在 pytest 中途杀作业——放宽到 60 分钟留足余量
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
 
@@ -142,7 +144,11 @@ jobs:
           if [ -f "CHINATRIP CODES/requirements.txt" ]; then
             pip install -r "CHINATRIP CODES/requirements.txt"
           fi
-          pip install pytest pytest-cov pytest-timeout ruff
+          # 测试依赖只认 pyproject 的 [dependency-groups].dev，不再在这里硬编码清单。
+          # 硬编码会与 dev 组漂移：2026-11 漏了 pytest-asyncio，7 个
+          # @pytest.mark.asyncio 用例在 CI 上被静默跳过，本地（装了 dev 组）全绿。
+          # --group 需 pip>=25.1，上面一行已把 pip 升到最新。
+          cd "CHINATRIP CODES" && pip install --group dev
 
       - name: Run pytest with coverage
         run: |

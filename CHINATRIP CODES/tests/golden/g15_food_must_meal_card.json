@@ -1,0 +1,105 @@
+{
+ "schema_version": 2,
+ "source": "golden-fixture",
+ "library_version": "poi-snapshot-2026-11-17",
+ "request": {
+  "days": 1,
+  "cities": [
+   "上海"
+  ],
+  "start_date": "2026-11-25",
+  "musts": [
+   {
+    "rid": "r1",
+    "name": "外滩",
+    "importance": 5,
+    "duration_tier": null,
+    "poi_id": "ct_上海_20"
+   },
+   {
+    "rid": "r2",
+    "name": "福和慧",
+    "importance": 4,
+    "duration_tier": null,
+    "poi_id": "ct_上海_food_1"
+   }
+  ],
+  "wishes": [],
+  "avoid": [],
+  "arrival_time": null,
+  "departure_time": null,
+  "day1_start": null,
+  "lang": "zh"
+ },
+ "candidates": [
+  {
+   "cid": "c1",
+   "name": "外滩",
+   "poi_id": "ct_上海_20",
+   "kind": "requested",
+   "category": "sight",
+   "tier": 1,
+   "lon": 121.4903,
+   "lat": 31.2335,
+   "opening_hours": "08:00-18:00",
+   "best_visit_time": "any",
+   "suggested_duration_min": 90,
+   "remote": false,
+   "city": "上海",
+   "rid": "r1"
+  },
+  {
+   "cid": "c2",
+   "name": "福和慧",
+   "poi_id": "ct_上海_food_1",
+   "kind": "requested",
+   "category": "food",
+   "tier": 2,
+   "lon": null,
+   "lat": null,
+   "opening_hours": "11:00-20:30",
+   "best_visit_time": "any",
+   "suggested_duration_min": 60,
+   "remote": false,
+   "city": "上海",
+   "rid": "r2",
+   "meal_slot": "any"
+  },
+  {
+   "cid": "c3",
+   "name": "豫园",
+   "poi_id": "poi_c3",
+   "kind": "fill",
+   "category": "sight",
+   "tier": 2,
+   "lon": 121.4921,
+   "lat": 31.2273,
+   "opening_hours": "08:00-18:00",
+   "best_visit_time": "any",
+   "suggested_duration_min": 75,
+   "remote": false,
+   "city": "上海"
+  }
+ ],
+ "access_profiles": [],
+ "travel": [],
+ "weather": [],
+ "expect": [
+  {
+   "type": "requested_coverage",
+   "args": {}
+  },
+  {
+   "type": "deterministic",
+   "args": {
+    "runs": 2
+   }
+  }
+ ],
+ "provenance": {
+  "incident": "R8-S2b 餐类必去（2026-11-18 拍板「餐类必去需要 CP-SAT 能处理」）",
+  "built_at": "2026-11-18",
+  "builder": "tests/golden/build_corpus_v2.py",
+  "note": "真餐厅 any-槽：C-09 自选午/晚、顶系统餐卡（命名卡=餐厅本体），装配不双渲染；另一槽照常出占位餐卡。"
+ }
+}

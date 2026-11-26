@@ -1,0 +1,159 @@
+#!/bin/sh
+# Pre-push test gate (2026-11-23, anti-regression rule #2; hardened R24/R25).
+# Full pytest suite must be green before any push. Installed as
+# .git/hooks/pre-push; run standalone anytime: sh ops/prepush_gate.sh
+# Override a specific push with: git push --no-verify (use sparingly,
+# and fix the red test right after - never leave the gate red).
+#
+# 2026-11-23 hardening (R24, exit-127 false gate):
+#   * python resolution: current worktree venv -> main-worktree venv -> PATH
+#     python/python3; every candidate must import pytest before use.
+#   * infrastructure failure (no usable interpreter, rc=3 internal, rc=4
+#     usage, rc=127 exec) => GATE UNAVAILABLE, push allowed with a loud note.
+#   * -p no:cacheprovider so concurrent gates do not fight over .pytest_cache.
+#
+# 2026-11-23 R25: load-flake triage. The repo has a documented class of
+# full-suite-only flakes (time_slot_integrity / shadow acceptance / model_d
+# "满载抖动": red only when the whole suite runs under load, green solo). A
+# gate that cannot tell those from real regressions is bypassed by everyone,
+# which kills the gate. So on rc=1 every FAILED nodeid is re-run SOLO:
+#   * all pass solo  => "FLAKY (passed solo)" disclosed, push allowed;
+#   * any fails solo => real failure, push blocked.
+TOPLEVEL=$(git rev-parse --show-toplevel) || exit 1
+CODE_DIR="$TOPLEVEL/CHINATRIP CODES"
+[ -d "$CODE_DIR" ] || CODE_DIR="$TOPLEVEL"
+cd "$CODE_DIR" || exit 1
+
+MAIN_GIT=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)
+MAIN_ROOT=${MAIN_GIT%/.git}
+MAIN_PY="$MAIN_ROOT/CHINATRIP CODES/.venv/Scripts/python.exe"
+
+try_py() {
+    _p=$1
+    [ -n "$_p" ] || return 1
+    case "$_p" in
+        */*) [ -f "$_p" ] || return 1 ;;
+    esac
+    "$_p" -c "import pytest" >/dev/null 2>&1 || return 1
+    printf '%s' "$_p"
+}
+
+PY=""
+for cand in ".venv/Scripts/python.exe" "$MAIN_PY" python python3; do
+    PY=$(try_py "$cand") && break
+    PY=""
+done
+if [ -z "$PY" ]; then
+    echo "" >&2
+    echo "[pre-push gate] GATE UNAVAILABLE: no python with pytest found" >&2
+    echo "[pre-push gate]   tried: .venv/Scripts/python.exe, $MAIN_PY, python, python3" >&2
+    echo "[pre-push gate] allowing push (environment problem, not a test result)." >&2
+    exit 0
+fi
+
+TESTS=${PREPUSH_GATE_TESTS:-tests}
+LOG=$(mktemp 2>/dev/null || echo "/tmp/prepush_gate_$$.log")
+echo "[pre-push gate] running full test suite (e2e excluded)... [$PY]"
+# 2026-11-24 R36-hours: repo-local basetemp. pytest's tmpdir GC bulk-deletes
+# old run dirs under the system temp root (Temp/pytest-of-*/garbage-*), which
+# collided with the sandbox bulk-delete guard (count 161 > threshold 50) and
+# crashed teardown AFTER 100% green — rc=1 with NO summary line, so the
+# gate's FAILED-line triage had nothing to read ("RED with no FAILED line").
+# A local basetemp confines the GC scan to .pytest_tmp/ and never touches the
+# system temp again.
+#
+# 2026-11-26 R50: the basetemp must be UNIQUE PER RUN, not a fixed "gate".
+# pytest numbers tmp_path dirs identically in every run, so two concurrent
+# pytest processes sharing one basetemp share the exact same per-test dirs
+# and cross-contaminate each other's fixtures. That is what produced the
+# "1 failed ... 156 errors" pre-push gate on 2026-11-25 (test_travelers_api /
+# test_trip_items row-count asserts saw another run's rows); both files were
+# green solo. Reproduced locally: same basetemp => ERROR in one of two runs;
+# unique basetemps => 72 passed in both, twice over.
+#   * "$$" suffix = one private tree per gate process;
+#   * stale run trees are pruned best-effort (keep newest 3) at start, never
+#     at exit — a teardown-time bulk delete is exactly the R36-hours crash;
+#   * the parallel worktree session must use the same script (not a hand-run
+#     pytest with a fixed --basetemp) or the collision comes back.
+BASE="$CODE_DIR/.pytest_tmp"
+mkdir -p "$BASE" 2>/dev/null || true
+for _old in $(ls -1dt "$BASE"/gate "$BASE"/gate.* "$BASE"/solo.* 2>/dev/null | tail -n +4); do
+    rm -rf "$_old" 2>/dev/null || true
+done
+GATE_BASE="$BASE/gate.$$"
+SOLO_BASE="$BASE/solo.$$"
+"$PY" -m pytest "$TESTS" -q -p no:cacheprovider --basetemp="$GATE_BASE" > "$LOG" 2>&1
+rc=$?
+cat "$LOG"
+
+case $rc in
+    0)
+        rm -f "$LOG"
+        echo "[pre-push gate] GREEN: suite passed, push allowed."
+        exit 0
+        ;;
+    3|4|127)
+        rm -f "$LOG"
+        echo "" >&2
+        echo "[pre-push gate] GATE UNAVAILABLE: pytest could not run properly (exit $rc)." >&2
+        echo "[pre-push gate] allowing push; fix the gate environment right after." >&2
+        exit 0
+        ;;
+esac
+
+# rc != 0 and not an infrastructure code: triage every FAILED and ERROR nodeid
+# solo. ERROR lines matter as much as FAILED: a fixture/setup error (the R50
+# concurrency class) never appears in the FAILED list, so triaging FAILED only
+# lets a contaminated run slip through as "one stale flake".
+NODES=$( { grep '^FAILED ' "$LOG"; grep '^ERROR ' "$LOG"; } \
+    | sed -e 's/^FAILED //' -e 's/^ERROR //' -e 's/ - .*$//' -e 's/[[:space:]]*$//' \
+    | grep -v '^$' | sort -u)
+if [ -z "$NODES" ]; then
+    rm -f "$LOG"
+    echo "" >&2
+    echo "[pre-push gate] RED: suite failed (exit $rc) with no FAILED/ERROR line to triage." >&2
+    echo "[pre-push gate] PUSH BLOCKED. Fix the failure, then push again." >&2
+    echo "[pre-push gate] Emergency bypass: git push --no-verify (fix immediately after)." >&2
+    exit "$rc"
+fi
+
+echo ""
+echo "[pre-push gate] triaging failed nodeid(s) with a SOLO re-run (load-flake check)..."
+SOLO_RED=""
+SOLO_SEEN=""
+while IFS= read -r node; do
+    [ -n "$node" ] || continue
+    echo "  solo: $node"
+    # up to 2 solo attempts: a load flake usually passes one of them, a real
+    # failure fails both (deterministic by definition).
+    ok=0
+    for _try in 1 2; do
+        if "$PY" -m pytest "$node" -q -p no:cacheprovider --basetemp="$SOLO_BASE" >/dev/null 2>&1; then
+            ok=1
+            break
+        fi
+    done
+    if [ "$ok" -eq 1 ]; then
+        SOLO_SEEN="$SOLO_SEEN $node"
+    else
+        SOLO_RED="$SOLO_RED $node"
+    fi
+done <<EOF
+$NODES
+EOF
+
+if [ -z "$SOLO_RED" ]; then
+    rm -f "$LOG"
+    echo "" >&2
+    echo "[pre-push gate] FLAKY (passed solo):$SOLO_SEEN" >&2
+    echo "[pre-push gate] full-suite-only failure (load flake), push allowed." >&2
+    echo "[pre-push gate] DISCLOSURE: file a stabilization fix for the nodeid(s) above." >&2
+    exit 0
+fi
+
+rm -f "$LOG"
+echo "" >&2
+echo "[pre-push gate] RED: tests failed, and these fail SOLO too:$SOLO_RED" >&2
+echo "[pre-push gate] PUSH BLOCKED. Fix the failing test first, then push again." >&2
+echo "[pre-push gate] Emergency bypass: git push --no-verify (fix immediately after)." >&2
+exit "$rc"

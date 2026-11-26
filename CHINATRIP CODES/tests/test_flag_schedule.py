@@ -451,3 +451,21 @@ def test_enforce_existing_fixed_rewrites_drifted_start():
     _apply_flag_schedule(p)
     assert item.start_time == _t(7, 8)
     assert item.end_time == _t(8, 8)  # 默认 60 分钟（_visit 默认 dur）
+
+
+# ------------------------------------------------- R18 日期→升旗分钟映射
+
+
+def test_flag_minutes_by_day_reads_seed_table(flag_env, monkeypatch):
+    """R18：日期+天数 → {日序: 升旗分钟}（模型/装配同读一份口径）。"""
+    monkeypatch.setattr(fs, "get_settings", lambda: flag_env, raising=False)
+    out = fs.flag_minutes_by_day("2026-11-25", 3, settings=flag_env)
+    assert out == {1: 7 * 60 + 10, 2: 7 * 60 + 11, 3: 7 * 60 + 12}
+
+
+def test_flag_minutes_by_day_degrades_without_date_or_days(flag_env):
+    """无出发日期/天数非法 → 空 dict（调用方回落静态晨锁带，不编造）。"""
+    assert fs.flag_minutes_by_day(None, 2, settings=flag_env) == {}
+    assert fs.flag_minutes_by_day("", 2, settings=flag_env) == {}
+    assert fs.flag_minutes_by_day("2026-11-25", 0, settings=flag_env) == {}
+    assert fs.flag_minutes_by_day("not-a-date", 2, settings=flag_env) == {}

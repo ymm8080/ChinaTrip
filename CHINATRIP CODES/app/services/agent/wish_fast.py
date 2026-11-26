@@ -76,7 +76,7 @@ _DAYS_PHRASE = re.compile(r"\d+\s*天|[一二三四五六七八九十两]+\s*天
 
 _ZH_GO = re.compile(
     r"^(?:请|麻烦)?(?:帮我)?(?:我)?(?:想|要|打算|计划|准备)?"
-    r"(?:去|到|参观|游览|逛逛|逛|看看|打卡)(?P<name>.+)$"
+    r"(?:一定要去|必去|去|到|参观|游览|逛逛|逛|看看|打卡)(?P<name>.+)$"
 )
 _ZH_ADD = re.compile(
     r"^(?:请|麻烦)?(?:帮我)?(?:把|将)?(?P<name>.+?)"
@@ -122,7 +122,10 @@ _GENERIC_NAMES = frozenset(
     }
 )
 _TRAIL_PARTICLES = ("吧", "呢", "呀", "啊", "哦", "啦", "谢谢", "好吗", "可以吗")
-_STRIP_CHARS = " \t\r\n，。,.!?！？；;、：:\"'“”‘’【】[]()（）"
+#: 尾缘剥噪字符——括号/方括号绝不在列（2026-11-19 必去烤鸭店案）：
+#: 「四季民福烤鸭店（故宫店）」的尾部 ）被当噪剥掉后名字残缺，精确
+#: 同名永远查不到、兜底把分店名错绑成母地标（故宫博物院）。
+_STRIP_CHARS = " \t\r\n，。,.!?！？；;、：:\"'“”‘’"
 
 #: 快路径回合标记（session_id）：端点据此跳过整趟实测腿刷新——落位时已
 #: 按直线估算标注，动线实测交给下一次编辑/打开行程（2026-11-13 延迟收口：
@@ -853,11 +856,37 @@ async def _exact_poi(agent, city: str, name: str) -> dict | None:
     return exact[0]
 
 
+#: 分店/分馆标记字：括号内容含这些字即视为分支标记（「（故宫店）」
+#: 「(前门店)」），专名必须绑到共享该标记的实体；城市/时间等限定词
+#: （「西湖（杭州）」「故宫（早上）」）不算标记、不设防。
+_BRANCH_MARK_CHARS = ("店", "馆", "号", "苑", "厅", "楼", "街", "城", "铺", "坊")
+_BRANCH_PAREN_RE = re.compile(r"[（(]([^（()）]+)[)）]")
+
+
+def _branch_token(name: str) -> str | None:
+    """请求名里的分店标记内容（如「故宫店」）；括号未闭合的截断名取
+    末个开括号后的残段（尾括号曾被剥掉的形态）。无标记 → None。"""
+    text = (name or "").strip()
+    if not text:
+        return None
+    contents = list(_BRANCH_PAREN_RE.findall(text))
+    for opener in ("（", "("):
+        if opener in text:
+            tail = text.rsplit(opener, 1)[-1].strip("）)")
+            if tail and tail not in contents:
+                contents.append(tail)
+    for content in contents:
+        if any(ch in content for ch in _BRANCH_MARK_CHARS):
+            return content
+    return None
+
+
 async def _resolve_poi(agent, session, name: str, *, allow_network: bool = True):
     """专名 → (poi, city)：先底库精确同名，再内核（中英）兜底，再底库模糊，
     最后图商（同名）。allow_network=False（整句裸地名）时最后一步不做——
     「谢谢」这类短句也长得像地名，不能让闲聊触发图商检索。"""
     cities = [c for c in dict.fromkeys(session.cities or []) if (c or "").strip()]
+    branch = _branch_token(name)
     for city in cities:
         poi = await _exact_poi(agent, city, name)
         if poi:
@@ -878,6 +907,11 @@ async def _resolve_poi(agent, session, name: str, *, allow_network: bool = True)
                 hit_name = str(hit.get("name") or "").strip()
                 if not hit_name:
                     continue
+                if branch and branch not in hit_name:
+                    # 分店守卫（2026-11-19 必去烤鸭店案）：带分店标记的
+                    # 专名只认共享标记的实体——别名「故宫」⊂「故宫店」
+                    # 曾把烤鸭店错绑成故宫博物院（museum 观光卡）。
+                    continue
                 poi = await _exact_poi(agent, city, hit_name)
                 if poi:
                     return poi, str(poi.get("city") or city).strip() or city
@@ -889,7 +923,8 @@ async def _resolve_poi(agent, session, name: str, *, allow_network: bool = True)
             except Exception:
                 logger.warning("plan: fast wish library lookup failed", exc_info=True)
                 poi = None
-            if poi:
+            if poi and (not branch or branch in str(poi.get("name") or "")):
+                # 分店守卫同上：库检索的模糊命中也不得丢掉分店标记。
                 return poi, str(poi.get("city") or city).strip() or city
     lookup_net = getattr(agent, "_lookup_poi", None)
     if allow_network and lookup_net is not None:
@@ -987,11 +1022,20 @@ def _find_existing(plan, name: str, kind: str | None, poi: dict | None):
             for item in day.items:
                 if isinstance(item, VisitItem) and item.poi_id == poi_id:
                     return item
+    poi_name = str((poi or {}).get("name") or "").strip()
     for day in plan.days:
         for item in day.items:
             if not isinstance(item, VisitItem):
                 continue
             if plan_mod._name_dup(name, item.name) and _category_matches(item, kind):
+                return item
+            # 已解析实体名兜底（2026-11-19 故宫博物院双卡案）：解析出的
+            # 实体已在册（同名+品类兼容）也算已存在——绝不重复加同名卡。
+            if (
+                poi_name
+                and plan_mod._name_dup(poi_name, item.name)
+                and _category_matches(item, kind)
+            ):
                 return item
     return None
 

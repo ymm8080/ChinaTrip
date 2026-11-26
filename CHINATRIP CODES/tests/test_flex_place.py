@@ -163,9 +163,9 @@ def test_place_with_flex_snap_respects_entry_cap() -> None:
     placed = plan_mod._place_with_flex(plan, day, visit)
     assert placed is not None
     start, dur, note = placed
-    # 全时长 125 与首档收缩 110 都塞不进 16:45 前的空隙；65 分钟可行且
-    # 贴锚收口点 16:45-65=15:40 越过 15:30 大点开场带——保留探针起点 15:00。
-    assert (start // 60, start % 60) == (15, 0)
+    # R12-H23：大点帽 16:00——65 分钟贴锚收口点 16:45-65=15:40 压线
+    # 合法（≤16:00 帽），收缩探针落位 15:40。
+    assert (start // 60, start % 60) == (15, 40)
     assert dur == 65
     assert "125→65" in note
 

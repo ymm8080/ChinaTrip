@@ -41,10 +41,11 @@
       "card.walk": " · 步行约 ", "card.walk_min": " 分钟",
       "card.taxi": " · 车程约 ", "card.taxi_min": " 分钟（含叫车）",
       "card.access": " · 接驳约 ", "card.access_min": " 分钟（含候车/专线）", "card.fare": " · 约 ¥",
-      "card.callTaxi": "🚕 TAXI", "card.callTaxi.title": "一键直唤高德打车页：起点=当前位置，终点=下一站", "card.callTaxi.noCoord": "该站无坐标，请到导航页手动搜索终点",
+      "card.callTaxi.noCoord": "该站无坐标，请到导航页手动搜索终点",
+      "card.leg.freeThen": "自由活动约 {n} 分钟后 · ", "card.leg.waitNote": "（含自由等候约 {n} 分钟）",
       "card.leg_amap": "（地图实测）", "card.leg_est": "（直线估算）",
       "card.grab": "抢票直达 →", "card.hours_unknown": "🕐 营业时间待确认（以现场为准）",
-      "card.resv.none": "预约信息无",
+      "card.flag_raising": "🚩 升旗", "card.flag_raising.tip": "当日官方升旗时刻（出发日数据库），卡已按此锚定",
       "card.showPref": "演出票务", "card.showGo": "订票直达 →",
       "card.km": " km",
       "pay.title": "💳 支付 / 代订收款", "pay.mine": "🔄 我的付款",
@@ -107,7 +108,7 @@
       "card.walk": " · ~", "card.walk_min": " min walk",
       "card.leg_amap": " (measured)", "card.leg_est": " (straight-line)",
       "card.grab": "Get tickets →", "card.hours_unknown": "🕐 Hours TBC (check on site)",
-      "card.resv.none": "No reservation info",
+      "card.flag_raising": "🚩 Flag raising",
       "card.showPref": "Show tickets", "card.showGo": "Book →",
       "card.km": " km to next",
       "card.taxi": " · ~", "card.taxi_min": " min by taxi",
@@ -119,8 +120,11 @@
       "card.hop.departAt": "departs {t}", "card.hop.rideMin": "{n} min ride", "card.hop.waitMin": "{n} min wait", "card.hop.walkMin": "{n} min walk", "card.hop.arriveAt": "arrive ~{t}", "card.hop.alightAt": "arrive ~{t} at {stop}", "card.hop.valTaxi": "taxi {km} km · ~{n} min → {stop}",
       "card.hop.reco": "Best", "card.hop.lBoard": "Boarding", "card.hop.noTT": "Check official timetable", "card.hop.xfers": "{n} transfer(s)",
       "card.hop.mode.train": "Train", "card.hop.mode.shuttle": "Shuttle", "card.hop.mode.bus": "Bus", "card.hop.mode.ferry": "Ferry", "card.hop.mode.metro": "Metro",
-      "card.callTaxi": "🚕 TAXI", "card.callTaxi.title": "Open Amap taxi directly: origin = current location, destination = next stop", "card.callTaxi.noCoord": "No coordinates for this stop — search the destination on the Navigation tab",
-      "card.mt": "Meituan", "card.mt.title": "Open Meituan dining channel for table booking / ordering; your registered traveler profile is attached and status is checked every 2 minutes until complete",
+      "card.callTaxi.noCoord": "No coordinates for this stop — search the destination on the Navigation tab",
+      "card.leg.freeThen": "free time ~{n} min, then ", "card.leg.waitNote": " (incl. ~{n} min waiting)",
+      "card.bridge.taxiTitle": "Tap to open Amap taxi (origin = current location, destination = ",
+      "card.bridge.walkTitle": "Tap to open Amap walking directions (origin = current location, destination = ",
+      "card.mt": "MORE", "card.mt.title": "Open the Meituan app for table booking / ordering; falls back to the Meituan web page when the app isn't installed; your registered traveler profile is attached and status is checked every 2 minutes until complete",
       "card.hotel.book": "Book hotel", "card.hotel.book.title": "Pull Ctrip / Meituan / Fliggy channel cards for tonight's hotel; falls back to the day's last located sight when the hotel isn't verified yet",
       "card.hotel.book.title.morning": "This morning card points at last night's stay — pull Ctrip / Meituan / Fliggy channel cards for the previous night; falls back to the previous day's last located sight when the hotel isn't verified yet",
       "card.hotel.set.title": "Type a hotel name — verified against live map data and written onto tonight's card (name + address)",
@@ -129,9 +133,11 @@
       "card.hotel.searching": "Searching map data…",
       "card.hotel.noMatch": "No verified match — try another name",
       "card.hotel.noMatchErr": "Couldn't verify that hotel — try another name",
-      "card.hotel.done": "✅ Hotel verified and set",
+      "card.hotel.done": "✅ Hotel verified and set", "card.hotel.addrPh": "📍 Address (type to override)", "card.hotel.addrDone": "Hotel address updated",
       "card.hotel.noAnchor": "Can't locate tonight yet: verify the hotel with ✏️ first, or add a located sight to this day",
       "card.hotel.stay": "{n}-night stay", "card.hotel.stayRange": " ({ci} → {co})",
+      "card.hotel.rsv.title": "Tap the hotel name → RESERVATION page (compare Trip / Booking / Agoda)",
+      "card.hotel.rsvNote": "🏨 Book on the RESERVATION page (Trip / Booking / Agoda); forward the confirmation email and the itinerary updates itself.",
       "card.tmode.flight.title": "Switch to flight: re-query flights and update times automatically",
       "card.tmode.train.title": "Switch to train: re-query trains and update times automatically",
       "card.tno": "🔢 Flight/Train no.", "card.tno.title": "Enter a flight or train number (e.g. CA1234 / G1234); times are validated and updated automatically",
@@ -231,7 +237,7 @@
       "plan.mode.cross": "Cross-city",
       "plan.noStart": "(no start date set)",
       "plan.noEnd": "(no end city set)",
-      "plan.startDays.title": "Departure city gets transport only — this day count is excluded",
+      "plan.startDays.title": "Days to stay & play in the departure city (0 = transport only, excluded from total)",
       "plan.summaryToggle.title": "Expand / collapse the parameter form",
       "plan.cityNone": "(not set)",
       "plan.cityStart": "From city", "plan.via1": "Via city 1", "plan.via2": "Via city 2", "plan.cityEnd": "To city",
@@ -321,6 +327,10 @@
       "book.phShowCity": "e.g. Xi'an", "book.phShowKw": "e.g. The Everlasting Regret (optional)",
       "book.site": "🎫 Sights", "book.siteKw": "Sight name", "book.siteGoBtn": "🎫 Find sight tickets",
       "book.phSiteCity": "e.g. Beijing", "book.phSiteKw": "e.g. Forbidden City (blank = top sights)",
+      "book.tripTitle": "Open Trip.com directly with the cities and date above pre-filled; on mobile the page offers the Trip.com app",
+      "book.tripNeedCity": "Fill in both cities first, then tap ＋ Trip",
+      "book.tripNoRoute": "No Trip.com route page for that city yet — opened Trip.com trains home, pick stations there",
+      "book.tripNoCode": "No airport code on file for that city — opened Trip.com flights home, pick cities there",
       "bk.backfill": "📋 Order Backfill", "bk.refresh": "🔄 Refresh handoffs", "bk.alliance": "🤝 Alliance sync demo",
       "bk.stateFlow": "State machine: opened → user_confirmed → alliance_verified → settled (returned = refund path)",
       "bk.sms": "Order SMS verbatim",
@@ -333,6 +343,9 @@
       "bk.cancel": "Cancel", "bk.go": "Go anyway",
       "bk.hotelNoDate": "No「trip start date」 set above: set it to auto-derive check-in/out for day {d}.",
       "bk.hotelThis": "🏨 Hotels near this one",
+      "bk.hotel.cityFirst": "Pick a stay city above first, then tap Trip / Booking / Agoda.",
+      "bk.hotelSel.clear": "✕ Another hotel",
+      "bk.hotelSel.note": "Pick a platform to compare and book; forward the confirmation email and the itinerary updates itself.",
       "bk.prefillTo": "Prefilled {f} → {t} — pick dates and search",
       "bk.prefillFrom": "Prefilled departure city {f}; please fill the arrival city",
       "bk.trainBtn": "🚄 Book trains", "bk.flightBtn": "✈️ Book flights", "bk.hotelBtn": "🏨 Book hotels",
@@ -351,7 +364,7 @@
       "bk.siteListSuf": " · Sight tickets",
       "bk.siteRefund": "Sight tickets via manual channel; changes and refunds follow the checkout page (Iron Rule 23, tier C). Tickets are held only ~4–15 minutes after you submit — pay within the window.",
       "bk.hotelDaysOk": "Per-day hotel cards generated from the itinerary: tap a card to find hotels near that day's anchor",
-      "mt.opened": "Meituan booking page opened",
+      "mt.opened": "Meituan booking page opened", "mt.app": "Meituan app opened",
       "mt.attached.pre": " (traveler profile attached: ", "mt.attached.suf": ")",
       "mt.watch.start": " · ⏳ auto-check every 2 min, stops when complete",
       "mt.watch.done": "✅ Booking status: ",
@@ -496,6 +509,12 @@
       "card.family.dur": " ({n} min)",
       "card.pinned.badge": "Pinned",
       "card.retime.title": "Click to change start time",
+      "card.hopedit.title": "Click to change departure time",
+      "card.time.invalid": "Please enter a time, e.g. 9:30 or 1530",
+      "card.time.clock": "Pick a time with the clock",
+      "card.time.gone": "Itinerary changed — refresh the page and try again",
+      "card.time.noTT": "No timetable on this day — the departure time follows the shuttle",
+      "card.time.locked": "This card's time is fixed by the itinerary structure",
       "card.review": "✍️ Review",
       "card.walk.titleClose": ")",
       "card.drive.titleClose": ")",
@@ -684,7 +703,7 @@
       "plan.fb.recorded": "Recorded — thanks for the feedback!",
       "plan.first.done": "First draft ready ✅ tweak it just by chatting (multi-turn).",
       "plan.gen.fail": "❌ Planning failed: ",
-      "plan.gen.running": "⏳ Drafting your itinerary (about 30–60 s)…",
+      "plan.gen.running": "⏳ Drafting your itinerary (about 5–15 s)…",
       "plan.handoff.pre": "Concierge-payment ref pre-filled: ",
       "plan.handoff.suf": " (start directly from 💳 Pay on the Book tab)",
       "plan.input.phActive": "Keep chatting, e.g. move day-2 sights to day 3; tap the summary above to reopen the parameters",
@@ -700,6 +719,7 @@
       "plan.renderFailPre": "⚠ Data came back but rendering broke: ",
       "plan.renderFailTail": " (screenshot and report it)",
       "plan.route.apply": "✅ Plan with my choices",
+      "plan.route.incomplete": "{n} row(s) not chosen — pick a side for each line to plan",
       "plan.route.cardDaysDiff": "Trip-brief card ",
       "plan.route.conflict": "A few details disagree — pick one per line, then tap the button:",
       "plan.route.daysDiff": "Days: text ",
@@ -754,13 +774,19 @@
       "plan.share": "🔗 Share",
       "plan.sites.echo": "✅ Must-visit: ",
       "plan.sites.fail": "❌ Confirm failed: ",
+      "plan.sites.seqAsk": "Your text already lays out the days — keep what you wrote (each day's sites and their order stay fixed; a whole day may shift for better weather), or treat every place you listed as must-visit and let the engine replan freely?",
+      "plan.sites.seqKeep": "📝 Keep my written sequence",
+      "plan.sites.seqReplan": "🌦 Replan by weather/geography",
+      "plan.sites.seqBoth": "📝+🌦 Both (two trips)",
+      "plan.sites.altView": "🌦 View the engine-planned version",
+      "plan.sites.altBack": "📝 Back to my written sequence",
       "plan.sites.intro": "Places spotted in your link — tap to mark “must-visit”; only those are written to your trip-center wishlist (skip = not saved):",
       "plan.sites.introBrief": "Places spotted in your description — all pre-selected; tap to unselect any. Only the selected ones are written to your trip-center wishlist (skip = not saved):",
       "plan.sites.introImage": "Places spotted in your image — all pre-selected; tap to unselect any. Only the selected ones are written to your trip-center wishlist (skip = not saved):",
       "plan.photo.title": "Send photos: note screenshots or itinerary shots — places found are added to your wishlist",
       "plan.photo.reading": "⏳ Reading places from the image…",
       "plan.photo.fail": "Could not read the image: ",
-      "plan.sites.late": "ℹ️ This must-visit round has already closed (perhaps confirmed). Just message me below with any places to add.",
+      "plan.sites.lateSend": "Please add @SITES@ to my itinerary and replan.",
       "plan.sites.none": "(none picked)",
       "plan.sites.writing": "⏳ Writing to your wishlist…",
       "plan.slow.done": "✅ Background replan finished",
@@ -865,7 +891,8 @@
       "auth.loginBtn": "ログイン / 登録", "auth.logout": "ログアウト",
       "card.pinned": "📌 ピン留め済み", "card.pin": "📌 ピン留め", "card.del": "🗑 削除",
       "card.grab": "チケットへ →", "card.showGo": "予約へ →",
-      "card.hours_unknown": "🕐 営業時間は現地でご確認ください", "card.resv.none": "予約情報なし",
+      "card.hours_unknown": "🕐 営業時間は現地でご確認ください",
+      "card.flag_raising": "🚩 国旗掲揚",
       "card.alt.lv.unesco": "UNESCO", "card.alt.lv.5a": "5A", "card.alt.lv.intl": "国際リスト",
       "card.alt.lv.4a": "4A", "card.alt.lv.3a": "3A", "card.alt.lv.want": "行きたい",
       "brief.none": "紹介情報はまだありません",
@@ -899,7 +926,8 @@
       "auth.loginBtn": "로그인 / 회원가입", "auth.logout": "로그아웃",
       "card.pinned": "📌 고정됨", "card.pin": "📌 고정", "card.del": "🗑 삭제",
       "card.grab": "티켓 예매 →", "card.showGo": "예매 →",
-      "card.hours_unknown": "🕐 영업시간은 현장 기준입니다", "card.resv.none": "예약 정보 없음",
+      "card.hours_unknown": "🕐 영업시간은 현장 기준입니다",
+      "card.flag_raising": "🚩 국기 게양",
       "card.alt.lv.unesco": "UNESCO", "card.alt.lv.5a": "5A", "card.alt.lv.intl": "국제 리스트",
       "card.alt.lv.4a": "4A", "card.alt.lv.3a": "3A", "card.alt.lv.want": "가고 싶어요",
       "brief.none": "소개 정보가 아직 없습니다",
@@ -1127,6 +1155,49 @@
     "龙口": "Longkou",
     "龙岩": "Longyan"
   };
+  /* 机场 IATA 码表（2026-11-26 预订页「＋ Trip」机票直达键）：Trip.com showfarefirst 的
+   * dcity/acity 只认三字码，传城市英文名会被打回首页（实测）——故按「小写英文拼写」建表，
+   * 查表前先用 cityEn() 把中文城市名换成英文再归一（iataKey）。无机场城市（如苏州）不收录，
+   * 未收录由调用点回落 Trip.com 机票首页并提示手选，绝不给死链。 */
+  var IATA = {
+    "beijing": "BJS", "shanghai": "SHA", "guangzhou": "CAN", "shenzhen": "SZX",
+    "chengdu": "CTU", "chongqing": "CKG", "xian": "XIY", "hangzhou": "HGH",
+    "nanjing": "NKG", "wuhan": "WUH", "changsha": "CSX", "zhengzhou": "CGO",
+    "tianjin": "TSN", "qingdao": "TAO", "dalian": "DLC", "shenyang": "SHE",
+    "changchun": "CGQ", "harbin": "HRB", "jinan": "TNA", "taiyuan": "TYN",
+    "shijiazhuang": "SJW", "hefei": "HFE", "nanchang": "KHN", "fuzhou": "FOC",
+    "xiamen": "XMN", "nanning": "NNG", "guilin": "KWL", "guiyang": "KWE",
+    "kunming": "KMG", "lijiang": "LJG", "sanya": "SYX", "haikou": "HAK",
+    "lanzhou": "LHW", "xining": "XNN", "yinchuan": "INC", "urumqi": "URC",
+    "hohhot": "HET", "lhasa": "LXA", "dunhuang": "DNH", "zhangjiajie": "DYG",
+    "ningbo": "NGB", "wenzhou": "WNZ", "wuxi": "WUX", "yantai": "YNT",
+    "weihai": "WEH", "luoyang": "LYA", "huangshan": "TXN", "dali": "DLU",
+    "zhuhai": "ZUH", "shantou": "SWA", "yichang": "YIH", "jiuzhaigou": "JZH",
+    "hongkong": "HKG", "macau": "MFM", "taipei": "TPE"
+  };
+  /* 中文城市名 → 英文拼写（无视当前语言；city() 在 zh 下原样返回，深链必须强制英译）。 */
+  function cityEn(raw) {
+    var s = String(raw == null ? "" : raw).trim().replace(/市$/, "");
+    if (!s) return "";
+    var k = s.replace(/^(.*?)(自治州|地区)/, "");
+    return CITY_EN[k] || CITY_EN[s] || s;
+  }
+  /* 拼音 slug：小写、去撇号/空格/连字符（Xi'an → xian），非英文字母返回空串（调用点降级）。 */
+  function slug(raw) {
+    var s = cityEn(raw).toLowerCase().replace(/[^a-z]/g, "");
+    return s || "";
+  }
+  /* 城市名或直接输入的 IATA 码 → 三字码；查不到返回空串（调用点回落首页，不猜）。 */
+  function iata(raw) {
+    var s = String(raw == null ? "" : raw).trim();
+    if (!s) return "";
+    if (/^[A-Za-z]{3}$/.test(s)) {
+      var up = s.toUpperCase(), k;
+      for (k in IATA) if (IATA[k] === up) return up;
+      return "";
+    }
+    return IATA[slug(s)] || "";
+  }
 
   /* LANGS 注册表（design nlang §2.2）：code = localStorage/DICT 短码，htmlTag =
    * <html lang>（标注正确才能引导浏览器对 L3 内容整页翻译），native = picker 里的
@@ -1269,6 +1340,7 @@
   /* 旧 toggle 语义升级为「开/关语言 picker」；index.html #localeToggle 点击原样接这里 */
   function toggle() { if (MENU) closeMenu(); else openMenu(); }
 
-  window.I18N = { t: t, tf: tf, pick: pick, city: city, locale: locale, setLocale: setLocale, toggle: toggle, apply: apply };
+  window.I18N = { t: t, tf: tf, pick: pick, city: city, locale: locale, setLocale: setLocale, toggle: toggle, apply: apply,
+    cityEn: cityEn, slug: slug, iata: iata };
   document.addEventListener("DOMContentLoaded", apply);
 })();

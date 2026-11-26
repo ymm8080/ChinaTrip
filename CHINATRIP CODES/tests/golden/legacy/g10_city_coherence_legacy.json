@@ -1,0 +1,184 @@
+{
+ "schema_version": 1,
+ "engine": "legacy",
+ "kind": "in-process-replay",
+ "provenance": {
+  "source": "g10_city_coherence.json",
+  "plan_score": -129,
+  "replayed_at": "2026-11-18T10:50:31",
+  "auto_restaurants": false,
+  "llm": "boom-sentinel",
+  "note": "in-process cascade replay (P2-B): store/weather/llm stubbed from the snapshot; meal cards, access legs and user pins are not captured this iteration — pin-shaped assertions fail honestly on this side rather than faking a pass",
+  "runs": 2,
+  "determinism": true
+ },
+ "days": [
+  {
+   "day": 1,
+   "items": [
+    {
+     "name": "外滩",
+     "start": "08:30",
+     "end": "10:00",
+     "kind": "visit",
+     "requested": true,
+     "remote": false,
+     "city": "上海",
+     "poi_id": null
+    },
+    {
+     "name": "🏨 酒店入住（放行李·休整）",
+     "start": "14:44",
+     "end": "15:44",
+     "kind": "hotel",
+     "requested": null,
+     "remote": false,
+     "city": "杭州",
+     "poi_id": null
+    },
+    {
+     "name": "🏨 回酒店·夜间休息",
+     "start": "16:14",
+     "end": "17:14",
+     "kind": "hotel",
+     "requested": null,
+     "remote": false,
+     "city": "杭州",
+     "poi_id": null
+    }
+   ]
+  },
+  {
+   "day": 2,
+   "items": [
+    {
+     "name": "🏨 从酒店出发（今日起点）",
+     "start": "08:30",
+     "end": "09:00",
+     "kind": "hotel",
+     "requested": null,
+     "remote": false,
+     "city": "杭州",
+     "poi_id": null
+    },
+    {
+     "name": "西湖风景名胜区",
+     "start": "09:00",
+     "end": "12:00",
+     "kind": "visit",
+     "requested": true,
+     "remote": false,
+     "city": "杭州",
+     "poi_id": null
+    },
+    {
+     "name": "清河坊",
+     "start": "13:00",
+     "end": "14:15",
+     "kind": "visit",
+     "requested": false,
+     "remote": false,
+     "city": "杭州",
+     "poi_id": null
+    },
+    {
+     "name": "🏨 回酒店·夜间休息",
+     "start": "17:45",
+     "end": "18:45",
+     "kind": "hotel",
+     "requested": null,
+     "remote": false,
+     "city": "杭州",
+     "poi_id": null
+    },
+    {
+     "name": "断桥残雪",
+     "start": "16:15",
+     "end": "17:15",
+     "kind": "visit",
+     "requested": false,
+     "remote": false,
+     "city": "杭州",
+     "poi_id": "poi_c7"
+    }
+   ]
+  },
+  {
+   "day": 3,
+   "items": [
+    {
+     "name": "🏨 从酒店出发（今日起点）",
+     "start": "08:30",
+     "end": "09:00",
+     "kind": "hotel",
+     "requested": null,
+     "remote": false,
+     "city": "杭州",
+     "poi_id": null
+    },
+    {
+     "name": "南京路步行街",
+     "start": "10:00",
+     "end": "11:30",
+     "kind": "visit",
+     "requested": false,
+     "remote": false,
+     "city": "上海",
+     "poi_id": "poi_c4"
+    },
+    {
+     "name": "🏨 回酒店·夜间休息",
+     "start": "18:30",
+     "end": "19:30",
+     "kind": "hotel",
+     "requested": null,
+     "remote": false,
+     "city": "杭州",
+     "poi_id": null
+    },
+    {
+     "name": "外滩",
+     "start": "16:30",
+     "end": "18:00",
+     "kind": "visit",
+     "requested": true,
+     "remote": false,
+     "city": "上海",
+     "poi_id": null
+    }
+   ]
+  }
+ ],
+ "unplaced": [
+  {
+   "rid": "r2",
+   "name": "豫园",
+   "reason": "必去 豫园 匹配到「豫园」"
+  }
+ ],
+ "disclosures": [
+  "假设中等节奏、不早起",
+  "必去 外滩 匹配到「外滩」",
+  "必去 豫园 匹配到「豫园」",
+  "选点按候选库顺序与分日规则生成（特定算法，未用通用 LLM）",
+  "必去「外滩」位于出发城市 上海，出发日只安排交通，未排入行程——已列入想去（可指定其他日期或缩短停留后加回）",
+  "必去「豫园」位于出发城市 上海，出发日只安排交通，未排入行程——已列入想去（可指定其他日期或缩短停留后加回）",
+  "预约提醒：「西湖风景名胜区」无需预约（开放湖区（环湖免费；灵隐寺等园中园另计））；「清河坊」无需预约（开放街区）",
+  "第1天落地后默认先到酒店安顿（落地约1.5小时到店、休整1小时），当天首个行程不早于落地2.5小时；无需酒店可删除该卡",
+  "第1天上午空窗保底：已补排「外滩」",
+  "必去景点（来自链接）已锁定时间，后续修改不会移动它们",
+  "「断桥残雪」的近邻多在第2天，为保第1天片区连贯未楔入，已略过——要加回可指定其他天",
+  "「外滩」为大景点，离城日只安排轻量街区或看秀，其余各天也排不下，已从行程移除——想加回可指定其他天",
+  "第1天为离城日，未排入轻量街区、演出或茶事，按轻量口径留白",
+  "第1天为到达日，已按「近处优先、评价优先」补上「西泠印社」（距酒店/城心约 0.9 公里），可按需替换",
+  "「西泠印社」落地时间赶不上，已改排第3天 08:30",
+  "每天末尾默认加「回酒店·夜间休息」卡（末件结束约半小时后到店）；可拖动/改时/删除，点 ✏️ 可验证并填入真实酒店名，点 🏨 订酒店 走携程/美团/飞猪渠道卡",
+  "到达后每天从酒店出发：第2、3天开头默认加「🏨 从酒店出发」卡（前一晚住店→次日以酒店为起点，出发前预留约30分钟到首站；可拖动/改时/删除，点 ✏️ 可验证酒店名）",
+  "第3天「🏨 回酒店·夜间休息」按接驳行程改到 11:15 起",
+  "「西泠印社」已归位第2天，与近邻西湖风景名胜区、清河坊同片区",
+  "按地理聚族重排：西泠印社 与同日簇相距过远，已移出",
+  "第1天还有空档，按类型多样性补了「外滩」（08:30）",
+  "第2天还有空档，按类型多样性补了「断桥残雪」（15:45）",
+  "第3天还有空档，按类型多样性补了「南京路步行街」（09:00）"
+ ]
+}

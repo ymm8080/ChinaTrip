@@ -45,13 +45,13 @@ def _food(name, start, end, lon=121.49, lat=31.24):
     return _v(name, name, start, end, cat="food", lon=lon, lat=lat)
 
 
-def _cand(name, dur, lon=121.52, lat=31.20, *, cat="sight", bvt=None):
+def _cand(name, dur, lon=121.52, lat=31.20, *, cat="sight", bvt=None, city="上海"):
     return UnplacedCandidate(
         name=name,
         category=cat,
         duration_minutes=dur,
         location=GeoPoint(lon=lon, lat=lat),
-        city="上海",
+        city=city,
         poi_id=name,
         best_visit_time=bvt,
     )
@@ -618,3 +618,151 @@ def test_fill_leftover_gaps_evicts_third_cluster_extras_on_old_sessions():
     assert notes and "远点观景台" in notes[0]
     assert all(i.name != "远点观景台" for i in session.plan.days[0].items)
     assert all(n in session.plan.assumptions for n in notes)
+
+
+def test_fill_leftover_time_bench_includes_unplaced():
+    # 2026-11-22 起始城停留案：Day2 上午 240min 空档，天安门/天坛/恭王府
+    # 躺在 unplaced（cluster_day/day_overflow）——docstring 口径
+    # 「池 = plan.unplaced + 同城库 top 200」，实现漏了前一半，空天宁可
+    # 白着也不回填。探针排得进就排回，排不进留在想去。
+    class _EmptyStore:
+        def top_pois_in_city(self, city, n):
+            return []
+
+    plan = ItineraryPlan(
+        itinerary_id="t",
+        cities=["北京"],
+        days=[
+            DayPlan(
+                day=2,
+                base_city="北京",
+                items=[
+                    VisitItem(
+                        item_id="hotel-morning-d2",
+                        name="出发",
+                        city="北京",
+                        day=2,
+                        category="hotel",
+                        duration_minutes=30,
+                        location=GeoPoint(lon=116.40, lat=39.90),
+                        start_time=time(8, 30),
+                        end_time=time(9, 0),
+                    ),
+                    VisitItem(
+                        item_id="food-lunch-ph-d2",
+                        name="午饭（自由安排）",
+                        city="北京",
+                        day=2,
+                        category="food",
+                        duration_minutes=60,
+                        location=GeoPoint(lon=116.40, lat=39.90),
+                        start_time=time(13, 0),
+                        end_time=time(14, 0),
+                    ),
+                    VisitItem(
+                        item_id="v10",
+                        name="晚饭（自由安排）",
+                        city="北京",
+                        day=2,
+                        category="food",
+                        duration_minutes=90,
+                        location=GeoPoint(lon=116.40, lat=39.90),
+                        start_time=time(19, 0),
+                        end_time=time(20, 30),
+                    ),
+                ],
+            )
+        ],
+        unplaced=[
+            UnplacedCandidate(
+                name="天坛公园",
+                category="sight",
+                duration_minutes=120,
+                location=GeoPoint(lon=116.41, lat=39.88),
+                city="北京",
+                poi_id="tiantan",
+                reason="day_overflow",
+            )
+        ],
+    )
+    agent = PlanningAgent(object())  # llm 占位：本路径不触 llm
+    agent._poi_details = _EmptyStore()
+    notes = asyncio.run(agent._fill_leftover_time(plan))
+    names = [i.name for i in plan.days[0].items]
+    assert "天坛公园" in names
+    assert any("天坛公园" in n for n in notes)
+    placed = next(i for i in plan.days[0].items if i.name == "天坛公园")
+    assert placed.start_time >= time(9, 0)
+    assert placed.end_time <= time(13, 0)  # 午饭前
+
+
+def test_bridge_rendering_card_never_blocks_afternoon_fill():
+    # 2026-11-22 起始城停留案 Day2：leg-bridge-* 桥卡（渲染件，响应层
+    # attach_gap_bridges 按最终形状重挂）14:00-19:00 在 _day_fixed_windows
+    # 走 else 分支当 ±30 墙 → 下午整档判死，补进的天坛被顺延链推过午夜
+    # 又被越午夜清闸撤下。桥卡不得当墙。
+    plan = ItineraryPlan(
+        itinerary_id="t",
+        cities=["北京"],
+        days=[
+            DayPlan(
+                day=2,
+                base_city="北京",
+                items=[
+                    VisitItem(
+                        item_id="hotel-morning-d2",
+                        name="出发",
+                        city="北京",
+                        day=2,
+                        category="hotel",
+                        duration_minutes=30,
+                        location=GeoPoint(lon=116.40, lat=39.90),
+                        start_time=time(8, 30),
+                        end_time=time(9, 0),
+                    ),
+                    VisitItem(
+                        item_id="food-lunch-ph-d2",
+                        name="午饭（自由安排）",
+                        city="北京",
+                        day=2,
+                        category="food",
+                        duration_minutes=60,
+                        location=GeoPoint(lon=116.40, lat=39.90),
+                        start_time=time(13, 0),
+                        end_time=time(14, 0),
+                    ),
+                    VisitItem(
+                        item_id="leg-bridge-d2-4",
+                        name="🕒 自由活动，随后前往下一站·约30分钟",
+                        city="北京",
+                        day=2,
+                        category="transfer",
+                        duration_minutes=300,
+                        location=None,
+                        start_time=time(14, 0),
+                        end_time=time(19, 0),
+                    ),
+                    VisitItem(
+                        item_id="v10",
+                        name="晚饭（自由安排）",
+                        city="北京",
+                        day=2,
+                        category="food",
+                        duration_minutes=90,
+                        location=GeoPoint(lon=116.40, lat=39.90),
+                        start_time=time(19, 0),
+                        end_time=time(20, 30),
+                    ),
+                ],
+            )
+        ],
+    )
+    notes = _fill_leftover_with_diverse_sights(
+        plan, bench=[_cand("天坛公园", 120, lon=116.41, lat=39.88, city="北京")]
+    )
+    placed = next(i for i in plan.days[0].items if i.name == "天坛公园")
+    assert placed.start_time is not None
+    s = placed.start_time.hour * 60 + placed.start_time.minute
+    e = placed.end_time.hour * 60 + placed.end_time.minute
+    assert 9 * 60 <= s and e <= 19 * 60  # 当天空档内落位（上午/下午均可），不越晚饭
+    assert any("天坛公园" in n for n in notes)

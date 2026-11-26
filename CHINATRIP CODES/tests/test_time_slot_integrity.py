@@ -253,7 +253,12 @@ def test_plan_start_does_not_autopersist_and_save_persists():
     client = TestClient(make_app(agent))
     resp = client.post(
         "/api/v1/plan/start",
-        json={"cities": ["上海", "杭州"], "days": 2, "preferences": "地标美食"},
+        json={
+            "cities": ["上海", "杭州"],
+            "days": 2,
+            "preferences": "地标美食",
+            "start_date": "2026-11-25",
+        },
         headers=DEVICE_HEADERS,
     )
     assert resp.status_code == 200
@@ -280,7 +285,12 @@ def test_plan_start_does_not_autopersist_and_save_persists():
     assert iid in [r["itinerary_id"] for r in listed.json()]
 
 
-def test_plan_message_then_save_freezes_latest_plan():
+def test_plan_message_then_save_freezes_latest_plan(monkeypatch):
+    # R26/R29：显式钉死服务路径（R29 起缺省=CP-SAT，pin 仍保持确定性）
+    # TRIP_SOLVER=cpsat，编辑回合就走 800ms 引擎信封，负载下变成
+    # 「重排中」延后——同一份测试在两种环境里语义漂移。引擎面由
+    # plan_api 的缝测试覆盖，这里要的是确定性。
+    monkeypatch.setenv("TRIP_SOLVER", "legacy")
     edit_json = json.dumps(
         {
             "reply": "ok",
@@ -289,24 +299,48 @@ def test_plan_message_then_save_freezes_latest_plan():
         },
         ensure_ascii=False,
     )
-    agent = PlanningAgent(StubAdapter([V0_JSON, edit_json]))
+    # R25/R26: the edit turn may resample a degenerate/unparseable draw
+    # (LLM_ATTEMPTS=2) and the product may legitimately defer an edit
+    # (「重排中，稍后自动更新」); the user's recovery is "send again". Give the
+    # stub fuel for retries and resend like a user would, then verify the
+    # edit LANDED before saving — this test is about save freezing the
+    # latest plan, not about edit latency.
+    agent = PlanningAgent(StubAdapter([V0_JSON] + [edit_json] * 8))
     client = TestClient(make_app(agent))
     # Single-city session: under the 2026-10-19 origin rule the two-city
     # variant would drop 外滩 (origin) and strand 西湖 on the return-train
     # day, leaving no v1 to move. Here v1=外滩 exists and the move lands.
     start = client.post(
         "/api/v1/plan/start",
-        json={"cities": ["上海"], "days": 2, "preferences": "地标美食"},
+        json={
+            "cities": ["上海"],
+            "days": 2,
+            "preferences": "地标美食",
+            "start_date": "2026-11-25",
+        },
         headers=DEVICE_HEADERS,
     )
     sid = start.json()["session_id"]
     iid = start.json()["plan"]["itinerary_id"]
-    msg = client.post(
-        f"/api/v1/plan/{sid}/message",
-        json={"text": "把外滩挪到第二天"},
-        headers=DEVICE_HEADERS,
-    )
-    assert msg.status_code == 200
+    landed = None
+    last_reply = ""
+    for _attempt in range(3):
+        msg = client.post(
+            f"/api/v1/plan/{sid}/message",
+            json={"text": "把外滩挪到第二天"},
+            headers=DEVICE_HEADERS,
+        )
+        assert msg.status_code == 200
+        last_reply = str(msg.json().get("reply") or "")
+        days = {
+            it["item_id"]: it["day"]
+            for d in msg.json()["plan"]["days"]
+            for it in d["items"]
+        }
+        landed = days.get("v1")
+        if landed == 2:
+            break
+    assert landed == 2, (landed, last_reply)
     # Still nothing in the store until the user clicks save.
     assert (
         client.get(f"/api/v1/itineraries/{iid}", headers=DEVICE_HEADERS).status_code
@@ -321,7 +355,9 @@ def test_plan_message_then_save_freezes_latest_plan():
     assert body["working_sync_version"] == 1
     items = [i for d in body["plan"]["days"] for i in d["items"]]
     moved = next(i for i in items if i["item_id"] == "v1")
-    assert moved["day"] == 2  # frozen copy holds the latest plan
+    # frozen copy holds the latest plan (diagnostics: when this goes red the
+    # reply says which path degraded -- LLM retry exhausted vs apply miss)
+    assert moved["day"] == 2, (moved, msg.json().get("reply"))
     assert body["snapshots"]  # one immutable snapshot frozen
 
     # Second save: upsert bumps the working copy, freezes another snapshot.

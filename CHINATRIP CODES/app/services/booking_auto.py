@@ -24,7 +24,7 @@ from pydantic import BaseModel
 
 from app.config import get_settings
 from app.services.lang_ctx import L
-from app.services.reservation_seeds import RESERVATION_V0
+from app.services.reservation_seeds import match_seed
 
 
 class BookingTier(str, Enum):
@@ -145,11 +145,13 @@ availability_tiers_safe = available_tiers
 # --- L1：放票任务 ------------------------------------------------------------
 
 
-def _match_meta(name: str) -> dict | None:
-    for seed_name, meta in RESERVATION_V0.items():
-        if seed_name == (name or "").strip() or seed_name in (name or ""):
-            return meta
-    return None
+def _match_meta(name: str, city: str | None = None) -> dict | None:
+    """L1/L2 名单命中（2026-11-19 抢票日历误报修复）：精确名直过；包含
+    分支走 reservation_seeds.match_seed 守卫（剥「（故宫店）」类括号注记 +
+    城市守卫 + 酒店/餐厅词守卫、长种子优先）——餐厅/酒店分店名与跨城
+    同名馆不再生成放票任务。"""
+    hit = match_seed(name, city)
+    return hit[1] if hit else None
 
 
 def build_reservation_tasks(
@@ -169,7 +171,9 @@ def build_reservation_tasks(
         except ValueError:
             base = None
     for v in visits:
-        meta = _match_meta(v.get("name") or "")
+        if (v.get("category") or "").strip().lower() in ("food", "hotel", "transport"):
+            continue  # 餐/住/接驳卡不是预约制场馆（2026-11-19 误报修复配套）
+        meta = _match_meta(v.get("name") or "", v.get("city"))
         if meta is None:
             continue
         visit_date = None
@@ -276,7 +280,7 @@ async def check_availability(
     自产信号飞轮（远期）：poi_reviews「抢到/没抢到」标签聚合可给
     official_quota 场馆补经验性售罄规律——独家数据，渠道拿不到。
     """
-    if _match_meta(name) is not None:
+    if _match_meta(name, city) is not None:
         return Availability.official_quota
     p = _PROVIDERS.get(provider) or _PROVIDERS["null"]
     if not p.available():

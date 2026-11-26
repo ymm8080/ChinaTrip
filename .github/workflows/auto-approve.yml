@@ -27,34 +27,44 @@ jobs:
   auto-approve:
     name: Auto-Approve after CI
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # 2026-11-19 修复：MAX_WAIT=3600 必须配 ≥61min 的作业超时——166c055 只抬
+    # 了 MAX_WAIT 没抬 timeout-minutes，15min 把作业杀在等待循环里，放行步骤
+    # 永远跑不到（当日实证：连跑 29 次 cancelled/超时，0 次放行）。
+    timeout-minutes: 70
 
     steps:
       - name: Wait for CI checks to complete
         env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
+          # pull_request 事件的 check runs 挂在 PR head SHA（本地 gh api 实证）；
+          # github.sha 是 merge commit，不挂 check runs，不能用。
+          SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set +e
           echo "Waiting for CI checks to complete..."
-          MAX_WAIT=600  # 10 minutes
+          MAX_WAIT=3600  # 60 minutes——ci.yml test job 已放宽到 60 分钟
+          # （trip_solver 影子套件全量 ≥ 22 分钟，10 分钟会提前放行未绿的 CI）
           WAITED=0
           while [ $WAITED -lt $MAX_WAIT ]; do
-            STATUS=$(gh pr checks "$PR" --json name,state,conclusion 2>/dev/null)
-            if [ -z "$STATUS" ] || [ "$STATUS" = "[]" ]; then
-              echo "No checks yet, waiting..."
+            # 2026-11-19 三连修：①gh≥2.63 已无 conclusion 字段（valid:
+            # name/state/bucket）——旧 --json ...,conclusion 每次报错退出被
+            # 2>/dev/null 吞掉，STATUS 恒空；②runner 上 gh pr checks --json
+            # 也全程失败（当日 job log 实证：CI 全绿后仍每 15s 打
+            # 「No checks yet」直到取消）——改用 REST check-runs API（schema
+            # 稳定，--jq 单行无 python 缩进坑）；③轮询错误必须可见，不再
+            # 静默吞（旧循环靠 || echo 1 把两类 bug 都藏成死等）。
+            STATUS=$(gh api "repos/$GITHUB_REPOSITORY/commits/$SHA/check-runs?per_page=100" \
+              --jq '[.check_runs[] | {name, status, conclusion}]' 2>&1)
+            if [ -z "$STATUS" ] || echo "$STATUS" | grep -q "^gh: \|API error\|Bad credentials\|Not Found"; then
+              echo "Poll failed, raw output: $STATUS"
               sleep 15
               WAITED=$((WAITED + 15))
               continue
             fi
 
-            # Check if all CI checks are done
-            PENDING=$(echo "$STATUS" | python3 -c "
-          import json, sys
-          data = json.load(sys.stdin)
-          pending = [c for c in data if c.get('state') in ('PENDING', 'IN_PROGRESS', 'QUEUED')]
-          print(len(pending))
-          " 2>/dev/null || echo "1")
+            # 自身排除：本作业在轮询期间必然 in_progress，不排除=等自己
+            PENDING=$(echo "$STATUS" | jq '[.[] | select(.status != "completed" and .name != "Auto-Approve after CI")] | length' 2>/dev/null || echo "ERR")
 
             if [ "$PENDING" = "0" ]; then
               echo "All checks completed."
@@ -74,20 +84,23 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GH_PAT || github.token }}
           PR: ${{ github.event.pull_request.number }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+          # 本工作流无 checkout 步：cwd 非 git repo，gh pr view/comment 靠 git
+          # 探测仓库会 fatal（当日 log 实证），显式指 GH_REPO 免 checkout
+          GH_REPO: ${{ github.repository }}
         run: |
           set +e
-          STATUS=$(gh pr checks "$PR" --json name,state,conclusion 2>/dev/null)
+          STATUS=$(gh api "repos/$GITHUB_REPOSITORY/commits/$SHA/check-runs?per_page=100" \
+            --jq '[.check_runs[] | {name, status, conclusion}]' 2>&1)
 
-          # Check for failures
-          FAILED=$(echo "$STATUS" | python3 -c "
-          import json, sys
-          data = json.load(sys.stdin)
-          failed = [c for c in data if c.get('conclusion') in ('FAILURE', 'CANCELLED', 'TIMED_OUT', 'ACTION_REQUIRED')]
-          print(len(failed))
-          " 2>/dev/null || echo "1")
+          # REST conclusion 小写枚举（failure/cancelled/timed_out/action_required）；
+          # 本作业族按名排除——并发 cancel-in-progress 会把上一轮 Auto-Approve
+          # 记成 cancelled 留在同一 SHA 上，算进失败集就是假警报（本地实证）；
+          # 本作业自身在运行（conclusion=null）本就不在失败集
+          FAILED=$(echo "$STATUS" | jq '[.[] | select((.conclusion == "failure" or .conclusion == "cancelled" or .conclusion == "timed_out" or .conclusion == "action_required") and .name != "Auto-Approve after CI")] | length' 2>/dev/null || echo "ERR")
 
           if [ "$FAILED" != "0" ]; then
-            echo "::warning::CI checks failed ($FAILED failures). Keeping merge blocked."
+            echo "::warning::CI checks failed ($FAILED failures) or poll error ($STATUS). Keeping merge blocked."
             # Post comment with failure summary
             gh pr comment "$PR" --body "CI checks failed. Please fix the issues above. Auto-fix may have already pushed fixes — check the latest commit."
             exit 0
@@ -119,5 +132,3 @@ jobs:
           *Automated approval — CI gate passed*"
 
           echo "PR #$PR approved."
-
-

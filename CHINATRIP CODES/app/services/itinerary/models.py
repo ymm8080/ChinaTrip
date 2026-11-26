@@ -28,12 +28,13 @@ ARRIVAL_STOP_FLOOR_MINUTES = 150  # landing -> first attraction floor
 # 落地/离城缓冲（2026-11-14 用户拍板）：飞机 3 小时、火车 2 小时。
 # 落地侧＝到达时刻 + 缓冲才算「人已在城里」；离城侧＝最后一件必须在
 # 出发时刻 − 缓冲之前收尾（值机安检/进站排队都算在里面）。
-ARRIVAL_BUFFER_FLIGHT_MINUTES = 180
+# 2026-11-18 用户拍板「2 / 2.5 小时」：火车 2h / 飞机 2.5h（原 3h）
+ARRIVAL_BUFFER_FLIGHT_MINUTES = 150
 ARRIVAL_BUFFER_TRAIN_MINUTES = 120
 
 
 def arrival_buffer_minutes(mode: str | None) -> int:
-    """落地侧缓冲：飞机 180 / 火车 120 / 其它沿用铁律 4 的 90。"""
+    """落地侧缓冲：飞机 150 / 火车 120 / 其它沿用铁律 4 的 90。"""
     mode = (mode or "").strip().lower()
     if mode == "flight":
         return ARRIVAL_BUFFER_FLIGHT_MINUTES
@@ -43,16 +44,16 @@ def arrival_buffer_minutes(mode: str | None) -> int:
 
 
 def arrival_floor_minutes(mode: str | None) -> int:
-    """落地 → 当天首个景点地板：飞机 3 小时 / 火车 2 小时。
+    """落地 → 当天首个景点地板：飞机 2.5 小时 / 火车 2 小时。
 
-    3 小时/2 小时已经把「入境/取行李 + 进城 + 到店放包」算在里面，不再
+    2.5 小时/2 小时已经把「入境/取行李 + 进城 + 到店放包」算在里面，不再
     额外加 60 分钟休整（用户 2026-11-14 口径）。
     """
     return arrival_buffer_minutes(mode)
 
 
 def departure_buffer_minutes(mode: str | None) -> int:
-    """离城侧缓冲：飞机 3 小时（值机+安检）、火车 2 小时（进站）。"""
+    """离城侧缓冲：飞机 2.5 小时（值机+安检）、火车 2 小时（进站）。"""
     return arrival_buffer_minutes(mode)
 
 
@@ -104,7 +105,9 @@ class VisitItem(BaseModel):
     # 统一算（含景区专线接驳链），前端不再用直线公式自算；成本按城市出租车
     # 价目表估，接驳段另加默认票价。
     next_leg_minutes: int | None = None
-    next_leg_mode: Literal["taxi", "walk", "access"] | None = None
+    # R39：same_venue=同址占位桥卡（两端 <0.05km：午饭就在刚逛完的景点里），
+    # 不是一段交通——前端出「同址 · 就在附近」、不出打车/导航按钮。
+    next_leg_mode: Literal["taxi", "walk", "access", "same_venue"] | None = None
     next_leg_cost_cny: int | None = None
     next_leg_cost_note: str | None = None
     # 独立回城卡（2026-11-16 用户拍板「回程卡应该是独立卡」）：合成卡只在
@@ -120,6 +123,8 @@ class VisitItem(BaseModel):
     access_mode: str | None = None
     access_boarding: GeoPoint | None = None
     access_service_minutes: int | None = None
+    # R15：打车段分钟（档案值，缺省网关口径）——晨卡离店与去程打车卡同源。
+    access_taxi_minutes: int | None = None
     access_wait_minutes: int | None = None
     access_last_mile_minutes: int | None = None
     # 远郊专线时刻表（2026-11-16 用户拍板「班次服务窗建硬约束」）：数据来自
@@ -193,6 +198,9 @@ class VisitItem(BaseModel):
     # G1（§14.3）：预约制门票提示（展示层，solver 不约束——预约是用户
     # 侧动作；「现在就订·提前 N 天·放票 08:00」在卡片亮出）
     reservation_hint: str | None = None
+    # R13o④：库行 website 随卡（_access_detail 的 official_url 回落此前
+    # 恒 None——引擎卡没带过这个字段）。
+    website: str | None = None
     # 8.1.4 天气感知（§14）：库候选的露天/室内属性透传（yes=雨宜/no=露天），
     # H5 与 forecast 对照生成「雨天对调」横幅；None=无信号不提示
     rain_ok: str | None = None
@@ -304,6 +312,11 @@ class TransferItem(BaseModel):
     duration_minutes: int | None = None
     train_no: str | None = None  # TrainService static-lib hit, if any
     flight_no: str | None = None  # FlightService hit (outbound/return legs)
+    # R38：车站贯通——车次缓存本就带站名（train_cache 全量行），卡面此前
+    # 只到城市级；用户口径「交通腿要有所有地址交通的信息」。合成/导入腿
+    # 无站名=None。
+    from_station: str | None = None
+    to_station: str | None = None
 
 
 class DayPlan(BaseModel):
@@ -331,6 +344,9 @@ class ItineraryPlan(BaseModel):
     # 出发日期（ISO "YYYY-MM-DD"）——每日日期 = start_date + (day-1)，随快照
     # 持久化；行程卡日期与天气都以此为基准。None = 未设出发日期。
     start_date: str | None = None
+    # 起始城市游玩天数（2026-11-22 用户拍板）：随计划回显给 H5 参数表单
+    # （重新规划/改参数回填同口径）；0=出发城只排交通（旧口径）。
+    origin_days: int = 0
 
 
 class PoiHours(BaseModel):

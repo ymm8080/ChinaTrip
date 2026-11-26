@@ -443,3 +443,173 @@ def test_parse_place_request_accepts_bare_place_name():
     assert parse_place_request("Zhujiajiao") == "Zhujiajiao"
     assert parse_place_request("朱家角") == "朱家角"
     assert parse_place_request("  ZHUJIAJIAO  ") == "ZHUJIAJIAO"
+
+
+# --- R12-M2: 必去+分店名（必去烤鸭店错绑故宫博物院案回归锁） -----------------
+
+
+def test_parse_place_request_accepts_bigo_must_with_branch():
+    """「必去四季民福烤鸭店（故宫店）」= 单点必去心愿，名字必须完整含
+    分店括号——旧版三连环：句式不认「必去」掉进裸地名兜底、_clean_name
+    把尾部 ）当噪剥掉、名字残缺后精确同名查不到 → 兜底错绑故宫博物院。"""
+    from app.services.agent.wish_fast import parse_place_request_detail
+
+    name, bare = parse_place_request_detail("必去四季民福烤鸭店（故宫店）")
+    assert name == "四季民福烤鸭店（故宫店）"
+    assert bare is False
+    assert parse_place_request("一定要去四季民福烤鸭店（故宫店）") == (
+        "四季民福烤鸭店（故宫店）"
+    )
+
+
+def test_clean_name_keeps_branch_parenthesis():
+    from app.services.agent.wish_fast import _clean_name
+
+    assert _clean_name("四季民福烤鸭店（故宫店）") == "四季民福烤鸭店（故宫店）"
+    assert _clean_name("四季民福烤鸭店(前门店)") == "四季民福烤鸭店(前门店)"
+    # 噪声标点照剥（行为不变）
+    assert _clean_name("外滩。") == "外滩"
+
+
+def test_branch_token_marks_branch_not_qualifier():
+    from app.services.agent.wish_fast import _branch_token
+
+    assert _branch_token("四季民福烤鸭店（故宫店）") == "故宫店"
+    assert _branch_token("四季民福烤鸭店(故宫店)") == "故宫店"
+    # 截断形态（尾括号曾被剥掉）也要认出标记
+    assert _branch_token("必去四季民福烤鸭店（故宫店") == "故宫店"
+    # 城市/时间限定词不是分店标记——不设防（原行为不变）
+    assert _branch_token("西湖（杭州）") is None
+    assert _branch_token("故宫（早上）") is None
+    assert _branch_token("ZHUJIAJIAO") is None
+
+
+class _PalaceOnlyStore:
+    """烤鸭店案底库形态：精确同名查不到（残缺/半角形态），内核兜底只
+    命中故宫博物院（别名「故宫」⊂「故宫店」的真实语义）。"""
+
+    def search_keyword(self, city, tokens):
+        return []
+
+    def match_text_names(self, city, text, *, limit=8):
+        return [{"name": "故宫博物院", "city": "北京", "category": "museum"}]
+
+
+class _BranchStubAgent(_StubAgent):
+    def __init__(self) -> None:
+        super().__init__(None)
+        self._poi_details = _PalaceOnlyStore()
+
+    async def _poi_library_lookup(self, session, name, search_kw, city):
+        # 库检索也会把分店名模糊绑到母地标——守卫必须拦
+        return {
+            "name": "故宫博物院",
+            "city": "北京",
+            "category": "museum",
+            "source_poi_id": "palace-1",
+        }
+
+
+def test_resolve_poi_never_binds_branch_name_to_parent_landmark():
+    """分店守卫（解析层）：带分店标记的专名绑不到母地标——错绑=把
+    餐厅当 museum 观光卡加进行程（故宫博物院双卡案根因）。"""
+    from app.services.agent.wish_fast import _resolve_poi
+
+    session = PlanSession(
+        session_id="s-branch", device_id="d-branch", cities=["北京"], days=1
+    )
+    agent = _BranchStubAgent()
+    poi, city = asyncio.run(
+        _resolve_poi(agent, session, "四季民福烤鸭店(故宫店)", allow_network=False)
+    )
+    assert poi is None and city is None
+    poi2, _city2 = asyncio.run(
+        _resolve_poi(agent, session, "必去四季民福烤鸭店（故宫店", allow_network=False)
+    )
+    assert poi2 is None
+
+
+def test_find_existing_matches_resolved_poi_name():
+    """已解析实体名兜底查重：错绑/异源 id 拼不上时，解析出的实体名与
+    在册卡同名+品类兼容=已存在——already 回复而不是重复加卡。"""
+    from app.services.agent.wish_fast import _find_existing
+
+    palace = _visit("故宫博物院", _BUND, 1, category="museum")
+    plan = _plan({1: [palace]})
+    got = _find_existing(
+        plan,
+        "必去四季民福烤鸭店（故宫店",
+        "sight",
+        {"name": "故宫博物院", "source_poi_id": "palace-other-source"},
+    )
+    assert got is palace
+
+
+class _DuckStore:
+    """行程已带烤鸭店餐卡的底库形态：精确同名命中烤鸭店（food 行）。"""
+
+    def search_keyword(self, city, tokens):
+        if tokens and tokens[0] == "四季民福烤鸭店（故宫店）":
+            return [
+                {
+                    "name": "四季民福烤鸭店（故宫店）",
+                    "city": "北京",
+                    "category": "food",
+                    "source_poi_id": "duck-1",
+                    "location": [116.4028, 39.9146],
+                    "suggested_duration_min": 90,
+                }
+            ]
+        return []
+
+    def match_text_names(self, city, text, *, limit=8):
+        return []
+
+
+def test_try_fast_wish_must_eatery_already_planned_is_instant():
+    """用户实测主链回归锁（2026-11-19）：行程里已有烤鸭店餐卡
+    （meal-* 命名卡）时，「必去四季民福烤鸭店（故宫店）」必须秒回
+    already、零 LLM、零新卡——旧版错绑故宫博物院还重复加卡。"""
+    duck = VisitItem(
+        item_id="meal-dinner-1",
+        name="四季民福烤鸭店（故宫店）",
+        poi_id="duck-1",
+        city="北京",
+        day=1,
+        category="food",
+        start_time=_time(17, 0),
+        end_time=_time(18, 30),
+        duration_minutes=90,
+    )
+    plan = ItineraryPlan(
+        itinerary_id="it-duck",
+        cities=["北京"],
+        days=[
+            DayPlan(
+                day=1,
+                base_city="北京",
+                items=[_visit("故宫博物院", _BUND, 1, category="museum"), duck],
+            )
+        ],
+    )
+    session = _session(plan)
+    session.cities = ["北京"]
+
+    class _DuckAgent(_StubAgent):
+        def __init__(self) -> None:
+            super().__init__(None)
+            self._poi_details = _DuckStore()
+
+        async def _poi_library_lookup(self, session, name, search_kw, city):
+            return None
+
+    agent = _DuckAgent()
+    _NoLLM.calls = 0
+    out = asyncio.run(try_fast_wish(agent, session, "必去四季民福烤鸭店（故宫店）"))
+    assert out is not None
+    new_session, reply, _change = out
+    assert "已经在第1天" in reply
+    assert _NoLLM.calls == 0
+    names = [i.name for d in new_session.plan.days for i in d.items]
+    assert names.count("四季民福烤鸭店（故宫店）") == 1
+    assert names.count("故宫博物院") == 1

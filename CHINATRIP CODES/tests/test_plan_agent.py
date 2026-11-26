@@ -276,6 +276,30 @@ SH_HZ_ITEMS = [
     },
 ]
 
+SH_CD_ITEMS = [
+    {
+        "name": "外滩",
+        "city": "上海",
+        "category": "sight",
+        "day": 1,
+        "duration_minutes": 90,
+    },
+    {
+        "name": "豫园",
+        "city": "上海",
+        "category": "sight",
+        "day": 1,
+        "duration_minutes": 60,
+    },
+    {
+        "name": "宽窄巷子",
+        "city": "成都",
+        "category": "sight",
+        "day": 2,
+        "duration_minutes": 120,
+    },
+]
+
 AMAP_POIS = [
     {
         "name": "外滩",
@@ -1828,8 +1852,12 @@ class UnwantRecorder:
         self.calls: list[tuple[str, str | None, str | None]] = []
 
     def list_groups(
-        self, itinerary_id: str | None = None, owner_device_id: str | None = None
+        self,
+        itinerary_id: str | None = None,
+        owner_device_id: str | None = None,
+        owner_account_id: str | None = None,
     ) -> dict:
+        # 2026-11-22 F2：_absorb_wishlist 按账号归属读取，第三参必到。
         return {"wishlist": [], "scheduled": [], "booked": [], "unwanted": []}
 
     def mark_unwanted(self, name, *, itinerary_id=None, city=None):
@@ -2353,6 +2381,53 @@ def test_wishlist_coverage_mirrors_city_gate():
     assert "看变脸" not in names and "李子坝站" not in names
 
 
+def test_wishlist_coverage_reads_account_owned_rows():
+    """2026-11-22 F2 同型补齐：常规消息轮的心愿补排兜底（_ensure_wishlist_coverage）
+    的 docstring 承诺 same filter as _absorb_wishlist，账号归属口径必须一致。
+    登录账号在别的设备建的心愿（owner_account_id 有值、owner_device_id 不同），
+    此前这里两参读口读不到 → 静默漏排且无披露。修复：第三参传 session.account_id，
+    list_groups 的 _mine 谓词据此把本账号跨设备行算作「我的」。"""
+    seen: list[tuple] = []
+
+    class Spy(TripItemService):
+        def list_groups(self, *args, **kwargs):
+            seen.append(args)
+            return super().list_groups(*args, **kwargs)
+
+    spy = Spy()
+    spy.create(
+        "博物馆",
+        source="chat",
+        city="上海",
+        owner_device_id="old-device",
+        owner_account_id="alice",
+    )
+    agent = PlanningAgent(ScriptedLLM([]), trip_items=spy)
+    item = VisitItem(item_id="v1", name="豫园", city="上海", day=1, duration_minutes=90)
+    session = PlanSession(
+        session_id="s-acct-cov",
+        device_id="new-device",
+        account_id="alice",
+        cities=["上海"],
+        days=1,
+        state="ready",
+        plan=ItineraryPlan(
+            itinerary_id="it_t",
+            cities=["上海"],
+            days=[DayPlan(day=1, base_city="上海", items=[item])],
+        ),
+    )
+    run(agent._ensure_wishlist_coverage(session))
+    # 读口收到三参，第三参 = 当前会话登录账号
+    assert seen and len(seen[0]) == 3, seen
+    assert seen[0][0] is None and seen[0][1] == "new-device" and seen[0][2] == "alice"
+    # 跨设备账号心愿被补排进计划（不是静默漏掉）
+    names = {
+        i.name for d in session.plan.days for i in d.items if isinstance(i, VisitItem)
+    }
+    assert any("博物馆" in n for n in names), names
+
+
 def test_absorb_wishlist_skips_items_from_other_cities():
     agent = _wishlist_agent([("故宫", "北京")])
     session = run(
@@ -2496,9 +2571,16 @@ _TEA_PLAIN = {
 
 
 def _teahouse_session(amap, store, svc, wish, cities=("上海", "杭州")):
-    """Ready session（默认上海→杭州）；西湖带坐标充当搜索圆心，心愿单
-    里有 ``wish``，下一轮 edit 回复已就位。"""
-    llm = ScriptedLLM([v0_reply(SH_HZ_ITEMS)])
+    """Ready session（默认上海→杭州）；第二天那张卡带坐标充当搜索圆心，
+    心愿单里有 ``wish``，下一轮 edit 回复已就位。
+
+    ``SH_HZ_ITEMS`` 是沪杭线的剧本；跑到沪蓉线时换 ``SH_CD_ITEMS``——
+    2026-11-22 城市日一致性之后，沪蓉行程里的杭州卡会被判混城移出（旧
+    fixture 靠这张错城卡充当圆心，是同一个 bug 的测试侧倒影）。
+    """
+    items = SH_CD_ITEMS if "成都" in cities else SH_HZ_ITEMS
+    anchor_name = "宽窄巷子" if "成都" in cities else "西湖"
+    llm = ScriptedLLM([v0_reply(items)])
     # auto_restaurants=False：本组断言 amap 调用形状/餐窗落位，自动午餐
     # 搜索（餐厅）与占位件会污染口径（午餐保底 2026-10-31）
     agent = PlanningAgent(
@@ -2508,8 +2590,8 @@ def _teahouse_session(amap, store, svc, wish, cities=("上海", "杭州")):
     assert session.state == "clarify"
     session, _, _ = run(agent.message(session, "无特别要求"))
     assert session.state == "ready"
-    westlake = next(v for v in all_visits(session) if v.name == "西湖")
-    westlake.location = GeoPoint(lon=120.15, lat=30.25)
+    anchor = next(v for v in all_visits(session) if v.name == anchor_name)
+    anchor.location = GeoPoint(lon=120.15, lat=30.25)
     svc.create(wish, source="chat", itinerary_id=session.plan.itinerary_id)
     llm.replies.append(edit_reply("好的", []))
     return agent, session
@@ -4115,3 +4197,69 @@ def test_message_one_day_request_trims_empty_trailing_day():
     names = {i.name for i in session.plan.days[0].items if isinstance(i, VisitItem)}
     assert {"西湖", "灵隐寺"} <= names
     assert not hard_errors(session)
+
+
+def test_absorb_wishlist_reads_account_owned_rows():
+    """2026-11-22 换设备登录心愿漏排案：登录账号在别的设备建的心愿行
+    （owner_account_id=acc-1、owner_device_id=旧设备），此前 _absorb_wishlist
+    只读 device 会被 list_groups 过滤掉——看板看得到、规划却不排且无披露。
+    修复：与看板同口径，把 session.account_id 作为第三参传进 list_groups。"""
+    svc = TripItemService()
+    svc.create(
+        "成都环球中心",
+        source="chat",
+        city="成都",
+        owner_device_id="old-device",
+        owner_account_id="acc-1",
+    )
+    session = PlanSession(
+        session_id="s-acct",
+        device_id="new-device",
+        account_id="acc-1",
+        cities=["成都"],
+        days=2,
+    )
+    agent = PlanningAgent(ScriptedLLM([]), trip_items=svc)
+    absorbed, skip_notes = run(agent._absorb_wishlist(session))
+    assert "成都环球中心" in absorbed, (absorbed, skip_notes)
+
+
+def test_absorb_wishlist_account_ownership_is_scoped():
+    """反向锚：账号通道不是「放开全量」——别的账号、别的设备的心愿仍
+    不得被吸收（USER ID 隔离不被回归破坏）。"""
+    svc = TripItemService()
+    svc.create(
+        "成都环球中心",
+        source="chat",
+        city="成都",
+        owner_device_id="old-device",
+        owner_account_id="someone-else",
+    )
+    session = PlanSession(
+        session_id="s-acct2",
+        device_id="new-device",
+        account_id="acc-1",
+        cities=["成都"],
+        days=2,
+    )
+    agent = PlanningAgent(ScriptedLLM([]), trip_items=svc)
+    absorbed, _skip = run(agent._absorb_wishlist(session))
+    assert "成都环球中心" not in absorbed
+
+
+def test_start_lands_account_id_before_absorb(monkeypatch):
+    """账号在会话创建时落地（不是 API 层事后补）——legacy _generate_v0
+    的吸收跑在返回之前，若此时 account_id 还是 None 就读不到跨设备心愿。
+    account 归属读取本身由上面两个 _absorb_wishlist 单元测试锁定。"""
+    monkeypatch.setenv("TRIP_SOLVER", "legacy")
+    agent = PlanningAgent(ScriptedLLM([v0_reply(SH_HZ_ITEMS)]))
+    session = run(
+        agent.start(
+            device_id="new-device",
+            cities=["成都"],
+            days=2,
+            preferences="",
+            account_id="acc-1",
+        )
+    )
+    assert session.account_id == "acc-1"

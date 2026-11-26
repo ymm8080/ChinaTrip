@@ -1,0 +1,310 @@
+{
+ "schema_version": 2,
+ "source": "golden-fixture-variant",
+ "library_version": "poi-snapshot-2026-11-17",
+ "request": {
+  "days": 2,
+  "cities": [
+   "北京"
+  ],
+  "start_date": "2026-11-25",
+  "musts": [
+   {
+    "rid": "r1",
+    "name": "天安门广场",
+    "poi_id": "ct_北京_13",
+    "importance": 5,
+    "duration_tier": null,
+    "day_hint": null,
+    "lon": 116.41033485880789,
+    "lat": 39.91149906588831
+   },
+   {
+    "rid": "r2",
+    "name": "故宫博物院",
+    "poi_id": "m1_885978e4c8a2",
+    "importance": 4,
+    "duration_tier": null,
+    "day_hint": null,
+    "lon": 116.40965974331732,
+    "lat": 39.92549569079433
+   },
+   {
+    "rid": "r3",
+    "name": "慕田峪长城",
+    "poi_id": "ct_北京_8",
+    "importance": 3,
+    "duration_tier": null,
+    "day_hint": null,
+    "lon": 116.55980232499265,
+    "lat": 40.426661851582196
+   },
+   {
+    "rid": "r4",
+    "name": "天坛",
+    "poi_id": "unesco_Q125445",
+    "importance": 2,
+    "duration_tier": null,
+    "day_hint": null,
+    "lon": 116.41283971321243,
+    "lat": 39.88360247943743
+   },
+   {
+    "rid": "r5",
+    "name": "颐和园",
+    "poi_id": "unesco_Q4132",
+    "importance": 1,
+    "duration_tier": null,
+    "day_hint": null,
+    "lon": 116.27494430074763,
+    "lat": 39.99872644169878
+   }
+  ],
+  "wishes": [],
+  "avoid": [],
+  "arrival_time": "09:00",
+  "departure_time": "19:00",
+  "day1_start": null,
+  "lang": "zh"
+ },
+ "candidates": [
+  {
+   "cid": "c1",
+   "name": "天安门广场",
+   "poi_id": "ct_北京_13",
+   "kind": "requested",
+   "rid": "r1",
+   "category": "attraction",
+   "tier": 1,
+   "lon": 116.41033485880789,
+   "lat": 39.91149906588831,
+   "opening_hours": "03:30-20:30",
+   "best_visit_time": "sunrise",
+   "indoor": null,
+   "rain_ok": "no",
+   "suggested_duration_min": 90,
+   "remote": false,
+   "city": "北京"
+  },
+  {
+   "cid": "c2",
+   "name": "老舍茶馆",
+   "poi_id": null,
+   "kind": "fill",
+   "rid": null,
+   "category": "tea_experience",
+   "tier": 10,
+   "lon": 116.39325855135431,
+   "lat": 39.89960923920564,
+   "opening_hours": null,
+   "best_visit_time": "any",
+   "indoor": null,
+   "rain_ok": null,
+   "suggested_duration_min": 60,
+   "remote": false,
+   "city": "北京"
+  },
+  {
+   "cid": "c3",
+   "name": "慕田峪长城",
+   "poi_id": "ct_北京_8",
+   "kind": "requested",
+   "rid": "r3",
+   "category": "historic",
+   "tier": 1,
+   "lon": 116.55980232499265,
+   "lat": 40.426661851582196,
+   "opening_hours": "今天07:30-18:30开放（17:30停止售票，18:00停止入园）",
+   "best_visit_time": "any",
+   "indoor": null,
+   "rain_ok": "no",
+   "suggested_duration_min": 180,
+   "remote": true,
+   "city": "北京"
+  },
+  {
+   "cid": "c4",
+   "name": "故宫博物院",
+   "poi_id": "m1_885978e4c8a2",
+   "kind": "requested",
+   "rid": "r2",
+   "category": "museum",
+   "tier": 1,
+   "lon": 116.40965974331732,
+   "lat": 39.92549569079433,
+   "opening_hours": "周一关闭(法定节假日除外),4月1日至10月31日,周二至周日08:30-17:00(16:00停止检票),11月1日至3月31日,周二至周日08:30-16:30(15:30停止检票)",
+   "best_visit_time": "any",
+   "indoor": null,
+   "rain_ok": "true",
+   "suggested_duration_min": 120,
+   "remote": false,
+   "city": "北京"
+  },
+  {
+   "cid": "c5",
+   "name": "天坛",
+   "poi_id": "unesco_Q125445",
+   "kind": "requested",
+   "rid": "r4",
+   "category": "temple",
+   "tier": 1,
+   "lon": 116.41283971321243,
+   "lat": 39.88360247943743,
+   "opening_hours": "今天06:30-22:00开放（21:00停止入园）",
+   "best_visit_time": "any",
+   "indoor": null,
+   "rain_ok": "no",
+   "suggested_duration_min": 150,
+   "remote": false,
+   "city": "北京"
+  },
+  {
+   "cid": "c6",
+   "name": "梵高星空艺术馆（王府井旗舰店）",
+   "poi_id": "ct_北京_147",
+   "kind": "fill",
+   "rid": null,
+   "category": "entertainment",
+   "tier": 6,
+   "lon": 116.41184691991002,
+   "lat": 39.910324318795766,
+   "opening_hours": "10:00-22:00,21:00停止入场",
+   "best_visit_time": "any",
+   "indoor": null,
+   "rain_ok": "yes",
+   "suggested_duration_min": 90,
+   "remote": false,
+   "city": "北京"
+  },
+  {
+   "cid": "c7",
+   "name": "颐和园",
+   "poi_id": "unesco_Q4132",
+   "kind": "requested",
+   "rid": "r5",
+   "category": "park",
+   "tier": 1,
+   "lon": 116.27494430074763,
+   "lat": 39.99872644169878,
+   "opening_hours": "今天06:30-19:00开放（18:00停止入园）",
+   "best_visit_time": "any",
+   "indoor": null,
+   "rain_ok": "no",
+   "suggested_duration_min": 300,
+   "remote": false,
+   "city": "北京"
+  }
+ ],
+ "access_profiles": [
+  {
+   "gateway": "前门大街北口（北京旅游集散中心发车点）",
+   "to_poi": "ct_北京_8",
+   "ride_minutes": 90,
+   "wait_minutes": 10,
+   "last_mile_minutes": 8,
+   "departures": [
+    "07:30",
+    "08:30",
+    "09:30",
+    "10:30"
+   ],
+   "returns": [
+    "14:30",
+    "15:30",
+    "16:30"
+   ],
+   "taxi_minutes": 0,
+   "fare_text": "官网未公布专线车费；运营方咨询 010-83531111",
+   "operator": "北京旅游集散中心"
+  }
+ ],
+ "travel": [
+  {
+   "from_key": "ct_北京_13",
+   "to_key": "老舍茶馆",
+   "minutes": 30,
+   "mode": "taxi",
+   "source": "estimate"
+  },
+  {
+   "from_key": "老舍茶馆",
+   "to_key": "ct_北京_8",
+   "minutes": 160,
+   "mode": "taxi",
+   "source": "haversine"
+  },
+  {
+   "from_key": "m1_885978e4c8a2",
+   "to_key": "unesco_Q125445",
+   "minutes": 15,
+   "mode": "taxi",
+   "source": "haversine"
+  },
+  {
+   "from_key": "unesco_Q125445",
+   "to_key": "ct_北京_147",
+   "minutes": 30,
+   "mode": "taxi",
+   "source": "estimate"
+  },
+  {
+   "from_key": "ct_北京_147",
+   "to_key": "unesco_Q4132",
+   "minutes": 43,
+   "mode": "taxi",
+   "source": "haversine"
+  },
+  {
+   "from_key": "前门大街北口（北京旅游集散中心发车点）",
+   "to_key": "ct_北京_8",
+   "minutes": 108,
+   "mode": "access",
+   "source": "access-profile"
+  }
+ ],
+ "expect": [
+  {
+   "type": "requested_coverage",
+   "args": {
+    "note": "musts timed or disclosed-unplaced — the endpoint windows may make all five unseatable, which must be disclosed, never silently dropped (B-01)"
+   }
+  },
+  {
+   "type": "day_start_floor",
+   "args": {
+    "day": 1,
+    "not_before": "11:30",
+    "note": "C-05: arrival 09:00 + 150 floor"
+   }
+  },
+  {
+   "type": "day_end_ceiling",
+   "args": {
+    "day": 2,
+    "not_after": "17:30",
+    "note": "C-05: departure 19:00 − 90 buffer"
+   }
+  },
+  {
+   "type": "no_unrequested_before",
+   "args": {
+    "day": 1,
+    "before": "慕田峪长城",
+    "note": "C-15 still holds on the endpoint arrival day"
+   }
+  },
+  {
+   "type": "deterministic",
+   "args": {
+    "runs": 2
+   }
+  }
+ ],
+ "provenance": {
+  "incident": "B-11 endpoint days: arrival/departure times constrain day 1 and the last day",
+  "built_at": "2026-11-18",
+  "builder": "tests/golden/build_corpus_v1.py",
+  "base": "g01.json (ids stripped)",
+  "note": "arrival 09:00 → day-1 starts ≥ 11:30 (ARRIVAL_FLOOR 150); departure 19:00 → last day ends ≤ 17:30 (DEPARTURE_BUFFER 90). No-transport G-01 stays a full-day baseline."
+ }
+}

@@ -58,6 +58,10 @@ from urllib.parse import quote
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+# 控制台 GBK 环境下打印 •/· 等字符会炸（2026-11-18 实测），统一 UTF-8
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
 import httpx  # noqa: E402
 
 from app.db import get_session_factory  # noqa: E402
@@ -92,11 +96,48 @@ _KNOWN_GEO = {"北京": "294212"}
 _POOL_OF_CATEGORY = {"hotel": "hotels", "food": "restaurants"}
 
 
+# 繁→简映射（2026-11-18）：港澳台风味名（三街會館/太平山頂纜車…）NFKC 不转
+# 繁简，库内名与目录名繁简不一致时 difflib 过不了阈值。优先 opencc 全量字表
+# （纯 Python 实现 opencc-python-reimplemented，一次性构建），不可用时退到
+# 手工两字组表。
+_T2S_PAIRS = (
+    "會会 館馆 廣广 東东 門门 馬马 慶庆 樂乐 廟庙 觀观 灣湾 龍龙 鳳凤 橋桥 "
+    "鐘钟 樓楼 書书 藝艺 術术 歷历 曆历 鐵铁 銀银 錢钱 陰阴 陽阳 華华 國国 "
+    "寶宝 島岛 嶼屿 頂顶 場场 園园 廳厅 燒烧 臘腊 雞鸡 鴨鸭 魚鱼 蝦虾 麵面 "
+    "飯饭 燙烫 鹹咸 歡欢 戲戏 臺台 檯台 橫横 漢汉 滿满 漁渔 業业 產产 廠厂 "
+    "營营 農农 衛卫 嶺岭 織织 絲丝 緣缘 縣县 鎮镇 莊庄 張张 劉刘 陳陈 楊杨 "
+    "黃黄 鄭郑 謝谢 韓韩 宮宫 壇坛 閣阁 繡绣 燦灿 爛烂 舊旧 萬万 與与 為为 "
+    "後后 發发 對对 兩两 從从 氣气 們们 說说 話话 語语 讀读 寫写 車车 纜缆 "
+    "遊游 運运 進进 遠远 達达 過过 邊边 環环 豐丰 滙汇 薈荟 醫医 紀纪 誠诚 "
+    "創创 魯鲁 駁驳 貓猫 鶯莺 聖圣 誕诞 務务 劇剧 崗岗 鏡镜 廈厦 貢贡 徑径 "
+    "淺浅 蘭兰 蓮莲 淨净 獅狮 維维 亞亚 銅铜 鑼锣 長长 麥麦 韻韵 聯联 雙双 "
+    "開开 關关 間间 陸陆 齊齐 節节 網网 線线 電电 記记 訪访 設设 訊讯 經经 "
+    "濟济 標标 餘余 額额 價价 兒儿 轉转 飲饮 賣卖 買买 鋪铺 錦锦 賓宾 費费 "
+    "項项 廚厨 單单 機机 構构 質质 檔档 議议 邨村 峯峰 裏里 綫线 恆恒 溫温"
+)
+_T2S = str.maketrans(
+    {a: b for a, b in (p for p in _T2S_PAIRS.split())}
+)
+try:  # 全量繁简字表扩充（CJK 基本区+兼容区一遍展开）
+    from opencc import OpenCC
+
+    _cc = OpenCC("t2s")
+    _rng = "".join(chr(c) for c in list(range(0x3400, 0xA000)) + list(range(0xF900, 0xFB00)))
+    _conv = _cc.convert(_rng)
+    _T2S = str.maketrans({
+        **{a: b for a, b in zip(_rng, _conv) if a != b},
+        **{a: b for a, b in (p for p in _T2S_PAIRS.split())},
+    })
+except ImportError:
+    pass
+
+
 def _norm(s: str | None) -> str:
-    """名称归一化：全角→半角、下划线→空格、去标点、小写、压缩空白。"""
+    """名称归一化：全角→半角、繁→简、下划线→空格、去标点、小写、压缩空白。"""
     if not s:
         return ""
     s = unicodedata.normalize("NFKC", s)
+    s = s.translate(_T2S)
     s = s.replace("_", " ")
     s = re.sub(r"[^\w\u4e00-\u9fff]+", " ", s, flags=re.UNICODE)
     return re.sub(r"\s+", " ", s).strip().lower()
@@ -114,6 +155,24 @@ def _core_name(s: str | None) -> str:
 def _tokens(s: str | None) -> list[str]:
     """核心名切词元（≥4 字符），用于复合名（止观小馆·辽河口渔家菜）匹配。"""
     return [t for t in _core_name(s).split() if len(t) >= 4]
+
+
+# 全行政区划路径名（street/historic 批次源数据带省市区前缀，TA 名无此前缀）：
+# 河南省郑州市金水区郑州记忆1952油化厂旅游休闲街区 → 郑州记忆1952油化厂旅游休闲街区
+_ADMIN_SEG_RE = re.compile(r"^[^，。;；\s]{1,14}?(?:省|自治区|自治州|市|县|区|旗|盟|地区)")
+
+
+def _admin_strip(s: str) -> str:
+    """剥掉开头的连续行政区划段；余段 <4 字（如整名就是"登封市"）不动。"""
+    cur = (s or "").strip()
+    while True:
+        m = _ADMIN_SEG_RE.match(cur)
+        if not m:
+            return cur
+        rest = cur[m.end():]
+        if len(rest) < 4:
+            return cur
+        cur = rest
 
 
 def _load_json(path: Path, default):
@@ -151,13 +210,41 @@ def _is_missed(missed: set[str], table: str, row_id) -> bool:
 
 
 def _resolve_city_geo(client: httpx.Client, city: str, delay: float) -> str | None:
-    """城市 → TA gID。先查内置/缓存；miss 时搜狗解包兜底并写缓存。"""
+    """城市 → TA gID。内置/缓存 → 站内 suggest API → 搜狗解包兜底，并写缓存。"""
     if city in _KNOWN_GEO:
         return _KNOWN_GEO[city]
     cache = _load_json(_GEO_CACHE, {})
     if city in cache:
         return cache[city]
 
+    # ① 站内搜索 suggest（2026-11-18：sogou 反爬封死后改道 api 同域直查）
+    try:
+        r = client.get(
+            "https://api.tripadvisor.cn/restapi/soa2/21221/suggestedSearch",
+            params={"keywords": city, "pageNo": 1, "pageSize": 5,
+                    "dataTypeEnum": "DESTINATION"},
+            headers=_HEADERS, timeout=20.0,
+        )
+        r.raise_for_status()
+        hits = ((r.json().get("result") or {}).get("hits") or [])
+        dests = [
+            h for h in hits
+            if (h.get("dataType") == "DESTINATION" or h.get("destination"))
+            and (h.get("taGeoId") or h.get("taId"))
+        ]
+        if dests:
+            pick = next(
+                (h for h in dests if city in (h.get("title") or "")), dests[0]
+            )
+            gid = str(pick.get("taGeoId") or pick.get("taId"))
+            cache[city] = gid
+            _save_json(_GEO_CACHE, cache)
+            print(f"  [city-geo] {city} → g{gid}（suggest：{pick.get('title')}）")
+            return gid
+    except (httpx.HTTPError, ValueError) as e:
+        print(f"  [city-geo] {city} suggest 失败: {e}")
+
+    # ② 搜狗解包兜底（2026-11 起反爬壳页，命中率低，仅兜底）
     q = quote(f"{city} tripadvisor 猫途鹰 Attraction_Review")
     try:
         r = client.get(
@@ -347,6 +434,12 @@ def _rank_matches(poi, catalog: dict[str, dict], threshold: float, top_n: int = 
     for a in (getattr(poi, "name_aliases", None) or []):
         cands.append(a)
     cands = [c for c in cands if c]
+    # 全行政区划路径名额外候选（2026-11-18）：338 行 street/historic 源名带
+    # 省市区前缀，剥段后才能对上 TA 的裸名；阈值与全部闸门不变。
+    stripped = {
+        st for c in cands if (st := _admin_strip(c)) and st != c and len(st) >= 4
+    }
+    cands += sorted(stripped)
     full_norms = [_norm(c) for c in cands]
     cores = [_core_name(c) for c in cands]
     cjk_toks = {
@@ -363,7 +456,9 @@ def _rank_matches(poi, catalog: dict[str, dict], threshold: float, top_n: int = 
                 if not n or not t:
                     continue
                 s = difflib.SequenceMatcher(None, n, t).ratio()
-                if core and len(core) >= 3 and (core in t or t in core):
+                # t in core 方向要求 t≥2 字：suggest 通道出现过 1 字目录名
+                # （'秘' ⊂ '楼兰秘烤'）白拿 0.95 的退化匹配
+                if core and len(core) >= 3 and (core in t or (len(t) >= 2 and t in core)):
                     s = max(s, 0.95)
                 # 目录名嵌进查询名（t in core）只在长度差 ≤6 时可信：
                 # 防"亚朵酒店"这类品牌短名吸走全部连锁分店行
@@ -379,6 +474,10 @@ def _rank_matches(poi, catalog: dict[str, dict], threshold: float, top_n: int = 
         )
         if hit:
             score = max(score, 0.90)
+        # 归一化核心名全等 = 精确匹配（1.0）：深页大量低评论条目与库行
+        # 同名，原本被 0.95 封顶 + 垃圾闸(0.98) 双重误杀（2026-11-18）
+        if any(t and core == t for core, t in zip(cores, targets)):
+            score = max(score, 1.0)
         # 垃圾目录闸：低评论条目只接受精确名
         reviews = item.get("reviews") or 0
         if reviews < 5 and score < 0.98:
@@ -412,6 +511,10 @@ def main() -> None:
     ap.add_argument("--max-pages", type=int, default=20, help="每城每类目录最多页数（RANK 序前 20 页=600 条）")
     ap.add_argument("--threshold", type=float, default=0.85)
     ap.add_argument("--attraction-only", action="store_true", help="只映射景点类")
+    ap.add_argument("--pois-only", action="store_true",
+                    help="只处理 pois 表（不动 restaurants 表）")
+    ap.add_argument("--restaurants-only", action="store_true",
+                    help="只处理 restaurants 表（pois 台账行原样保留）")
     ap.add_argument("--ranked-csv", action="store_true",
                     help="只处理规划页排名文件（chinatrip_active_ranked_pois_2026-11-14.csv）里的行，"
                          "pois(food 行) 与 restaurants 表都算")
@@ -450,16 +553,22 @@ def main() -> None:
         if args.ranked_csv:
             city_filter = csv_cities
 
-        q = s.query(Poi).filter(Poi.status == "active", Poi.ta_location_id.is_(None))
-        if city_filter:
-            q = q.filter(Poi.city.in_(city_filter))
-        whens = [(Poi.source == src, rank) for rank, src in enumerate(SOURCE_PRIORITY)]
-        q = q.order_by(
-            case(*whens, else_=len(SOURCE_PRIORITY)),
-            nullslast(desc(Poi.rating)),
-            Poi.city,
-        )
-        pois_rows = q.all() if args.ranked_csv else q.limit(args.limit).all()
+        pois_rows: list[Poi] = []
+        if not args.restaurants_only:
+            q = s.query(Poi).filter(
+                Poi.status == "active", Poi.ta_location_id.is_(None)
+            )
+            if city_filter:
+                q = q.filter(Poi.city.in_(city_filter))
+            whens = [
+                (Poi.source == src, rank) for rank, src in enumerate(SOURCE_PRIORITY)
+            ]
+            q = q.order_by(
+                case(*whens, else_=len(SOURCE_PRIORITY)),
+                nullslast(desc(Poi.rating)),
+                Poi.city,
+            )
+            pois_rows = q.all() if args.ranked_csv else q.limit(args.limit).all()
         for p in pois_rows:
             if _is_missed(missed, "pois", p.id):
                 continue
@@ -475,18 +584,23 @@ def main() -> None:
                         if args.ranked_csv else 10**9,
             })
 
-        qr = s.query(Restaurant).filter(
-            Restaurant.status == "active", Restaurant.ta_location_id.is_(None)
-        )
-        if city_filter:
-            qr = qr.filter(Restaurant.city.in_(city_filter))
-        whens_r = [(Restaurant.source == src, rank) for rank, src in enumerate(SOURCE_PRIORITY)]
-        qr = qr.order_by(
-            case(*whens_r, else_=len(SOURCE_PRIORITY)),
-            nullslast(desc(Restaurant.rating)),
-            Restaurant.city,
-        )
-        rest_rows = qr.all() if args.ranked_csv else qr.limit(max(0, args.limit - len(targets))).all()
+        rest_rows: list[Restaurant] = []
+        if not args.pois_only:
+            qr = s.query(Restaurant).filter(
+                Restaurant.status == "active", Restaurant.ta_location_id.is_(None)
+            )
+            if city_filter:
+                qr = qr.filter(Restaurant.city.in_(city_filter))
+            whens_r = [
+                (Restaurant.source == src, rank)
+                for rank, src in enumerate(SOURCE_PRIORITY)
+            ]
+            qr = qr.order_by(
+                case(*whens_r, else_=len(SOURCE_PRIORITY)),
+                nullslast(desc(Restaurant.rating)),
+                Restaurant.city,
+            )
+            rest_rows = qr.all() if args.ranked_csv else qr.limit(max(0, args.limit - len(targets))).all()
         for r in rest_rows:
             if _is_missed(missed, "rest", r.id):
                 continue
@@ -516,10 +630,12 @@ def main() -> None:
             targets = deduped
 
         # ---- 台账行优先重试（2026-11-14 用户拍板：台账必须全匹配，滚动重试）----
-        ledger_pois_ids = {
+        ledger_pois_ids = set() if args.restaurants_only else {
             ln[5:] for ln in missed if ln.startswith("pois:")
         } | {ln for ln in missed if re.fullmatch(r"[0-9a-fA-F-]{36}", ln or "")}
-        ledger_rest_ids = {ln[5:] for ln in missed if ln.startswith("rest:")}
+        ledger_rest_ids = set() if args.pois_only else {
+            ln[5:] for ln in missed if ln.startswith("rest:")
+        }
         retried = 0
         if ledger_pois_ids:
             for p in (
@@ -664,6 +780,16 @@ def main() -> None:
                     f"{'pois' if t['table'] == 'pois' else 'rest'}:{t['row'].id}"
                     for t in unmatched
                 ]
+                if args.pois_only:  # pois-only 轮不动 restaurants 台账行
+                    still += sorted(
+                        ln for ln in missed if ln.startswith("rest:")
+                    )
+                if args.restaurants_only:  # restaurants-only 轮不动 pois 台账行
+                    still += sorted(
+                        ln for ln in missed
+                        if ln.startswith("pois:")
+                        or re.fullmatch(r"[0-9a-fA-F-]{36}", ln or "")
+                    )
                 _MISS_FILE.write_text(
                     "\n".join(dict.fromkeys(still)) + ("\n" if still else ""),
                     encoding="utf-8",

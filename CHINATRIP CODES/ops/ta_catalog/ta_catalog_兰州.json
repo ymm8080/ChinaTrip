@@ -234,6 +234,151 @@
    "name_zh": "兰州伊斯兰文化艺术馆",
    "name_en": "",
    "reviews": 3
+  },
+  "5117153": {
+   "name_zh": "白银路街道便民一条街",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5117152": {
+   "name_zh": "八路军驻甘办事处与甘肃抗日救亡展览",
+   "name_en": "",
+   "reviews": 0
+  },
+  "1851240": {
+   "name_zh": "邓家花园",
+   "name_en": "",
+   "reviews": 0
+  },
+  "1851242": {
+   "name_zh": "德哇仓文殊佛殿",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5117157": {
+   "name_zh": "地５大道地下商业街",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5117156": {
+   "name_zh": "都市春天奇石文化城",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5117158": {
+   "name_zh": "敦煌艺术馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5117163": {
+   "name_zh": "甘肃省艺术馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5117165": {
+   "name_zh": "谷仓艺术馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5117168": {
+   "name_zh": "建兰路步行街",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5117166": {
+   "name_zh": "教育世家商业步行街",
+   "name_en": "",
+   "reviews": 0
+  },
+  "2003052": {
+   "name_zh": "金城大剧院",
+   "name_en": "",
+   "reviews": 0
+  },
+  "1851321": {
+   "name_zh": "金天观",
+   "name_en": "",
+   "reviews": 0
+  },
+  "1851354": {
+   "name_zh": "兰炼水上公园",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5117172": {
+   "name_zh": "兰石展馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5117173": {
+   "name_zh": "兰州黄河奇石协会展览馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5117174": {
+   "name_zh": "兰州金街",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5117175": {
+   "name_zh": "兰州奇石街",
+   "name_en": "",
+   "reviews": 0
+  },
+  "2079837": {
+   "name_zh": "兰州五一山森林生态旅游区",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5117181": {
+   "name_zh": "兰州市十一五规划展馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5117178": {
+   "name_zh": "墨缘艺术馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5117193": {
+   "name_zh": "瑞德摩尔商业步行街",
+   "name_en": "",
+   "reviews": 0
+  },
+  "1851356": {
+   "name_zh": "石头坪森林公园",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5117188": {
+   "name_zh": "桃海商业步行街",
+   "name_en": "",
+   "reviews": 0
+  },
+  "1851219": {
+   "name_zh": "天斧沙宫",
+   "name_en": "",
+   "reviews": 0
+  },
+  "1851353": {
+   "name_zh": "西固公园",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5117203": {
+   "name_zh": "新港城商业步行街",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5117207": {
+   "name_zh": "艺术学院展览中心",
+   "name_en": "",
+   "reviews": 0
+  },
+  "1851247": {
+   "name_zh": "庄严寺",
+   "name_en": "",
+   "reviews": 0
   }
  },
  "restaurants": {
@@ -1385,7 +1530,7 @@
  },
  "gid": "297409",
  "pages_crawled": {
-  "attractions": 1,
-  "restaurants": 1
+  "attractions": 16,
+  "restaurants": 15
  }
 }

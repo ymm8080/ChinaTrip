@@ -105,6 +105,56 @@ def test_services_for_reads_injected_store():
         configure_store(None)
 
 
+class _MixedModeStore:
+    """同点混有常规公交与景区专线（2026-11-23「any bus → taxi」口径）。"""
+
+    def access_services(self, cities=None):  # noqa: ANN001
+        base = {
+            "city": "北京",
+            "outbound_times": ["08:00", "09:00"],
+            "ride_minutes": 90,
+            "official_status": "verified",
+            "window_source": "official",
+        }
+        return [
+            dict(
+                base,
+                poi_name="慕田峪长城",
+                mode="shuttle",
+                service_name="慕田峪通游专线",
+                boarding_stop="前门站",
+            ),
+            dict(
+                base,
+                poi_name="慕田峪长城",
+                mode="bus",
+                service_name="877路",
+                boarding_stop="北土城地铁站",
+            ),
+            dict(
+                base,
+                poi_name="八达岭长城",
+                mode="bus",
+                service_name="877路",
+                boarding_stop="北土城地铁站",
+            ),
+        ]
+
+
+def test_services_for_drops_bus_in_favour_of_taxi():
+    """2026-11-23 用户拍板「any bus should be replaced by taxi」：常规公交
+    （mode=bus）在 services_for 单点剔除，best_service / fastest_service /
+    service_options 等消费方口径一致；某点只剩公交时返回空表，调用方回落
+    打车链。景区直通车/旅游专线（shuttle）照旧保留。"""
+    configure_store(_MixedModeStore())
+    try:
+        names = [s.service_name for s in services_for("北京", "慕田峪长城")]
+        assert names == ["慕田峪通游专线"], "公交行必须被剔除，专线保留"
+        assert services_for("北京", "八达岭长城") == [], "只剩公交 → 空表（改打车）"
+    finally:
+        configure_store(None)
+
+
 def _visit(item_id: str, name: str, lon: float, lat: float, start=None, end=None):
     item = VisitItem(
         item_id=item_id,

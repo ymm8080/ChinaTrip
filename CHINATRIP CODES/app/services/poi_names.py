@@ -91,6 +91,44 @@ def place_core(name: str | None) -> str:
     return s
 
 
+# --- 餐槽展示后缀清洗（R28 止污）------------------------------------------
+
+#: 尾部餐槽标注：全角/半角括号包裹的早餐/午餐/晚饭/晚餐/夜宵/下午茶及
+#: 英文；忽略大小写。真店名以「（午餐）」结尾的现实概率约等于零，而
+#: 槽位标注结尾是展示链惯例（LLM 编辑链产物，来源不可拦），误伤面趋零。
+_SLOT_SUFFIX_RE = re.compile(
+    r"\s*[（(]\s*"
+    r"(?:早餐|早饭|午餐|午饭|中饭|晚饭|晚餐|夜宵|下午茶|"
+    r"breakfast|lunch|dinner|supper|afternoon\s+tea|tea)"
+    r"\s*[)）]\s*$",
+    re.IGNORECASE,
+)
+
+
+def clean_meal_slot_suffix(name: object) -> str:
+    """剥掉 POI 展示名尾部的餐槽标注，返回干净名（R28 止污）。
+
+    历史事故链：展示名「虹鱒鱼一条街农家菜（午餐）」被 ``plan._enrich_hours``
+    / ``_hours_db_pass`` 原样当 POI 真名 upsert 进库 → 图商检索/换点/详情
+    链全用污名 → 检索必失败（WAF/配额白烧）、TA 目录「无过阈候选」、
+    污染名永久固化在 pois.name_zh。类级修法：数据入口统一清洗——读库
+    查询词、图商检索关键词、写库 upsert、引擎候选名（live ``_candidate``）
+    与 legacy 候选名（``candidate_from_poi_dict``）共用本函数，库行脏不
+    脏都不外露后缀；LLM 下次再拼，入口再剥，名字永不固化。
+
+    None/空白 → ""；无尾部标注 → 原样 strip；连续标注循环剥净（防御）。
+    """
+    text = str(name or "").strip()
+    if not text:
+        return ""
+    while True:
+        stripped = _SLOT_SUFFIX_RE.sub("", text).strip()
+        if stripped == text or not stripped:
+            break
+        text = stripped
+    return text
+
+
 # --- 拉丁专名容错匹配（2026-11-17 ZHUJIAZUI 案）--------------------------
 # 用户打「ZHUJIAZUI」（朱家嘴的拼音，实指朱家角）时底库没有任何行逐字命中：
 # 整词/内核两档都是精确匹配，永远不中，只有 LLM 通道能救——而 LLM 把与这

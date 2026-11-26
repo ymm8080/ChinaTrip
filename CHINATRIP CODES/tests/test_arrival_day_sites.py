@@ -86,8 +86,8 @@ def test_generic_entry_cap_start_based_all_days():
     assert generic_entry_cap(light, None) == 16 * 60 + 30
     big = _visit("wall", dur=120)
     wb = PoiHours(poi_id="wall", opens=time(9, 0), closes=time(21, 0))
-    assert generic_entry_cap(big, wb) == 930
-    assert generic_entry_cap(big, None) == 930
+    assert generic_entry_cap(big, wb) == 16 * 60
+    assert generic_entry_cap(big, None) == 16 * 60
 
 
 def test_arrival_day_wall_not_placed_after_gate():

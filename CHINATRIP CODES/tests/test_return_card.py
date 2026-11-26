@@ -117,7 +117,9 @@ def test_return_card_is_separate_and_sorted_after_lunch():
     card = next(i for i in out.days[0].items if i.item_id == card_id)
     # ① 开始=最近返程班次发车（午饭 14:08 散场 + 步行 8 → 14:16 → 14:30）
     assert card.start_time == time(14, 30)
-    assert card.end_time == time(16, 0)  # ② 结束=到市区落点
+    assert card.end_time == time(
+        16, 8
+    )  # ② 结束=到市区落点（R38 含下客步行，与卡面 arrive_city 同口径）
     assert card.synthetic is True
     assert card.category == "transfer"
     assert card.next_leg_detail is not None
@@ -282,7 +284,9 @@ def test_plain_tail_return_when_last_stop_has_no_shuttle():
     detail = site.next_leg_detail
     assert detail is not None
     assert detail["direction"] == "return" and detail["to_city"] is True
-    assert detail["mode"] == "taxi" and detail["service_name"] == ""
+    # R49：接驳空槽改发 None（不再伪造「有一段空接驳」——线上曾据此渲染出
+    # 「🎟 购票 / 打车约 ¥X + 接驳约 ¥0」无信息退化块）。
+    assert detail["mode"] == "taxi" and detail["service_name"] is None
     assert detail["taxi_km"] > 40
     assert detail["depart_time"] == "15:00"
     assert site.next_leg_minutes == detail["taxi_minutes"]

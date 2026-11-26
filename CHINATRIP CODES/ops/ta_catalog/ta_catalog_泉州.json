@@ -1,7 +1,7 @@
 {
  "pages_crawled": {
-  "attractions": 2,
-  "restaurants": 2
+  "attractions": 17,
+  "restaurants": 16
  },
  "attractions": {
   "487762": {
@@ -278,6 +278,141 @@
    "name_zh": "状元街",
    "name_en": "",
    "reviews": 4
+  },
+  "27966971": {
+   "name_zh": "Quanzhou Haisi Wild Animals World",
+   "name_en": "",
+   "reviews": 0
+  },
+  "27967193": {
+   "name_zh": "Quanzhou Shaolin Temple",
+   "name_en": "",
+   "reviews": 0
+  },
+  "33990898": {
+   "name_zh": "Xunpu Village",
+   "name_en": "",
+   "reviews": 0
+  },
+  "1851121": {
+   "name_zh": "泉州刺桐公园",
+   "name_en": "",
+   "reviews": 0
+  },
+  "2051423": {
+   "name_zh": "法石真武庙",
+   "name_en": "",
+   "reviews": 0
+  },
+  "2051188": {
+   "name_zh": "杨阿苗故居",
+   "name_en": "",
+   "reviews": 0
+  },
+  "1851122": {
+   "name_zh": "泉州海印寺",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5118675": {
+   "name_zh": "后城古玩街",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5118674": {
+   "name_zh": "辉大水岸商业步行街",
+   "name_en": "",
+   "reviews": 0
+  },
+  "16646639": {
+   "name_zh": "芥子书屋",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5118680": {
+   "name_zh": "泉展商贸街",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5118685": {
+   "name_zh": "泉州海交民俗文化陈列馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5118753": {
+   "name_zh": "泉州侨乡商品街",
+   "name_en": "",
+   "reviews": 0
+  },
+  "2051011": {
+   "name_zh": "泉州水上乐园",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5118683": {
+   "name_zh": "泉州文物碑拓展览馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5118688": {
+   "name_zh": "泉州展览城",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5118682": {
+   "name_zh": "泉州市科技馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5118684": {
+   "name_zh": "泉州市鲤城墨龙艺术馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5118762": {
+   "name_zh": "泉州市艺术馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "3363502": {
+   "name_zh": "三秋网上超市(丰泽街)",
+   "name_en": "",
+   "reviews": 0
+  },
+  "2051189": {
+   "name_zh": "石笋",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5118689": {
+   "name_zh": "双阳华侨农场陈列室",
+   "name_en": "",
+   "reviews": 0
+  },
+  "1871345": {
+   "name_zh": "苏夫人姑庙",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5118691": {
+   "name_zh": "万荣精品步行街",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5118692": {
+   "name_zh": "万维生邮票艺术馆",
+   "name_en": "",
+   "reviews": 0
+  },
+  "2051187": {
+   "name_zh": "围头湾",
+   "name_en": "",
+   "reviews": 0
+  },
+  "5118697": {
+   "name_zh": "正金门展馆",
+   "name_en": "",
+   "reviews": 0
   }
  },
  "restaurants": {

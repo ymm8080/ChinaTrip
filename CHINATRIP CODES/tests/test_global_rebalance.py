@@ -114,6 +114,27 @@ def test_ranges_closed_trip_tail_city_days_is_return_marker():
     }
 
 
+def test_ranges_closed_trip_tail_city_real_stay():
+    # 2026-11-22 北京案：结束城市填 2 天 = 真实停留（不是返程标记）。
+    # 8 天 北京→成都 3→重庆 3→北京 2：北京占最后两天，回城日=day7
+    # （旧版北京 0 天、重庆吃到 day8、故宫/天安门全落 unplaced）。
+    assert _city_day_ranges(
+        ["北京", "成都", "重庆", "北京"], 8, {"成都": 3, "重庆": 3, "北京": 2}
+    ) == {
+        "成都": (1, 3),
+        "重庆": (4, 6),
+        "北京": (7, 8),
+    }
+    # 真实目的地每家至少 1 天：尾城停 30 天不许把成都/重庆挤没
+    assert _city_day_ranges(
+        ["北京", "成都", "重庆", "北京"], 8, {"成都": 1, "重庆": 1, "北京": 30}
+    ) == {
+        "成都": (1, 1),
+        "重庆": (2, 2),
+        "北京": (3, 8),
+    }
+
+
 def test_rebalance_fills_return_day_under_closed_ranges():
     # ranges 来自 _city_day_ranges（含尾城标记）时，返程日 day_city 必须解析
     # 到末位真实目的地（重庆）而不是死窗上海——回填不再跳过返程日。
