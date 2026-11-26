@@ -776,6 +776,135 @@ def _plan_shrunk(plan, snapshot) -> bool:
     return len(getattr(plan, "days", None) or []) < expected
 
 
+#: R40（2026-11-25 用户「鸟巢排到 20:30 FIX / 最早班次是 8:30」）：当天末尾
+#: 必去开场晚于该点即视为「过晚」——真正病根是远郊日 CP-SAT 在 3s 墙帽下
+#: 只跑到 coverage 层，班次的早发偏好（makespan tier）没参与，首班车被停在
+#: 非最早班（慕田峪 09:30）→ 回城 18:08 → 末尾必去 20:30+ 晚于停止入园。
+#: 阈值取 20:00：19:30 这样的合理晚场不触发，只有明确过晚才回推首班车。
+TAIL_LATE_START_MINUTES = 20 * 60
+
+
+def _latest_must_start(outcome, snapshot) -> tuple[int, int] | None:
+    """(day, latest must start_min) of any must-visit in the delivered plan.
+
+    Reads the FINAL plan cards, not the raw solution: post-processing
+    (``_open_meal_leg_gaps`` / meal retime) can push a must card past its raw
+    solver start (R40 live: raw 19:30 → delivered 20:45), and the tail check
+    must see the time the user actually gets. Musts match by name (plan cards
+    carry ``item_id`` not the candidate ``cid``); structural cards excluded.
+    Falls back to raw solution items when the plan has no timed must card
+    (keeps R24/R32 fake-solution tests working).
+    """
+    plan = getattr(outcome, "plan", None)
+    must_names = {
+        str(getattr(m, "name", "") or "")
+        for m in (getattr(getattr(snapshot, "request", None), "musts", ()) or ())
+    }
+    latest: tuple[int, int] | None = None
+    for day in getattr(plan, "days", ()) or ():
+        for item in getattr(day, "items", ()) or ():
+            if (getattr(item, "category", None) or "") in (
+                "food", "hotel", "transport", "transfer"
+            ):
+                continue
+            if str(getattr(item, "name", "") or "") not in must_names:
+                continue
+            st = getattr(item, "start_time", None)
+            if st is None:
+                continue
+            minute = int(st.hour) * 60 + int(st.minute)
+            if latest is None or minute > latest[1]:
+                latest = (int(getattr(day, "day", 1)), minute)
+    if latest is not None:
+        return latest
+    # fallback: raw solution items (fake fixtures / plan without timed cards)
+    solution = getattr(outcome, "solution", None)
+    if solution is None:
+        return None
+    by_rid: dict[str, set[str]] = {}
+    for cand in getattr(snapshot, "candidates", ()) or ():
+        if getattr(cand, "rid", None):
+            by_rid.setdefault(str(cand.rid), set()).add(cand.cid)
+    must_cids: set[str] = set()
+    for req in getattr(getattr(snapshot, "request", None), "musts", ()) or ():
+        must_cids |= by_rid.get(str(getattr(req, "rid", "") or ""), set())
+    for item in getattr(solution, "items", ()) or ():
+        if item.cid not in must_cids:
+            continue
+        cand = next((c for c in snapshot.candidates if c.cid == item.cid), None)
+        if cand is not None and (getattr(cand, "category", None) or "") in (
+            "food", "hotel", "transport", "transfer"
+        ):
+            continue
+        start_min = getattr(item, "start_min", None)
+        if start_min is None:
+            continue
+        if latest is None or start_min > latest[1]:
+            latest = (int(getattr(item, "day", 1)), int(start_min))
+    return latest
+
+
+def _earliest_shuttle_snapshot(snapshot, day: int, plan) -> tuple | None:
+    """R40: re-cast snapshot with the day's remote first shuttle pinned to its
+    earliest departable bus (08:30-class), when that remote is actually placed
+    on ``day`` and currently left on a later bus. Returns None if nothing to
+    change (no profile / user already pinned / already earliest).
+
+    Uses only ``snapshot.access_profiles`` + the final plan's access cards —
+    no enrich, no I/O. ``chosen_depart`` narrowing is the existing R19 path and
+    does NOT flip ``pinned_with_time`` (that reads request.pins only), so no
+    entry-cap exemption leaks in.
+    """
+    from .model.c05_c08 import DEFAULT_FIRST_SHUTTLE_MIN
+
+    profiles_by_poi: dict[str, object] = {}
+    for prof in getattr(snapshot, "access_profiles", ()) or ():
+        profiles_by_poi[str(getattr(prof, "to_poi", "") or "")] = prof
+    if not profiles_by_poi:
+        return None
+    day_plan = next((d for d in getattr(plan, "days", ()) or () if d.day == day), None)
+    if day_plan is None:
+        return None
+    from app.services.itinerary.models import VisitItem
+
+    out = []
+    changed = False
+    for cand in snapshot.candidates:
+        dep = getattr(cand, "chosen_depart", None)
+        if dep:  # user-picked shuttle is explicit authority — never override
+            out.append(cand)
+            continue
+        key = str(getattr(cand, "poi_id", "") or getattr(cand, "cid", "") or "")
+        prof = profiles_by_poi.get(key)
+        if prof is None or not getattr(prof, "departures", ()):
+            out.append(cand)
+            continue
+        # earliest bus at/after the R12-H4 default floor (07:30 excluded)
+        earliest = next(
+            (
+                d for d in sorted(getattr(prof, "departures"))
+                if int(d.split(":")[0]) * 60 + int(d.split(":")[1])
+                >= DEFAULT_FIRST_SHUTTLE_MIN
+            ),
+            None,
+        )
+        if earliest is None:
+            out.append(cand)
+            continue
+        # only pin remotes actually placed on the reported day
+        placed = any(
+            isinstance(it, VisitItem)
+            and it.poi_id == getattr(cand, "poi_id", None)
+            for it in day_plan.items
+        )
+        if not placed:
+            out.append(cand)
+            continue
+        out.append(replace(cand, chosen_depart=earliest))
+        changed = True
+    return replace(snapshot, candidates=tuple(out)) if changed else None
+
+
 def _recover_outcome(snapshot, outcome, budget_s):
     """R24/R25 引擎原生恢复：回落 legacy 前先给引擎一次翻盘机会。
 
@@ -784,8 +913,10 @@ def _recover_outcome(snapshot, outcome, budget_s):
     「NO MEANING TO RUN LEGACY. WE NEED TO RUN CP-SAT TO REPLACE LEGACY」）。
     R32 追加：盘形状健康但有时限内的覆盖损失（必去被丢）同样重解——
     tier① 的 FEASIBLE 值会被等式锁死，不重解就静默丢失必去。
+    R40 追加：盘形状健康但当天末尾必去过晚（开场≥20:00，晚于停止入园）时，
+    把当天远郊首班车 pin 到最早可排班次重解——3s 墙帽下早发偏好没参与所致。
     重试自身失败保持原 outcome 的回落语义，绝不把生成打死；重试反而更差
-    （无盘且原盘非空、或覆盖未改善）时保留原盘。
+    （无盘且原盘非空、或覆盖未改善、或末尾没提前）时保留原盘。
     """
     from .entry import ENGINE_CPSAT, solve_trip
 
@@ -801,11 +932,35 @@ def _recover_outcome(snapshot, outcome, budget_s):
         and not shrunk
         and missing > 0
     )
+    # R40: healthy plan but the day's tail must starts too late → retry with
+    # the remote's first shuttle pinned to the earliest departable bus.
+    late = _latest_must_start(outcome, snapshot)
+    tail_retry = (
+        outcome.engine == ENGINE_CPSAT
+        and plan is not None
+        and not shrunk
+        and not coverage_retry
+        and missing == 0
+        and late is not None
+        and late[1] >= TAIL_LATE_START_MINUTES
+    )
+    if not tail_retry:
+        early_snapshot = None
+    else:
+        early_snapshot = _earliest_shuttle_snapshot(snapshot, late[0], plan)
+        if early_snapshot is None or early_snapshot is snapshot:
+            tail_retry = False
+    if late is not None and late[1] >= TAIL_LATE_START_MINUTES:
+        logger.info(
+            "R40 tail-late detected: day=%d start=%d trigger=%s early_snapshot=%s",
+            late[0], late[1], tail_retry, early_snapshot is not None,
+        )
     if (
         outcome.engine == ENGINE_CPSAT
         and plan is not None
         and not shrunk
         and not coverage_retry
+        and not tail_retry
     ):
         return outcome
     retry_budget = (
@@ -819,9 +974,13 @@ def _recover_outcome(snapshot, outcome, budget_s):
     # no-plan/shrunk outcome has no usable incumbent (and _apply_hint would hint
     # every presence to 0), so those retries keep the cold start.
     retry_hint = outcome.solution if coverage_retry else None
+    # R40: the tail retry solves a snapshot whose day's first shuttle is pinned
+    # to the earliest departable bus (R19 chosen_depart path, cold start — the
+    # old solution's dep would fight the pin). Other paths keep the raw snapshot.
+    solve_snapshot_in = early_snapshot if tail_retry else snapshot
     try:
         retry = solve_trip(
-            snapshot,
+            solve_snapshot_in,
             flag=ENGINE_CPSAT,
             budget_s=retry_budget,
             hint=retry_hint,
@@ -835,6 +994,27 @@ def _recover_outcome(snapshot, outcome, budget_s):
         # 重试没把覆盖率救回来（或更差）就保留原盘，绝不倒退。
         if retry_missing >= 0 and retry_missing >= missing:
             return outcome
+    if tail_retry:
+        retry_late = _latest_must_start(retry, solve_snapshot_in)
+        retry_missing = _uncovered_must_count(retry, snapshot)
+        # 只有当重解确实把末尾必去提前（更早开场）且没丢必去时才采用，
+        # 否则保留原盘。两个条件缺一不可，绝不倒退。
+        improved = (
+            retry_late is not None
+            and late is not None
+            and retry_late[1] < late[1]
+        )
+        if (retry_missing >= 0 and retry_missing > 0) or not improved:
+            return outcome
+        retry.disclosures = list(getattr(retry, "disclosures", None) or []) + [
+            {
+                "zh": "当天末尾必去开场过晚，已将首个景点去程班次提前至最早可排班车，"
+                      "整段行程相应前移",
+                "en": "The day's last must-visit started too late — moved the "
+                      "first site's outbound shuttle to the earliest available "
+                      "departure and pulled the whole day earlier.",
+            }
+        ]
     return retry
 
 
